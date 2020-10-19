@@ -1,0 +1,33 @@
+{
+  "name": "rev-dep",
+  "version": "0.1.0",
+  "description": "Reverse dependency resolution tool built with dependency-cruiser",
+  "main": "find.js",
+  "bin": "cli.js",
+  "author": "Jakub Mazurek @jayu",
+  "license": "MIT",
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "lint": "eslint *.js",
+    "lint:fix": "eslint --fix *.js",
+    "format": "prettier --check *.js",
+    "format:fix": "prettier --write *.js",
+    "cli": "node cli.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "commander": "^6.1.0",
+    "dependency-cruiser": "^9.15.0"
+  },
+  "devDependencies": {
+    "eslint": "^7.11.0",
+    "eslint-config-prettier": "^6.13.0",
+    "eslint-plugin-jest": "^24.1.0",
+    "eslint-plugin-node": "^11.1.0",
+    "jest": "^26.5.3",
+    "mock-fs": "^4.13.0",
+    "prettier": "^2.1.2"
+  }
+}

@@ -11,6 +11,11 @@
   ],
   "author": "Jakub Mazurek @jayu",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jayu/rev-dep"
+  },
+  "homepage": "https://github.com/jayu/rev-dep#readme",
   "engines": {
     "node": ">=10"
   },

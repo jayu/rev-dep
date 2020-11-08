@@ -1,4 +1,4 @@
-const find = require('../find.js')
+const { find } = require('../find.js')
 jest.mock('../getDepsSet.js')
 const getDepsSet = require('../getDepsSet')
 

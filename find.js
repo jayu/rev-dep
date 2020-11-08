@@ -1,3 +1,4 @@
+const path = require('path')
 const getDepsSet = require('./getDepsSet')
 
 const buildTree = (deps) => (entryPoint) => {
@@ -37,13 +38,19 @@ const traverse = (file) => (tree) => {
 
 const removeInitialDot = (path) => path.replace(/^\.\//, '')
 
+const resolveAbsolutePath = (cwd) => (p) => path.resolve(cwd, p)
+
 const find = ({
   entryPoints,
-  absoluteEntryPoints,
   file,
   skipRegex,
-  verbose
+  verbose,
+  cwd = process.cwd()
 }) => {
+  const absoluteEntryPoints = entryPoints.map((e) =>
+    resolveAbsolutePath(cwd)(e)
+  )
+
   if (verbose) {
     console.log('Entry points:')
     console.log(absoluteEntryPoints)
@@ -65,4 +72,4 @@ const find = ({
   return resolvedPaths
 }
 
-module.exports = find
+module.exports = { find }

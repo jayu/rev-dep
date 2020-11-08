@@ -1,18 +1,15 @@
 #!/usr/bin/env node
 
-const path = require('path')
 const package = require('./package.json')
 const { Command } = require('commander')
 
-const find = require('./find')
+const { find } = require('./find')
 const program = new Command('rev-dep')
 program.version(package.version, '-v, --version')
 
 const pathToString = (str, f, i) => {
-  return `${str}\n${' '.repeat(i)} ➞ ${f}`
+  return `${str ? `${str}\n` : ''}${' '.repeat(i)} ➞ ${f}`
 }
-
-const resolveAbsolutePath = (p) => path.resolve(process.cwd(), p)
 
 program
   .command('resolve <file> <entryPoints...>')
@@ -20,11 +17,10 @@ program
     '-cs, --compactSummary',
     'print a compact summary of reverse resolution with a count of found paths'
   )
-  .option('-ve, --verbose', 'print current action information')
+  .option('--verbose', 'print current action information')
   .action((filePath, entryPoints, data) => {
     const { compactSummary, verbose } = data
     const results = find({
-      absoluteEntryPoints: entryPoints.map((e) => resolveAbsolutePath(e)),
       entryPoints: entryPoints,
       file: filePath,
       verbose

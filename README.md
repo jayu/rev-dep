@@ -98,6 +98,17 @@ console.log(path)
 - `verbose (Boolean)` - when set to true, will print current operation performed by find function. _Optional_, default: `false`
 - `cwd` - root for resolved files, must be an absolute path. _Optional_, default: `process.cwd()`
 
+### Additional setup may be required
+
+#### Resolving implicit file extensions
+
+A vast amount of JS/TS projects are configured in a way that allows (or even forces) to skip file extensions in import statements. Rev-dep is strongly based on [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) which by default support implicit file extensions for `*.js, *.cjs, *.mjs, *.jsx` files (check [source](https://github.com/sverweij/dependency-cruiser/blob/96e34d0cf158034f2b7c8cafe9cec72dd74d8c45/src/extract/transpile/meta.js)).
+In order to resolve implicit extensions for other JS based languages it look for available corresponding compiler in `package.json`. If compiler is available, then extension is supported.
+
+If you installed `rev-dep` **globally**, you will have appropriate compiler installed **globally** as well. If you use it as a module, your project has to have compiler in it's package.json.
+
+For example, to support `*.ts` and `*.tsx` implicit extensions in globally installed `rev-dep`, you have to also install globally `typescript` package (see [source](https://github.com/sverweij/dependency-cruiser/blob/96e34d0cf158034f2b7c8cafe9cec72dd74d8c45/src/extract/transpile/typescript-wrap.js))
+
 ## Contributing
 
 Project is open to contributions, just rise an issue if you have some ideas about features or you noticed a bug. After discussion we can approach implementation :)

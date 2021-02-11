@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "commander": "^6.1.0",
-    "dependency-cruiser": "^9.15.0"
+    "dependency-cruiser": "9.23.0"
   },
   "devDependencies": {
     "eslint": "^7.11.0",

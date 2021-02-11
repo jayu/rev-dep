@@ -38,26 +38,31 @@ const traverse = (file) => (tree) => {
 
 const removeInitialDot = (path) => path.replace(/^\.\//, '')
 
-const resolveAbsolutePath = (cwd) => (p) => path.resolve(cwd, p)
+const _resolveAbsolutePath = (cwd) => (p) => typeof p === 'string' ? path.resolve(cwd, p) : p
 
 const find = ({
   entryPoints,
-  file,
+  filePath,
   skipRegex,
   verbose,
+  webpackConfig,
   cwd = process.cwd()
 }) => {
-  const absoluteEntryPoints = entryPoints.map((e) =>
-    resolveAbsolutePath(cwd)(e)
-  )
+  const resolveAbsolutePath = _resolveAbsolutePath(cwd)
+  const absoluteEntryPoints = entryPoints.map(resolveAbsolutePath)
 
   if (verbose) {
     console.log('Entry points:')
     console.log(absoluteEntryPoints)
     console.log('Getting dependency set for entry points...')
   }
-  const deps = getDepsSet(absoluteEntryPoints, skipRegex)
+  const deps = getDepsSet(
+    absoluteEntryPoints,
+    skipRegex,
+    resolveAbsolutePath(webpackConfig)
+  )
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
+  const cleanedFilePath = removeInitialDot(filePath)
   if (verbose) {
     console.log('Building dependency trees for entry points...')
   }
@@ -66,7 +71,7 @@ const find = ({
     console.log('Finding paths in dependency trees...')
   }
   const resolvedPaths = forest.reduce((allPaths, tree) => {
-    const paths = traverse(file)(tree)
+    const paths = traverse(cleanedFilePath)(tree)
     return [...allPaths, paths]
   }, [])
   return resolvedPaths

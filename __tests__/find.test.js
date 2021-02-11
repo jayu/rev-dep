@@ -7,7 +7,7 @@ test('It throws error for nonexisting dependency', () => {
   expect(() =>
     find({
       entryPoints: ['index.js'],
-      file: 'file.js'
+      filePath: 'file.js'
     })
   ).toThrow()
 })
@@ -29,7 +29,7 @@ test('It should resolve path for simple tree', () => {
   ])
   const result = find({
     entryPoints: ['index.js'],
-    file: 'file.js'
+    filePath: 'file.js'
   })
   expect(result).toMatchObject([[['index.js', 'file.js']]])
 })
@@ -59,7 +59,7 @@ test('It should find two paths for the same file', () => {
   ])
   const result = find({
     entryPoints: ['index.js', 'index2.js'],
-    file: 'file.js'
+    filePath: 'file.js'
   })
   expect(result).toMatchObject([
     [['index.js', 'file.js']],
@@ -92,7 +92,7 @@ test('It should find path for a file via another file', () => {
   ])
   const result = find({
     entryPoints: ['index.js'],
-    file: 'file.js'
+    filePath: 'file.js'
   })
   expect(result).toMatchObject([[['index.js', 'module.js', 'file.js']]])
 })
@@ -122,7 +122,7 @@ test('It should find paths for a file for entry points in different directories'
   ])
   const result = find({
     entryPoints: ['index.js', 'dir/index.js'],
-    file: 'file.js'
+    filePath: 'file.js'
   })
   expect(result).toMatchObject([
     [['index.js', 'file.js']],

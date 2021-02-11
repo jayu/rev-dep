@@ -12,19 +12,29 @@ const pathToString = (str, f, i) => {
 }
 
 program
-  .command('resolve <file> <entryPoints...>')
+  .command('resolve <filePath> <entryPoints...>')
   .option(
     '-cs, --compactSummary',
     'print a compact summary of reverse resolution with a count of found paths'
   )
   .option('--verbose', 'print current action information')
+  .option(
+    '-wc, --webpackConfig <path>',
+    'path to webpack config to enable webpack aliases support'
+  )
   .action((filePath, entryPoints, data) => {
-    const { compactSummary, verbose } = data
+    const { compactSummary, verbose, webpackConfig } = data
     const results = find({
-      entryPoints: entryPoints,
-      file: filePath,
-      verbose
+      entryPoints,
+      filePath,
+      verbose,
+      webpackConfig
     })
+    const hasAnyResults = results.some((paths) => paths.length > 0)
+    if (!hasAnyResults) {
+      console.log('No results found for', filePath, 'in', entryPoints)
+      return
+    }
     console.log('Results:\n')
     if (compactSummary) {
       const maxEntryLength = entryPoints.reduce((maxLength, entryPoint) => {

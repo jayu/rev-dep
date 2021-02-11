@@ -46,7 +46,7 @@ Results:
    ➞ getDepsSet.js
 ```
 
-What says that `getDepsSet.js` file is used in `cli.js` entry point and is required through `find.js`
+Which says that `getDepsSet.js` file is used in `cli.js` entry point and is required through `find.js`
 
 ## About
 
@@ -54,7 +54,7 @@ The tool was created to determine places in the project where a particular file 
 
 It's especially useful in JS world without TypeScript or tests coverage.
 
-Except the reverse dependency resolution path, it can print statistics about how many times a particular module is required in the project, which might be helpful for planning code-splitting.
+Except the reverse dependency resolution path, it can print statistics about how many times a particular module is required in the project, which might be helpful for code-splitting planning.
 
 ## Usage
 
@@ -67,13 +67,14 @@ Avaliable commands:
 #### `resolve`
 
 ```sh
-rev-dep resolve <file> <entryPoints...>
+rev-dep resolve <filePath> <entryPoints...>
 ```
 
 Available options are
 
 - `-cs or --compactSummary` - instead of file paths print a compact summary of reverse resolution with a count of found paths
 - `--verbose` - log currently performed operation
+- `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support
 
 ### Module
 
@@ -84,7 +85,7 @@ import { find } from 'rev-dep'
 
 const path = find({
   entryPoints: ['index.js'],
-  file: 'utils.js'
+  filePath: 'utils.js'
 })
 
 console.log(path)
@@ -93,10 +94,11 @@ console.log(path)
 #### `find` Options
 
 - `entryPoints (Array)` - Array of entry points to build a tree for search. Usually it will be one entry point, but project can have many of them, eg. next.js application. **Required**
-- `file (String)` - A file that we want to find path for. **Required**
+- `filePath (String)` - A file that we want to find path for. **Required**
 - `skipRegex (String | RegExp)` - If a file path matches the pattern, we stop to traverse it's dependencies and do not include that file in the search tree. _Optional_, default: `'(node_modules|/__tests__|/__test__|/__mockContent__|.scss)'`
 - `verbose (Boolean)` - when set to true, will print current operation performed by find function. _Optional_, default: `false`
 - `cwd` - root for resolved files, must be an absolute path. _Optional_, default: `process.cwd()`
+- `webpackConfig (String)` - path to webpack config to enable webpack aliases support
 
 ### Additional setup may be required
 

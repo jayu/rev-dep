@@ -22,13 +22,18 @@ program
     '-wc, --webpackConfig <path>',
     'path to webpack config to enable webpack aliases support'
   )
+  .option(
+    '-tc, --typescriptConfig <path>',
+    'path to TypeScript config to enable TS aliases support'
+  )
   .action((filePath, entryPoints, data) => {
-    const { compactSummary, verbose, webpackConfig } = data
+    const { compactSummary, verbose, webpackConfig, typescriptConfig } = data
     const results = find({
       entryPoints,
       filePath,
       verbose,
-      webpackConfig
+      webpackConfig,
+      typescriptConfig
     })
     const hasAnyResults = results.some((paths) => paths.length > 0)
     if (!hasAnyResults) {

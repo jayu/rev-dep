@@ -46,6 +46,7 @@ const find = ({
   skipRegex,
   verbose,
   webpackConfig,
+  typescriptConfig,
   cwd = process.cwd()
 }) => {
   const resolveAbsolutePath = _resolveAbsolutePath(cwd)
@@ -59,7 +60,8 @@ const find = ({
   const deps = getDepsSet(
     absoluteEntryPoints,
     skipRegex,
-    resolveAbsolutePath(webpackConfig)
+    resolveAbsolutePath(webpackConfig),
+    resolveAbsolutePath(typescriptConfig)
   )
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
   const cleanedFilePath = removeInitialDot(filePath)

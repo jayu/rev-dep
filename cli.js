@@ -26,9 +26,10 @@ program
     '-tc, --typescriptConfig <path>',
     'path to TypeScript config to enable TS aliases support'
   )
-  .action((filePath, entryPoints, data) => {
+  .action(async (filePath, entryPoints, data) => {
     const { compactSummary, verbose, webpackConfig, typescriptConfig } = data
-    const results = find({
+
+    const results = await find({
       entryPoints,
       filePath,
       verbose,
@@ -54,13 +55,15 @@ program
     } else {
       results.forEach((entryPointResults, index) => {
         entryPointResults.forEach((path) => {
-          console.log(path.reduce(pathToString, ''))
+          console.log(path.reduce(pathToString, ''), '\n')
         })
         if (index < results.length - 1) {
           console.log('_'.repeat(process.stdout.columns))
         }
       })
     }
+
+
   })
 
 program.parse(process.argv)

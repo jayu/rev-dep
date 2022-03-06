@@ -1,5 +1,7 @@
 const path = require('path')
 const getDepsSet = require('./getDepsSet')
+const { parseDependencyTree } = require('dpdm');
+const escapeGlob = require('glob-escape');
 
 const buildTree = (deps) => (entryPoint) => {
   const inner = (path) => {
@@ -16,6 +18,39 @@ const buildTree = (deps) => (entryPoint) => {
         }
         return inner(d.resolved)
       })
+    }
+  }
+  return inner(entryPoint)
+}
+
+const buildTreeDpdm = (_deps) => (entryPoint) => {
+
+  const deps = Object.entries(_deps).reduce((deps, [id, data]) => {
+    if (!id.includes('node_modules')) {
+      return Object.assign({}, deps, { [id]: data ? data.filter(({ id }) => id && !id.includes('node_modules')) : data })
+    }
+    return deps
+  }, {})
+
+  const inner = (path, visited = new Set()) => {
+    if (visited.has(path)) {
+      return {
+        path,
+        children: []
+      }
+    }
+    visited.add(path);
+    const dep = deps[path]
+    if (dep === undefined) {
+      throw new Error(`Dependency '${path}' not found!`)
+    }
+
+    return {
+      path,
+      children: (dep || [])
+        .map(d => d.id)
+        .filter(path => path && !path.includes('node_modules'))
+        .map((path) => inner(path, visited))
     }
   }
   return inner(entryPoint)
@@ -40,7 +75,7 @@ const removeInitialDot = (path) => path.replace(/^\.\//, '')
 
 const _resolveAbsolutePath = (cwd) => (p) => typeof p === 'string' ? path.resolve(cwd, p) : p
 
-const find = ({
+const find = async ({
   entryPoints,
   filePath,
   skipRegex,
@@ -51,24 +86,26 @@ const find = ({
 }) => {
   const resolveAbsolutePath = _resolveAbsolutePath(cwd)
   const absoluteEntryPoints = entryPoints.map(resolveAbsolutePath)
+  const globEscapedEntryPoints = entryPoints.map(escapeGlob);
 
   if (verbose) {
     console.log('Entry points:')
     console.log(absoluteEntryPoints)
     console.log('Getting dependency set for entry points...')
   }
-  const deps = getDepsSet(
+  const deps = typescriptConfig ? await parseDependencyTree(globEscapedEntryPoints, { context: process.cwd() }) : getDepsSet(
     absoluteEntryPoints,
     skipRegex,
     resolveAbsolutePath(webpackConfig),
     resolveAbsolutePath(typescriptConfig)
   )
+
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
   const cleanedFilePath = removeInitialDot(filePath)
   if (verbose) {
     console.log('Building dependency trees for entry points...')
   }
-  const forest = cleanedEntryPoints.map(buildTree(deps))
+  const forest = cleanedEntryPoints.map(typescriptConfig ? buildTreeDpdm(deps) : buildTree(deps))
   if (verbose) {
     console.log('Finding paths in dependency trees...')
   }

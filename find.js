@@ -3,6 +3,45 @@ const getDepsSet = require('./getDepsSet')
 const { parseDependencyTree } = require('dpdm');
 const escapeGlob = require('glob-escape');
 
+const getEntryPoints = (deps) => {
+  const referencedIds = new Set();
+
+  Object.values(deps).forEach((entry) => {
+    if (entry !== null) {
+      entry.forEach(({ id }) => referencedIds.add(id))
+    }
+  })
+
+  return Object.keys(deps).filter((id) => !/(api|pages)/.test(id) && /\.(ts|tsx|mjs|js|jsx|json)$/.test(id) && !/node_modules|\.test|\.sql|\.stories/.test(id) && !referencedIds.has(id))
+}
+
+const getMaxDepth = (depth = 1, path = [], cache = new Map()) => {
+
+  return (tree) => {
+    const depthFromCache = cache.get(tree.path)
+
+    if (depthFromCache) {
+      return depthFromCache
+    }
+
+    const newPath = [...path, tree.path];
+
+    if (tree.children.length === 0) {
+      return [depth, newPath]
+    }
+
+    const results = tree.children.map(getMaxDepth(depth + 1, newPath, cache))
+
+    const maxChildDepth = Math.max(...results.map(([depth]) => depth))
+
+    const itemWithMaxDepth = results.find(([depth]) => depth === maxChildDepth);
+
+    cache.set(tree.path, itemWithMaxDepth)
+
+    return itemWithMaxDepth
+  }
+}
+
 const buildTree = (deps) => (entryPoint) => {
   const inner = (path) => {
     const dep = deps.find((d) => d.source === path)
@@ -23,7 +62,7 @@ const buildTree = (deps) => (entryPoint) => {
   return inner(entryPoint)
 }
 
-const buildTreeDpdm = (_deps) => (entryPoint) => {
+const buildTreeDpdm = (_deps, maxDepth, filePath) => (entryPoint) => {
 
   const deps = Object.entries(_deps).reduce((deps, [id, data]) => {
     if (!id.includes('node_modules')) {
@@ -32,32 +71,73 @@ const buildTreeDpdm = (_deps) => (entryPoint) => {
     return deps
   }, {})
 
-  const inner = (path, visited = new Set()) => {
-    if (visited.has(path)) {
+  const cache = new Map();
+  const fileNodes = [];
+
+  const inner = (path, visited = new Set(), depth = 1, parent = null) => {
+    // console.log(visited)
+    const nodeFromCache = cache.get(path)
+
+    if (nodeFromCache) {
+      nodeFromCache.parents.push(parent)
+
+      return nodeFromCache
+    }
+
+    const localVisited = new Set(visited)
+
+    // if (depth > maxDepth) {
+    //   return {
+    //     path,
+    //     parent,
+    //     children: []
+    //   }
+    // }
+
+    if (localVisited.has(path)) {
+      // throw new Error('circular' + ([...localVisited.values(), path].join(', ')))
+      console.error('CIRCULAR DEP', ...localVisited.values(), path)
       return {
-        path,
+        path: 'CIRCULAR',
+        parent,
         children: []
       }
     }
-    visited.add(path);
+
+    localVisited.add(path);
+
     const dep = deps[path]
     if (dep === undefined) {
       throw new Error(`Dependency '${path}' not found!`)
     }
 
-    return {
+    const node = {
+      parents: parent ? [parent] : [],
       path,
-      children: (dep || [])
-        .map(d => d.id)
-        .filter(path => path && !path.includes('node_modules'))
-        .map((path) => inner(path, visited))
     }
+
+    const children = (dep || [])
+      .map(d => d.id)
+      .filter(path => path && !path.includes('node_modules'))
+      .map((path) => inner(path, localVisited, depth + 1, node))
+
+    node.children = children
+    cache.set(path, node)
+
+    // console.log('cache set', node)
+
+    if (path === filePath) {
+      fileNodes.push(node)
+    }
+
+    return node
   }
-  return inner(entryPoint)
+  return [inner(entryPoint), fileNodes]
 }
 
 const traverse = (file) => (tree) => {
   if (tree.path === file) {
+    // console.log('found leaf')
     return [[file]]
   } else {
     return tree.children
@@ -71,6 +151,15 @@ const traverse = (file) => (tree) => {
   }
 }
 
+const resolvePathsToRoot = (node, resolvedPaths = [[]]) => {
+  const newPaths = resolvedPaths.map((resolvedPath) => [node.path, ...resolvedPath])
+  if (node.parents.length === 0) {
+    console.log('fount path end', resolvedPaths.length)
+    return newPaths
+  }
+
+  return node.parents.map((parentPath) => resolvePathsToRoot(parentPath, newPaths)).flat(1)
+}
 const removeInitialDot = (path) => path.replace(/^\.\//, '')
 
 const _resolveAbsolutePath = (cwd) => (p) => typeof p === 'string' ? path.resolve(cwd, p) : p
@@ -82,7 +171,10 @@ const find = async ({
   verbose,
   webpackConfig,
   typescriptConfig,
-  cwd = process.cwd()
+  cwd = process.cwd(),
+  maxDepth,
+  printMaxDepth,
+  printDependentCount
 }) => {
   const resolveAbsolutePath = _resolveAbsolutePath(cwd)
   const absoluteEntryPoints = entryPoints.map(resolveAbsolutePath)
@@ -100,20 +192,54 @@ const find = async ({
     resolveAbsolutePath(typescriptConfig)
   )
 
+  console.log('deps', deps)
+
+  const possibleEntryPoints = getEntryPoints(await parseDependencyTree(
+    ['./db/**/*', './app/**/*', './jobs/**/*', './utils/**/*'],
+    { context: process.cwd() }
+  ));
+  console.log('possibleEntryPoints', possibleEntryPoints);
+  console.log('possibleEntryPoints', possibleEntryPoints.slice(100));
+  console.log('possibleEntryPoints', possibleEntryPoints.slice(200));
+
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
   const cleanedFilePath = removeInitialDot(filePath)
   if (verbose) {
     console.log('Building dependency trees for entry points...')
   }
-  const forest = cleanedEntryPoints.map(typescriptConfig ? buildTreeDpdm(deps) : buildTree(deps))
+  const forest = cleanedEntryPoints.map(typescriptConfig ? buildTreeDpdm(deps, maxDepth, cleanedFilePath) : buildTree(deps))
+
+  if (printMaxDepth) {
+    forest.forEach((maybeTree) => {
+      const tree = typescriptConfig ? maybeTree[0] : maybeTree
+      console.log('Max depth', ...getMaxDepth()(tree))
+    })
+  }
+
+  if (printDependentCount) {
+    console.log('Deps count ', deps.length || Object.keys(deps).length)
+  }
+
   if (verbose) {
     console.log('Finding paths in dependency trees...')
   }
-  const resolvedPaths = forest.reduce((allPaths, tree) => {
-    const paths = traverse(cleanedFilePath)(tree)
-    return [...allPaths, paths]
-  }, [])
-  return resolvedPaths
+  if (!typescriptConfig) {
+
+    const resolvedPaths = forest.reduce((allPaths, tree) => {
+      const paths = traverse(cleanedFilePath)(tree)
+      return [...allPaths, paths]
+    }, [])
+    return resolvedPaths
+  }
+  else {
+    const resolvedPaths = forest.reduce((allPaths, [tree, fileNodes]) => {
+      console.log(fileNodes[0])
+      const pathsForTree = fileNodes.map((fileNode) => resolvePathsToRoot(fileNode)).flat(1)
+      console.log(pathsForTree)
+      return [...allPaths, pathsForTree]
+    }, [])
+    return resolvedPaths
+  }
 }
 
 module.exports = { find }

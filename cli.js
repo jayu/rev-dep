@@ -26,15 +26,33 @@ program
     '-tc, --typescriptConfig <path>',
     'path to TypeScript config to enable TS aliases support'
   )
+  .option(
+    '-md, --maxDepth <maxDepth>',
+    'max depth of the dependency tree',
+    10
+  )
+  .option(
+    '-pmd, --printMaxDepth',
+    'print max depth in the tree',
+    false
+  )
+  .option(
+    '-pdc, --printDependentCount',
+    'print count of entry point dependencies',
+    false
+  )
   .action(async (filePath, entryPoints, data) => {
-    const { compactSummary, verbose, webpackConfig, typescriptConfig } = data
+    const { compactSummary, verbose, webpackConfig, typescriptConfig, maxDepth, printMaxDepth, printDependentCount } = data
 
     const results = await find({
       entryPoints,
       filePath,
       verbose,
       webpackConfig,
-      typescriptConfig
+      typescriptConfig,
+      maxDepth,
+      printMaxDepth,
+      printDependentCount
     })
     const hasAnyResults = results.some((paths) => paths.length > 0)
     if (!hasAnyResults) {

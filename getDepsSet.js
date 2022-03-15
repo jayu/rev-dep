@@ -15,7 +15,26 @@ const getDepsSet = (entryPoints, skipRegex, webpackConfigPath, tsConfigPath) => 
     tsPreCompilationDeps: true,
 
   }, webpackResolveOptions, tsConfigOptions)
-  return result.output.modules
+
+  const normalized = {}
+  const nonResolvableDeps = [];
+
+  result.output.modules.forEach((mod) => {
+    const { source, dependencies } = mod
+    if (!nonResolvableDeps.includes(source)) {
+      normalized[source] = dependencies.filter(({ couldNotResolve, resolved: id }) => {
+        if (couldNotResolve) {
+          nonResolvableDeps.push(id)
+        }
+        return !couldNotResolve
+      }).map(({ resolved, module }) => ({
+        id: resolved,
+        request: module
+      }))
+    }
+  })
+
+  return normalized;
 }
 
 module.exports = getDepsSet

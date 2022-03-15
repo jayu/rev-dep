@@ -12,7 +12,7 @@ const pathToString = (str, f, i) => {
 }
 
 program
-  .command('resolve <filePath> <entryPoints...>')
+  .command('resolve <filePath> [entryPoints...]')
   .option(
     '-cs, --compactSummary',
     'print a compact summary of reverse resolution with a count of found paths'
@@ -41,8 +41,13 @@ program
     'print count of entry point dependencies',
     false
   )
+  .option(
+    '-co, --checkOnly',
+    'finds only one path to entry point instead of all',
+    false
+  )
   .action(async (filePath, entryPoints, data) => {
-    const { compactSummary, verbose, webpackConfig, typescriptConfig, maxDepth, printMaxDepth, printDependentCount } = data
+    const { compactSummary, verbose, webpackConfig, typescriptConfig, maxDepth, printMaxDepth, printDependentCount, checkOnly } = data
 
     const results = await find({
       entryPoints,
@@ -52,7 +57,8 @@ program
       typescriptConfig,
       maxDepth,
       printMaxDepth,
-      printDependentCount
+      printDependentCount,
+      checkOnly
     })
     const hasAnyResults = results.some((paths) => paths.length > 0)
     if (!hasAnyResults) {

@@ -1,18 +1,26 @@
 const path = require('path')
+const fs = require('fs/promises');
 const getDepsSet = require('./getDepsSet')
-const { parseDependencyTree } = require('dpdm');
+const {
+  parseDependencyTree
+} = require('dpdm');
 const escapeGlob = require('glob-escape');
+const minimatch = require("minimatch")
 
-const getEntryPoints = (deps) => {
+const getEntryPoints = (deps, exclude = []) => {
   const referencedIds = new Set();
 
   Object.values(deps).forEach((entry) => {
     if (entry !== null) {
-      entry.forEach(({ id }) => referencedIds.add(id))
+      entry.forEach(({
+        id
+      }) => referencedIds.add(id))
     }
   })
 
-  return Object.keys(deps).filter((id) => !/(api|pages)/.test(id) && /\.(ts|tsx|mjs|js|jsx|json)$/.test(id) && !/node_modules|\.test|\.sql|\.stories/.test(id) && !referencedIds.has(id))
+  return Object.keys(deps)
+    .filter((id) => /\.(ts|tsx|mjs|js|jsx)$/.test(id) && !/node_modules/.test(id) && !referencedIds.has(id))
+    .filter((id) => exclude.reduce((result, pattern) => result && !minimatch(id, pattern), true))
 }
 
 const getMaxDepth = (depth = 1, path = [], cache = new Map()) => {
@@ -42,40 +50,33 @@ const getMaxDepth = (depth = 1, path = [], cache = new Map()) => {
   }
 }
 
-const buildTree = (deps) => (entryPoint) => {
-  const inner = (path) => {
-    const dep = deps.find((d) => d.source === path)
-    if (dep === undefined) {
-      throw new Error(`Dependency '${path}' not found!`)
-    }
+const cleanupDpdmDeps = (deps) => {
+  const newDeps = {}
 
-    return {
-      path,
-      children: dep.dependencies.map((d) => {
-        if (d.circular) {
-          return { path: 'CIRCULAR', children: [] }
-        }
-        return inner(d.resolved)
-      })
+  Object.entries(deps).forEach(([id, dependencies]) => {
+    if (!id.includes('node_modules')) {
+      newDeps[id] = dependencies.filter(({
+        id
+      }) => id && !id.includes('node_modules')).map(({
+        id,
+        request
+      }) => ({
+        id,
+        request
+      }))
     }
-  }
-  return inner(entryPoint)
+  })
+
+  return newDeps
 }
 
-const buildTreeDpdm = (_deps, maxDepth, filePath) => (entryPoint) => {
-
-  const deps = Object.entries(_deps).reduce((deps, [id, data]) => {
-    if (!id.includes('node_modules')) {
-      return Object.assign({}, deps, { [id]: data ? data.filter(({ id }) => id && !id.includes('node_modules')) : data })
-    }
-    return deps
-  }, {})
+const buildTreeDpdm = (deps, maxDepth, filePath) => (entryPoint) => {
+  console.log('build tree for', entryPoint)
 
   const cache = new Map();
-  const fileNodes = [];
+  let fileNode = null;
 
   const inner = (path, visited = new Set(), depth = 1, parent = null) => {
-    // console.log(visited)
     const nodeFromCache = cache.get(path)
 
     if (nodeFromCache) {
@@ -86,16 +87,7 @@ const buildTreeDpdm = (_deps, maxDepth, filePath) => (entryPoint) => {
 
     const localVisited = new Set(visited)
 
-    // if (depth > maxDepth) {
-    //   return {
-    //     path,
-    //     parent,
-    //     children: []
-    //   }
-    // }
-
     if (localVisited.has(path)) {
-      // throw new Error('circular' + ([...localVisited.values(), path].join(', ')))
       console.error('CIRCULAR DEP', ...localVisited.values(), path)
       return {
         path: 'CIRCULAR',
@@ -127,45 +119,76 @@ const buildTreeDpdm = (_deps, maxDepth, filePath) => (entryPoint) => {
     // console.log('cache set', node)
 
     if (path === filePath) {
-      fileNodes.push(node)
+      fileNode = node
     }
 
     return node
   }
-  return [inner(entryPoint), fileNodes]
+  return [inner(entryPoint), fileNode]
 }
 
-const traverse = (file) => (tree) => {
-  if (tree.path === file) {
-    // console.log('found leaf')
-    return [[file]]
-  } else {
-    return tree.children
-      .map(traverse(file)) // [ [[]],[[]],[[]] ]
-      .filter((p) => p.length > 0)
-      .map((pathsArr) => pathsArr.filter((p) => p.length > 0))
-      .reduce((flat, subPath) => {
-        return [...flat, ...subPath]
-      }, [])
-      .map((p) => [tree.path, ...p])
-  }
-}
-
-const resolvePathsToRoot = (node, resolvedPaths = [[]]) => {
+const resolvePathsToRoot = (node, onlyFirst = false, resolvedPaths = [
+  []
+]) => {
   const newPaths = resolvedPaths.map((resolvedPath) => [node.path, ...resolvedPath])
   if (node.parents.length === 0) {
-    console.log('fount path end', resolvedPaths.length)
     return newPaths
   }
 
-  return node.parents.map((parentPath) => resolvePathsToRoot(parentPath, newPaths)).flat(1)
+  if (onlyFirst) {
+    return resolvePathsToRoot(node.parents[0], onlyFirst, newPaths)
+  }
+  return node.parents.map((parentPath) => resolvePathsToRoot(parentPath, false, newPaths)).flat(1)
 }
 const removeInitialDot = (path) => path.replace(/^\.\//, '')
 
 const _resolveAbsolutePath = (cwd) => (p) => typeof p === 'string' ? path.resolve(cwd, p) : p
 
+const asyncFilter = async (arr, predicate) => {
+  const results = await Promise.all(arr.map(predicate));
+
+  return arr.filter((_v, index) => results[index]);
+}
+
+const getDirectoriesForEntryPoints = async (dir) => {
+  const entries = await fs.readdir(dir)
+  const directories = await asyncFilter(entries, async (pathName) => {
+    if (pathName === 'node_modules' || pathName.startsWith('.')) {
+      return false
+    }
+    const stat = await fs.lstat(path.resolve(dir, pathName))
+    return stat.isDirectory()
+  })
+
+  const joinedWithDir = directories.map((pathName) => path.join(dir, pathName));
+
+  return [...joinedWithDir, ...(await Promise.all(joinedWithDir.map(getDirectoriesForEntryPoints))).flat(1)]
+
+}
+
+/**
+ * TODO
+ * - support cruiser conditionally
+ * - reuse already scanned deps
+ */
+const getPossibleEntryPoints = async (cwd) => {
+
+  const dirs = await getDirectoriesForEntryPoints(cwd);
+  console.log('dirs', dirs);
+  const globs = dirs.map((dirName) => path.relative(cwd, dirName)).map((dirName) => `${dirName}/*`)
+  console.log('globs', globs)
+  const possibleEntryPoints = getEntryPoints(await parseDependencyTree(
+    ['*', ...globs], {
+    context: cwd,
+  }
+  ), ['**/*stories*', '**stories**', '**/*test*', '**/pages/**', '**/api/**', 'cypress/**', '**/*config.*']);
+  console.log('possibleEntryPoints', possibleEntryPoints);
+  console.log('possibleEntryPoints.length', possibleEntryPoints.length);
+  return possibleEntryPoints
+}
+
 const find = async ({
-  entryPoints,
+  entryPoints: _entryPoints,
   filePath,
   skipRegex,
   verbose,
@@ -174,9 +197,11 @@ const find = async ({
   cwd = process.cwd(),
   maxDepth,
   printMaxDepth,
-  printDependentCount
+  printDependentCount,
+  checkOnly
 }) => {
   const resolveAbsolutePath = _resolveAbsolutePath(cwd)
+  const entryPoints = _entryPoints.length > 0 ? _entryPoints : await getPossibleEntryPoints(cwd)
   const absoluteEntryPoints = entryPoints.map(resolveAbsolutePath)
   const globEscapedEntryPoints = entryPoints.map(escapeGlob);
 
@@ -185,29 +210,24 @@ const find = async ({
     console.log(absoluteEntryPoints)
     console.log('Getting dependency set for entry points...')
   }
-  const deps = typescriptConfig ? await parseDependencyTree(globEscapedEntryPoints, { context: process.cwd() }) : getDepsSet(
+
+  const deps = typescriptConfig ? cleanupDpdmDeps(await parseDependencyTree(globEscapedEntryPoints, {
+    context: cwd
+  })) : getDepsSet(
     absoluteEntryPoints,
     skipRegex,
     resolveAbsolutePath(webpackConfig),
     resolveAbsolutePath(typescriptConfig)
   )
 
-  console.log('deps', deps)
-
-  const possibleEntryPoints = getEntryPoints(await parseDependencyTree(
-    ['./db/**/*', './app/**/*', './jobs/**/*', './utils/**/*'],
-    { context: process.cwd() }
-  ));
-  console.log('possibleEntryPoints', possibleEntryPoints);
-  console.log('possibleEntryPoints', possibleEntryPoints.slice(100));
-  console.log('possibleEntryPoints', possibleEntryPoints.slice(200));
+  console.log('deps', deps);
 
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
   const cleanedFilePath = removeInitialDot(filePath)
   if (verbose) {
     console.log('Building dependency trees for entry points...')
   }
-  const forest = cleanedEntryPoints.map(typescriptConfig ? buildTreeDpdm(deps, maxDepth, cleanedFilePath) : buildTree(deps))
+  const forest = cleanedEntryPoints.map(buildTreeDpdm(deps, maxDepth, cleanedFilePath))
 
   if (printMaxDepth) {
     forest.forEach((maybeTree) => {
@@ -216,6 +236,8 @@ const find = async ({
     })
   }
 
+  //todo it does not work properly for multiple entry points
+  // Need to count vertices from graph
   if (printDependentCount) {
     console.log('Deps count ', deps.length || Object.keys(deps).length)
   }
@@ -223,23 +245,22 @@ const find = async ({
   if (verbose) {
     console.log('Finding paths in dependency trees...')
   }
-  if (!typescriptConfig) {
 
-    const resolvedPaths = forest.reduce((allPaths, tree) => {
-      const paths = traverse(cleanedFilePath)(tree)
-      return [...allPaths, paths]
-    }, [])
-    return resolvedPaths
-  }
-  else {
-    const resolvedPaths = forest.reduce((allPaths, [tree, fileNodes]) => {
-      console.log(fileNodes[0])
-      const pathsForTree = fileNodes.map((fileNode) => resolvePathsToRoot(fileNode)).flat(1)
-      console.log(pathsForTree)
-      return [...allPaths, pathsForTree]
-    }, [])
-    return resolvedPaths
-  }
+  const resolvedPaths = forest.reduce((allPaths, [tree, fileNode], idx) => {
+    // console.log('FileNode', fileNode)
+    console.log('resolve for', entryPoints[idx])
+    if (!fileNode) {
+      console.log('0')
+      return [...allPaths, []]
+    }
+    const pathsForTree = resolvePathsToRoot(fileNode, checkOnly)
+    console.log(pathsForTree.length)
+
+    return [...allPaths, pathsForTree]
+  }, [])
+  return resolvedPaths
 }
 
-module.exports = { find }
+module.exports = {
+  find
+}

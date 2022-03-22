@@ -1,25 +1,26 @@
-const depcruise = require('dependency-cruiser').cruise
+import { cruise as depcruise, ICruiseResult } from 'dependency-cruiser';
+
 // eslint-disable-next-line
 const resolveWebpackConfig = require('dependency-cruiser/config-utl/extract-webpack-resolve-config')
-// eslint-disable-next-line
-const resolveTsConfig = require('dependency-cruiser/config-utl/extract-ts-config')
-const getDepsSet = (entryPoints, skipRegex, webpackConfigPath, tsConfigPath) => {
+
+export const getDepsSet = (entryPoints: string[], skipRegex: RegExp | undefined, webpackConfigPath: string | undefined) => {
   const skip =
     skipRegex || '(node_modules|/__tests__|/__test__|/__mockContent__|.scss)'
   const webpackResolveOptions = webpackConfigPath ? resolveWebpackConfig(webpackConfigPath) : null
-  const tsConfigOptions = tsConfigPath ? resolveTsConfig(tsConfigPath) : null
 
   const result = depcruise(entryPoints, {
+    //@ts-ignore
     exclude: skip,
+    //@ts-ignore
     doNotFollow: { path: skip },
     tsPreCompilationDeps: true,
 
-  }, webpackResolveOptions, tsConfigOptions)
+  }, webpackResolveOptions)
 
-  const normalized = {}
-  const nonResolvableDeps = [];
+  const normalized = {} as { [key: string]: Array<{ id: string, request: string }> }
+  const nonResolvableDeps = [] as string[];
 
-  result.output.modules.forEach((mod) => {
+  (result.output as ICruiseResult).modules.forEach((mod) => {
     const { source, dependencies } = mod
     if (!nonResolvableDeps.includes(source)) {
       normalized[source] = dependencies.filter(({ couldNotResolve, resolved: id }) => {
@@ -37,4 +38,3 @@ const getDepsSet = (entryPoints, skipRegex, webpackConfigPath, tsConfigPath) => 
   return normalized;
 }
 
-module.exports = getDepsSet

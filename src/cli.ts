@@ -1,14 +1,17 @@
-#!/usr/bin/env node
 
-const package = require('./package.json')
-const { Command } = require('commander')
+import { Command } from 'commander';
+const pkg = require('../package.json')
 
-const { find } = require('./find')
+import { find } from './find';
 const program = new Command('rev-dep')
-program.version(package.version, '-v, --version')
+program.version(pkg.version, '-v, --version')
 
-const pathToString = (str, f, i) => {
-  return `${str ? `${str}\n` : ''}${' '.repeat(i)} ➞ ${f}`
+const pathToString = (str: string, filePath: string, indentation: number) => {
+  return `${str ? `${str}\n` : ''}${' '.repeat(indentation)} ➞ ${filePath}`
+}
+
+type InputParams = {
+  compactSummary?: boolean, verbose?: boolean, webpackConfig?: string, typescriptConfig?: string, maxDepth?: number, printMaxDepth?: boolean, printDependentCount?: boolean, checkOnly?: boolean
 }
 
 program
@@ -29,7 +32,7 @@ program
   .option(
     '-md, --maxDepth <maxDepth>',
     'max depth of the dependency tree',
-    10
+    '10'
   )
   .option(
     '-pmd, --printMaxDepth',
@@ -46,7 +49,7 @@ program
     'finds only one path to entry point instead of all',
     false
   )
-  .action(async (filePath, entryPoints, data) => {
+  .action(async (filePath: string, entryPoints: string[], data: InputParams) => {
     const { compactSummary, verbose, webpackConfig, typescriptConfig, maxDepth, printMaxDepth, printDependentCount, checkOnly } = data
 
     const results = await find({

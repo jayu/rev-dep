@@ -3,10 +3,10 @@ import { cruise as depcruise, ICruiseResult } from 'dependency-cruiser'
 // eslint-disable-next-line
 const resolveWebpackConfig = require('dependency-cruiser/config-utl/extract-webpack-resolve-config')
 
-export const getDepsSet = (
+export const getDepsSetWebpack = (
   entryPoints: string[],
   skipRegex: RegExp | undefined,
-  webpackConfigPath: string | undefined
+  webpackConfigPath: string
 ) => {
   const skip =
     skipRegex || '(node_modules|/__tests__|/__test__|/__mockContent__|.scss)'

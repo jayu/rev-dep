@@ -1,4 +1,4 @@
-import { find } from '../../lib/find'
+import { resolve } from '../../lib/find'
 import commander from 'commander'
 import { InputParams } from './types'
 import { formatResults } from './formatResults'
@@ -19,11 +19,6 @@ export default function createResolve(program: commander.Command) {
       '-tc, --typescriptConfig <path>',
       'path to TypeScript config to enable TS aliases support'
     )
-    .option(
-      '-md, --maxDepth <maxDepth>',
-      'max depth of the dependency tree',
-      '10'
-    )
     .option('-pmd, --printMaxDepth', 'print max depth in the tree', false)
     .option(
       '-pdc, --printDependentCount',
@@ -39,22 +34,18 @@ export default function createResolve(program: commander.Command) {
       async (filePath: string, entryPoints: string[], data: InputParams) => {
         const {
           compactSummary,
-          verbose,
           webpackConfig,
           typescriptConfig,
-          maxDepth,
           printMaxDepth,
           printDependentCount,
           checkOnly
         } = data
 
-        const results = await find({
+        const results = await resolve({
           entryPoints,
           filePath,
-          verbose,
           webpackConfig,
           typescriptConfig,
-          maxDepth,
           printMaxDepth,
           printDependentCount,
           checkOnly

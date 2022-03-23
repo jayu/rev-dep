@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+//eslint-disable-next-line
 const pkg = require('../../package.json')
 
 import { createCommands } from './createCommands'

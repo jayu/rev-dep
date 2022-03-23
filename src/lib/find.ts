@@ -116,14 +116,15 @@ const buildGraphDpdm = (deps: MinimalDependencyTree, filePath: string) => (entry
       throw new Error(`Dependency '${path}' not found!`)
     }
 
-    const node: Node = {
+    const node = {
       parents: parent ? [parent] : [],
       path,
-      children: (dep || [])
-        .map(d => d.id)
-        .filter(path => path !== null && !path.includes('node_modules'))
-        .map((path) => inner(path as string, localVisited, depth + 1, node))
-    }
+    } as Node
+
+    node.children = (dep || [])
+      .map(d => d.id)
+      .filter(path => path !== null && !path.includes('node_modules'))
+      .map((path) => inner(path as string, localVisited, depth + 1, node))
 
     vertices.set(path, node)
 

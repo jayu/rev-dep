@@ -23,7 +23,8 @@
     "lint:fix": "eslint --fix *.js",
     "format": "prettier --check *.js",
     "format:fix": "prettier --write *.js",
-    "cli": "node bin.js",
+    "docs-gen": "node ./scripts/addDocsToReadme.js",
+    "dev": "node bin",
     "test": "jest",
     "release": "release-it",
     "build": "tsc",
@@ -31,7 +32,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@types/dedent": "^0.7.0",
     "commander": "^6.1.0",
+    "dedent": "^0.7.0",
     "dependency-cruiser": "9.23.0",
     "dpdm": "^3.8.0",
     "glob-escape": "^0.0.2",

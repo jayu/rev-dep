@@ -81,14 +81,14 @@ Available options are
 #### `find` Function
 
 ```js
-import { find } from 'rev-dep'
+import { find } from "rev-dep";
 
 const path = find({
-  entryPoints: ['index.js'],
-  filePath: 'utils.js'
-})
+  entryPoints: ["index.js"],
+  filePath: "utils.js",
+});
 
-console.log(path)
+console.log(path);
 ```
 
 #### `find` Options
@@ -110,6 +110,54 @@ In order to resolve implicit extensions for other JS based languages it look for
 If you installed `rev-dep` **globally**, you will have appropriate compiler installed **globally** as well. If you use it as a module, your project has to have compiler in it's package.json.
 
 For example, to support `*.ts` and `*.tsx` implicit extensions in globally installed `rev-dep`, you have to also install globally `typescript` package (see [source](https://github.com/sverweij/dependency-cruiser/blob/96e34d0cf158034f2b7c8cafe9cec72dd74d8c45/src/extract/transpile/typescript-wrap.js))
+
+## CLI reference
+
+<!-- cli-docs-start -->
+
+### Command `resolve`
+
+Description not available
+
+#### Usage
+
+```sh
+rev-dep resolve <filePath> [entryPoints...] [options]
+```
+
+#### Arguments
+
+- `filePath` - undefined (**required**),\* `entryPoints...` - undefined (_optional_)
+
+#### Options
+
+- `-cs, --compactSummary` - print a compact summary of reverse resolution with a count of found paths (_optional_)
+- `--verbose` - print current action information (_optional_)
+- `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
+- `-tc, --typescriptConfig <path>` - path to TypeScript config to enable TS aliases support (_optional_)
+- `-md, --maxDepth <maxDepth>` - max depth of the dependency tree (_optional_)
+- `-pmd, --printMaxDepth` - print max depth in the tree (_optional_)
+- `-pdc, --printDependentCount` - print count of entry point dependencies (_optional_)
+- `-co, --checkOnly` - finds only one path to entry point instead of all (_optional_)
+
+### Command `docs`
+
+Generate documentation of available commands into md file.
+
+#### Usage
+
+```sh
+rev-dep docs <outputPath> [options]
+```
+
+#### Arguments
+
+- `outputPath` - path to output \*.md file (**required**)
+
+#### Options
+
+- `-hl, --headerLevel <value>` - Initial header level (_optional_)
+<!-- cli-docs-end -->
 
 ## Contributing
 

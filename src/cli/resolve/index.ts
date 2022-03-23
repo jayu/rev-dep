@@ -1,13 +1,9 @@
-import { find } from '../../lib/find';
+import { find } from '../../lib/find'
 import commander from 'commander'
-import { InputParams } from './types';
-import { formatResults } from './formatResults';
+import { InputParams } from './types'
+import { formatResults } from './formatResults'
 
 export default function createResolve(program: commander.Command) {
-
-
-
-
   program
     .command('resolve <filePath> [entryPoints...]')
     .option(
@@ -28,11 +24,7 @@ export default function createResolve(program: commander.Command) {
       'max depth of the dependency tree',
       '10'
     )
-    .option(
-      '-pmd, --printMaxDepth',
-      'print max depth in the tree',
-      false
-    )
+    .option('-pmd, --printMaxDepth', 'print max depth in the tree', false)
     .option(
       '-pdc, --printDependentCount',
       'print count of entry point dependencies',
@@ -43,23 +35,39 @@ export default function createResolve(program: commander.Command) {
       'finds only one path to entry point instead of all',
       false
     )
-    .action(async (filePath: string, entryPoints: string[], data: InputParams) => {
-      const { compactSummary, verbose, webpackConfig, typescriptConfig, maxDepth, printMaxDepth, printDependentCount, checkOnly } = data
+    .action(
+      async (filePath: string, entryPoints: string[], data: InputParams) => {
+        const {
+          compactSummary,
+          verbose,
+          webpackConfig,
+          typescriptConfig,
+          maxDepth,
+          printMaxDepth,
+          printDependentCount,
+          checkOnly
+        } = data
 
-      const results = await find({
-        entryPoints,
-        filePath,
-        verbose,
-        webpackConfig,
-        typescriptConfig,
-        maxDepth,
-        printMaxDepth,
-        printDependentCount,
-        checkOnly
-      })
+        const results = await find({
+          entryPoints,
+          filePath,
+          verbose,
+          webpackConfig,
+          typescriptConfig,
+          maxDepth,
+          printMaxDepth,
+          printDependentCount,
+          checkOnly
+        })
 
-      const formatted = formatResults({ results, entryPoints, compactSummary, filePath });
-      console.log(formatted);
+        const formatted = formatResults({
+          results,
+          entryPoints,
+          compactSummary,
+          filePath
+        })
 
-    })
+        console.log(formatted)
+      }
+    )
 }

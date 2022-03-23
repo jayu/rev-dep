@@ -1,4 +1,4 @@
-import { InputParams } from "./types"
+import { InputParams } from './types'
 
 type Results = Array<Array<Array<string>>>
 
@@ -14,12 +14,12 @@ export function formatResults({
   entryPoints,
   compactSummary
 }: {
-  results: Results,
-  compactSummary: InputParams['compactSummary'],
-  entryPoints: string[],
+  results: Results
+  compactSummary: InputParams['compactSummary']
+  entryPoints: string[]
   filePath: string
 }) {
-  let formatted = '';
+  let formatted = ''
   const hasAnyResults = results.some((paths) => paths.length > 0)
   if (!hasAnyResults) {
     formatted = join('No results found for', filePath, 'in', entryPoints)
@@ -32,7 +32,10 @@ export function formatResults({
     }, 0)
     let total = 0
     entryPoints.forEach((entry, index) => {
-      formatted += join(`${entry.padEnd(maxEntryLength)} :`, results[index].length)
+      formatted += join(
+        `${entry.padEnd(maxEntryLength)} :`,
+        results[index].length
+      )
       total += results[index].length
     })
     formatted += join('\nTotal:', total)

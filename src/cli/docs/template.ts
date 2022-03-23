@@ -1,6 +1,6 @@
 import { Command } from './generate'
 import dedent from 'dedent'
-const programName = 'rev-dep';
+const programName = 'rev-dep'
 
 const header = (level: number, ...text: string[]) =>
   '#'.repeat(level) + ' ' + text.join(' ')
@@ -24,34 +24,35 @@ function template(commands: Command[], headerLevel: number) {
       ${header(headerLevel + 1, 'Usage')}
 
       ${codeBlock(
-          ...filterFalsy([
-            programName,
-            cmd.name,
-            ...cmd.arguments.map((arg) => arg.nameRaw),
-            cmd.options.length > 0 ? '[options]' : undefined
-          ])
-        )}
+        ...filterFalsy([
+          programName,
+          cmd.name,
+          ...cmd.arguments.map((arg) => arg.nameRaw),
+          cmd.options.length > 0 ? '[options]' : undefined
+        ])
+      )}
       ${cmd.arguments.length > 0 ? header(headerLevel + 1, 'Arguments') : ''}
 
       ${cmd.arguments.map(
-          ({ name, required, description }) => dedent`
-        * ${code(name)} - ${description} (${required ? requiredStr : optionalStr
-            })
+        ({ name, required, description }) => dedent`
+        * ${code(name)} - ${description} (${
+          required ? requiredStr : optionalStr
+        })
       `
-        )}
+      )}
       
       ${cmd.options.length > 0 ? header(headerLevel + 1, 'Options') : ''}
 
       ${cmd.options
-            .map(
-              ({ shortName, longName, argument, required, description }) => dedent`
+        .map(
+          ({ shortName, longName, argument, required, description }) => dedent`
         * ${code(
-                filterFalsy([shortName, longName]).join(', ') +
-                (argument ? ` ${argument}` : '')
-              )} - ${description} (${required ? requiredStr : optionalStr})
+          filterFalsy([shortName, longName]).join(', ') +
+            (argument ? ` ${argument}` : '')
+        )} - ${description} (${required ? requiredStr : optionalStr})
       `
-            )
-            .join('\n')}
+        )
+        .join('\n')}
 
     `
       })

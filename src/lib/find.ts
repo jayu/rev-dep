@@ -1,37 +1,45 @@
 import path from 'path'
 import fs from 'fs/promises'
 import { getDepsSet } from './getDepsSet'
-import {
-  parseDependencyTree,
-  Dependency,
-  DependencyTree
-} from 'dpdm';
+import { parseDependencyTree, Dependency, DependencyTree } from 'dpdm'
 
 type MinimalDependency = Pick<Dependency, 'id' | 'request'>
-type MinimalDependencyTree = { [key: string]: readonly MinimalDependency[] | null }
-import escapeGlob from 'glob-escape';
-import minimatch from "minimatch";
+type MinimalDependencyTree = {
+  [key: string]: readonly MinimalDependency[] | null
+}
+import escapeGlob from 'glob-escape'
+import minimatch from 'minimatch'
 
-const getEntryPoints = (deps: MinimalDependencyTree, exclude: string[] = []) => {
-  const referencedIds = new Set();
+const getEntryPoints = (
+  deps: MinimalDependencyTree,
+  exclude: string[] = []
+) => {
+  const referencedIds = new Set()
 
   Object.values(deps).forEach((entry) => {
     if (entry !== null) {
-      entry.forEach(({
-        id
-      }) => referencedIds.add(id))
+      entry.forEach(({ id }) => referencedIds.add(id))
     }
   })
 
   return Object.keys(deps)
-    .filter((id) => /\.(ts|tsx|mjs|js|jsx)$/.test(id) && !/node_modules/.test(id) && !referencedIds.has(id))
-    .filter((id) => exclude.reduce((result, pattern) => result && !minimatch(id, pattern), true as boolean))
+    .filter(
+      (id) =>
+        /\.(ts|tsx|mjs|js|jsx)$/.test(id) &&
+        !/node_modules/.test(id) &&
+        !referencedIds.has(id)
+    )
+    .filter((id) =>
+      exclude.reduce(
+        (result, pattern) => result && !minimatch(id, pattern),
+        true as boolean
+      )
+    )
 }
 
 type MaxDepthMeta = [number, string[]]
 
 const getMaxDepth = (depth = 1, path: string[] = [], vertices = new Map()) => {
-
   return (tree: Node): MaxDepthMeta => {
     const depthFromCache = vertices.get(tree.path)
 
@@ -39,7 +47,7 @@ const getMaxDepth = (depth = 1, path: string[] = [], vertices = new Map()) => {
       return depthFromCache
     }
 
-    const newPath = [...path, tree.path];
+    const newPath = [...path, tree.path]
 
     if (tree.children.length === 0) {
       return [depth, newPath]
@@ -49,7 +57,9 @@ const getMaxDepth = (depth = 1, path: string[] = [], vertices = new Map()) => {
 
     const maxChildDepth = Math.max(...results.map(([depth]) => depth))
 
-    const itemWithMaxDepth = results.find(([depth]) => depth === maxChildDepth) as MaxDepthMeta
+    const itemWithMaxDepth = results.find(
+      ([depth]) => depth === maxChildDepth
+    ) as MaxDepthMeta
 
     vertices.set(tree.path, itemWithMaxDepth)
 
@@ -62,15 +72,12 @@ const cleanupDpdmDeps = (deps: MinimalDependencyTree | DependencyTree) => {
 
   Object.entries(deps).forEach(([id, dependencies]) => {
     if (!id.includes('node_modules') && dependencies !== null) {
-      newDeps[id] = dependencies.filter(({
-        id
-      }) => id && !id.includes('node_modules')).map(({
-        id,
-        request
-      }) => ({
-        id,
-        request
-      }))
+      newDeps[id] = dependencies
+        .filter(({ id }) => id && !id.includes('node_modules'))
+        .map(({ id, request }) => ({
+          id,
+          request
+        }))
     }
   })
 
@@ -78,18 +85,25 @@ const cleanupDpdmDeps = (deps: MinimalDependencyTree | DependencyTree) => {
 }
 
 type Node = {
-  path: string;
-  children: Node[];
-  parents: Node[];
+  path: string
+  children: Node[]
+  parents: Node[]
 }
 
-const buildGraphDpdm = (deps: MinimalDependencyTree, filePath: string) => (entryPoint: string) => {
+const buildGraphDpdm = (deps: MinimalDependencyTree, filePath: string) => (
+  entryPoint: string
+) => {
   console.log('build tree for', entryPoint)
 
-  const vertices = new Map();
-  let fileNode = null;
+  const vertices = new Map()
+  let fileNode = null
 
-  const inner = (path: string, visited = new Set(), depth = 1, parent: Node | null = null) => {
+  const inner = (
+    path: string,
+    visited = new Set(),
+    depth = 1,
+    parent: Node | null = null
+  ) => {
     const vertex = vertices.get(path)
 
     if (vertex) {
@@ -109,7 +123,7 @@ const buildGraphDpdm = (deps: MinimalDependencyTree, filePath: string) => (entry
       }
     }
 
-    localVisited.add(path);
+    localVisited.add(path)
 
     const dep = deps[path]
     if (dep === undefined) {
@@ -118,12 +132,12 @@ const buildGraphDpdm = (deps: MinimalDependencyTree, filePath: string) => (entry
 
     const node = {
       parents: parent ? [parent] : [],
-      path,
+      path
     } as Node
 
     node.children = (dep || [])
-      .map(d => d.id)
-      .filter(path => path !== null && !path.includes('node_modules'))
+      .map((d) => d.id)
+      .filter((path) => path !== null && !path.includes('node_modules'))
       .map((path) => inner(path as string, localVisited, depth + 1, node))
 
     vertices.set(path, node)
@@ -139,10 +153,15 @@ const buildGraphDpdm = (deps: MinimalDependencyTree, filePath: string) => (entry
   return [inner(entryPoint), fileNode]
 }
 
-const resolvePathsToRoot = (node: Node, onlyFirst = false, resolvedPaths: Array<Array<string>> = [
-  []
-]): Array<Array<string>> => {
-  const newPaths = resolvedPaths.map((resolvedPath) => [node.path, ...resolvedPath])
+const resolvePathsToRoot = (
+  node: Node,
+  onlyFirst = false,
+  resolvedPaths: Array<Array<string>> = [[]]
+): Array<Array<string>> => {
+  const newPaths = resolvedPaths.map((resolvedPath) => [
+    node.path,
+    ...resolvedPath
+  ])
   if (node.parents.length === 0) {
     return newPaths
   }
@@ -150,16 +169,22 @@ const resolvePathsToRoot = (node: Node, onlyFirst = false, resolvedPaths: Array<
   if (onlyFirst) {
     return resolvePathsToRoot(node.parents[0], onlyFirst, newPaths)
   }
-  return node.parents.map((parentPath) => resolvePathsToRoot(parentPath, false, newPaths)).flat(1)
+  return node.parents
+    .map((parentPath) => resolvePathsToRoot(parentPath, false, newPaths))
+    .flat(1)
 }
 const removeInitialDot = (path: string) => path.replace(/^\.\//, '')
 
-const _resolveAbsolutePath = (cwd: string) => (p: string | undefined) => typeof p === 'string' ? path.resolve(cwd, p) : p
+const _resolveAbsolutePath = (cwd: string) => (p: string | undefined) =>
+  typeof p === 'string' ? path.resolve(cwd, p) : p
 
-export const asyncFilter = async <T>(arr: T[], predicate: (el: T) => Promise<boolean>) => {
-  const results = await Promise.all(arr.map(predicate));
+export const asyncFilter = async <T>(
+  arr: T[],
+  predicate: (el: T) => Promise<boolean>
+) => {
+  const results = await Promise.all(arr.map(predicate))
 
-  return arr.filter((_v, index) => results[index]);
+  return arr.filter((_v, index) => results[index])
 }
 
 const getDirectoriesForEntryPoints = async (dir: string): Promise<string[]> => {
@@ -172,10 +197,14 @@ const getDirectoriesForEntryPoints = async (dir: string): Promise<string[]> => {
     return stat.isDirectory()
   })
 
-  const joinedWithDir = directories.map((pathName) => path.join(dir, pathName));
+  const joinedWithDir = directories.map((pathName) => path.join(dir, pathName))
 
-  return [...joinedWithDir, ...(await Promise.all(joinedWithDir.map(getDirectoriesForEntryPoints))).flat(1)]
-
+  return [
+    ...joinedWithDir,
+    ...(
+      await Promise.all(joinedWithDir.map(getDirectoriesForEntryPoints))
+    ).flat(1)
+  ]
 }
 
 /**
@@ -184,27 +213,44 @@ const getDirectoriesForEntryPoints = async (dir: string): Promise<string[]> => {
  * - reuse already scanned deps
  */
 const getPossibleEntryPoints = async (cwd: string) => {
-
-  const dirs = await getDirectoriesForEntryPoints(cwd);
-  console.log('dirs', dirs);
-  const globs = dirs.map((dirName) => path.relative(cwd, dirName)).map((dirName) => `${dirName}/*`)
+  const dirs = await getDirectoriesForEntryPoints(cwd)
+  console.log('dirs', dirs)
+  const globs = dirs
+    .map((dirName) => path.relative(cwd, dirName))
+    .map((dirName) => `${dirName}/*`)
   console.log('globs', globs)
-  const possibleEntryPoints = getEntryPoints(await parseDependencyTree(
-    ['*', ...globs], {
-    context: cwd,
-  }
-  ), ['**/*stories*', '**stories**', '**/*test*', '**/pages/**', '**/api/**', 'cypress/**', '**/*config.*']);
-  console.log('possibleEntryPoints', possibleEntryPoints);
-  console.log('possibleEntryPoints.length', possibleEntryPoints.length);
+  const possibleEntryPoints = getEntryPoints(
+    await parseDependencyTree(['*', ...globs], {
+      context: cwd
+    }),
+    [
+      '**/*stories*',
+      '**stories**',
+      '**/*test*',
+      '**/pages/**',
+      '**/api/**',
+      'cypress/**',
+      '**/*config.*'
+    ]
+  )
+  console.log('possibleEntryPoints', possibleEntryPoints)
+  console.log('possibleEntryPoints.length', possibleEntryPoints.length)
   return possibleEntryPoints
 }
 
 type FindParams = {
-  entryPoints: string[],
-  filePath: string,
-  skipRegex?: RegExp,
-  cwd?: string;
-  compactSummary?: boolean, verbose?: boolean, webpackConfig?: string, typescriptConfig?: string, maxDepth?: number, printMaxDepth?: boolean, printDependentCount?: boolean, checkOnly?: boolean
+  entryPoints: string[]
+  filePath: string
+  skipRegex?: RegExp
+  cwd?: string
+  compactSummary?: boolean
+  verbose?: boolean
+  webpackConfig?: string
+  typescriptConfig?: string
+  maxDepth?: number
+  printMaxDepth?: boolean
+  printDependentCount?: boolean
+  checkOnly?: boolean
 }
 
 export const find = async ({
@@ -221,9 +267,10 @@ export const find = async ({
   checkOnly
 }: FindParams) => {
   const resolveAbsolutePath = _resolveAbsolutePath(cwd)
-  const entryPoints = _entryPoints.length > 0 ? _entryPoints : await getPossibleEntryPoints(cwd)
+  const entryPoints =
+    _entryPoints.length > 0 ? _entryPoints : await getPossibleEntryPoints(cwd)
   const absoluteEntryPoints = entryPoints.map(resolveAbsolutePath) as string[]
-  const globEscapedEntryPoints = entryPoints.map(escapeGlob);
+  const globEscapedEntryPoints = entryPoints.map(escapeGlob)
 
   if (verbose) {
     console.log('Entry points:')
@@ -231,15 +278,19 @@ export const find = async ({
     console.log('Getting dependency set for entry points...')
   }
 
-  const deps = typescriptConfig ? cleanupDpdmDeps(await parseDependencyTree(globEscapedEntryPoints, {
-    context: cwd
-  })) : getDepsSet(
-    absoluteEntryPoints,
-    skipRegex,
-    resolveAbsolutePath(webpackConfig),
-  )
+  const deps = typescriptConfig
+    ? cleanupDpdmDeps(
+        await parseDependencyTree(globEscapedEntryPoints, {
+          context: cwd
+        })
+      )
+    : getDepsSet(
+        absoluteEntryPoints,
+        skipRegex,
+        resolveAbsolutePath(webpackConfig)
+      )
 
-  console.log('deps', deps);
+  console.log('deps', deps)
 
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
   const cleanedFilePath = removeInitialDot(filePath)

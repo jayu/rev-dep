@@ -5,5 +5,5 @@ export type InputParams = {
   typescriptConfig?: string
   printMaxDepth?: boolean
   printDependentCount?: boolean
-  checkOnly?: boolean
+  all: boolean
 }

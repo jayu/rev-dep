@@ -1,15 +1,7 @@
-type OptionMeta = [string, string]
+type OptionMeta2 = [string, string]
+type OptionMeta3 = [string, string, string]
 
-export const tsConfigOption: OptionMeta = [
-  '-tc, --tsConfig <path>',
-  'path to TypeScript config to enable TS aliases support'
-]
-
-export type TsConfigOptionType = {
-  tsConfig?: string
-}
-
-export const webpackConfigOption: OptionMeta = [
+export const webpackConfigOption: OptionMeta2 = [
   '-wc, --webpackConfig <path>',
   'path to webpack config to enable webpack aliases support'
 ]
@@ -18,16 +10,17 @@ export type WebpackConfigOptionType = {
   webpackConfig?: string
 }
 
-export const cwdOption: OptionMeta = [
+export const cwdOption: OptionMeta3 = [
   '--cwd <path>',
-  'path to a directory that should be used as a resolution root'
+  'path to a directory that should be used as a resolution root',
+  process.cwd()
 ]
 
 export type CwdOptionType = {
-  cwd?: string
+  cwd: string
 }
 
-export const reexportRewireOption: OptionMeta = [
+export const reexportRewireOption: OptionMeta2 = [
   '--rr reexportRewire <value>',
   'resolve actual dependencies for "export * from" statements'
 ]

@@ -1,11 +1,11 @@
 import { MinimalDependencyTree } from './types'
 import minimatch from 'minimatch'
 import path from 'path'
-import { parseDependencyTree } from 'dpdm'
 import fs from 'fs/promises'
 import { asyncFilter } from './utils'
+import { getDepsTree } from './getDepsTree'
 
-export const getDirectoriesForEntryPoints = async (
+export const getDirectoriesForEntryPointsSearch = async (
   dir: string
 ): Promise<string[]> => {
   const entries = await fs.readdir(dir)
@@ -22,12 +22,12 @@ export const getDirectoriesForEntryPoints = async (
   return [
     ...joinedWithDir,
     ...(
-      await Promise.all(joinedWithDir.map(getDirectoriesForEntryPoints))
+      await Promise.all(joinedWithDir.map(getDirectoriesForEntryPointsSearch))
     ).flat(1)
   ]
 }
 
-export const findEntryPoints = (
+export const findEntryPointsInDepsTree = (
   deps: MinimalDependencyTree,
   exclude: string[] = []
 ) => {
@@ -54,33 +54,25 @@ export const findEntryPoints = (
     )
 }
 
-/**
- * TODO
- * - support cruiser conditionally
- * - reuse already scanned deps
- */
-export const getTreeForEntryPointsSearch = async (cwd: string) => {
-  const dirs = await getDirectoriesForEntryPoints(cwd)
+export const getEntryPoints = async ({
+  cwd,
+  exclude,
+  webpackConfigPath
+}: {
+  cwd: string
+  exclude?: string[]
+  webpackConfigPath?: string
+}) => {
+  const dirs = await getDirectoriesForEntryPointsSearch(cwd)
 
   const globs = dirs
     .map((dirName) => path.relative(cwd, dirName))
     .map((dirName) => `${dirName}/*`)
 
-  const possibleEntryPoints = findEntryPoints(
-    await parseDependencyTree(['*', ...globs], {
-      context: cwd
-    }),
-    [
-      '**/*stories*',
-      '**stories**',
-      '**/*test*',
-      '**/pages/**',
-      '**/api/**',
-      'cypress/**',
-      '**/*config.*'
-    ]
-  )
-  console.log('possibleEntryPoints', possibleEntryPoints)
-  console.log('possibleEntryPoints.length', possibleEntryPoints.length)
-  return possibleEntryPoints
+  const globsWithRoot = ['*', ...globs]
+  const depsTree = await getDepsTree(cwd, globsWithRoot, webpackConfigPath)
+
+  const possibleEntryPoints = findEntryPointsInDepsTree(depsTree, exclude)
+
+  return [possibleEntryPoints, depsTree] as [string[], MinimalDependencyTree]
 }

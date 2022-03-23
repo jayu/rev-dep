@@ -1,17 +1,13 @@
-import { getDepsSetWebpack } from './getDepsSetWebpack'
-import { parseDependencyTree } from 'dpdm'
-import { Node } from './types'
-
-import escapeGlob from 'glob-escape'
-import { getTreeForEntryPointsSearch } from './findEntryPoints'
-import { getMaxDepth } from './getMaxDepthInGrapth'
-import { removeInitialDot, _resolveAbsolutePath } from './utils'
-import { cleanupDpdmDeps } from './cleanupDpdmDeps'
 import { buildGraphDpdm } from './buildDepsGraph'
+import { getDepsTree } from './getDepsTree'
+import { getEntryPoints } from './getEntryPoints'
+import { getMaxDepth } from './getMaxDepthInGrapth'
+import { Node } from './types'
+import { removeInitialDot } from './utils'
 
 const resolvePathsToRoot = (
   node: Node,
-  onlyFirst = false,
+  all = false,
   resolvedPaths: Array<Array<string>> = [[]]
 ): Array<Array<string>> => {
   const newPaths = resolvedPaths.map((resolvedPath) => [
@@ -22,57 +18,40 @@ const resolvePathsToRoot = (
     return newPaths
   }
 
-  if (onlyFirst) {
-    return resolvePathsToRoot(node.parents[0], onlyFirst, newPaths)
+  if (all) {
+    return node.parents
+      .map((parentPath) => resolvePathsToRoot(parentPath, all, newPaths))
+      .flat(1)
   }
-  return node.parents
-    .map((parentPath) => resolvePathsToRoot(parentPath, false, newPaths))
-    .flat(1)
+
+  return resolvePathsToRoot(node.parents[0], false, newPaths)
 }
 
 type FindParams = {
   entryPoints: string[]
   filePath: string
-  skipRegex?: RegExp
-  cwd?: string
-  compactSummary?: boolean
   webpackConfig?: string
-  typescriptConfig?: string
+  cwd?: string
   printMaxDepth?: boolean
-  printDependentCount?: boolean
-  checkOnly?: boolean
+  all: boolean
 }
 
 export const resolve = async ({
   entryPoints: _entryPoints,
   filePath,
-  skipRegex,
   webpackConfig,
-  typescriptConfig,
   cwd = process.cwd(),
   printMaxDepth,
-  printDependentCount,
-  checkOnly
+  all
 }: FindParams) => {
-  const resolveAbsolutePath = _resolveAbsolutePath(cwd)
-  const entryPoints =
-    _entryPoints.length > 0
-      ? _entryPoints
-      : await getTreeForEntryPointsSearch(cwd)
-  const absoluteEntryPoints = entryPoints.map(resolveAbsolutePath) as string[]
-  const globEscapedEntryPoints = entryPoints.map(escapeGlob)
+  let deps, entryPoints
 
-  const deps = webpackConfig
-    ? getDepsSetWebpack(
-        absoluteEntryPoints,
-        skipRegex,
-        resolveAbsolutePath(webpackConfig) as string
-      )
-    : cleanupDpdmDeps(
-        await parseDependencyTree(globEscapedEntryPoints, {
-          context: cwd
-        })
-      )
+  if (_entryPoints.length > 0) {
+    entryPoints = _entryPoints
+    deps = await getDepsTree(cwd, entryPoints, webpackConfig)
+  } else {
+    ;[entryPoints, deps] = await getEntryPoints({ cwd })
+  }
 
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
   const cleanedFilePath = removeInitialDot(filePath)
@@ -80,25 +59,21 @@ export const resolve = async ({
   const forest = cleanedEntryPoints.map(buildGraphDpdm(deps, cleanedFilePath))
 
   if (printMaxDepth) {
-    forest.forEach((maybeTree) => {
-      const tree = typescriptConfig ? maybeTree[0] : maybeTree
+    forest.forEach(([tree]) => {
       console.log('Max depth', ...getMaxDepth()(tree))
     })
   }
 
-  //todo it does not work properly for multiple entry points
-  // Need to count vertices from graph
-  if (printDependentCount) {
-    console.log('Deps count ', deps.length || Object.keys(deps).length)
-  }
+  const resolvedPaths = forest.reduce(
+    (allPaths, [_, fileNode]): string[][][] => {
+      if (!fileNode) {
+        return [...allPaths, []]
+      }
+      const pathsForTree = resolvePathsToRoot(fileNode, all)
 
-  const resolvedPaths = forest.reduce((allPaths, [tree, fileNode], idx) => {
-    if (!fileNode) {
-      return [...allPaths, []]
-    }
-    const pathsForTree = resolvePathsToRoot(fileNode, checkOnly)
-
-    return [...allPaths, pathsForTree]
-  }, [])
+      return [...allPaths, pathsForTree]
+    },
+    [] as string[][][]
+  )
   return resolvedPaths as Array<Array<Array<string>>>
 }

@@ -1,8 +1,6 @@
 import commander from 'commander'
 import { InputParams } from './types'
 import {
-  tsConfigOption,
-  TsConfigOptionType,
   webpackConfigOption,
   WebpackConfigOptionType,
   cwdOption,
@@ -10,13 +8,14 @@ import {
   reexportRewireOption,
   ReexportRewireOptionType
 } from '../commonOptions'
+import { sanitizeUserEntryPoints } from '../../lib/utils'
+import { getDepsTree } from '../../lib/getDepsTree'
 
 export default function createFiles(program: commander.Command) {
   program
     .command('files <entryPoint>')
     .description('Get list of files required by entry point')
     .option(...webpackConfigOption)
-    .option(...tsConfigOption)
     .option(...cwdOption)
     .option(...reexportRewireOption)
     .option(
@@ -26,15 +25,29 @@ export default function createFiles(program: commander.Command) {
     )
     .action(
       async (
+        entryPoint: string,
         data: InputParams &
-          TsConfigOptionType &
           WebpackConfigOptionType &
           CwdOptionType &
           ReexportRewireOptionType
       ) => {
-        const { webpackConfig, tsConfig, cwd } = data
+        const { webpackConfig: webpackConfigPath, cwd, count } = data
 
-        console.log('files command')
+        const sanitizedEntryPoints = sanitizeUserEntryPoints([entryPoint])
+
+        const depsTree = await getDepsTree(
+          cwd,
+          sanitizedEntryPoints,
+          webpackConfigPath
+        )
+
+        const filePaths = Object.keys(depsTree)
+
+        if (count) {
+          console.log(filePaths.length)
+        } else {
+          filePaths.forEach((filePath) => console.log(filePath))
+        }
       }
     )
 }

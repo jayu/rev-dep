@@ -2,17 +2,17 @@ import { Node, MinimalDependencyTree } from './types'
 
 export const buildGraphDpdm = (
   deps: MinimalDependencyTree,
-  filePath: string
+  filePath?: string
 ) => (entryPoint: string) => {
   const vertices = new Map()
-  let fileNode = null
+  let fileNode: Node | null = null
 
   const inner = (
     path: string,
     visited = new Set(),
     depth = 1,
     parent: Node | null = null
-  ) => {
+  ): Node => {
     const vertex = vertices.get(path)
 
     if (vertex) {
@@ -24,7 +24,8 @@ export const buildGraphDpdm = (
     const localVisited = new Set(visited)
 
     if (localVisited.has(path)) {
-      console.error('CIRCULAR DEP', ...localVisited.values(), path)
+      // console.error('CIRCULAR DEP', ...localVisited.values(), path)
+
       return {
         path: 'CIRCULAR',
         parents: parent ? [parent] : [],
@@ -57,5 +58,9 @@ export const buildGraphDpdm = (
 
     return node
   }
-  return [inner(entryPoint), fileNode]
+  return [inner(entryPoint), fileNode, vertices] as [
+    Node,
+    Node | null,
+    Map<string, Node>
+  ]
 }

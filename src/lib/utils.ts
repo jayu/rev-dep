@@ -1,9 +1,11 @@
 import path from 'path'
+import escapeGlob from 'glob-escape'
 
 export const removeInitialDot = (path: string) => path.replace(/^\.\//, '')
 
-export const _resolveAbsolutePath = (cwd: string) => (p: string | undefined) =>
-  typeof p === 'string' ? path.resolve(cwd, p) : p
+export const createResolveAbsolutePath = (cwd: string) => (
+  p: string | undefined
+) => (typeof p === 'string' ? path.resolve(cwd, p) : p)
 
 export const asyncFilter = async <T>(
   arr: T[],
@@ -12,4 +14,9 @@ export const asyncFilter = async <T>(
   const results = await Promise.all(arr.map(predicate))
 
   return arr.filter((_v, index) => results[index])
+}
+
+export const sanitizeUserEntryPoints = (entryPoints: string[]) => {
+  const globEscapedEntryPoints = entryPoints.map(escapeGlob)
+  return globEscapedEntryPoints
 }

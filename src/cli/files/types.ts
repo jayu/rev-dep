@@ -1,3 +1,3 @@
 export type InputParams = {
-  printDependentCount?: boolean
+  count?: boolean
 }

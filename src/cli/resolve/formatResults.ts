@@ -44,7 +44,7 @@ export function formatResults({
       entryPointResults.forEach((path) => {
         formatted += join(path.reduce(pathToString, ''), '\n')
       })
-      if (index < results.length - 1) {
+      if (index < results.length - 1 && entryPointResults.length > 0) {
         formatted += join('_'.repeat(process.stdout.columns))
       }
     })

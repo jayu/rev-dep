@@ -1,4 +1,3 @@
-import path from 'path'
 import { Node } from './types'
 
 type MaxDepthMeta = [number, string[]]

@@ -38,6 +38,7 @@
     "dependency-cruiser": "9.23.0",
     "dpdm": "^3.8.0",
     "glob-escape": "^0.0.2",
+    "ignore": "^5.2.0",
     "is-builtin-module": "^3.1.0",
     "minimatch": "^5.0.1"
   },

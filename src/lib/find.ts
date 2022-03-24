@@ -26,12 +26,14 @@ const resolvePathsToRoot = (
   return resolvePathsToRoot(node.parents[0], false, newPaths)
 }
 
-type FindParams = {
+type ResolveParams = {
   entryPoints: string[]
   filePath: string
   webpackConfig?: string
   cwd?: string
   all: boolean
+  exclude?: string[]
+  include?: string[]
 }
 
 export const resolve = async ({
@@ -39,15 +41,17 @@ export const resolve = async ({
   filePath,
   webpackConfig,
   cwd = process.cwd(),
-  all
-}: FindParams) => {
+  all,
+  include,
+  exclude
+}: ResolveParams) => {
   let deps, entryPoints
 
   if (_entryPoints.length > 0) {
     entryPoints = _entryPoints
     deps = await getDepsTree(cwd, entryPoints, webpackConfig)
   } else {
-    ;[entryPoints, deps] = await getEntryPoints({ cwd })
+    ;[entryPoints, deps] = await getEntryPoints({ cwd, exclude, include })
   }
 
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)

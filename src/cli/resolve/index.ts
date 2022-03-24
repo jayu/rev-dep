@@ -9,7 +9,11 @@ import {
   reexportRewireOption,
   WebpackConfigOptionType,
   CwdOptionType,
-  ReexportRewireOptionType
+  ReexportRewireOptionType,
+  IncludeOptionType,
+  ExcludeOptionType,
+  includeOption,
+  excludeOption
 } from '../commonOptions'
 
 export default function createResolve(program: commander.Command) {
@@ -25,6 +29,8 @@ export default function createResolve(program: commander.Command) {
     .option(...webpackConfigOption)
     .option(...cwdOption)
     .option(...reexportRewireOption)
+    .option(...includeOption)
+    .option(...excludeOption)
     .option(
       '-cs, --compactSummary',
       'print a compact summary of reverse resolution with a count of found paths'
@@ -41,9 +47,18 @@ export default function createResolve(program: commander.Command) {
         data: InputParams &
           WebpackConfigOptionType &
           CwdOptionType &
-          ReexportRewireOptionType
+          ReexportRewireOptionType &
+          IncludeOptionType &
+          ExcludeOptionType
       ) => {
-        const { compactSummary, webpackConfig, all, cwd } = data
+        const {
+          compactSummary,
+          webpackConfig,
+          all,
+          cwd,
+          exclude,
+          include
+        } = data
 
         const sanitizedEntryPoints = sanitizeUserEntryPoints(entryPoints)
 
@@ -52,7 +67,9 @@ export default function createResolve(program: commander.Command) {
           filePath,
           webpackConfig,
           all,
-          cwd: resolvePath(cwd)
+          cwd: resolvePath(cwd),
+          exclude,
+          include
         })
 
         const formatted = formatResults({

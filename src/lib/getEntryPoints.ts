@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import { asyncFilter } from './utils'
 import { getDepsTree } from './getDepsTree'
+import ignore from 'ignore'
 
 export const getDirectoriesForEntryPointsSearch = async (
   dir: string
@@ -29,7 +30,8 @@ export const getDirectoriesForEntryPointsSearch = async (
 
 export const findEntryPointsInDepsTree = (
   deps: MinimalDependencyTree,
-  exclude: string[] = []
+  exclude: string[] = [],
+  include: string[] | undefined = undefined
 ) => {
   const referencedIds = new Set()
 
@@ -52,15 +54,26 @@ export const findEntryPointsInDepsTree = (
         true as boolean
       )
     )
+    .filter((id) =>
+      include
+        ? include.reduce(
+            (result, pattern) => result || minimatch(id, pattern),
+            false as boolean
+          )
+        : true
+    )
+    .sort()
 }
 
 export const getEntryPoints = async ({
   cwd,
   exclude,
+  include,
   webpackConfigPath
 }: {
   cwd: string
   exclude?: string[]
+  include?: string[]
   webpackConfigPath?: string
 }) => {
   const dirs = await getDirectoriesForEntryPointsSearch(cwd)
@@ -72,7 +85,31 @@ export const getEntryPoints = async ({
   const globsWithRoot = ['*', ...globs]
   const depsTree = await getDepsTree(cwd, globsWithRoot, webpackConfigPath)
 
-  const possibleEntryPoints = findEntryPointsInDepsTree(depsTree, exclude)
+  const possibleEntryPoints = findEntryPointsInDepsTree(
+    depsTree,
+    exclude,
+    include
+  )
+  const ignoreInstance = ignore()
 
-  return [possibleEntryPoints, depsTree] as [string[], MinimalDependencyTree]
+  let gitignore = ''
+
+  try {
+    gitignore = (await fs.readFile(path.join(cwd, '.gitignore'))).toString()
+    const lines = gitignore.split('\n')
+    const nonCommentedNonEmptyLines = lines
+      .filter((line) => !/^(\s*)#/.test(line))
+      .filter((line) => !/^(\s*)$/.test(line))
+
+    gitignore = nonCommentedNonEmptyLines.join('\n')
+  } catch (e) {
+    e
+  }
+
+  ignoreInstance.add(gitignore)
+
+  return [ignoreInstance.filter(possibleEntryPoints), depsTree] as [
+    string[],
+    MinimalDependencyTree
+  ]
 }

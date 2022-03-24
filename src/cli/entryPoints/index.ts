@@ -6,7 +6,11 @@ import {
   cwdOption,
   CwdOptionType,
   reexportRewireOption,
-  ReexportRewireOptionType
+  ReexportRewireOptionType,
+  includeOption,
+  IncludeOptionType,
+  excludeOption,
+  ExcludeOptionType
 } from '../commonOptions'
 import { getEntryPoints } from '../../lib/getEntryPoints'
 import { buildGraphDpdm } from '../../lib/buildDepsGraph'
@@ -19,27 +23,37 @@ export default function createEntryPoints(program: commander.Command) {
     .option(...webpackConfigOption)
     .option(...cwdOption)
     .option(...reexportRewireOption)
+    .option(...includeOption)
+    .option(...excludeOption)
     .option(
       '-pdc, --printDependenciesCount',
       'print count of entry point dependencies',
       false
     )
+    .option('-c, --count', 'print just count of found entry points', false)
     .action(
       async (
         data: InputParams &
           WebpackConfigOptionType &
           CwdOptionType &
-          ReexportRewireOptionType
+          ReexportRewireOptionType &
+          IncludeOptionType &
+          ExcludeOptionType
       ) => {
         const {
           webpackConfig: webpackConfigPath,
           cwd,
-          printDependenciesCount
+          printDependenciesCount,
+          include,
+          exclude,
+          count
         } = data
 
         const [entryPoints, depsTree] = await getEntryPoints({
           cwd: resolvePath(cwd),
-          webpackConfigPath
+          webpackConfigPath,
+          exclude,
+          include
         })
 
         let depsCount: number[] | null = null
@@ -50,6 +64,10 @@ export default function createEntryPoints(program: commander.Command) {
             .map(([_, __, vertices]) => vertices.size)
         }
 
+        if (count) {
+          console.log('Found', entryPoints.length, 'entry points.')
+          return
+        }
         if (entryPoints.length === 0) {
           console.log('No results found')
           return

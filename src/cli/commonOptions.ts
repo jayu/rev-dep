@@ -28,3 +28,21 @@ export const reexportRewireOption: OptionMeta2 = [
 export type ReexportRewireOptionType = {
   reexportRewire?: boolean
 }
+
+export const includeOption: OptionMeta2 = [
+  '-i include <globs...>',
+  'A list of globs to determine files included in entry points search'
+]
+
+export type IncludeOptionType = {
+  include?: string[]
+}
+
+export const excludeOption: OptionMeta2 = [
+  '-e exclude <globs...>',
+  'A list of globs to determine files excluded in entry points search'
+]
+
+export type ExcludeOptionType = {
+  exclude?: string[]
+}

@@ -16,7 +16,11 @@ export default function createResolve(program: commander.Command) {
   program
     .command('resolve <filePath> [entryPoints...]')
     .description(
-      'Checks if a filePath is required from entryPoint(s) and prints the resolution path'
+      'Checks if a filePath is required from entryPoint(s) and prints the resolution path',
+      {
+        filePath: 'Path to a file that should be resolved in entry points',
+        'entryPoints...': 'List of entry points to look for file'
+      }
     )
     .option(...webpackConfigOption)
     .option(...cwdOption)

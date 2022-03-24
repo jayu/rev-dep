@@ -14,7 +14,9 @@ import { getDepsTree } from '../../lib/getDepsTree'
 export default function createFiles(program: commander.Command) {
   program
     .command('files <entryPoint>')
-    .description('Get list of files required by entry point')
+    .description('Get list of files required by entry point', {
+      entryPoint: 'Path to entry point'
+    })
     .option(...webpackConfigOption)
     .option(...cwdOption)
     .option(...reexportRewireOption)

@@ -117,7 +117,7 @@ For example, to support `*.ts` and `*.tsx` implicit extensions in globally insta
 
 ### Command `resolve`
 
-Description not available
+Checks if a filePath is required from entryPoint(s) and prints the resolution path
 
 #### Usage
 
@@ -127,18 +127,53 @@ rev-dep resolve <filePath> [entryPoints...] [options]
 
 #### Arguments
 
-- `filePath` - undefined (**required**),\* `entryPoints...` - undefined (_optional_)
+- `filePath` - Path to a file that should be resolved in entry points (**required**),\* `entryPoints...` - List of entry points to look for file (_optional_)
 
 #### Options
 
-- `-cs, --compactSummary` - print a compact summary of reverse resolution with a count of found paths (_optional_)
-- `--verbose` - print current action information (_optional_)
 - `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
-- `-tc, --typescriptConfig <path>` - path to TypeScript config to enable TS aliases support (_optional_)
-- `-md, --maxDepth <maxDepth>` - max depth of the dependency tree (_optional_)
-- `-pmd, --printMaxDepth` - print max depth in the tree (_optional_)
-- `-pdc, --printDependentCount` - print count of entry point dependencies (_optional_)
-- `-co, --checkOnly` - finds only one path to entry point instead of all (_optional_)
+- `--cwd <path>` - path to a directory that should be used as a resolution root (_optional_)
+- `--rr reexportRewire <value>` - resolve actual dependencies for "export \* from" statements (_optional_)
+- `-cs, --compactSummary` - print a compact summary of reverse resolution with a count of found paths (_optional_)
+- `-a, --all` - finds all paths combination of a given dependency. Might work very slow or crash for some projects due to heavy usage of RAM (_optional_)
+
+### Command `entry-points`
+
+Print list of entry points in current directory
+
+#### Usage
+
+```sh
+rev-dep entry-points [options]
+```
+
+#### Options
+
+- `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
+- `--cwd <path>` - path to a directory that should be used as a resolution root (_optional_)
+- `--rr reexportRewire <value>` - resolve actual dependencies for "export \* from" statements (_optional_)
+- `-pdc, --printDependenciesCount` - print count of entry point dependencies (_optional_)
+
+### Command `files`
+
+Get list of files required by entry point
+
+#### Usage
+
+```sh
+rev-dep files <entryPoint> [options]
+```
+
+#### Arguments
+
+- `entryPoint` - Path to entry point (**required**)
+
+#### Options
+
+- `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
+- `--cwd <path>` - path to a directory that should be used as a resolution root (_optional_)
+- `--rr reexportRewire <value>` - resolve actual dependencies for "export \* from" statements (_optional_)
+- `-c, --count` - print only count of entry point dependencies (_optional_)
 
 ### Command `docs`
 

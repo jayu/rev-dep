@@ -10,6 +10,7 @@ import {
 } from '../commonOptions'
 import { getEntryPoints } from '../../lib/getEntryPoints'
 import { buildGraphDpdm } from '../../lib/buildDepsGraph'
+import { resolvePath } from '../../lib/utils'
 
 export default function createEntryPoints(program: commander.Command) {
   program
@@ -19,7 +20,7 @@ export default function createEntryPoints(program: commander.Command) {
     .option(...cwdOption)
     .option(...reexportRewireOption)
     .option(
-      '-pdc, --printDependentCount',
+      '-pdc, --printDependenciesCount',
       'print count of entry point dependencies',
       false
     )
@@ -33,20 +34,25 @@ export default function createEntryPoints(program: commander.Command) {
         const {
           webpackConfig: webpackConfigPath,
           cwd,
-          printDependentCount
+          printDependenciesCount
         } = data
 
         const [entryPoints, depsTree] = await getEntryPoints({
-          cwd,
+          cwd: resolvePath(cwd),
           webpackConfigPath
         })
 
         let depsCount: number[] | null = null
 
-        if (printDependentCount) {
+        if (printDependenciesCount) {
           depsCount = entryPoints
             .map(buildGraphDpdm(depsTree))
             .map(([_, __, vertices]) => vertices.size)
+        }
+
+        if (entryPoints.length === 0) {
+          console.log('No results found')
+          return
         }
 
         entryPoints.forEach((pathName, idx) => {

@@ -8,7 +8,7 @@ import {
   reexportRewireOption,
   ReexportRewireOptionType
 } from '../commonOptions'
-import { sanitizeUserEntryPoints } from '../../lib/utils'
+import { sanitizeUserEntryPoints, resolvePath } from '../../lib/utils'
 import { getDepsTree } from '../../lib/getDepsTree'
 
 export default function createFiles(program: commander.Command) {
@@ -36,12 +36,17 @@ export default function createFiles(program: commander.Command) {
         const sanitizedEntryPoints = sanitizeUserEntryPoints([entryPoint])
 
         const depsTree = await getDepsTree(
-          cwd,
+          resolvePath(cwd),
           sanitizedEntryPoints,
           webpackConfigPath
         )
 
         const filePaths = Object.keys(depsTree)
+
+        if (filePaths.length === 0) {
+          console.log('No results found')
+          return
+        }
 
         if (count) {
           console.log(filePaths.length)

@@ -20,3 +20,11 @@ export const sanitizeUserEntryPoints = (entryPoints: string[]) => {
   const globEscapedEntryPoints = entryPoints.map(escapeGlob)
   return globEscapedEntryPoints
 }
+
+export const resolvePath = <P extends string | undefined>(p: P) => {
+  if (!p || path.isAbsolute(p)) {
+    return p
+  }
+
+  return path.resolve(p)
+}

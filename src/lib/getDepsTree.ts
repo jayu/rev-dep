@@ -7,12 +7,23 @@ export async function getDepsTree(
   entryPoints: string[],
   webpackConfigPath?: string
 ) {
-  const deps = webpackConfigPath
-    ? getDepsSetWebpack(entryPoints, webpackConfigPath, cwd)
-    : cleanupDpdmDeps(
-        await parseDependencyTree(entryPoints, {
-          context: cwd
-        })
-      )
+  let deps
+
+  if (webpackConfigPath) {
+    deps = getDepsSetWebpack(entryPoints, webpackConfigPath, cwd)
+  } else {
+    // dpdm does not support custom search directory :/
+    const oldProcessCwd = process.cwd
+    process.cwd = () => cwd
+
+    deps = cleanupDpdmDeps(
+      await parseDependencyTree(entryPoints, {
+        context: cwd
+      })
+    )
+
+    process.cwd = oldProcessCwd
+  }
+
   return deps
 }

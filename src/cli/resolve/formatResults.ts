@@ -1,4 +1,5 @@
 import { InputParams } from './types'
+import * as colors from 'colorette'
 
 type Results = Array<Array<Array<string>>>
 
@@ -23,10 +24,11 @@ export function formatResults({
   const hasAnyResults = results.some((paths) => paths.length > 0)
   if (!hasAnyResults) {
     formatted = join('No results found for', filePath, 'in', entryPoints)
-    return
+    return formatted
   }
-  formatted += join('Results:\n')
+
   if (compactSummary) {
+    formatted += join('Results:\n')
     const maxEntryLength = entryPoints.reduce((maxLength, entryPoint) => {
       return entryPoint.length > maxLength ? entryPoint.length : maxLength
     }, 0)
@@ -41,11 +43,15 @@ export function formatResults({
     formatted += join('\nTotal:', total)
   } else {
     results.forEach((entryPointResults, index) => {
-      entryPointResults.forEach((path) => {
-        formatted += join(path.reduce(pathToString, ''), '\n')
-      })
-      if (index < results.length - 1 && entryPointResults.length > 0) {
-        formatted += join('_'.repeat(process.stdout.columns))
+      if (entryPointResults.length > 0) {
+        formatted += join(colors.bold(entryPoints[index]), ':', '\n')
+        entryPointResults.forEach((path, resultsIndex) => {
+          const isLast = resultsIndex === entryPointResults.length - 1
+          formatted += join(path.reduce(pathToString, ''), isLast ? '' : '\n')
+        })
+        if (index < results.length - 1 && entryPointResults.length > 0) {
+          formatted += join('_'.repeat(process.stdout.columns)) + '\n'
+        }
       }
     })
   }

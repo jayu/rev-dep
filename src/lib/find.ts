@@ -1,7 +1,6 @@
 import { buildGraphDpdm } from './buildDepsGraph'
 import { getDepsTree } from './getDepsTree'
 import { getEntryPoints } from './getEntryPoints'
-import { getMaxDepth } from './getMaxDepthInGrapth'
 import { Node } from './types'
 import { removeInitialDot } from './utils'
 
@@ -32,7 +31,6 @@ type FindParams = {
   filePath: string
   webpackConfig?: string
   cwd?: string
-  printMaxDepth?: boolean
   all: boolean
 }
 
@@ -41,7 +39,6 @@ export const resolve = async ({
   filePath,
   webpackConfig,
   cwd = process.cwd(),
-  printMaxDepth,
   all
 }: FindParams) => {
   let deps, entryPoints
@@ -58,12 +55,6 @@ export const resolve = async ({
 
   const forest = cleanedEntryPoints.map(buildGraphDpdm(deps, cleanedFilePath))
 
-  if (printMaxDepth) {
-    forest.forEach(([tree]) => {
-      console.log('Max depth', ...getMaxDepth()(tree))
-    })
-  }
-
   const resolvedPaths = forest.reduce(
     (allPaths, [_, fileNode]): string[][][] => {
       if (!fileNode) {
@@ -75,5 +66,5 @@ export const resolve = async ({
     },
     [] as string[][][]
   )
-  return resolvedPaths as Array<Array<Array<string>>>
+  return [resolvedPaths, entryPoints] as [Array<Array<Array<string>>>, string[]]
 }

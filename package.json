@@ -2,10 +2,11 @@
   "name": "rev-dep",
   "version": "0.3.0",
   "description": "Reverse dependency resolution tool built with dependency-cruiser",
-  "main": "find.js",
+  "main": "lib/find.js",
   "bin": "bin.js",
   "files": [
     "dist/**",
+    "lib/**",
     "bin.js"
   ],
   "author": "Jakub Mazurek @jayu",

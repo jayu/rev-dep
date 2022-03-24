@@ -1,4 +1,5 @@
 import path from 'path'
+import fs from 'fs'
 import escapeGlob from 'glob-escape'
 
 export const removeInitialDot = (path: string) => path.replace(/^\.\//, '')
@@ -27,4 +28,18 @@ export const resolvePath = <P extends string | undefined>(p: P) => {
   }
 
   return path.resolve(p)
+}
+
+export const findTsConfig = (cwd: string = process.cwd()) => {
+  try {
+    const tsconfig = path.join(cwd, 'tsconfig.json')
+    const stat = fs.statSync(tsconfig)
+    if (stat.isFile()) {
+      return tsconfig
+    }
+  } catch {
+    /**/
+  }
+
+  return undefined
 }

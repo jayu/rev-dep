@@ -1,6 +1,7 @@
 import { DependencyTree } from 'dpdm'
 import { MinimalDependencyTree } from './types'
 import isBuiltinModule from 'is-builtin-module'
+
 export const cleanupDpdmDeps = (
   deps: MinimalDependencyTree | DependencyTree
 ) => {
@@ -13,7 +14,9 @@ export const cleanupDpdmDeps = (
       dependencies !== null
     ) {
       newDeps[id] = dependencies
-        .filter(({ id }) => id && !id.includes('node_modules'))
+        .filter(
+          ({ id }) => id && !id.includes('node_modules') && !isBuiltinModule(id)
+        )
         .map(({ id, request }) => ({
           id,
           request

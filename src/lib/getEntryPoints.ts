@@ -5,7 +5,7 @@ import fs from 'fs/promises'
 import { asyncFilter } from './utils'
 import { getDepsTree } from './getDepsTree'
 import ignore from 'ignore'
-
+import globEscape from 'glob-escape'
 export const getDirectoriesForEntryPointsSearch = async (
   dir: string
 ): Promise<string[]> => {
@@ -80,7 +80,7 @@ export const getEntryPoints = async ({
 
   const globs = dirs
     .map((dirName) => path.relative(cwd, dirName))
-    .map((dirName) => `${dirName}/*`)
+    .map((dirName) => `${globEscape(dirName)}/*`)
 
   const globsWithRoot = ['*', ...globs]
   const depsTree = await getDepsTree(cwd, globsWithRoot, webpackConfigPath)

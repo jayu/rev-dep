@@ -21,7 +21,7 @@ export type CwdOptionType = {
 }
 
 export const reexportRewireOption: OptionMeta2 = [
-  '--rr reexportRewire <value>',
+  '-rr --reexportRewire <value>',
   'resolve actual dependencies for "export * from" statements'
 ]
 
@@ -30,7 +30,7 @@ export type ReexportRewireOptionType = {
 }
 
 export const includeOption: OptionMeta2 = [
-  '-i include <globs...>',
+  '-i --include <globs...>',
   'A list of globs to determine files included in entry points search'
 ]
 
@@ -39,7 +39,7 @@ export type IncludeOptionType = {
 }
 
 export const excludeOption: OptionMeta2 = [
-  '-e exclude <globs...>',
+  '-e --exclude <globs...>',
   'A list of globs to determine files excluded in entry points search'
 ]
 

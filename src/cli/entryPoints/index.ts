@@ -22,7 +22,7 @@ export default function createEntryPoints(program: commander.Command) {
     .description('Print list of entry points in current directory')
     .option(...webpackConfigOption)
     .option(...cwdOption)
-    .option(...reexportRewireOption)
+    // .option(...reexportRewireOption)
     .option(...includeOption)
     .option(...excludeOption)
     .option(

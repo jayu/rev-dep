@@ -28,7 +28,7 @@ export default function createResolve(program: commander.Command) {
     )
     .option(...webpackConfigOption)
     .option(...cwdOption)
-    .option(...reexportRewireOption)
+    // .option(...reexportRewireOption)
     .option(...includeOption)
     .option(...excludeOption)
     .option(

@@ -19,7 +19,7 @@ export default function createFiles(program: commander.Command) {
     })
     .option(...webpackConfigOption)
     .option(...cwdOption)
-    .option(...reexportRewireOption)
+    // .option(...reexportRewireOption)
     .option(
       '-c, --count',
       'print only count of entry point dependencies',

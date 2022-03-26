@@ -133,7 +133,6 @@ rev-dep resolve <filePath> [entryPoints...] [options]
 
 - `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
 - `--cwd <path>` - path to a directory that should be used as a resolution root (_optional_)
-- `-rr --reexportRewire <value>` - resolve actual dependencies for "export \* from" statements (_optional_)
 - `-i --include <globs...>` - A list of globs to determine files included in entry points search (_optional_)
 - `-e --exclude <globs...>` - A list of globs to determine files excluded in entry points search (_optional_)
 - `-cs, --compactSummary` - print a compact summary of reverse resolution with a count of found paths (_optional_)
@@ -153,7 +152,6 @@ rev-dep entry-points [options]
 
 - `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
 - `--cwd <path>` - path to a directory that should be used as a resolution root (_optional_)
-- `-rr --reexportRewire <value>` - resolve actual dependencies for "export \* from" statements (_optional_)
 - `-i --include <globs...>` - A list of globs to determine files included in entry points search (_optional_)
 - `-e --exclude <globs...>` - A list of globs to determine files excluded in entry points search (_optional_)
 - `-pdc, --printDependenciesCount` - print count of entry point dependencies (_optional_)
@@ -177,7 +175,6 @@ rev-dep files <entryPoint> [options]
 
 - `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
 - `--cwd <path>` - path to a directory that should be used as a resolution root (_optional_)
-- `-rr --reexportRewire <value>` - resolve actual dependencies for "export \* from" statements (_optional_)
 - `-c, --count` - print only count of entry point dependencies (_optional_)
 
 ### Command `docs`

@@ -2,7 +2,7 @@ import { resolve } from '../../lib/find'
 import commander from 'commander'
 import { InputParams } from './types'
 import { formatResults } from './formatResults'
-import { sanitizeUserEntryPoints, resolvePath } from '../../lib/utils'
+import { resolvePath } from '../../lib/utils'
 import {
   webpackConfigOption,
   cwdOption,
@@ -60,10 +60,8 @@ export default function createResolve(program: commander.Command) {
           include
         } = data
 
-        const sanitizedEntryPoints = sanitizeUserEntryPoints(entryPoints)
-
         const [results, resolveEntryPoints] = await resolve({
-          entryPoints: sanitizedEntryPoints,
+          entryPoints,
           filePath,
           webpackConfig,
           all,

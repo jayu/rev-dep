@@ -2,7 +2,7 @@ import { buildGraphDpdm } from './buildDepsGraph'
 import { getDepsTree } from './getDepsTree'
 import { getEntryPoints } from './getEntryPoints'
 import { Node } from './types'
-import { removeInitialDot } from './utils'
+import { removeInitialDot, sanitizeUserEntryPoints } from './utils'
 
 const resolvePathsToRoot = (
   node: Node,
@@ -49,7 +49,9 @@ export const resolve = async ({
 
   if (_entryPoints.length > 0) {
     entryPoints = _entryPoints
-    deps = await getDepsTree(cwd, entryPoints, webpackConfig)
+    const sanitizedEntryPoints = sanitizeUserEntryPoints(entryPoints)
+
+    deps = await getDepsTree(cwd, sanitizedEntryPoints, webpackConfig)
   } else {
     ;[entryPoints, deps] = await getEntryPoints({ cwd, exclude, include })
   }

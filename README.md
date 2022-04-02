@@ -379,7 +379,8 @@ rev-dep resolve <filePath> [entryPoints...] [options]
 
 #### Arguments
 
-- `filePath` - Path to a file that should be resolved in entry points (**required**),\* `entryPoints...` - List of entry points to look for file (_optional_)
+- `filePath` - Path to a file that should be resolved in entry points (**required**)
+- `entryPoints...` - List of entry points to look for file (_optional_)
 
 #### Options
 

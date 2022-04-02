@@ -33,13 +33,15 @@ function template(commands: Command[], headerLevel: number) {
       )}
       ${cmd.arguments.length > 0 ? header(headerLevel + 1, 'Arguments') : ''}
 
-      ${cmd.arguments.map(
-        ({ name, required, description }) => dedent`
+      ${cmd.arguments
+        .map(
+          ({ name, required, description }) => dedent`
         * ${code(name)} - ${description} (${
-          required ? requiredStr : optionalStr
-        })
+            required ? requiredStr : optionalStr
+          })
       `
-      )}
+        )
+        .join('\n')}
       
       ${cmd.options.length > 0 ? header(headerLevel + 1, 'Options') : ''}
 

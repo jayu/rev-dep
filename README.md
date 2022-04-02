@@ -1,5 +1,5 @@
 <h3 align="center">
-  <code>rev←dep</code>
+  <code>rev-dep</code>
 </h3>
 
 <p align="center">
@@ -10,13 +10,15 @@
 
 <img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep"> <img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep"> <img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
 
-## About
+## About 📣
 
 The tool was created help with daily dev struggles by answering these questions:
 
-- What entry points my codebase have
-- Which entry points uses a given file
-- Which dependencies a given file has
+👉 What entry points my codebase have
+
+👉 Which entry points uses a given file
+
+👉 Which dependencies a given file has
 
 This helps to debug project dependencies, plan refactoring, optimize bundles or plan code splitting.
 
@@ -24,14 +26,13 @@ It's especially useful in JS world without TypeScript or tests coverage.
 
 It also helps to identify and eliminate dead files, understand the complexity of the file dependencies
 
-[Jump to CLI reference](#cli-reference)
+[🦘 Jump to CLI reference](#cli-reference)
 
-[`export * from` problem](#export-from-problem)
+[🕸️ `export * from` problem](#export-from-problem)
 
-### Use cases
+### Use cases 🧑‍💻
 
 - [You plan to refactor some file and you wonder which entry points are affected](#how-to-identify-where-a-file-is-used-in-the-project)
-
 - [You are wondering wether a given source file is used](#how-to-check-if-a-file-is-used-in-the-project)
 - [You wonder if there are any dead files in your project](#how-to-identify-dead-files-in-the-project)
 - [You want to verify if a given entry point imports only the required files](#how-to-check-which-files-are-imported-by-a-given-file)
@@ -45,7 +46,7 @@ While graphs can be useful to identify major problems like too big bundle size o
 
 `rev-dep` visualize dependencies as lists, so it's really easy to see where to cut the line to solve the problem.
 
-## Getting Started
+## Getting Started 🎉
 
 ### Install globally to use as CLI tool
 
@@ -63,7 +64,7 @@ or
 
 `npm install rev-dep`
 
-## Recipes
+## Recipes 🌶️
 
 ### How to identify where a file is used in the project?
 
@@ -314,23 +315,21 @@ As you can see cli even import `package.json`. This is to print version of the c
 
 ### How to reduce amount of files imported by entry point?
 
-There is no easy how to for this process, but you can do it iteratively using two of the `rev-dep` commands:
+There is no easy how to for this process, but you can do it iteratively using `rev-dep` commands `files` and `resolve`
 
-- `files`
-- `resolve`
 
 1. Get the list of files imported by entry-point
 
-- `rev-dep files path/to/entry-point`
+    `rev-dep files path/to/entry-point`
 
 2. Identify some suspicious files on the list, components that should not be used on the given page or not related utility files
 3. Get all resolution paths for a suspicious file
 
-- `rev-dep resolve path/to/suspicious-file path/to/entry-point --all`
+    `rev-dep resolve path/to/suspicious-file path/to/entry-point --all`
 
 4. You would usually find out that there is some file, like directory `index` file that given entry point is using, which is mandatory, but as a side effect it imports a few files that are redundant for your entry point. In most cases you should be able to decouple the imports or reverse the dependency to cut off the resolution path for the unwanted file
 
-## Usage
+## Usage 🎨
 
 Project can be used as a CLI tool or as a module
 
@@ -365,7 +364,8 @@ const [entryPoints] = await getEntryPoints({
 console.log(entryPoints);
 ```
 
-## CLI reference
+## CLI reference 📖
+
 
 <!-- cli-docs-start -->
 

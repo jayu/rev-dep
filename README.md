@@ -1,5 +1,5 @@
 <h3 align="center">
-  <code>rev⭠dep</code>
+  <code>rev←dep</code>
 </h3>
 
 <p align="center">
@@ -24,18 +24,18 @@ It's especially useful in JS world without TypeScript or tests coverage.
 
 It also helps to identify and eliminate dead files, understand the complexity of the file dependencies
 
-[Jump to CLI reference](#CLI-reference)
+[Jump to CLI reference](#cli-reference)
 
-[`export * from` problem](#Export-from-problem)
+[`export * from` problem](#export-from-problem)
 
 ### Use cases
 
-- You plan to refactor some file and you wonder which entry points are affected
-- You are wondering wether a given source file is used
-- You wonder if there are any dead files in your project
-- You want to identify all dead files at once
-- You want to verify if a given entry point imports only the required files
-- You want to optimize the amount of files imported by an entry point
+- [You plan to refactor some file and you wonder which entry points are affected](#how-to-identify-where-a-file-is-used-in-the-project)
+
+- [You are wondering wether a given source file is used](#how-to-check-if-a-file-is-used-in-the-project)
+- [You wonder if there are any dead files in your project](#how-to-identify-dead-files-in-the-project)
+- [You want to verify if a given entry point imports only the required files](#how-to-check-which-files-are-imported-by-a-given-file)
+- [You want to optimize the amount of files imported by an entry point](#how-to-reduce-amount-of-files-imported-by-entry-point)
 
 ### How about dependency or bundle graphs?
 
@@ -67,13 +67,258 @@ or
 
 ### How to identify where a file is used in the project?
 
+Just use `rev-dep resolve path/to/file.ts`
+
+You will see all the entry points that implicitly require given file together with resolution path.
+
+[`resolve` Command CLI reference](#command-resolve)
+<details>
+<summary>Example for the rev-dep repository</summary>
+
+command: 
+
+`rev-dep resolve src/lib/utils.ts`
+
+output:
+
+```s
+src/babel/index.js : 
+
+ ➞ src/babel/index.js
+  ➞ src/lib/utils.ts 
+_____________________
+
+src/cli/index.ts : 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/resolve/index.ts
+    ➞ src/lib/find.ts
+     ➞ src/lib/getDepsTree.ts
+      ➞ src/lib/getDepsSetWebpack.ts
+       ➞ src/lib/utils.ts 
+_____________________
+
+```
+</details>
+
+#### Getting more details about file resolution in given entry point
+
+To find out all paths combination use `rev-dep resolve` with `-a` flag
+
+> You might be surprised how complex dependency tree can be!
+
+<details>
+<summary>Example for the rev-dep repository</summary>
+
+command: 
+
+`rev-dep resolve src/lib/utils.ts src/cli/index.ts --all`
+
+output:
+
+```s
+src/cli/index.ts : 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/resolve/index.ts
+    ➞ src/lib/find.ts
+     ➞ src/lib/getDepsTree.ts
+      ➞ src/lib/getDepsSetWebpack.ts
+       ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/resolve/index.ts
+    ➞ src/lib/find.ts
+     ➞ src/lib/getEntryPoints.ts
+      ➞ src/lib/getDepsTree.ts
+       ➞ src/lib/getDepsSetWebpack.ts
+        ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/entryPoints/index.ts
+    ➞ src/lib/getEntryPoints.ts
+     ➞ src/lib/getDepsTree.ts
+      ➞ src/lib/getDepsSetWebpack.ts
+       ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/files/index.ts
+    ➞ src/lib/getDepsTree.ts
+     ➞ src/lib/getDepsSetWebpack.ts
+      ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/resolve/index.ts
+    ➞ src/lib/find.ts
+     ➞ src/lib/getEntryPoints.ts
+      ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/entryPoints/index.ts
+    ➞ src/lib/getEntryPoints.ts
+     ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/resolve/index.ts
+    ➞ src/lib/find.ts
+     ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/resolve/index.ts
+    ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/entryPoints/index.ts
+    ➞ src/lib/utils.ts 
+
+ ➞ src/cli/index.ts
+  ➞ src/cli/createCommands.ts
+   ➞ src/cli/files/index.ts
+    ➞ src/lib/utils.ts 
+
+```
+</details>
+
 ### How to check if a file is used in the project?
+
+Use `rev-dep resolve path/to/file.ts --compactSummary` 
+
+As a result you will see total amount of entry points requiring a given file.
+
+> Note that among the entry points list there might be some dead files importing the searched file
+
+[`resolve` Command CLI reference](#command-resolve)
+
+<details>
+<summary>Example for the rev-dep repository</summary>
+
+command: 
+
+`rev-dep resolve src/lib/utils.ts --compactSummary`
+
+output:
+
+```s
+Results:
+
+__tests__/find.test.js        : 0
+babel.js                      : 0
+bin.js                        : 0
+scripts/addDocsToReadme.js    : 0
+src/babel/index.js            : 1
+src/cli/index.ts              : 1
+src/lib/getMaxDepthInGraph.ts : 0
+types.d.ts                    : 0
+
+Total: 2
+```
+</details>
 
 ### How to identify dead files in the project?
 
+Use `rev-dep entry-points` to get list of all files that are not required by any other files in the project.
+
+You might want to exclude some file paths that are meant to be actual entry point like `index.js` or `**/pages/**` in `next.js` projects using `--exclude` flag. The same for configuration files like `babel.config.js`
+
+Review the list and look for suspicious files like `src/ui/components/SomeComponent/index.js`
+
+[`entry-points` command CLI reference](#command-entry-points)
+
+<details>
+<summary>Example for the rev-dep repository</summary>
+
+command: 
+
+`rev-dep entry-points --exclude '__tests__/**' 'types.d.ts'`
+
+output:
+
+```s
+babel.js
+bin.js
+scripts/addDocsToReadme.js
+src/babel/index.js
+src/cli/index.ts
+src/lib/getMaxDepthInGraph.ts
+
+```
+
+The last one `src/lib/getMaxDepthInGraph.ts` is the source file that is not used at the moment. 
+
+The rest of them looks legit!
+</details>
+
 ### How to check which files are imported by a given file?
 
+To get a full list of files imported by given entry point use `rev-dep files path/to/file.ts`. 
+
+You can use `--count` flag if you are interested in the amount.
+
+This is a good indicator of how heavy a given entry point or component is
+
+[`files` command CLI reference](#command-files)
+
+<details>
+<summary>Example for the rev-dep repository</summary>
+
+command: 
+
+`rev-dep files files src/cli/index.ts`
+
+output:
+
+```s
+src/cli/index.ts
+src/cli/createCommands.ts
+package.json
+src/cli/resolve/index.ts
+src/cli/docs/index.ts
+src/cli/entryPoints/index.ts
+src/cli/files/index.ts
+src/lib/find.ts
+src/cli/resolve/types.ts
+src/cli/resolve/formatResults.ts
+src/lib/utils.ts
+src/cli/commonOptions.ts
+src/cli/docs/generate.ts
+src/cli/entryPoints/types.ts
+src/lib/getEntryPoints.ts
+src/lib/buildDepsGraph.ts
+src/cli/files/types.ts
+src/lib/getDepsTree.ts
+src/lib/types.ts
+src/cli/docs/template.ts
+src/lib/getDepsSetWebpack.ts
+src/lib/cleanupDpdmDeps.ts
+
+```
+
+As you can see cli even import `package.json`. This is to print version of the cli
+</details>
+
+
 ### How to reduce amount of files imported by entry point?
+
+There is no easy how to for this process, but you can do it iteratively using two of the `rev-dep` commands:
+- `files` 
+- `resolve`
+
+1. Get the list of files imported by entry-point 
+  - `rev-dep files path/to/entry-point`
+2. Identify some suspicious files on the list, components that should not be used on the given page or not related utility files
+3. Get all resolution paths for a suspicious file
+  - `rev-dep resolve path/to/suspicious-file path/to/entry-point --all`
+4. You would usually find out that there is some file, like directory `index` file that given entry point is using, which is mandatory, but as a side effect it imports a few files that are redundant for your entry point. In most cases you should be able to decouple the imports or reverse the dependency to cut off the resolution path for the unwanted file
 
 ## Usage
 
@@ -81,34 +326,33 @@ Project can be used as a CLI tool or as a module
 
 ### CLI Tool
 
-For CLI usage see [CLI reference](#CLI-reference)
+For CLI usage see [CLI reference](#cli-reference)
 
 ### Module
 
-#### `find` Function
+#### `resolve` Function
 
 ```ts
-import { find } from "rev-dep";
+import { resolve } from "rev-dep";
 
-const path = find({
+const paths = resolve({
   entryPoints: ["index.js"],
   filePath: "utils.js",
 });
 
-console.log(path);
+console.log(paths);
 ```
 
-#### `find` Function
+#### `getEntryPoints` Function
 
 ```ts
-import { find } from "rev-dep";
+import { getEntryPoints } from "rev-dep";
 
-const path = find({
-  entryPoints: ["index.js"],
-  filePath: "utils.js",
+const entryPoints = getEntryPoints({
+  cwd: process.cwd(),
 });
 
-console.log(path);
+console.log(entryPoints);
 ```
 
 ## CLI reference

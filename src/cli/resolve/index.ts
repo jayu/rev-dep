@@ -1,4 +1,4 @@
-import { resolve } from '../../lib/find'
+import { resolve } from '../../lib/resolve'
 import commander from 'commander'
 import { InputParams } from './types'
 import { formatResults } from './formatResults'

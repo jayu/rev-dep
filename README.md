@@ -335,7 +335,7 @@ For CLI usage see [CLI reference](#cli-reference)
 ```ts
 import { resolve } from "rev-dep";
 
-const paths = resolve({
+const [paths] = await resolve({
   entryPoints: ["index.js"],
   filePath: "utils.js",
 });
@@ -348,7 +348,7 @@ console.log(paths);
 ```ts
 import { getEntryPoints } from "rev-dep";
 
-const entryPoints = getEntryPoints({
+const [entryPoints] = await getEntryPoints({
   cwd: process.cwd(),
 });
 

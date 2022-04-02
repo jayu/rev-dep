@@ -72,5 +72,5 @@ export const resolve = async ({
     },
     [] as string[][][]
   )
-  return [resolvedPaths, entryPoints] as [Array<Array<Array<string>>>, string[]]
+  return [resolvedPaths, entryPoints] as [string[][][], string[]]
 }

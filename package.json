@@ -21,13 +21,14 @@
     "node": ">=10"
   },
   "scripts": {
+    "checks": "yarn lint && yarn typecheck",
     "lint": "eslint --ext .js,.ts src",
     "lint:fix": "yarn lint --fix",
     "docs-gen": "node ./scripts/addDocsToReadme.js",
     "dev": "node bin",
     "test": "jest",
     "release": "release-it",
-    "build": "tsc",
+    "build": "tsc --declaration",
     "build:watch": "tsc --watch",
     "typecheck": "tsc --noEmit"
   },

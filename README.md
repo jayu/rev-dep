@@ -317,15 +317,14 @@ As you can see cli even import `package.json`. This is to print version of the c
 
 There is no easy how to for this process, but you can do it iteratively using `rev-dep` commands `files` and `resolve`
 
-
 1. Get the list of files imported by entry-point
 
-    `rev-dep files path/to/entry-point`
+   `rev-dep files path/to/entry-point`
 
 2. Identify some suspicious files on the list, components that should not be used on the given page or not related utility files
 3. Get all resolution paths for a suspicious file
 
-    `rev-dep resolve path/to/suspicious-file path/to/entry-point --all`
+   `rev-dep resolve path/to/suspicious-file path/to/entry-point --all`
 
 4. You would usually find out that there is some file, like directory `index` file that given entry point is using, which is mandatory, but as a side effect it imports a few files that are redundant for your entry point. In most cases you should be able to decouple the imports or reverse the dependency to cut off the resolution path for the unwanted file
 
@@ -365,7 +364,6 @@ console.log(entryPoints);
 ```
 
 ## CLI reference 📖
-
 
 <!-- cli-docs-start -->
 

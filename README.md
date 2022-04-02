@@ -72,23 +72,24 @@ Just use `rev-dep resolve path/to/file.ts`
 You will see all the entry points that implicitly require given file together with resolution path.
 
 [`resolve` Command CLI reference](#command-resolve)
+
 <details>
 <summary>Example for the rev-dep repository</summary>
 
-command: 
+command:
 
 `rev-dep resolve src/lib/utils.ts`
 
 output:
 
 ```s
-src/babel/index.js : 
+src/babel/index.js :
 
  ➞ src/babel/index.js
-  ➞ src/lib/utils.ts 
+  ➞ src/lib/utils.ts
 _____________________
 
-src/cli/index.ts : 
+src/cli/index.ts :
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
@@ -96,10 +97,11 @@ src/cli/index.ts :
     ➞ src/lib/find.ts
      ➞ src/lib/getDepsTree.ts
       ➞ src/lib/getDepsSetWebpack.ts
-       ➞ src/lib/utils.ts 
+       ➞ src/lib/utils.ts
 _____________________
 
 ```
+
 </details>
 
 #### Getting more details about file resolution in given entry point
@@ -111,14 +113,14 @@ To find out all paths combination use `rev-dep resolve` with `-a` flag
 <details>
 <summary>Example for the rev-dep repository</summary>
 
-command: 
+command:
 
 `rev-dep resolve src/lib/utils.ts src/cli/index.ts --all`
 
 output:
 
 ```s
-src/cli/index.ts : 
+src/cli/index.ts :
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
@@ -126,7 +128,7 @@ src/cli/index.ts :
     ➞ src/lib/find.ts
      ➞ src/lib/getDepsTree.ts
       ➞ src/lib/getDepsSetWebpack.ts
-       ➞ src/lib/utils.ts 
+       ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
@@ -135,7 +137,7 @@ src/cli/index.ts :
      ➞ src/lib/getEntryPoints.ts
       ➞ src/lib/getDepsTree.ts
        ➞ src/lib/getDepsSetWebpack.ts
-        ➞ src/lib/utils.ts 
+        ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
@@ -143,55 +145,56 @@ src/cli/index.ts :
     ➞ src/lib/getEntryPoints.ts
      ➞ src/lib/getDepsTree.ts
       ➞ src/lib/getDepsSetWebpack.ts
-       ➞ src/lib/utils.ts 
+       ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
    ➞ src/cli/files/index.ts
     ➞ src/lib/getDepsTree.ts
      ➞ src/lib/getDepsSetWebpack.ts
-      ➞ src/lib/utils.ts 
+      ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
    ➞ src/cli/resolve/index.ts
     ➞ src/lib/find.ts
      ➞ src/lib/getEntryPoints.ts
-      ➞ src/lib/utils.ts 
+      ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
    ➞ src/cli/entryPoints/index.ts
     ➞ src/lib/getEntryPoints.ts
-     ➞ src/lib/utils.ts 
+     ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
    ➞ src/cli/resolve/index.ts
     ➞ src/lib/find.ts
-     ➞ src/lib/utils.ts 
+     ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
    ➞ src/cli/resolve/index.ts
-    ➞ src/lib/utils.ts 
+    ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
    ➞ src/cli/entryPoints/index.ts
-    ➞ src/lib/utils.ts 
+    ➞ src/lib/utils.ts
 
  ➞ src/cli/index.ts
   ➞ src/cli/createCommands.ts
    ➞ src/cli/files/index.ts
-    ➞ src/lib/utils.ts 
+    ➞ src/lib/utils.ts
 
 ```
+
 </details>
 
 ### How to check if a file is used in the project?
 
-Use `rev-dep resolve path/to/file.ts --compactSummary` 
+Use `rev-dep resolve path/to/file.ts --compactSummary`
 
 As a result you will see total amount of entry points requiring a given file.
 
@@ -202,7 +205,7 @@ As a result you will see total amount of entry points requiring a given file.
 <details>
 <summary>Example for the rev-dep repository</summary>
 
-command: 
+command:
 
 `rev-dep resolve src/lib/utils.ts --compactSummary`
 
@@ -222,6 +225,7 @@ types.d.ts                    : 0
 
 Total: 2
 ```
+
 </details>
 
 ### How to identify dead files in the project?
@@ -237,7 +241,7 @@ Review the list and look for suspicious files like `src/ui/components/SomeCompon
 <details>
 <summary>Example for the rev-dep repository</summary>
 
-command: 
+command:
 
 `rev-dep entry-points --exclude '__tests__/**' 'types.d.ts'`
 
@@ -253,14 +257,15 @@ src/lib/getMaxDepthInGraph.ts
 
 ```
 
-The last one `src/lib/getMaxDepthInGraph.ts` is the source file that is not used at the moment. 
+The last one `src/lib/getMaxDepthInGraph.ts` is the source file that is not used at the moment.
 
 The rest of them looks legit!
+
 </details>
 
 ### How to check which files are imported by a given file?
 
-To get a full list of files imported by given entry point use `rev-dep files path/to/file.ts`. 
+To get a full list of files imported by given entry point use `rev-dep files path/to/file.ts`.
 
 You can use `--count` flag if you are interested in the amount.
 
@@ -271,7 +276,7 @@ This is a good indicator of how heavy a given entry point or component is
 <details>
 <summary>Example for the rev-dep repository</summary>
 
-command: 
+command:
 
 `rev-dep files files src/cli/index.ts`
 
@@ -304,20 +309,25 @@ src/lib/cleanupDpdmDeps.ts
 ```
 
 As you can see cli even import `package.json`. This is to print version of the cli
-</details>
 
+</details>
 
 ### How to reduce amount of files imported by entry point?
 
 There is no easy how to for this process, but you can do it iteratively using two of the `rev-dep` commands:
-- `files` 
+
+- `files`
 - `resolve`
 
-1. Get the list of files imported by entry-point 
-  - `rev-dep files path/to/entry-point`
+1. Get the list of files imported by entry-point
+
+- `rev-dep files path/to/entry-point`
+
 2. Identify some suspicious files on the list, components that should not be used on the given page or not related utility files
 3. Get all resolution paths for a suspicious file
-  - `rev-dep resolve path/to/suspicious-file path/to/entry-point --all`
+
+- `rev-dep resolve path/to/suspicious-file path/to/entry-point --all`
+
 4. You would usually find out that there is some file, like directory `index` file that given entry point is using, which is mandatory, but as a side effect it imports a few files that are redundant for your entry point. In most cases you should be able to decouple the imports or reverse the dependency to cut off the resolution path for the unwanted file
 
 ## Usage
@@ -447,9 +457,7 @@ rev-dep docs <outputPath> [options]
 ```js
 // babel.config.js
 module.exports = {
-  plugins: [
-    'rev-dep/babel'
-  ]
+  plugins: ["rev-dep/babel"],
 };
 ```
 

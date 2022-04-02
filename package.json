@@ -1,13 +1,14 @@
 {
   "name": "rev-dep",
-  "version": "0.3.0",
-  "description": "Reverse dependency resolution tool built with dependency-cruiser",
-  "main": "find.js",
-  "bin": "cli.js",
+  "version": "1.0.0-alpha.6",
+  "description": "Dependency debugging tool for JavaScript and TypeScript projects",
+  "main": "dist/module.js",
+  "bin": "bin.js",
   "files": [
-    "find.js",
-    "cli.js",
-    "getDepsSet.js"
+    "dist/**",
+    "lib/**",
+    "bin.js",
+    "babel.js"
   ],
   "author": "Jakub Mazurek @jayu",
   "license": "MIT",
@@ -20,28 +21,57 @@
     "node": ">=10"
   },
   "scripts": {
-    "lint": "eslint *.js",
-    "lint:fix": "eslint --fix *.js",
-    "format": "prettier --check *.js",
-    "format:fix": "prettier --write *.js",
-    "cli": "node cli.js",
+    "checks": "yarn lint && yarn typecheck",
+    "lint": "eslint --ext .js,.ts src",
+    "lint:fix": "yarn lint --fix",
+    "docs-gen": "node ./scripts/addDocsToReadme.js",
+    "dev": "node bin",
     "test": "jest",
-    "release": "release-it"
+    "release": "release-it",
+    "build": "tsc --declaration",
+    "build:watch": "tsc --watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@babel/parser": "^7.17.8",
+    "@babel/template": "^7.16.7",
+    "@types/dedent": "^0.7.0",
+    "colorette": "^2.0.16",
     "commander": "^6.1.0",
+    "dedent": "^0.7.0",
     "dependency-cruiser": "9.23.0",
     "dpdm": "^3.8.0",
-    "glob-escape": "^0.0.2"
+    "glob-escape": "^0.0.2",
+    "ignore": "^5.2.0",
+    "is-builtin-module": "^3.1.0",
+    "minimatch": "^5.0.1"
   },
   "devDependencies": {
+    "@babel/types": "^7.17.0",
+    "@typescript-eslint/eslint-plugin": "^5.16.0",
+    "@typescript-eslint/parser": "^5.16.0",
     "eslint": "^7.11.0",
-    "eslint-config-prettier": "^6.13.0",
+    "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-jest": "^24.1.0",
     "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^4.0.0",
     "jest": "^26.5.3",
     "mock-fs": "^4.13.0",
     "prettier": "^2.1.2",
-    "release-it": "^14.2.1"
-  }
+    "release-it": "^14.2.1",
+    "typescript": "^4.6.2"
+  },
+  "keywords": [
+    "dependencies",
+    "deps",
+    "dependency graph",
+    "dependency debugging",
+    "entry points",
+    "dependency resolution",
+    "reverse dependency resolution",
+    "dependency tree",
+    "import path",
+    "resolution path",
+    "dependency optimization"
+  ]
 }

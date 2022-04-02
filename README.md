@@ -26,7 +26,7 @@ It's especially useful in JS world without TypeScript or tests coverage.
 
 It also helps to identify and eliminate dead files, understand the complexity of the file dependencies
 
-[🦘 Jump to CLI reference](#cli-reference)
+[🦘 Jump to CLI reference](#cli-reference-)
 
 [🕸️ `export * from` problem](#export-from-problem)
 
@@ -334,7 +334,7 @@ Project can be used as a CLI tool or as a module
 
 ### CLI Tool
 
-For CLI usage see [CLI reference](#cli-reference)
+For CLI usage see [CLI reference](#cli-reference-)
 
 ### Module
 

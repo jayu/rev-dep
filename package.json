@@ -72,6 +72,8 @@
     "dependency tree",
     "import path",
     "resolution path",
-    "dependency optimization"
+    "dependency optimization",
+    "dependency analysis",
+    "file dependencies"
   ]
 }

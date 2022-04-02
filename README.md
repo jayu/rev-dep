@@ -3,7 +3,7 @@
 </h3>
 
 <p align="center">
-  Dependency debugging tool for JavaScript and TypeScript projects
+  File dependency debugging tool for TypeScript projects
 </p>
 
 ---

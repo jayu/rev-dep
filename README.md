@@ -12,7 +12,8 @@
 
 ## Pardon 🤫
 
-Since you landed here, you might be also interested in my other project - supercharged multiline code search and replace tool -  [codeque.co](https://codeque.co) 🥳
+Since you landed here, you might be also interested in my other project - supercharged multiline code search and replace tool - [codeque.co](https://codeque.co) 🥳
+
 ## About 📣
 
 The tool was created help with daily dev struggles by answering these questions:

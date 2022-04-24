@@ -10,6 +10,9 @@
 
 <img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep"> <img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep"> <img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
 
+## Pardon 🤫
+
+Since you landed here, you might be also interested in my other project - supercharged multiline code search and replace tool -  [codeque.co](https://codeque.co) 🥳
 ## About 📣
 
 The tool was created help with daily dev struggles by answering these questions:

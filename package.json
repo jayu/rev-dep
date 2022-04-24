@@ -69,11 +69,17 @@
     "entry points",
     "dependency resolution",
     "reverse dependency resolution",
-    "dependency tree",
     "import path",
     "resolution path",
     "dependency optimization",
     "dependency analysis",
+    "bundle",
+    "dependency tree",
+    "imports",
+    "dependencies checking",
+    "imports debugging",
+    "imports analysis",
+    "imports search",
     "file dependencies"
   ]
 }

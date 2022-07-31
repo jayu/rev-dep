@@ -1,4 +1,4 @@
-import { Command } from './generate'
+import type { Command } from './generate'
 import dedent from 'dedent'
 const programName = 'rev-dep'
 

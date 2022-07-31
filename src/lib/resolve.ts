@@ -14,6 +14,13 @@ const resolvePathsToRoot = (
     ...resolvedPath
   ])
   if (node.parents.length === 0) {
+    /*
+     * If there is only one path, and has length of 1, it's file self reference
+     * It's invalid result, so we return empty paths in that case
+     */
+    if (newPaths.length === 1 && newPaths[0].length === 1) {
+      return []
+    }
     return newPaths
   }
 
@@ -72,5 +79,6 @@ export const resolve = async ({
     },
     [] as string[][][]
   )
+
   return [resolvedPaths, entryPoints] as [string[][][], string[]]
 }

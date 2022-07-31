@@ -23,7 +23,11 @@ export function formatResults({
   let formatted = ''
   const hasAnyResults = results.some((paths) => paths.length > 0)
   if (!hasAnyResults) {
-    formatted = join('No results found for', filePath, 'in', entryPoints)
+    formatted = join(
+      'No results found for',
+      filePath,
+      'in the following entry points list:\n' + entryPoints.join('\n')
+    )
     return formatted
   }
 

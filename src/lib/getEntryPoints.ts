@@ -44,7 +44,7 @@ export const findEntryPointsInDepsTree = (
   return Object.keys(deps)
     .filter(
       (id) =>
-        /\.(ts|tsx|mjs|js|jsx)$/.test(id) &&
+        /\.(ts|tsx|mjs|cjs|js|jsx)$/.test(id) &&
         !/node_modules/.test(id) &&
         !referencedIds.has(id)
     )
@@ -69,12 +69,14 @@ export const getEntryPoints = async ({
   cwd,
   exclude,
   include,
-  webpackConfigPath
+  webpackConfigPath,
+  ignoreTypesImports
 }: {
   cwd: string
   exclude?: string[]
   include?: string[]
   webpackConfigPath?: string
+  ignoreTypesImports?: boolean
 }) => {
   const dirs = await getDirectoriesForEntryPointsSearch(cwd)
 
@@ -83,7 +85,12 @@ export const getEntryPoints = async ({
     .map((dirName) => `${globEscape(dirName)}/*`)
 
   const globsWithRoot = ['*', ...globs]
-  const depsTree = await getDepsTree(cwd, globsWithRoot, webpackConfigPath)
+  const depsTree = await getDepsTree(
+    cwd,
+    globsWithRoot,
+    webpackConfigPath,
+    ignoreTypesImports
+  )
 
   const possibleEntryPoints = findEntryPointsInDepsTree(
     depsTree,

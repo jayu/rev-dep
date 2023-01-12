@@ -1,4 +1,4 @@
-import { buildGraphDpdm } from './buildDepsGraph'
+import { buildDepsGraph } from './buildDepsGraph'
 import { getDepsTree } from './getDepsTree'
 import { getEntryPoints } from './getEntryPoints'
 import { Node } from './types'
@@ -34,13 +34,15 @@ const resolvePathsToRoot = (
 }
 
 type ResolveParams = {
-  entryPoints: string[]
+  entryPoints?: string[]
   filePath: string
   webpackConfig?: string
   cwd?: string
   all: boolean
   exclude?: string[]
   include?: string[]
+  notTraversePaths?: string[]
+  ignoreTypesImports?: boolean
 }
 
 export const resolve = async ({
@@ -50,23 +52,38 @@ export const resolve = async ({
   cwd = process.cwd(),
   all,
   include,
-  exclude
+  exclude,
+  notTraversePaths,
+  ignoreTypesImports
 }: ResolveParams) => {
   let deps, entryPoints
 
-  if (_entryPoints.length > 0) {
+  if (_entryPoints && _entryPoints?.length > 0) {
     entryPoints = _entryPoints
     const sanitizedEntryPoints = sanitizeUserEntryPoints(entryPoints)
 
-    deps = await getDepsTree(cwd, sanitizedEntryPoints, webpackConfig)
+    deps = await getDepsTree(
+      cwd,
+      sanitizedEntryPoints,
+      webpackConfig,
+      ignoreTypesImports
+    )
   } else {
-    ;[entryPoints, deps] = await getEntryPoints({ cwd, exclude, include })
+    ;[entryPoints, deps] = await getEntryPoints({
+      cwd,
+      exclude,
+      include,
+      webpackConfigPath: webpackConfig,
+      ignoreTypesImports
+    })
   }
 
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
   const cleanedFilePath = removeInitialDot(filePath)
 
-  const forest = cleanedEntryPoints.map(buildGraphDpdm(deps, cleanedFilePath))
+  const forest = cleanedEntryPoints.map(
+    buildDepsGraph(deps, cleanedFilePath, notTraversePaths)
+  )
 
   const resolvedPaths = forest.reduce(
     (allPaths, [_, fileNode]): string[][][] => {

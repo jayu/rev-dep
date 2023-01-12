@@ -5,7 +5,8 @@ import { cleanupDpdmDeps } from './cleanupDpdmDeps'
 export async function getDepsTree(
   cwd: string,
   entryPoints: string[],
-  webpackConfigPath?: string
+  webpackConfigPath?: string,
+  ignoreTypesImports = false
 ) {
   let deps
 
@@ -18,7 +19,8 @@ export async function getDepsTree(
 
     deps = cleanupDpdmDeps(
       await parseDependencyTree(entryPoints, {
-        context: cwd
+        context: cwd,
+        transform: ignoreTypesImports
       })
     )
 

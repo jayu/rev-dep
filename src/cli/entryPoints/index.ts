@@ -13,7 +13,7 @@ import {
   ExcludeOptionType
 } from '../commonOptions'
 import { getEntryPoints } from '../../lib/getEntryPoints'
-import { buildGraphDpdm } from '../../lib/buildDepsGraph'
+import { buildDepsGraph } from '../../lib/buildDepsGraph'
 import { resolvePath } from '../../lib/utils'
 
 export default function createEntryPoints(program: commander.Command) {
@@ -60,7 +60,7 @@ export default function createEntryPoints(program: commander.Command) {
 
         if (printDependenciesCount) {
           depsCount = entryPoints
-            .map(buildGraphDpdm(depsTree))
+            .map(buildDepsGraph(depsTree))
             .map(([_, __, vertices]) => vertices.size)
         }
 

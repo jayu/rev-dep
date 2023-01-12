@@ -1,8 +1,10 @@
 import { Node, MinimalDependencyTree } from './types'
+import minimatch from 'minimatch'
 
-export const buildGraphDpdm = (
+export const buildDepsGraph = (
   deps: MinimalDependencyTree,
-  filePath?: string
+  filePath?: string,
+  notTraversePath?: Array<string>
 ) => (entryPoint: string) => {
   const vertices = new Map()
   let fileNode: Node | null = null
@@ -47,7 +49,14 @@ export const buildGraphDpdm = (
 
     node.children = (dep || [])
       .map((d) => d.id)
-      .filter((path) => path !== null && !path.includes('node_modules'))
+      .filter(
+        (path) =>
+          path !== null &&
+          !path.includes('node_modules') &&
+          !notTraversePath?.some((pathToNotTraverse) =>
+            minimatch(path, pathToNotTraverse)
+          )
+      )
       .map((path) => inner(path as string, localVisited, depth + 1, node))
 
     vertices.set(path, node)

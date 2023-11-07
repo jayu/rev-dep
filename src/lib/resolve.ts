@@ -1,7 +1,7 @@
 import { buildDepsGraph } from './buildDepsGraph'
 import { getDepsTree } from './getDepsTree'
 import { getEntryPoints } from './getEntryPoints'
-import { Node } from './types'
+import { MinimalDependencyTree, Node } from './types'
 import { removeInitialDot, sanitizeUserEntryPoints } from './utils'
 
 const resolvePathsToRoot = (
@@ -97,5 +97,9 @@ export const resolve = async ({
     [] as string[][][]
   )
 
-  return [resolvedPaths, entryPoints] as [string[][][], string[]]
+  return [resolvedPaths, entryPoints, deps] as [
+    string[][][],
+    string[],
+    MinimalDependencyTree
+  ]
 }

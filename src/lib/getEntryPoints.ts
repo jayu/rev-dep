@@ -65,6 +65,54 @@ export const findEntryPointsInDepsTree = (
     .sort()
 }
 
+export const prepareIgnoreInstance = async (cwd: string) => {
+  const ignoreInstance = ignore()
+
+  let gitignore = ''
+
+  try {
+    gitignore = (await fs.readFile(path.join(cwd, '.gitignore'))).toString()
+    const lines = gitignore.split('\n')
+    const nonCommentedNonEmptyLines = lines
+      .filter((line) => !/^(\s*)#/.test(line))
+      .filter((line) => !/^(\s*)$/.test(line))
+
+    gitignore = nonCommentedNonEmptyLines.join('\n')
+  } catch (e) {
+    e
+  }
+
+  ignoreInstance.add(gitignore)
+
+  return ignoreInstance
+}
+
+export const findEntryPointsInDepsTreeAndFilterOutIgnoredFiles = async ({
+  cwd,
+  depsTree,
+  include = undefined,
+  exclude = []
+}: {
+  depsTree: MinimalDependencyTree
+  exclude: string[] | undefined
+  include: string[] | undefined
+  cwd: string
+}) => {
+  const possibleEntryPoints = findEntryPointsInDepsTree(
+    depsTree,
+    exclude,
+    include
+  ).sort()
+
+  const ignoreInstance = await prepareIgnoreInstance(cwd)
+
+  const entryPointsWithoutIgnoredFiles = ignoreInstance.filter(
+    possibleEntryPoints
+  )
+
+  return entryPointsWithoutIgnoredFiles
+}
+
 export const getEntryPoints = async ({
   cwd,
   exclude,
@@ -85,6 +133,7 @@ export const getEntryPoints = async ({
     .map((dirName) => `${globEscape(dirName)}/*`)
 
   const globsWithRoot = ['*', ...globs]
+
   const depsTree = await getDepsTree(
     cwd,
     globsWithRoot,
@@ -92,30 +141,11 @@ export const getEntryPoints = async ({
     ignoreTypesImports
   )
 
-  const possibleEntryPoints = findEntryPointsInDepsTree(
-    depsTree,
-    exclude,
-    include
+  const entryPointsWithoutIgnoredFiles = await findEntryPointsInDepsTreeAndFilterOutIgnoredFiles(
+    { cwd, include, exclude, depsTree }
   )
-  const ignoreInstance = ignore()
 
-  let gitignore = ''
-
-  try {
-    gitignore = (await fs.readFile(path.join(cwd, '.gitignore'))).toString()
-    const lines = gitignore.split('\n')
-    const nonCommentedNonEmptyLines = lines
-      .filter((line) => !/^(\s*)#/.test(line))
-      .filter((line) => !/^(\s*)$/.test(line))
-
-    gitignore = nonCommentedNonEmptyLines.join('\n')
-  } catch (e) {
-    e
-  }
-
-  ignoreInstance.add(gitignore)
-
-  return [ignoreInstance.filter(possibleEntryPoints), depsTree] as [
+  return [entryPointsWithoutIgnoredFiles, depsTree] as [
     string[],
     MinimalDependencyTree
   ]

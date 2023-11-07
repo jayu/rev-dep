@@ -6,7 +6,8 @@ export async function getDepsTree(
   cwd: string,
   entryPoints: string[],
   webpackConfigPath?: string,
-  ignoreTypesImports = false
+  ignoreTypesImports = false,
+  includeNodeModules = false
 ) {
   let deps
 
@@ -21,7 +22,8 @@ export async function getDepsTree(
       await parseDependencyTree(entryPoints, {
         context: cwd,
         transform: ignoreTypesImports
-      })
+      }),
+      includeNodeModules
     )
 
     process.cwd = oldProcessCwd

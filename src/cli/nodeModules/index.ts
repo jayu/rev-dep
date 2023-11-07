@@ -10,13 +10,14 @@ import {
   ignoreTypesImports,
   IgnoreTypesImportsOptionType
 } from '../commonOptions'
+import { sanitizeUserEntryPoints, resolvePath } from '../../lib/utils'
+import { getDepsTree } from '../../lib/getDepsTree'
+import { getNodeModulesForEntryPoint } from '../../lib/getNodeModulesForEntryPoint'
 
-import { getFilesForEntryPoint } from '../../lib/getFilesForEntryPoint'
-
-export default function createFiles(program: commander.Command) {
+export default function createNodeModules(program: commander.Command) {
   program
-    .command('files <entryPoint>')
-    .description('Get list of files required by entry point', {
+    .command('node-modules <entryPoint>')
+    .description('Get list of node modules required by entry point', {
       entryPoint: 'Path to entry point'
     })
     .option(...webpackConfigOption)
@@ -44,22 +45,24 @@ export default function createFiles(program: commander.Command) {
           ignoreTypesImports
         } = data
 
-        const filePaths = await getFilesForEntryPoint({
+        const uniqueNodeModuleImports = await getNodeModulesForEntryPoint({
           cwd,
           entryPoint,
           webpackConfigPath,
           ignoreTypesImports
         })
 
-        if (filePaths.length === 0) {
+        if (uniqueNodeModuleImports.length === 0) {
           console.log('No results found')
           return
         }
 
         if (count) {
-          console.log(filePaths.length)
+          console.log(uniqueNodeModuleImports.length)
         } else {
-          filePaths.forEach((filePath) => console.log(filePath))
+          uniqueNodeModuleImports.forEach((nodeModuleName) =>
+            console.log(nodeModuleName)
+          )
         }
       }
     )

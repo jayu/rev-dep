@@ -394,6 +394,8 @@ rev-dep resolve <filePath> [entryPoints...] [options]
 - `-e --exclude <globs...>` - A list of globs to determine files excluded in entry points search (_optional_)
 - `-cs, --compactSummary` - print a compact summary of reverse resolution with a count of found paths (_optional_)
 - `-a, --all` - finds all paths combination of a given dependency. Might work very slow or crash for some projects due to heavy usage of RAM (_optional_)
+- `-ntp --notTraversePaths <paths...>` - Specify file paths relative to resolution root, that should not be traversed when finding dependency path (_optional_)
+- `-iti --ignoreTypesImports` - Use this flag to not follow type imports when resolving modules (_optional_)
 
 ### Command `entry-points`
 
@@ -413,6 +415,7 @@ rev-dep entry-points [options]
 - `-e --exclude <globs...>` - A list of globs to determine files excluded in entry points search (_optional_)
 - `-pdc, --printDependenciesCount` - print count of entry point dependencies (_optional_)
 - `-c, --count` - print just count of found entry points (_optional_)
+- `-iti --ignoreTypesImports` - Use this flag to not follow type imports when resolving modules (_optional_)
 
 ### Command `files`
 
@@ -433,6 +436,7 @@ rev-dep files <entryPoint> [options]
 - `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
 - `--cwd <path>` - path to a directory that should be used as a resolution root (_optional_)
 - `-c, --count` - print only count of entry point dependencies (_optional_)
+- `-iti --ignoreTypesImports` - Use this flag to not follow type imports when resolving modules (_optional_)
 
 ### Command `docs`
 

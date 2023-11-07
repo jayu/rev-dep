@@ -438,6 +438,27 @@ rev-dep files <entryPoint> [options]
 - `-c, --count` - print only count of entry point dependencies (_optional_)
 - `-iti --ignoreTypesImports` - Use this flag to not follow type imports when resolving modules (_optional_)
 
+### Command `node-modules`
+
+Get list of node modules required by entry point
+
+#### Usage
+
+```sh
+rev-dep node-modules <entryPoint> [options]
+```
+
+#### Arguments
+
+- `entryPoint` - Path to entry point (**required**)
+
+#### Options
+
+- `-wc, --webpackConfig <path>` - path to webpack config to enable webpack aliases support (_optional_)
+- `--cwd <path>` - path to a directory that should be used as a resolution root (_optional_)
+- `-c, --count` - print only count of entry point dependencies (_optional_)
+- `-iti --ignoreTypesImports` - Use this flag to not follow type imports when resolving modules (_optional_)
+
 ### Command `docs`
 
 Generate documentation of available commands into md file.

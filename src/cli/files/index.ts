@@ -6,7 +6,9 @@ import {
   cwdOption,
   CwdOptionType,
   reexportRewireOption,
-  ReexportRewireOptionType
+  ReexportRewireOptionType,
+  ignoreTypesImports,
+  IgnoreTypesImportsOptionType
 } from '../commonOptions'
 import { sanitizeUserEntryPoints, resolvePath } from '../../lib/utils'
 import { getDepsTree } from '../../lib/getDepsTree'
@@ -25,22 +27,30 @@ export default function createFiles(program: commander.Command) {
       'print only count of entry point dependencies',
       false
     )
+    .option(...ignoreTypesImports)
     .action(
       async (
         entryPoint: string,
         data: InputParams &
           WebpackConfigOptionType &
           CwdOptionType &
-          ReexportRewireOptionType
+          ReexportRewireOptionType &
+          IgnoreTypesImportsOptionType
       ) => {
-        const { webpackConfig: webpackConfigPath, cwd, count } = data
+        const {
+          webpackConfig: webpackConfigPath,
+          cwd,
+          count,
+          ignoreTypesImports
+        } = data
 
         const sanitizedEntryPoints = sanitizeUserEntryPoints([entryPoint])
 
         const depsTree = await getDepsTree(
           resolvePath(cwd),
           sanitizedEntryPoints,
-          webpackConfigPath
+          webpackConfigPath,
+          ignoreTypesImports
         )
 
         const filePaths = Object.keys(depsTree)

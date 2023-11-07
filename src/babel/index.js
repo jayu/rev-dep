@@ -8,13 +8,45 @@ import { findTsConfig } from '../lib/utils'
 
 const SKIP = Symbol('SKIP')
 
+/**
+ *
+ * TODO
+ * - support imports from baseUrl from TS config
+ * - persist the original import alias
+ * - group named imports from the same file
+ * - handle type imports properly - we don't preserve the import was a type import
+ * - If that has to be used as a codemod, we have to refactor to make sure we don't change structure of other parts of the code and we preserve imports order
+ */
+
 module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
-  const tsConfig = require(tsConfigPath)
+  const root = tsConfigPath.replace('/tsconfig.json', '')
+  const tsConfigContent = fs.readFileSync(tsConfigPath).toString()
+  const tsConfigContentCleaned = tsConfigContent
+    // remove comments
+    .replace(/^(\s)*\/\//gm, '')
+    .replace(/\/\*.+?\*\//gm, '')
+
+  const tsConfig = JSON.parse(tsConfigContentCleaned)
   const aliases = tsConfig.compilerOptions.paths
   const aliasesKeys = Object.keys(aliases)
   const aliasesRegexes = Object.keys(aliases).map((alias) => {
     return new RegExp(`^${alias.replace('*', '(.)+')}$`)
   })
+
+  let baseUrlDirs = []
+
+  const baseUrl = tsConfig.compilerOptions.baseUrl
+
+  if (baseUrl) {
+    const baseDirPath = node_path.join(root, baseUrl)
+
+    const dirNames = fs
+      .readdirSync(baseDirPath, { withFileTypes: true })
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => dirent.name + '/')
+
+    baseUrlDirs = dirNames
+  }
 
   const cache = new Map()
 
@@ -31,14 +63,17 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
     }
   }
 
-  const isPathRelativeOrAliased = (path) => {
+  const isPathNotANodeModule = (path) => {
     const aliasRegexIdx = aliasesRegexes.findIndex((aliasRegex) =>
       aliasRegex.test(path)
     )
 
     const isRelative = path.startsWith('./') || path.startsWith('../')
+    const isAbsolute = path.startsWith('/')
 
-    return aliasRegexIdx > -1 || isRelative
+    const isBaseUrlPath = baseUrlDirs.some((dir) => path.startsWith(dir))
+
+    return aliasRegexIdx > -1 || isRelative || isAbsolute || isBaseUrlPath
   }
 
   const cacheKey = (identifier, filePath) => `${identifier}-${filePath}`
@@ -89,7 +124,20 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
     ast.program.body.forEach((declaration) => {
       if (resolvedAs === null) {
         if (types.isExportNamedDeclaration(declaration)) {
-          if (types.isVariableDeclaration(declaration.declaration)) {
+          if (
+            declaration.declaration?.type.startsWith('TS') &&
+            declaration.declaration?.type.endsWith('Declaration')
+          ) {
+            const typeName = declaration.declaration.id.name
+            if (typeName === identifier) {
+              resolvedAs = {
+                // This should be 'type' of something else, but ESLint would handle that
+                type: 'named',
+                identifier,
+                source: filePath
+              }
+            }
+          } else if (types.isVariableDeclaration(declaration.declaration)) {
             const hasIdentifier = declaration.declaration.declarations.find(
               (declarator) => {
                 return declarator.id.name === identifier
@@ -132,9 +180,9 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
                       identifier,
                       source: filePath
                     }
-                  } else if (isPathRelativeOrAliased(source)) {
+                  } else if (isPathNotANodeModule(source)) {
                     toLookup.push({
-                      identifier: specifier.exported.local,
+                      identifier: specifier.local.name,
                       source: getModulePath(source, resolvedFilePath, cwd)
                     })
                   }
@@ -144,7 +192,7 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
           }
         } else if (
           types.isExportAllDeclaration(declaration) &&
-          isPathRelativeOrAliased(declaration.source.value)
+          isPathNotANodeModule(declaration.source.value)
         ) {
           toLookup.push({
             identifier,
@@ -176,6 +224,11 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
     const relativeFileName = node_path.relative(cwd, fileName)
     const aliasKey = aliasesKeys[aliasRegexIdx]
     const alias = aliases[aliasKey]?.[0]
+
+    const isAbsoluteToBaseDir = baseUrlDirs.some((baseUrlDir) =>
+      sourcePath.startsWith(baseUrlDir)
+    )
+
     let modulePath = ''
 
     if (alias) {
@@ -188,21 +241,26 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
       }
 
       modulePath = node_path.resolve(cwd, relative)
+    } else if (isAbsoluteToBaseDir) {
+      modulePath = node_path.join(cwd, sourcePath)
     } else {
       // we need ../ to skip current file name
-      modulePath = node_path.resolve(relativeFileName, '../' + sourcePath)
+      modulePath = node_path.join(cwd, relativeFileName, '../' + sourcePath)
     }
-
     return modulePath
   }
 
   return {
     visitor: {
-      ImportDeclaration(path, { filename, cwd }) {
+      Program() {
+        // console.log('Cache size', cache.size)
+      },
+      ImportDeclaration(path, { filename }) {
         const sourceRelative = (source) => {
           const rel = node_path.relative(node_path.dirname(filename), source)
-
-          return rel.startsWith('.') ? rel : './' + rel
+          const whatever = rel.startsWith('.') ? rel : './' + rel
+          // remove file extension
+          return whatever.replace(/\.(ts|js|tsx|jsx|cjs|mjs)$/, '')
         }
 
         const node = path.node
@@ -212,13 +270,14 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
           return
         }
 
-        const shouldSkip = node[SKIP] || !isPathRelativeOrAliased(source.value)
+        const shouldSkip = node[SKIP] || !isPathNotANodeModule(source.value)
 
         if (shouldSkip) {
           return
         }
 
-        const modulePath = getModulePath(source.value, filename, cwd)
+        const modulePath = getModulePath(source.value, filename, root)
+
         const defaultSpecifier = node.specifiers.find(
           (specifier) => specifier.type === 'ImportDefaultSpecifier'
         )
@@ -233,7 +292,7 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
 
         const results = specifiers.map((specifier) => {
           const importedName = specifier.imported.name
-          const result = lookup(importedName, modulePath, cwd)
+          const result = lookup(importedName, modulePath, root)
 
           if (!result) {
             return {
@@ -253,7 +312,7 @@ module.exports = function plugin({ types }, { tsConfigPath = findTsConfig() }) {
         })
 
         const defaultResult = defaultSpecifier
-          ? lookup('default', modulePath, cwd)
+          ? lookup('default', modulePath, root)
           : null
 
         if (defaultResult) {

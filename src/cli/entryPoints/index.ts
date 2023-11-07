@@ -10,7 +10,9 @@ import {
   includeOption,
   IncludeOptionType,
   excludeOption,
-  ExcludeOptionType
+  ExcludeOptionType,
+  IgnoreTypesImportsOptionType,
+  ignoreTypesImports
 } from '../commonOptions'
 import { getEntryPoints } from '../../lib/getEntryPoints'
 import { buildDepsGraph } from '../../lib/buildDepsGraph'
@@ -31,6 +33,7 @@ export default function createEntryPoints(program: commander.Command) {
       false
     )
     .option('-c, --count', 'print just count of found entry points', false)
+    .option(...ignoreTypesImports)
     .action(
       async (
         data: InputParams &
@@ -38,7 +41,8 @@ export default function createEntryPoints(program: commander.Command) {
           CwdOptionType &
           ReexportRewireOptionType &
           IncludeOptionType &
-          ExcludeOptionType
+          ExcludeOptionType &
+          IgnoreTypesImportsOptionType
       ) => {
         const {
           webpackConfig: webpackConfigPath,
@@ -46,14 +50,16 @@ export default function createEntryPoints(program: commander.Command) {
           printDependenciesCount,
           include,
           exclude,
-          count
+          count,
+          ignoreTypesImports
         } = data
 
         const [entryPoints, depsTree] = await getEntryPoints({
           cwd: resolvePath(cwd),
           webpackConfigPath,
           exclude,
-          include
+          include,
+          ignoreTypesImports
         })
 
         let depsCount: number[] | null = null

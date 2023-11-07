@@ -6,4 +6,5 @@ export type InputParams = {
   printMaxDepth?: boolean
   printDependentCount?: boolean
   all: boolean
+  notTraversePaths?: string[]
 }

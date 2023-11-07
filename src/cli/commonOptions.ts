@@ -1,5 +1,5 @@
 type OptionMeta2 = [string, string]
-type OptionMeta3 = [string, string, string]
+type OptionMeta3 = [string, string, string | boolean]
 
 export const webpackConfigOption: OptionMeta2 = [
   '-wc, --webpackConfig <path>',
@@ -45,4 +45,14 @@ export const excludeOption: OptionMeta2 = [
 
 export type ExcludeOptionType = {
   exclude?: string[]
+}
+
+export const ignoreTypesImports: OptionMeta3 = [
+  '-iti --ignoreTypesImports',
+  'Use this flag to not follow type imports when resolving modules',
+  false
+]
+
+export type IgnoreTypesImportsOptionType = {
+  ignoreTypesImports: boolean
 }

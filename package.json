@@ -33,8 +33,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@babel/core": "^7.20.12",
     "@babel/parser": "^7.17.8",
     "@babel/template": "^7.16.7",
+    "@codeque/core": "^0.4.0",
     "@types/dedent": "^0.7.0",
     "colorette": "^2.0.16",
     "commander": "^6.1.0",

@@ -13,7 +13,9 @@ import {
   IncludeOptionType,
   ExcludeOptionType,
   includeOption,
-  excludeOption
+  excludeOption,
+  ignoreTypesImports,
+  IgnoreTypesImportsOptionType
 } from '../commonOptions'
 
 export default function createResolve(program: commander.Command) {
@@ -40,6 +42,11 @@ export default function createResolve(program: commander.Command) {
       'finds all paths combination of a given dependency. Might work very slow or crash for some projects due to heavy usage of RAM',
       false
     )
+    .option(
+      '-ntp --notTraversePaths <paths...>',
+      'Specify file paths relative to resolution root, that should not be traversed when finding dependency path'
+    )
+    .option(...ignoreTypesImports)
     .action(
       async (
         filePath: string,
@@ -49,7 +56,8 @@ export default function createResolve(program: commander.Command) {
           CwdOptionType &
           ReexportRewireOptionType &
           IncludeOptionType &
-          ExcludeOptionType
+          ExcludeOptionType &
+          IgnoreTypesImportsOptionType
       ) => {
         const {
           compactSummary,
@@ -57,7 +65,9 @@ export default function createResolve(program: commander.Command) {
           all,
           cwd,
           exclude,
-          include
+          include,
+          notTraversePaths,
+          ignoreTypesImports
         } = data
 
         const [results, resolveEntryPoints] = await resolve({
@@ -67,7 +77,9 @@ export default function createResolve(program: commander.Command) {
           all,
           cwd: resolvePath(cwd),
           exclude,
-          include
+          include,
+          notTraversePaths,
+          ignoreTypesImports
         })
 
         const formatted = formatResults({

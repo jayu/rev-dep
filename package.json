@@ -1,6 +1,6 @@
 {
   "name": "rev-dep",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Dependency debugging tool for JavaScript and TypeScript projects",
   "main": "dist/module.js",
   "bin": "bin.js",

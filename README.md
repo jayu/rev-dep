@@ -378,12 +378,12 @@ Checks if a filePath is required from entryPoint(s) and prints the resolution pa
 #### Usage
 
 ```sh
-rev-dep resolve <filePath> [entryPoints...] [options]
+rev-dep resolve <filePathOrNodeModuleName> [entryPoints...] [options]
 ```
 
 #### Arguments
 
-- `filePath` - Path to a file that should be resolved in entry points (**required**)
+- `filePathOrNodeModuleName` - undefined (**required**)
 - `entryPoints...` - List of entry points to look for file (_optional_)
 
 #### Options
@@ -395,6 +395,7 @@ rev-dep resolve <filePath> [entryPoints...] [options]
 - `-cs, --compactSummary` - print a compact summary of reverse resolution with a count of found paths (_optional_)
 - `-a, --all` - finds all paths combination of a given dependency. Might work very slow or crash for some projects due to heavy usage of RAM (_optional_)
 - `-ntp --notTraversePaths <paths...>` - Specify file paths relative to resolution root, that should not be traversed when finding dependency path (_optional_)
+- `-inm --includeNodeModules` - Whether to include node modules in dependency graph. Has to be provided to resolve node module. (_optional_)
 - `-iti --ignoreTypesImports` - Use this flag to not follow type imports when resolving modules (_optional_)
 
 ### Command `entry-points`

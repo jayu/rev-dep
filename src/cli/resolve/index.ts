@@ -20,7 +20,7 @@ import {
 
 export default function createResolve(program: commander.Command) {
   program
-    .command('resolve <filePath> [entryPoints...]')
+    .command('resolve <filePathOrNodeModuleName> [entryPoints...]')
     .description(
       'Checks if a filePath is required from entryPoint(s) and prints the resolution path',
       {
@@ -46,10 +46,15 @@ export default function createResolve(program: commander.Command) {
       '-ntp --notTraversePaths <paths...>',
       'Specify file paths relative to resolution root, that should not be traversed when finding dependency path'
     )
+    .option(
+      '-inm --includeNodeModules',
+      'Whether to include node modules in dependency graph. Has to be provided to resolve node module.',
+      true
+    )
     .option(...ignoreTypesImports)
     .action(
       async (
-        filePath: string,
+        filePathOrNodeModuleName: string,
         entryPoints: string[],
         data: InputParams &
           WebpackConfigOptionType &
@@ -67,26 +72,28 @@ export default function createResolve(program: commander.Command) {
           exclude,
           include,
           notTraversePaths,
-          ignoreTypesImports
+          ignoreTypesImports,
+          includeNodeModules
         } = data
 
         const [results, resolveEntryPoints] = await resolve({
           entryPoints,
-          filePath,
+          filePathOrNodeModuleName,
           webpackConfig,
           all,
           cwd: resolvePath(cwd),
           exclude,
           include,
           notTraversePaths,
-          ignoreTypesImports
+          ignoreTypesImports,
+          includeNodeModules
         })
 
         const formatted = formatResults({
           results,
           entryPoints: resolveEntryPoints,
           compactSummary,
-          filePath
+          filePathOrNodeModuleName
         })
 
         console.log(formatted)

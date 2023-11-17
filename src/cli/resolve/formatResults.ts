@@ -11,21 +11,21 @@ const join = (...args: any[]) => args.join(' ') + '\n'
 
 export function formatResults({
   results,
-  filePath,
+  filePathOrNodeModuleName,
   entryPoints,
   compactSummary
 }: {
   results: Results
   compactSummary: InputParams['compactSummary']
   entryPoints: string[]
-  filePath: string
+  filePathOrNodeModuleName: string
 }) {
   let formatted = ''
   const hasAnyResults = results.some((paths) => paths.length > 0)
   if (!hasAnyResults) {
     formatted = join(
       'No results found for',
-      filePath,
+      filePathOrNodeModuleName,
       'in the following entry points list:\n' + entryPoints.join('\n')
     )
     return formatted

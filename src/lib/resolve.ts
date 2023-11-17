@@ -35,7 +35,7 @@ const resolvePathsToRoot = (
 
 type ResolveParams = {
   entryPoints?: string[]
-  filePath: string
+  filePathOrNodeModuleName: string
   webpackConfig?: string
   cwd?: string
   all: boolean
@@ -43,18 +43,20 @@ type ResolveParams = {
   include?: string[]
   notTraversePaths?: string[]
   ignoreTypesImports?: boolean
+  includeNodeModules?: boolean
 }
 
 export const resolve = async ({
   entryPoints: _entryPoints,
-  filePath,
+  filePathOrNodeModuleName,
   webpackConfig,
   cwd = process.cwd(),
   all,
   include,
   exclude,
   notTraversePaths,
-  ignoreTypesImports
+  ignoreTypesImports,
+  includeNodeModules
 }: ResolveParams) => {
   let deps, entryPoints
 
@@ -66,7 +68,8 @@ export const resolve = async ({
       cwd,
       sanitizedEntryPoints,
       webpackConfig,
-      ignoreTypesImports
+      ignoreTypesImports,
+      includeNodeModules
     )
   } else {
     ;[entryPoints, deps] = await getEntryPoints({
@@ -74,15 +77,18 @@ export const resolve = async ({
       exclude,
       include,
       webpackConfigPath: webpackConfig,
-      ignoreTypesImports
+      ignoreTypesImports,
+      includeNodeModules
     })
   }
 
   const cleanedEntryPoints = entryPoints.map(removeInitialDot)
-  const cleanedFilePath = removeInitialDot(filePath)
+  const cleanedFilePathOrNodeModuleName = removeInitialDot(
+    filePathOrNodeModuleName
+  )
 
   const forest = cleanedEntryPoints.map(
-    buildDepsGraph(deps, cleanedFilePath, notTraversePaths)
+    buildDepsGraph(deps, cleanedFilePathOrNodeModuleName, notTraversePaths)
   )
 
   const resolvedPaths = forest.reduce(

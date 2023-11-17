@@ -9,6 +9,8 @@ export const cleanupDpdmDeps = (
   const newDeps = {} as MinimalDependencyTree
 
   Object.entries(deps).forEach(([id, dependencies]) => {
+    const nodeModules: string[] = []
+
     if (
       !isBuiltinModule(id) &&
       !id.includes('node_modules') &&
@@ -21,10 +23,26 @@ export const cleanupDpdmDeps = (
             (includeNodeModules || !id.includes('node_modules')) &&
             !isBuiltinModule(id)
         )
-        .map(({ id, request }) => ({
-          id,
-          request
-        }))
+        .map(({ id, request }) => {
+          const shouldAddNodeModule =
+            includeNodeModules && id?.includes('node_modules')
+
+          const idToAdd = shouldAddNodeModule ? request : id
+
+          if (shouldAddNodeModule && idToAdd) {
+            nodeModules.push(idToAdd)
+          }
+          return {
+            id: idToAdd,
+            request
+          }
+        })
+    }
+
+    if (includeNodeModules) {
+      nodeModules.forEach((nodeModuleName) => {
+        newDeps[nodeModuleName] = []
+      })
     }
   })
 

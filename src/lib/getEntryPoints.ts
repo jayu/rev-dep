@@ -118,13 +118,15 @@ export const getEntryPoints = async ({
   exclude,
   include,
   webpackConfigPath,
-  ignoreTypesImports
+  ignoreTypesImports,
+  includeNodeModules
 }: {
   cwd: string
   exclude?: string[]
   include?: string[]
   webpackConfigPath?: string
   ignoreTypesImports?: boolean
+  includeNodeModules?: boolean
 }) => {
   const dirs = await getDirectoriesForEntryPointsSearch(cwd)
 
@@ -138,7 +140,8 @@ export const getEntryPoints = async ({
     cwd,
     globsWithRoot,
     webpackConfigPath,
-    ignoreTypesImports
+    ignoreTypesImports,
+    includeNodeModules
   )
 
   const entryPointsWithoutIgnoredFiles = await findEntryPointsInDepsTreeAndFilterOutIgnoredFiles(

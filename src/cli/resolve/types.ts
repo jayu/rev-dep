@@ -7,4 +7,5 @@ export type InputParams = {
   printDependentCount?: boolean
   all: boolean
   notTraversePaths?: string[]
+  includeNodeModules?: boolean
 }

@@ -3,11 +3,11 @@ import minimatch from 'minimatch'
 
 export const buildDepsGraph = (
   deps: MinimalDependencyTree,
-  filePath?: string,
+  filePathOrNodeModuleName?: string,
   notTraversePath?: Array<string>
 ) => (entryPoint: string) => {
   const vertices = new Map()
-  let fileNode: Node | null = null
+  let fileOrNodeModuleNode: Node | null = null
 
   const inner = (
     path: string,
@@ -61,13 +61,13 @@ export const buildDepsGraph = (
 
     vertices.set(path, node)
 
-    if (path === filePath) {
-      fileNode = node
+    if (path === filePathOrNodeModuleName) {
+      fileOrNodeModuleNode = node
     }
 
     return node
   }
-  return [inner(entryPoint), fileNode, vertices] as [
+  return [inner(entryPoint), fileOrNodeModuleNode, vertices] as [
     Node,
     Node | null,
     Map<string, Node>

@@ -13,11 +13,11 @@ import { groupBy } from './groupBy'
  * TODO
  * + If that has to be used as a codemod, we have to refactor to make sure we don't change structure of other parts of the code and we preserve imports order
  * +- group named imports from the same file
- * - support imports from baseUrl from TS config
- * - persist the original import alias
+ * + support imports from baseUrl from TS config -> relative | baseUrl | alias
+ * +  persist the original import alias
  * - allow for a list of files to rewire
  * + handle type imports properly - we don't preserve the import was a type import
- * - do not touch imports that don't need changes
+ * + do not touch imports that don't need changes
  */
 
 module.exports = function plugin(
@@ -34,9 +34,36 @@ module.exports = function plugin(
   const tsConfig = JSON.parse(tsConfigContentCleaned)
   const aliases = tsConfig.compilerOptions.paths
   const aliasesKeys = Object.keys(aliases)
-  const aliasesRegexes = Object.keys(aliases).map((alias) => {
-    return new RegExp(`^${alias.replace('*', '(.)+')}$`)
-  })
+  const makeRegExpFromAliasExpression = (aliasExpression) => {
+    return new RegExp(`^${aliasExpression.replace('*', '(.+)')}$`)
+  }
+
+  const aliasesRegexes = Object.keys(aliases).map(makeRegExpFromAliasExpression)
+
+  // TODO we assume that only one aliased path can exist
+  const aliasedPathRegExps = Object.values(aliases).map(([fistAliasedPath]) =>
+    makeRegExpFromAliasExpression(fistAliasedPath)
+  )
+
+  const interpolateAliasWithPath = (
+    aliasKey,
+    aliasedPathRegExp,
+    resolvedSourcePathRelativeToBaseUrl
+  ) => {
+    const [_, ...groups] = aliasedPathRegExp.exec(
+      resolvedSourcePathRelativeToBaseUrl
+    )
+
+    const aliasParts = aliasKey.split('*')
+    const interpolatedAlias = aliasParts.reduce(
+      (mergedPath, aliasPart, idx) => {
+        return `${mergedPath}${aliasPart}${groups[idx] ?? ''}`
+      },
+      ''
+    )
+
+    return interpolatedAlias
+  }
 
   let baseUrlDirs = []
 
@@ -176,6 +203,7 @@ module.exports = function plugin(
                         source: getModulePath(source, resolvedFilePath, cwd)
                       }
                     } else if (source === undefined) {
+                      // Here we could check if identifier comes from import statement, and if so, lookup deeper
                       resolvedAs = {
                         type: 'named',
                         identifier,
@@ -228,7 +256,7 @@ module.exports = function plugin(
     )
     const relativeFileName = node_path.relative(cwd, fileName)
     const aliasKey = aliasesKeys[aliasRegexIdx]
-    const alias = aliases[aliasKey]?.[0]
+    const alias = aliases[aliasKey]?.[0] // TODO we assume that only one aliased path can exist in config
 
     const isAbsoluteToBaseDir = baseUrlDirs.some((baseUrlDir) =>
       sourcePath.startsWith(baseUrlDir)
@@ -255,6 +283,29 @@ module.exports = function plugin(
     return modulePath
   }
 
+  const getImportKind = (sourcePath) => {
+    const aliasRegexIdx = aliasesRegexes.findIndex((aliasRegex) =>
+      aliasRegex.test(sourcePath)
+    )
+
+    const isRelative =
+      sourcePath.startsWith('./') || sourcePath.startsWith('../')
+
+    const isBaseUrlPath = baseUrlDirs.some((dir) => sourcePath.startsWith(dir))
+
+    if (aliasRegexIdx > -1) {
+      return 'aliased'
+    }
+    if (isRelative) {
+      return 'relative'
+    }
+    if (isBaseUrlPath) {
+      return 'baseUrl'
+    }
+
+    throw new Error('Could not determine import kind')
+  }
+
   return {
     visitor: {
       Program() {
@@ -263,8 +314,64 @@ module.exports = function plugin(
       ImportDeclaration(path, state) {
         const filename = state.filename
 
-        const sourceRelative = (source) => {
-          const rel = node_path.relative(node_path.dirname(filename), source)
+        const getImportSourceFormatted = (resolvedSourcePath, importKind) => {
+          const baseDirPath = node_path.join(root, baseUrl)
+
+          if (importKind === 'baseUrl') {
+            const relativeToBaseUrl = node_path.relative(
+              baseDirPath,
+              resolvedSourcePath
+            )
+
+            return relativeToBaseUrl
+          }
+          if (importKind === 'aliased') {
+            const originalSource = path.node.source.value
+            const currentAliasIdx = aliasesRegexes.findIndex((aliasRegex) =>
+              aliasRegex.test(originalSource)
+            )
+
+            const resolvedSourcePathRelativeToBaseUrl = resolvedSourcePath
+              .replace(baseDirPath, '')
+              .replace(/^\//, '')
+
+            // Try to use current alias if it matches new path
+            if (currentAliasIdx > -1) {
+              const aliasKey = aliasesKeys[currentAliasIdx]
+              const aliasedPathRegExp = aliasedPathRegExps[currentAliasIdx]
+
+              if (aliasedPathRegExp.test(resolvedSourcePathRelativeToBaseUrl)) {
+                return interpolateAliasWithPath(
+                  aliasKey,
+                  aliasedPathRegExp,
+                  resolvedSourcePathRelativeToBaseUrl
+                )
+              }
+            }
+
+            // Try finding matching alias
+            const newMatchingAliasIndex = aliasedPathRegExps.findIndex(
+              (aliasedPathRegexp) =>
+                aliasedPathRegexp.test(resolvedSourcePathRelativeToBaseUrl)
+            )
+
+            if (newMatchingAliasIndex > -1) {
+              const aliasKey = aliasesKeys[newMatchingAliasIndex]
+              const aliasedPathRegExp =
+                aliasedPathRegExps[newMatchingAliasIndex]
+
+              return interpolateAliasWithPath(
+                aliasKey,
+                aliasedPathRegExp,
+                resolvedSourcePathRelativeToBaseUrl
+              )
+            }
+          }
+
+          const rel = node_path.relative(
+            node_path.dirname(filename),
+            resolvedSourcePath
+          )
           const whatever = rel.startsWith('.') ? rel : './' + rel
           // remove file extension
           return whatever.replace(/\.(ts|js|tsx|jsx|cjs|mjs)$/, '')
@@ -284,6 +391,7 @@ module.exports = function plugin(
           return
         }
 
+        const importKind = getImportKind(source.value)
         const modulePath = getModulePath(source.value, filename, root)
 
         const defaultSpecifier = node.specifiers.find(
@@ -314,7 +422,7 @@ module.exports = function plugin(
 
           return {
             ...result,
-            source: sourceRelative(result.source),
+            source: getImportSourceFormatted(result.source, importKind),
             local: specifier.local.name
           }
         })
@@ -347,7 +455,10 @@ module.exports = function plugin(
           ? [
               buildDefault({
                 IMPORT_NAME: defaultSpecifier.local.name,
-                SOURCE: sourceRelative(defaultResult.source)
+                SOURCE: getImportSourceFormatted(
+                  defaultResult.source,
+                  importKind
+                )
               })
             ]
           : defaultSpecifier
@@ -372,11 +483,6 @@ module.exports = function plugin(
           groupBy(results, 'source')
         )
 
-        console.log(
-          'importsFromNamedGroupedBySource',
-          importsFromNamedGroupedBySource
-        )
-
         const named = importsFromNamedGroupedBySource.map((imports) => {
           const source = imports[0].source
           const defaultImport = imports.find(({ type }) => type === 'default')
@@ -391,7 +497,7 @@ module.exports = function plugin(
               ? nonDefault
                   .map(({ identifier, local }) =>
                     identifier !== local
-                      ? `${local} as ${identifier}`
+                      ? `${identifier} as ${local}`
                       : identifier
                   )
                   .join(', ')
@@ -399,29 +505,8 @@ module.exports = function plugin(
 
           return `import ${isTypeImport ? 'type ' : ''}${
             defaultPart ? `${defaultPart}${nonDefaultPart ? ', ' : ''}` : ''
-          }${nonDefaultPart ? `{ ${nonDefaultPart} }` : ''} from '${source}'`
+          }${nonDefaultPart ? `{ ${nonDefaultPart} }` : ''} from '${source}';`
         })
-        // const named = results.map(({ type, identifier, local, source }) => {
-        //   if (type === 'default') {
-        //     return buildDefault({
-        //       IMPORT_NAME: identifier,
-        //       SOURCE: source
-        //     })
-        //   } else if (identifier !== local) {
-        //     return buildNamedWithAlias({
-        //       IMPORTED_NAME: identifier,
-        //       LOCAL_NAME: local,
-        //       SOURCE: source
-        //     })
-        //   } else {
-        //     return buildNamed({
-        //       IMPORT_NAME: identifier,
-        //       SOURCE: source
-        //     })
-        //   }
-        // })
-
-        console.log(named)
 
         const newImports = [...namespaceImport, ...defaultImport, ...named].map(
           (node) => {

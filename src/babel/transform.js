@@ -4,18 +4,17 @@ const babelCore = require('@babel/core')
 const parser = require('@babel/parser')
 const fs = require('fs')
 const path = require('path')
-const rootPath = process.argv[2]
-const inputFilePath = process.argv[3]
+
 import { babelParsingOptions } from './babelParsingOptions'
 
 import { processTextCodeModificationsArray } from './processCodeTextModificationsArray'
 
-if (!rootPath) {
-  console.error('Please provide correct transformation root')
-  process.exit(1)
-}
-
-const run = async () => {
+export const transform = async ({
+  rootPath,
+  inputFilePath,
+  includeBarrelExportFiles,
+  excludeBarrelExportFiles
+}) => {
   const root = path.resolve(rootPath)
   const resolvedInputFilePath = inputFilePath
     ? path.join(root, inputFilePath)
@@ -40,7 +39,12 @@ const run = async () => {
         plugins: [
           [
             './babel.js',
-            { tsConfigPath: path.join(root, 'tsconfig.json'), cache }
+            {
+              tsConfigPath: path.join(root, 'tsconfig.json'),
+              cache,
+              includeBarrelExportFiles,
+              excludeBarrelExportFiles
+            }
           ]
         ],
         parserOpts: babelParsingOptions,
@@ -73,5 +77,3 @@ const run = async () => {
     `Done: ${progressCount}/${filesList.length}; Failed: ${errors.length}`
   )
 }
-
-run()

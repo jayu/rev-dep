@@ -15,14 +15,20 @@ import { groupBy } from './groupBy'
  * +- group named imports from the same file
  * + support imports from baseUrl from TS config -> relative | baseUrl | alias
  * +  persist the original import alias
- * - allow for a list of files to rewire
+ * + allow for a list of files to rewire
+ * + use cache for not resolved modules as well
  * + handle type imports properly - we don't preserve the import was a type import
  * + do not touch imports that don't need changes
  */
 
 module.exports = function plugin(
   { types },
-  { tsConfigPath = findTsConfig(), cache = new Map() }
+  {
+    tsConfigPath = findTsConfig(),
+    cache = new Map(),
+    includeBarrelExportFiles,
+    excludeBarrelExportFiles = []
+  }
 ) {
   const root = tsConfigPath.replace('/tsconfig.json', '')
   const tsConfigContent = fs.readFileSync(tsConfigPath).toString()
@@ -107,13 +113,13 @@ module.exports = function plugin(
     return aliasRegexIdx > -1 || isRelative || isAbsolute || isBaseUrlPath
   }
 
-  const cacheKey = (identifier, filePath) => `${identifier}-${filePath}`
+  const getCacheKey = (identifier, filePath) => `${identifier}-${filePath}`
 
   const lookup = (identifier, filePath, cwd) => {
-    const cached = cache.get(cacheKey(identifier, filePath))
+    const cached = cache.get(getCacheKey(identifier, filePath))
 
     if (cached) {
-      return cached
+      return { ...cached, isCached: true }
     }
 
     const withExtension = /(\.ts|\.tsx)$/.test(filePath)
@@ -132,7 +138,7 @@ module.exports = function plugin(
     const fileInfo = getFile(filePath, withExtension)
 
     if (!fileInfo) {
-      return null
+      return { resolvedAs: null, visitedFiles: [] }
     }
 
     const [resolvedFilePath, file] = fileInfo
@@ -236,14 +242,21 @@ module.exports = function plugin(
       })
 
       if (resolvedAs) {
-        return resolvedAs
+        return { resolvedAs, visitedFiles: [resolvedAs.source] }
       }
 
       const nestedResult = toLookup
         .map(({ identifier, source }) => lookup(identifier, source, cwd))
-        .filter(Boolean)
+        .filter((lookUpResult) => lookUpResult.resolvedAs !== null)
 
-      return nestedResult[0]
+      if (nestedResult[0]) {
+        return {
+          resolvedAs: nestedResult[0].resolvedAs,
+          visitedFiles: [resolvedFilePath, ...nestedResult[0].visitedFiles]
+        }
+      }
+
+      return { resolvedAs: null, visitedFiles: [] }
     } catch (e) {
       console.log('Lookup parse error', filePath, e)
       process.exit(0)
@@ -410,19 +423,62 @@ module.exports = function plugin(
           const importedName = specifier.imported.name
           const result = lookup(importedName, modulePath, root)
 
-          if (!result) {
-            return {
+          if (!result?.isCached) {
+            const cacheKey = getCacheKey(importedName, modulePath)
+
+            // console.log('resolved not cached', cacheKey, result)
+
+            const originalImport = {
               identifier: importedName,
               local: specifier.local.name,
-              source: source.value
+              source: source.value // cannot cache non absolute path
             }
+
+            const originalImportToCache = {
+              identifier: importedName,
+              local: specifier.local.name,
+              source: modulePath
+            }
+
+            const originalResolution = {
+              resolvedAs: originalImportToCache,
+              visitedFiles: []
+            }
+
+            if (!result.resolvedAs) {
+              cache.set(cacheKey, originalResolution)
+
+              return originalImport
+            }
+
+            if (
+              includeBarrelExportFiles &&
+              !includeBarrelExportFiles.some((fileThatHasToBeVisited) =>
+                result.visitedFiles.includes(fileThatHasToBeVisited)
+              )
+            ) {
+              cache.set(cacheKey, originalResolution)
+              return originalImport
+            }
+
+            if (
+              excludeBarrelExportFiles.some((fileThatCannotBeVisited) =>
+                result.visitedFiles.includes(fileThatCannotBeVisited)
+              )
+            ) {
+              cache.set(cacheKey, originalResolution)
+              return originalImport
+            }
+
+            cache.set(cacheKey, result)
           }
 
-          cache.set(cacheKey(importedName, modulePath), result)
-
           return {
-            ...result,
-            source: getImportSourceFormatted(result.source, importKind),
+            ...result.resolvedAs,
+            source: getImportSourceFormatted(
+              result.resolvedAs.source,
+              importKind
+            ),
             local: specifier.local.name
           }
         })
@@ -431,8 +487,36 @@ module.exports = function plugin(
           ? lookup('default', modulePath, root)
           : null
 
-        if (defaultResult) {
-          cache.set(cacheKey('default', modulePath), defaultResult)
+        if (defaultResult && !defaultResult.isCached) {
+          const cacheKey = getCacheKey('default', modulePath)
+
+          const originalImportToCache = {
+            source: modulePath
+          }
+
+          const originalResolution = {
+            resolvedAs: originalImportToCache,
+            visitedFiles: []
+          }
+
+          if (!defaultResult.resolvedAs) {
+            cache.set(cacheKey, originalResolution)
+          } else if (
+            includeBarrelExportFiles &&
+            !includeBarrelExportFiles.some((fileThatHasToBeVisited) =>
+              defaultResult.visitedFiles.includes(fileThatHasToBeVisited)
+            )
+          ) {
+            cache.set(cacheKey, originalResolution)
+          } else if (
+            excludeBarrelExportFiles.some((fileThatCannotBeVisited) =>
+              defaultResult.visitedFiles.includes(fileThatCannotBeVisited)
+            )
+          ) {
+            cache.set(cacheKey, originalResolution)
+          } else {
+            cache.set(cacheKey, defaultResult)
+          }
         }
 
         const buildNamed = template(`
@@ -451,12 +535,12 @@ module.exports = function plugin(
           import * as %%IMPORT_NAME%% from '%%SOURCE%%';
         `)
 
-        const defaultImport = defaultResult
+        const defaultImport = defaultResult?.resolvedAs
           ? [
               buildDefault({
                 IMPORT_NAME: defaultSpecifier.local.name,
                 SOURCE: getImportSourceFormatted(
-                  defaultResult.source,
+                  defaultResult.resolvedAs.source,
                   importKind
                 )
               })

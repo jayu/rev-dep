@@ -38,7 +38,7 @@ export const transform = async ({
       const result = babelCore.transformFileSync(filePath, {
         plugins: [
           [
-            './babel.js',
+            __dirname + '/index.js',
             {
               tsConfigPath: path.join(root, 'tsconfig.json'),
               cache,

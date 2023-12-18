@@ -92,7 +92,7 @@ module.exports = function plugin(
       return null
     }
 
-    const path = paths[0]
+    const path = node_path.normalize(paths[0])
     try {
       return [path, fs.readFileSync(path).toString()]
     } catch (e) {
@@ -293,7 +293,8 @@ module.exports = function plugin(
       // we need ../ to skip current file name
       modulePath = node_path.join(cwd, relativeFileName, '../' + sourcePath)
     }
-    return modulePath
+
+    return node_path.normalize(modulePath)
   }
 
   const getImportKind = (sourcePath) => {
@@ -385,7 +386,9 @@ module.exports = function plugin(
             node_path.dirname(filename),
             resolvedSourcePath
           )
+
           const whatever = rel.startsWith('.') ? rel : './' + rel
+
           // remove file extension
           return whatever.replace(/\.(ts|js|tsx|jsx|cjs|mjs)$/, '')
         }

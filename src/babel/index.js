@@ -105,7 +105,7 @@ module.exports = function plugin(
       aliasRegex.test(path)
     )
 
-    const isRelative = path.startsWith('./') || path.startsWith('../')
+    const isRelative = path.startsWith('.')
     const isAbsolute = path.startsWith('/')
 
     const isBaseUrlPath = baseUrlDirs.some((dir) => path.startsWith(dir))
@@ -302,8 +302,7 @@ module.exports = function plugin(
       aliasRegex.test(sourcePath)
     )
 
-    const isRelative =
-      sourcePath.startsWith('./') || sourcePath.startsWith('../')
+    const isRelative = sourcePath.startsWith('.')
 
     const isBaseUrlPath = baseUrlDirs.some((dir) => sourcePath.startsWith(dir))
 

@@ -400,6 +400,11 @@ module.exports = function plugin(
           return
         }
 
+        if (node.specifiers.length === 0) {
+          // Skip imports without 'from'
+          return
+        }
+
         const shouldSkip = node[SKIP] || !shouldPathBeAnalyzed(source.value)
 
         if (shouldSkip) {

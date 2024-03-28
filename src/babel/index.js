@@ -11,14 +11,8 @@ import { groupBy } from './groupBy'
 /**
  *
  * TODO
- * + If that has to be used as a codemod, we have to refactor to make sure we don't change structure of other parts of the code and we preserve imports order
- * +- group named imports from the same file
- * + support imports from baseUrl from TS config -> relative | baseUrl | alias
- * +  persist the original import alias
- * + allow for a list of files to rewire
- * + use cache for not resolved modules as well
- * + handle type imports properly - we don't preserve the import was a type import
- * + do not touch imports that don't need changes
+ * - Resolving aliases that point to a file rather than to directory seems to not work
+ * eg. @/ds/system
  */
 
 module.exports = function plugin(

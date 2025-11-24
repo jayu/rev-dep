@@ -179,12 +179,12 @@ Memory usage on Mac was measure using `/usr/bin/time` utility. Memory usage on L
 
 ### Mac book Pro M1 256GB, power save off; 
 
-| Command                                                      | V1 Time | V2 Time | Time Change | V1 RAM     | V2 RAM    | RAM Change |
-| ------------------------------------------------------------ | ------- | ------- | ----------- | ---------- | --------- | ---------- |
-| List entry-points `rev-dep entry-points`                     | 6500ms  | 347ms   | 19x         | ~680MB RAM | ~51MB RAM | 13x        |
-| List entry-points with dependent files count `-pdc`          | 8333ms  | 782ms   | 11x         | ~885MB RAM | ~110MB RAM| 8x         |
-| List entry-point files `rev-dep files`                       | 2729ms  | 400ms   | 7x          | ~330MB RAM | ~36MB RAM | 9x         |
-| Resolve dependency path `rev-dep resolve`                    | 2984ms  | 359ms   | 8x          | ~330MB RAM | ~35MB RAM | 9x         |
+| Command                                                      | V1 Time | V2 Time | Time Change | V1 RAM | V2 RAM | RAM Change |
+| ------------------------------------------------------------ | ------- | ------- | ----------- | ------ | ------ | ---------- |
+| List entry-points `rev-dep entry-points`                     | 6500ms  | 347ms   | 19x         | ~680MB | ~51MB  | 13x        |
+| List entry-points with dependent files count `-pdc`          | 8333ms  | 782ms   | 11x         | ~885MB | ~110MB | 8x         |
+| List entry-point files `rev-dep files`                       | 2729ms  | 400ms   | 7x          | ~330MB | ~36MB  | 9x         |
+| Resolve dependency path `rev-dep resolve`                    | 2984ms  | 359ms   | 8x          | ~330MB | ~35MB  | 9x         |
 
 ### WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
 

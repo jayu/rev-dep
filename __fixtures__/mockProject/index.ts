@@ -1,0 +1,11 @@
+import "@/module/fileA"
+import type {  myType } from "src/types"
+import { ROOT_ELEMENT } from '../parseIMports600Loc';
+import "./src/importFileWithTheSameNameAsDir"
+import "./src/fileDirTheSameName.ts"
+import "./src/fileDirTheSameName/index.ts"
+import "src/importNestedFile"
+import "./src/importFileWithTheSameNameAsDirOutsideCwd"
+import "react"
+import "global"
+import "./src/importFileWithSamePathAsNodeModule"

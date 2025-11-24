@@ -1,3 +1,9 @@
-yarn-error.log
-node_modules
-dist
+main
+main-linux
+rev-dep-go
+rev-dep-go-linux
+*.log
+*.cpu
+*.test
+**/bin/rev-dep
+.DS_Store

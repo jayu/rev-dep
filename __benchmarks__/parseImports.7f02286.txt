@@ -1,0 +1,46 @@
+goos: darwin
+goarch: arm64
+pkg: rev-dep-go
+cpu: Apple M1
+BenchmarkParseImportsWithTypes-8            	  297979	      3979 ns/op
+BenchmarkParseImportsWithTypes-8            	  311340	      3868 ns/op
+BenchmarkParseImportsWithTypes-8            	  309666	      3878 ns/op
+BenchmarkParseImportsWithTypes-8            	  310381	      3877 ns/op
+BenchmarkParseImportsWithTypes-8            	  311250	      3874 ns/op
+BenchmarkParseImportsWithTypes-8            	  311037	      3881 ns/op
+BenchmarkParseImportsWithTypes-8            	  311173	      3879 ns/op
+BenchmarkParseImportsWithTypes-8            	  309102	      3881 ns/op
+BenchmarkParseImportsWithTypes-8            	  310473	      3876 ns/op
+BenchmarkParseImportsWithTypes-8            	  311571	      3874 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  310714	      3877 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  311131	      3872 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  310945	      3876 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  311032	      3870 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  310734	      3872 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  310060	      3874 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  302624	      3884 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  310228	      3880 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  309447	      3871 ns/op
+BenchmarkParseImportsWithoutTypes-8         	  306160	      3878 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5482	    221984 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5475	    225668 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5011	    222794 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5424	    226647 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5176	    222554 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5346	    225760 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5479	    223221 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5419	    224651 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5481	    228466 ns/op
+BenchmarkParseImportsWithTypes600Loc-8      	    5308	    223761 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5194	    226158 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5425	    223484 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5448	    222371 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5430	    239452 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5330	    223878 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5468	    222576 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5460	    224184 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5178	    222843 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5474	    223846 ns/op
+BenchmarkParseImportsWithoutTypes600Loc-8   	    5341	    223608 ns/op
+PASS
+ok  	rev-dep-go	48.382s

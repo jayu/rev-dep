@@ -1,0 +1,41 @@
+package main
+
+// Output structures for minimal dependency tree
+type MinimalDependency struct {
+	ID           *string            `json:"id"`
+	Request      string             `json:"request"`
+	ResolvedType ResolvedImportType `json:"resolvedType"`
+}
+
+type MinimalDependencyTree map[string][]MinimalDependency
+
+func TransformToMinimalDependencyTreeCustomParser(fileImportsArr []FileImports) MinimalDependencyTree {
+	result := make(MinimalDependencyTree)
+
+	processedFiles := 0
+	processedImports := 0
+	for _, fileImports := range fileImportsArr {
+		processedFiles++
+		imports := fileImports.Imports
+		filePath := fileImports.FilePath
+		var dependencies []MinimalDependency
+
+		for _, imp := range imports {
+			processedImports++
+
+			dependency := MinimalDependency{
+				ID:           &imp.PathOrName, // Set to the requested file path
+				Request:      imp.Request,
+				ResolvedType: imp.ResolvedType,
+			}
+
+			dependencies = append(dependencies, dependency)
+
+		}
+
+		result[filePath] = dependencies
+
+	}
+
+	return result
+}

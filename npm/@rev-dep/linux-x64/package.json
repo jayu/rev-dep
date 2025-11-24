@@ -1,0 +1,23 @@
+{
+  "name": "@rev-dep/linux-x64",
+  "version": "2.0.0",
+  "description": "The Linux 64-bit binary for rev-dep",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jayu/rev-dep.git"
+  },
+  "license": "MIT",
+  "files": [
+    "bin/rev-dep"
+  ],
+  "private": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ]
+}

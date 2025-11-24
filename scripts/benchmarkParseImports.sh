@@ -1,0 +1,1 @@
+go test -run=None -bench=ParseImports -count=10 > __benchmarks__/parseImports.$(git rev-parse --short HEAD).txt

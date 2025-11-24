@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="800" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" style="padding: 50px; background: radial-gradient(rgb(18,7,60), rgb(18,7,60) 30%, black); background-repeat:no-repeat">
+	<defs>
+		<!-- Gradient anchored at global SVG coordinates -->
+		<linearGradient id="globalGrad2" x1="0" y1="0" x2="1000" y2="500" gradientUnits="userSpaceOnUse">
+			<stop offset="0%" stop-color="magenta" />
+			<stop offset="100%" stop-color="cyan" />
+		</linearGradient>
+		<linearGradient id="globalGrad" x1="0" y1="0" x2="1000" y2="500" gradientUnits="userSpaceOnUse">
+			<stop offset="0%" stop-color="magenta" />
+			<stop offset="25%" stop-color="#B237E2" />
+			<stop offset="50%" stop-color="rgb(142,59,195)" />
+			<stop offset="75%" stop-color="rgb(211,76,168)" />
+			<stop offset="100%" stop-color="rgb(223,115,79)" />
+		</linearGradient>
+		<linearGradient id="globalGrad2" x1="0" y1="0" x2="1000" y2="500" gradientUnits="userSpaceOnUse">
+			<stop offset="0%" stop-color="magenta" />
+			<stop offset="20%" stop-color="#B237E2" />
+			<stop offset="40%" stop-color="rgb(142,59,195)" />
+			<stop offset="60%" stop-color="rgb(211,76,168)" />
+			<stop offset="95%" stop-color="rgb(223,115,79)" />
+			<stop offset="100%" stop-color="rgb(239,194,68)" />
+		</linearGradient>
+	</defs>
+	<!-- <rect width="1500" height="800" fill="rgb(18,7,60)" /> -->
+	<circle cx="50" cy="50" r="16" fill="none" stroke="url(#globalGrad)" stroke-width="8" />
+	<circle cx="50" cy="250" r="16" fill="none" stroke="url(#globalGrad)" stroke-width="8" />
+	<circle cx="50" cy="450" r="16" fill="none" stroke="url(#globalGrad)" stroke-width="8" />
+	<circle cx="270" cy="450" r="16" fill="none" stroke="url(#globalGrad)" stroke-width="8" />
+	<!-- path + arrow -->
+	<path d="M 50 84 L 50 236" stroke="url(#globalGrad)" stroke-width="8" />
+	<path d="M 50 78 L 60 96 L 40 96 Z" fill="url(#globalGrad)" stroke="url(#globalGrad)" stroke-width="8" />
+	<!-- path + arrow -->
+	<path d="M 50 284 L 50 436" stroke="url(#globalGrad)" stroke-width="8" />
+	<path d="M 50 278 L 60 296 L 40 296 Z" fill="url(#globalGrad)" stroke="url(#globalGrad)" stroke-width="8" />
+	<!-- path + arrow -->
+	<path d="M 72 276 L 260 440" stroke="url(#globalGrad)" stroke-width="8" />
+	<path d="M 67 272 L 86 277 L 74 290 Z" fill="url(#globalGrad)" stroke="url(#globalGrad)" stroke-width="8" />
+	<!-- path + arrow -->
+	<path d="M 84 44 A 110 160 90 1 1 66 250" stroke="url(#globalGrad)" stroke-width="8" fill="none" />
+	<path d="M 77 46 L 94 32 L 98 54 Z" fill="url(#globalGrad)" stroke="url(#globalGrad)" stroke-width="8" />
+	<style>
+		.text2 {
+		font-family: system-ui;
+		font-size: 400px;
+		font-weight: 2;
+		}
+	</style>
+	<text x="290" y="470" class="text2" fill="url(#globalGrad)">
+		ev-dep
+	</text>
+</svg>

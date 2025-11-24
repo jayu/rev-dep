@@ -1,0 +1,2 @@
+import './fileB'
+import './fileC'

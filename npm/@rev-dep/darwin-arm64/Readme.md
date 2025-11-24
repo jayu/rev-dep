@@ -1,0 +1,1 @@
+The MacOS 64-bit arm binary for [rev-dep](https://www.npmjs.com/package/rev-dep)

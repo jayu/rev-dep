@@ -1,0 +1,23 @@
+{
+  "name": "@rev-dep/darwin-arm64",
+  "version": "2.0.0",
+  "description": "The MacOS 64-bit arm binary for rev-dep",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jayu/rev-dep.git"
+  },
+  "files": [
+    "bin/rev-dep"
+  ],
+  "license": "MIT",
+  "private": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ]
+}

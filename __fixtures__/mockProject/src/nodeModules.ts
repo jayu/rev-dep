@@ -1,0 +1,5 @@
+import * as types from  "@types/node/subdir/file"
+import { readFileSync } from "node:fs"
+import type { Component } from "react"
+import { join } from "path"
+import "notExistingModule"

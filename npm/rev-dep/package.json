@@ -1,0 +1,44 @@
+{
+  "name": "rev-dep",
+  "version": "2.0.0",
+  "description": "Dependency debugging tool for JavaScript and TypeScript projects",
+  "bin": "bin.js",
+  "files": [
+    "bin.js"
+  ],
+  "author": "Jakub Mazurek @jayu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jayu/rev-dep"
+  },
+  "homepage": "https://github.com/jayu/rev-dep#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@rev-dep/darwin-arm64": "2.0.0",
+    "@rev-dep/linux-x64": "2.0.0"
+  },
+  "keywords": [
+    "dependencies",
+    "deps",
+    "dependency graph",
+    "dependency debugging",
+    "entry points",
+    "dependency resolution",
+    "reverse dependency resolution",
+    "import path",
+    "resolution path",
+    "dependency optimization",
+    "dependency analysis",
+    "bundle",
+    "dependency tree",
+    "imports",
+    "dependencies checking",
+    "imports debugging",
+    "imports analysis",
+    "imports search",
+    "file dependencies"
+  ]
+}

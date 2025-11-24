@@ -1,5 +1,11 @@
 <p align="center">
-<img src="./logo.png" width="400">
+<img src="https://github.com/jayu/rev-dep/raw/master/logo.png" width="400">
+</p>
+<p align="center">
+  <a href="#about-">About</a>&nbsp;&nbsp;•&nbsp;&nbsp;  
+  <a href="#getting-started-">Getting Started</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
+  <a href="#recipes-️">Recipes</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
+  <a href="#cli-reference-">CLI Reference</a> 
 </p>
 
 <p align="center">

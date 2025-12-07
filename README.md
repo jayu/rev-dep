@@ -5,7 +5,8 @@
   <a href="#about-">About</a>&nbsp;&nbsp;•&nbsp;&nbsp;  
   <a href="#getting-started-">Getting Started</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
   <a href="#recipes-️">Recipes</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
-  <a href="#cli-reference-">CLI Reference</a> 
+  <a href="#cli-reference-">CLI Reference</a> &nbsp;&nbsp;•&nbsp;&nbsp; 
+  <a href="#circular-check-performance-comparison">Fastest circular deps check</a> 
 </p>
 
 <p align="center">
@@ -177,7 +178,7 @@ Benchmark was run on TypeScript codebase with 507658 lines of code and 5977 sour
 
 Memory usage on Mac was measure using `/usr/bin/time` utility. Memory usage on Linux was not measured because I could't find reliable way to measure RAM usage on Linux. Subsequent runs had too much fluctuation.
 
-### Mac book Pro M1 256GB, power save off; 
+### MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of storage. Power save mode off
 
 | Command                                                      | V1 Time | V2 Time | Time Change | V1 RAM | V2 RAM | RAM Change |
 | ------------------------------------------------------------ | ------- | ------- | ----------- | ------ | ------ | ---------- |
@@ -696,6 +697,26 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
 
 
 <!-- cli-docs-end -->
+
+## Circular check performance comparison
+
+Benchmark performed on TypeScript codebase with `6034` source code files and `518862` lines of code.
+
+Benchmark performed on MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of Storage. Power save mode off.
+
+Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, taking mean time values as a result. If single run was taking more than 10s, only 1 run was performed.
+
+`rev-dep` circular check is **12 times** faster than the fastest alternative❗
+
+| Tool | Version | Command to Run Circular Check | Time |
+|------|---------|-------------------------------|------|
+| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 2.0.0 | `rev-dep circular` | 397 ms |
+| 🥈 [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-progress  --no-warning` + list of directories with source code  | 4960 ms |
+| 🥉 [dpdm](https://github.com/acrazing/dpdm) | 3.14.0 | `dpdm  --no-warning` + list of directories with source code | 5030 ms |
+| [skott](https://github.com/antoine-coulon/skott) | 0.35.6 | node skoscript using `findCircularDependencies` function  | 29575 ms |
+| [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions js,ts,jsx,tsx .` | 69328 ms |
+| [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
+
 
 ## Made in 🇵🇱 and 🇯🇵 with 🧠 by [@jayu](https://github.com/jayu)
 

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  Dependency analysis and optimization toolkit for modern TypeScript projects.
+  Trace imports, detect unused code, clean dependencies — all with a super-fast CLI
   <br>
   <a href="#reimplemented-to-achieve-7x-37x-speedup">Completely rewritten in Go for maximum speed and efficiency ⚡</a>
 </p>
@@ -22,6 +22,8 @@
 
 ## About 📣
 
+A practical dependency analysis toolkit for JavaScript and TypeScript projects. Trace imports, inspect dependency paths, find unused or dead files, detect circular dependencies, audit node_modules, discover entry points, and clean up missing or unused packages — all from a blazing-fast CLI.
+
 The tool was created to help with daily development struggles by answering these questions:
 
 👉 What entry points does my codebase have?
@@ -29,6 +31,8 @@ The tool was created to help with daily development struggles by answering these
 👉 Which entry points use a given file?
 
 👉 Which dependencies does a given file have?
+
+👉 Do any unused files or node modules exist in the project?
 
 👉 Do any circular dependencies exist in the project?
 

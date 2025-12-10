@@ -381,8 +381,8 @@ rev-dep circular --ignore-types-imports
   -c, --cwd string             Working directory for the command (default "$PWD")
   -h, --help                   help for circular
   -t, --ignore-type-imports    Exclude type imports from the analysis
-      --package-json string    Path to package.json (default: ./package.json) (default "package.json")
-      --tsconfig-json string   Path to tsconfig.json (default: ./tsconfig.json) (default "tsconfig.json")
+      --package-json string    Path to package.json (default: ./package.json)
+      --tsconfig-json string   Path to tsconfig.json (default: ./tsconfig.json)
 ```
 
 
@@ -413,11 +413,11 @@ rev-dep entry-points --print-deps-count
       --graph-exclude strings    Exclude files matching these glob patterns from analysis
   -h, --help                     help for entry-points
   -t, --ignore-type-imports      Exclude type imports from the analysis
-      --package-json string      Path to package.json (default: ./package.json) (default "package.json")
+      --package-json string      Path to package.json (default: ./package.json)
       --print-deps-count         Show the number of dependencies for each entry point
       --result-exclude strings   Exclude files matching these glob patterns from results
       --result-include strings   Only include files matching these glob patterns in results
-      --tsconfig-json string     Path to tsconfig.json (default: ./tsconfig.json) (default "tsconfig.json")
+      --tsconfig-json string     Path to tsconfig.json (default: ./tsconfig.json)
 ```
 
 
@@ -448,8 +448,8 @@ rev-dep files --entry-point src/index.ts
   -p, --entry-point string     Entry point file to analyze (required)
   -h, --help                   help for files
   -t, --ignore-type-imports    Exclude type imports from the analysis
-      --package-json string    Path to package.json (default: ./package.json) (default "package.json")
-      --tsconfig-json string   Path to tsconfig.json (default: ./tsconfig.json) (default "tsconfig.json")
+      --package-json string    Path to package.json (default: ./package.json)
+      --tsconfig-json string   Path to tsconfig.json (default: ./tsconfig.json)
 ```
 
 
@@ -649,9 +649,9 @@ rev-dep node-modules missing --entry-points=src/main.ts
   -h, --help                               help for missing
   -t, --ignore-type-imports                Exclude type imports from the analysis
   -i, --include-modules strings            list of modules to include in the output
-      --package-json string                Path to package.json (default: ./package.json) (default "package.json")
+      --package-json string                Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings   Additional package.json fields to check for binary usages
-      --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json) (default "tsconfig.json")
+      --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json)
       --zero-exit-code                     Use this flag to always return zero exit code
 ```
 
@@ -687,9 +687,9 @@ rev-dep node-modules unused --exclude-modules=@types/*
   -h, --help                               help for unused
   -t, --ignore-type-imports                Exclude type imports from the analysis
   -i, --include-modules strings            list of modules to include in the output
-      --package-json string                Path to package.json (default: ./package.json) (default "package.json")
+      --package-json string                Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings   Additional package.json fields to check for binary usages
-      --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json) (default "tsconfig.json")
+      --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json)
       --zero-exit-code                     Use this flag to always return zero exit code
 ```
 
@@ -727,9 +727,9 @@ rev-dep node-modules used -p src/index.ts --group-by-module
   -h, --help                               help for used
   -t, --ignore-type-imports                Exclude type imports from the analysis
   -i, --include-modules strings            list of modules to include in the output
-      --package-json string                Path to package.json (default: ./package.json) (default "package.json")
+      --package-json string                Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings   Additional package.json fields to check for binary usages
-      --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json) (default "tsconfig.json")
+      --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json)
 ```
 
 
@@ -763,8 +763,8 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
       --graph-exclude strings   Glob patterns to exclude files from dependency analysis
   -h, --help                    help for resolve
   -t, --ignore-type-imports     Exclude type imports from the analysis
-      --package-json string     Path to package.json (default: ./package.json) (default "package.json")
-      --tsconfig-json string    Path to tsconfig.json (default: ./tsconfig.json) (default "tsconfig.json")
+      --package-json string     Path to package.json (default: ./package.json)
+      --tsconfig-json string    Path to tsconfig.json (default: ./tsconfig.json)
 ```
 
 

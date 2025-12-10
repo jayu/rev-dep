@@ -28,6 +28,8 @@
 
 `scripts/buildProdBinaries.sh`
 
-`node scripts/addCliDocsToReadme.js`
+`node scripts/addCliRefToReadme.js`
+
+`git add . && git commit`
 
 `scripts/publish.sh` 

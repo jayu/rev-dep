@@ -1,6 +1,6 @@
 {
   "name": "@rev-dep/linux-x64",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "The Linux 64-bit binary for rev-dep",
   "repository": {
     "type": "git",

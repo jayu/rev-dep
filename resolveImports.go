@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/tidwall/jsonc"
 )
 
 type RegExpArrItem struct {
@@ -64,20 +66,29 @@ func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
 }
 
 func NewImportsResolver(tsconfigContent []byte, allFilePaths []string) *ModuleResolver {
-	tsconfigContent = RemoveCommentsFromCode(tsconfigContent)
+	debug := false
+	tsconfigContent = jsonc.ToJSON(tsconfigContent)
+
+	if debug {
+		fmt.Println("tsconfigContent", string(tsconfigContent))
+	}
 
 	var rawConfigForPaths map[string]map[string]map[string][]string
 
 	err := json.Unmarshal(tsconfigContent, &rawConfigForPaths)
 
-	if err != nil {
-		// fmt.Printf("Failed to parse tsConfig paths : %s\n", err)
+	if err != nil && debug {
+		fmt.Printf("Failed to parse tsConfig paths : %s\n", err)
 	}
 
 	paths, ok := rawConfigForPaths["compilerOptions"]["paths"]
 
-	if !ok {
-		// fmt.Printf("Paths not found in tsConfig from\n")
+	if !ok && debug {
+		fmt.Printf("Paths not found in tsConfig from\n")
+	}
+
+	if debug {
+		fmt.Printf("Paths: %v\n", paths)
 	}
 
 	var rawConfigForBaseUrl map[string]map[string]string
@@ -85,19 +96,23 @@ func NewImportsResolver(tsconfigContent []byte, allFilePaths []string) *ModuleRe
 	// TODO figure out if we can use just one unmarshaling
 	err = json.Unmarshal(tsconfigContent, &rawConfigForBaseUrl)
 
-	if err != nil {
-		// fmt.Printf("Failed to parse tsConfig baseUrl from %s\n", err)
+	if err != nil && debug {
+		fmt.Printf("Failed to parse tsConfig baseUrl from %s\n", err)
 	}
 
 	baseUrl, hasBaseUrl := rawConfigForBaseUrl["compilerOptions"]["baseUrl"]
 
-	if !hasBaseUrl {
-		// fmt.Printf("BaseUrl not found in tsConfig from \n")
+	if !hasBaseUrl && debug {
+		fmt.Printf("BaseUrl not found in tsConfig from \n")
 	}
 
 	tsConfigParsed := &TsConfigParsed{
 		aliases:        map[string]string{},
 		aliasesRegexps: []RegExpArrItem{},
+	}
+
+	if debug {
+		fmt.Printf("tsConfigParsed: %v\n", tsConfigParsed)
 	}
 
 	for aliasKey, aliasValues := range paths {

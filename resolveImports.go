@@ -329,8 +329,8 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 
 	if err != nil {
 		tsconfigContent = []byte("")
+		fmt.Fprintf(os.Stderr, "⚠️  Error when reading tsconfig file: '%v' from path: '%s'\n\n", err, tsConfigPath)
 		if tsconfigJson != "" {
-			fmt.Fprintf(os.Stderr, "Error when reading tsconfig file: '%v' from path: '%s'", err, tsConfigPath)
 			os.Exit(1)
 		}
 	}
@@ -341,7 +341,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		pkgJsonContent = []byte("")
 	}
 
-	nodeModules = GetNodeModulesFromPkgJson(RemoveCommentsFromCode(pkgJsonContent))
+	nodeModules = GetNodeModulesFromPkgJson(jsonc.ToJSON(pkgJsonContent))
 
 	importsResolver := NewImportsResolver(tsconfigContent, sortedFiles)
 

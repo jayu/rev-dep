@@ -12,10 +12,11 @@ import (
 	"text/tabwriter"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/tidwall/jsonc"
 )
 
 func GetNodeModulesFromPkgJson(packageJsonContent []byte) map[string]bool {
-	packageJsonContent = RemoveCommentsFromCode(packageJsonContent)
+	packageJsonContent = jsonc.ToJSON(packageJsonContent)
 
 	var rawPackageJson map[string]map[string]string
 

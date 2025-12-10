@@ -46,9 +46,9 @@ var (
 )
 
 func addSharedFlags(command *cobra.Command) {
-	command.Flags().StringVar(&packageJsonPath, "package-json", "package.json",
+	command.Flags().StringVar(&packageJsonPath, "package-json", "",
 		"Path to package.json (default: ./package.json)")
-	command.Flags().StringVar(&tsconfigJsonPath, "tsconfig-json", "tsconfig.json",
+	command.Flags().StringVar(&tsconfigJsonPath, "tsconfig-json", "",
 		"Path to tsconfig.json (default: ./tsconfig.json)")
 }
 

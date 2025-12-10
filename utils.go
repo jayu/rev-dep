@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"slices"
@@ -88,39 +87,6 @@ func RemoveCommentsFromCode(code []byte) []byte {
 		}
 
 		// Add the character to the result if we're not in a comment
-		result = append(result, code[i])
-		i++
-	}
-
-	return result
-}
-
-func RemoveCommentsFromCode_old(code []byte) []byte {
-	result := make([]byte, 0, len(code))
-	i := 0
-	n := len(code)
-
-	inStringContent := false
-	for i < n {
-		// detect string content
-		if bytes.HasPrefix(code[i:], []byte("\"")) {
-			inStringContent = !inStringContent
-		}
-
-		if !inStringContent {
-			if bytes.HasPrefix(code[i:], []byte("//")) {
-				i += 2
-				endOfLineIndex := bytes.Index(code[i:], []byte("\n"))
-				i += endOfLineIndex
-			}
-
-			if bytes.HasPrefix(code[i:], []byte("/*")) {
-				i += 2
-				endOfLineIndex := bytes.Index(code[i:], []byte("*/"))
-				i += endOfLineIndex + 2
-			}
-		}
-
 		result = append(result, code[i])
 		i++
 	}

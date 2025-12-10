@@ -95,11 +95,13 @@ func init() {
 	browserCmd.MarkFlagRequired("entry-point")
 
 	// debug-parse-file flags
+	addSharedFlags(debugParseFileCmd)
 	debugParseFileCmd.Flags().StringVar(&debugFile, "file", "", "file to parse")
 	debugParseFileCmd.Flags().StringVar(&debugFileCwd, "cwd", currentDir, "Working directory for the command")
 	debugParseFileCmd.MarkFlagRequired("file")
 
 	// debug-get-tree-for-cwd flags
+	addSharedFlags(debugGetTreeCmd)
 	debugGetTreeCmd.Flags().StringVar(&debugTreeCwd, "cwd", currentDir, "Working directory for the command")
 	debugGetTreeCmd.Flags().BoolVarP(&debugTreeIgnoreType, "ignore-type-imports", "t", false, "Exclude type imports from the analysis")
 

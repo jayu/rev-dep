@@ -25,6 +25,77 @@ func ResolveAbsoluteCwd(cwd string) string {
 }
 
 func RemoveCommentsFromCode(code []byte) []byte {
+	var result []byte
+	i := 0
+	n := len(code)
+
+	inSingleQuoteString := false
+	inDoubleQuoteString := false
+	inTemplateLiteral := false
+	inLineComment := false
+	inBlockComment := false
+
+	for i < n {
+		// Handle comment endings first
+		if inLineComment && code[i] == '\n' {
+			inLineComment = false
+			// Keep the newline character
+			result = append(result, '\n')
+			i++
+			continue
+		}
+
+		if inBlockComment && i+1 < n && code[i] == '*' && code[i+1] == '/' {
+			inBlockComment = false
+			i += 2
+			continue
+		}
+
+		// If we're in any comment, skip the character
+		if inLineComment || inBlockComment {
+			i++
+			continue
+		}
+
+		// Handle string and template literal contexts
+		if code[i] == '`' && (i == 0 || code[i-1] != '\\') {
+			inTemplateLiteral = !inTemplateLiteral
+			result = append(result, code[i])
+			i++
+			continue
+		} else if !inTemplateLiteral {
+			if code[i] == '\'' && (i == 0 || code[i-1] != '\\') {
+				inSingleQuoteString = !inSingleQuoteString
+			} else if code[i] == '"' && (i == 0 || code[i-1] != '\\') {
+				inDoubleQuoteString = !inDoubleQuoteString
+			}
+		}
+
+		// Only process comments when not in any string/template literal
+		if !inSingleQuoteString && !inDoubleQuoteString && !inTemplateLiteral {
+			// Check for line comment start
+			if i+1 < n && code[i] == '/' && code[i+1] == '/' {
+				inLineComment = true
+				i += 2
+				continue
+			}
+			// Check for block comment start
+			if i+1 < n && code[i] == '/' && code[i+1] == '*' {
+				inBlockComment = true
+				i += 2
+				continue
+			}
+		}
+
+		// Add the character to the result if we're not in a comment
+		result = append(result, code[i])
+		i++
+	}
+
+	return result
+}
+
+func RemoveCommentsFromCode_old(code []byte) []byte {
 	result := make([]byte, 0, len(code))
 	i := 0
 	n := len(code)

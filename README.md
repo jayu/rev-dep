@@ -1,173 +1,242 @@
 <p align="center">
 <img src="https://github.com/jayu/rev-dep/raw/master/logo.png" width="400">
 </p>
+
 <p align="center">
-  <a href="#about-">About</a>&nbsp;&nbsp;•&nbsp;&nbsp;  
-  <a href="#getting-started-">Getting Started</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
-  <a href="#recipes-️">Recipes</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
-  <a href="#cli-reference-">CLI Reference</a> &nbsp;&nbsp;•&nbsp;&nbsp; 
-  <a href="#circular-check-performance-comparison">Fastest circular deps check</a> 
+  <a href="#key-features-">Key Features</a>&nbsp;&nbsp;•&nbsp;&nbsp;  
+  <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
+  <a href="#quick-examples-">Quick Examples</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
+  <a href="#practical-examples-">Practical Examples</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
+  <a href="#cli-reference-">CLI Reference</a>
 </p>
 
 <p align="center">
-  Trace imports, detect unused code, clean dependencies — all with a super-fast CLI
+  Dependency analysis and optimization toolkit for modern JavaScript and TypeScript projects.  
   <br>
-  <a href="#reimplemented-to-achieve-7x-37x-speedup">Completely rewritten in Go for maximum speed and efficiency ⚡</a>
+  Trace imports, find unused code, clean dependencies — all from a blazing-fast CLI.
 </p>
 
 ---
 
-<img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep"> <img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep"> <img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
+<img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep">
+<img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep">
+<img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
 
+---
 
-## About 📣
+# **About 📣**
 
-A practical dependency analysis toolkit for JavaScript and TypeScript projects. Trace imports, inspect dependency paths, find unused or dead files, detect circular dependencies, audit node_modules, discover entry points, and clean up missing or unused packages — all from a blazing-fast CLI.
+Working in large JS/TS projects makes it difficult to answer simple but crucial questions:
 
-The tool was created to help with daily development struggles by answering these questions:
+* Which files depend on this file?
+* Is this file even used?
+* Which files does this entry point import?
+* Do I have circular dependencies?
+* Which packages in node_modules are unused?
+* Which modules take the most disk space?
 
-👉 What entry points does my codebase have?
+rev-dep helps you understand the real structure of your codebase so you can debug issues faster, refactor safely, and keep your dependencies clean.
 
-👉 Which entry points use a given file?
+It's particularly useful for JavaScript projects without TypeScript or test coverage — places where answering question "What will break if I change this" is not straightforward  
 
-👉 Which dependencies does a given file have?
+---
 
-👉 Do any unused files or node modules exist in the project?
+## **Why rev-dep? 🤔**
 
-👉 Do any circular dependencies exist in the project?
+rev-dep is designed for **fast iteration** and **minimal, actionable results** — no noise, just answers.
 
-👉 Which node modules are unused or not listed in package.json?
+### ✅ **Results in milliseconds**
 
-👉 Which node modules take up the most space on disk?
+Built in Go for speed. Even on large codebases, rev-dep responds almost instantly.
 
+### ✅ **Actionable, list-based output**
 
-This helps to debug project dependencies, plan refactoring, optimize bundles or plan code splitting.
+You get **exact file paths**, **import chains**, and **clear dependency relationships** — the kind of information you can fix or clean up right away.
 
-It's especially useful in JS world without TypeScript or tests coverage.
+### ✅ **Designed for real-world JS/TS**
 
-It also helps to identify and eliminate dead files, understand the complexity of the file dependencies
+Works with mixed JS/TS projects, path aliases and thousands of files without configuration hassles.
 
-[🦘 Jump to CLI reference](#cli-reference-)
+### ✅ **Deep analysis, one CLI**
 
-### Use cases 🧑‍💻
+Unused files, unused or missing dependencies, reverse-imports, entry point detection, node_modules insights, dependency paths — everything in one tool.
 
-- [You plan to refactor some file and you wonder which entry points are affected](#how-to-identify-where-a-file-is-used-in-the-project)
-- [You are wondering wether a given source file is used](#how-to-check-if-a-file-is-used-in-the-project)
-- [You wonder if there are any dead files in your project](#how-to-identify-dead-files-in-the-project)
-- [You want to verify if a given entry point imports only the required files](#how-to-check-which-files-are-imported-by-a-given-file)
-- [You want to optimize the amount of files imported by an entry point](#how-to-reduce-amount-of-files-imported-by-entry-point)
-- [You want to detect circular dependencies in your project](#how-to-detect-circular-dependencies-in-the-project)
-- [You want to find unused node modules to clean up dependencies](#how-to-find-unused-node-modules)
-- [You want to identify which node modules are consuming the most disk space](#how-to-identify-space-consuming-node-modules)
+<!--
+### ✔ **Much faster than alternatives**
 
-### How about dependency or bundle graphs?
+rev-dep outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools. 
 
-There are tool that can output nice, visual representation of project dependencies like [webpack-bundle-analyzer](https://www.npmjs.com/package/webpack-bundle-analyzer) or [dependency-cruiser](https://www.npmjs.com/package/dependency-cruiser) (_which btw rev-dep uses for non-TS codebases_)
+For 500k+ lines of code and 6k+ source code files get checks as fast as:
 
-While graphs can be useful to identify major problems like too big bundle size or to visualize mess in your deps, it's hard to take any action based on them (_at least it was hard for me_ 🤷‍♂️)
+| Task | Execution Time |
+|------|----------------|
+| Find circular dependencies | |
+| Find unused files | |
+| Find unused node modules | |
+| Find missing node modules | |
+| Trace reverse dependencies for a file | |
+| Trace full dependency paths | |
+| List all files imported by an entry point | |
+| Discover entry points | |
+| Count lines of code | |
+| Check node_modules disk usage | |
+| Analyze node_modules directory sizes | |
+| List file-to-file dependency graph | |
 
-`rev-dep` visualize dependencies as lists, so it's really easy to see where to cut the line to solve the problem.
+>Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
 
-## Getting Started 🎉
+--->
 
-### Install globally to use as CLI tool
+If your project feels like a dependency maze, rev-dep gives you a map.
 
-`yarn global add rev-dep`
+---
 
-`npm -g install rev-dep`
+# **Key Features 🚀**
 
-`pnpm global add rev-dep`
+* 🔍 **Reverse dependency lookup** — see all entry points that require a given file
+* 🗂️ **Entry point discovery**
+* 🧹 **Dead file detection**
+* 📦 **Unused / missing / used node modules / dependency analysis**
+* 🔄 **Circular imports/dependency detection**
+* 🧭 **Trace all import paths between files**
+* 📁 **List all files imported by any entry point**
+* 📏 **Count actual lines of code (excluding comments & blanks)**
+* 💽 **Node modules disk usage & size analysis**
+* 💡 **Works with both JavaScript and TypeScript**
+* ⚡ **Built for large codebases**
 
-## Recipes 🌶️
+---
 
-### How to identify where a file is used in the project?
+# **Installation 📦**
 
-Just use `rev-dep resolve --file path/to/file.ts`
+Install globally to use as a CLI tool:
 
-You will see all the entry points that implicitly require given file together with resolution path.
+```
+yarn global add rev-dep
+```
 
-[`resolve` Command CLI reference](#rev-dep-resolve)
+```
+npm install -g rev-dep
+```
 
-#### Getting more details about file resolution in given entry point
+```
+pnpm global add rev-dep
+```
 
-To find out all paths combination use `rev-dep resolve` with `-a` flag
+---
 
-> You might be surprised how complex dependency tree can be!
+# **Quick Examples ⚡**
 
-</details>
+A few instant-use examples to get a feel for the tool:
 
-### How to check if a file is used in the project?
+```bash
+# Find every entry point that depends on a file
+rev-dep resolve --file src/utils/math.ts
 
-Use `rev-dep resolve --file path/to/file.ts --compact-summary`
+# List all entry points in the project
+rev-dep entry-points
 
-As a result you will see total amount of entry points requiring a given file.
+# Detect unused node modules
+rev-dep node-modules unused
 
-> Note that among the entry points list there might be some dead files importing the searched file
+# Check which files an entry point imports
+rev-dep files --entry-point src/index.ts
 
-[`resolve` Command CLI reference](#rev-dep-resolve)
+# Detect circular imports/dependencies
+rev-dep circular
+```
 
-### How to identify dead files in the project?
+---
 
-Use `rev-dep entry-points` to get list of all files that are not required by any other files in the project.
+# **Practical Examples 🔧**
 
-You might want to exclude some file paths that are meant to be actual entry point like `index.js` or `**/pages/**` in `next.js` projects using `--result-exclude` flag. The same for configuration files like `babel.config.js`
 
-Review the list and look for suspicious files like `src/ui/components/SomeComponent/index.js`
+### **How to identify where a file is used in the project**
 
-[`entry-points` command CLI reference](#rev-dep-entry-points)
+```
+rev-dep resolve --file path/to/file.ts
+```
 
-### How to check which files are imported by a given file?
+You’ll see all entry points that implicitly require that file, along with resolution paths.
 
-To get a full list of files imported by given entry point use `rev-dep files --entry-point path/to/file.ts`.
+---
 
-You can use `--count` flag if you are interested in the amount.
+### **How to check if a file is used**
 
-This is a good indicator of how heavy a given entry point or component is
+```
+rev-dep resolve --file path/to/file.ts --compact-summary
+```
 
-[`files` command CLI reference](#rev-dep-files)
+Shows how many entry points indirectly depend on the file.
 
-### How to reduce amount of files imported by entry point?
+---
 
-There is no easy how to for this process, but you can do it iteratively using `rev-dep` commands `files` and `resolve`
+### **How to identify dead files**
 
-1. Get the list of files imported by entry-point
+```
+rev-dep entry-points
+```
 
-   `rev-dep files --entry-point path/to/entry-point`
+Exclude framework entry points if needed using `--result-exclude`.
 
-2. Identify some suspicious files on the list, components that should not be used on the given page or not related utility files
-3. Get all resolution paths for a suspicious file
+---
 
-   `rev-dep resolve --file path/to/suspicious-file --entry-points path/to/entry-point --all`
+### **How to list all files imported by an entry point**
 
-4. You would usually find out that there is some file, like directory `index` file that given entry point is using, which is mandatory, but as a side effect it imports a few files that are redundant for your entry point. In most cases you should be able to decouple the imports or reverse the dependency to cut off the resolution path for the unwanted file
+```
+rev-dep files --entry-point path/to/file.ts
+```
 
-### How to detect circular dependencies in the project?
+Useful for identifying heavy components or unintended dependencies.
 
-Use `rev-dep circular` to find all circular dependencies between modules in your project.
+---
 
-Circular dependencies can cause runtime errors, memory leaks, and make code difficult to understand and maintain. It's important to identify and resolve them early.
+### **How to reduce unnecessary imports for an entry point**
 
-You can use `--ignore-type-imports` flag to exclude type-only imports from the analysis if they're not relevant to your use case.
+1. List all files imported:
 
-[`circular` command CLI reference](#rev-dep-circular)
+   ```
+   rev-dep files --entry-point path/to/entry.ts
+   ```
+2. Identify suspicious files.
+3. Trace why they are included:
 
-### How to find unused node modules?
+   ```
+   rev-dep resolve --file path/to/suspect --entry-points path/to/entry.ts --all
+   ```
 
-Use `rev-dep node-modules unused` to identify packages that are installed but not actually imported in your code.
+---
 
-This helps clean up your `package.json` and reduce the size of your `node_modules` directory. You might want to exclude type definitions using `--exclude-modules=@types/*` since they're often used indirectly.
+### **How to detect circular dependencies**
 
-[`node-modules unused` command CLI reference](#rev-dep-node-modules-unused)
+```
+rev-dep circular
+```
 
-### How to identify space-consuming node modules?
+---
 
-Use `rev-dep node-modules dirs-size` to calculate and display the size of `node_modules` directories.
+### **How to find unused node modules**
 
-This helps identify which packages are taking up the most disk space, allowing you to make informed decisions about dependency management or look for lighter alternatives.
+```
+rev-dep node-modules unused
+```
 
-For detailed analysis of specific modules, use `rev-dep node-modules analyze-size` with the package names you want to investigate.
+---
 
-[`node-modules dirs-size` command CLI reference](#rev-dep-node-modules-dirs-size)
+### **How to find missing node modules**
+
+```
+rev-dep node-modules missing
+```
+
+---
+
+### **How to check node_modules space usage**
+
+```
+rev-dep node-modules dirs-size
+```
+
 
 ## Reimplemented to achieve 7x-37x speedup
 
@@ -721,6 +790,65 @@ Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, t
 | [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions js,ts,jsx,tsx .` | 69328 ms |
 | [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
 
+## Glossary
+
+Some of the terms used in the problem space that **rev-dep** covers can be confusing.
+Here is a small glossary to help you navigate the concepts.
+
+### Dependency
+
+A *dependency* can be understood literally. In the context of a project’s dependency graph, it may refer to:
+
+* a **node module / package** (a package is a dependency of a project or file), or
+* a **source code file** (a file is a dependency of another file if it imports it).
+
+### Entry point
+
+An *entry point* is a source file that is **not imported by any other file**.
+It can represent:
+
+* the main entry of the application
+* an individual page or feature
+* configuration or test bootstrap files
+
+— depending on the project structure.
+
+### Unused / Dead file
+
+A file is considered *unused* or *dead* when:
+
+* it is an **entry point** (nothing imports it), **and**
+* running it does **not produce any meaningful output** or side effect.
+
+In practice, such files can often be removed safely.
+
+### Circular dependency
+
+A *circular dependency* occurs when a file **directly or indirectly imports itself** through a chain of imports.
+
+This can lead to unpredictable runtime behavior, uninitialized values, or subtle bugs.
+However, circular dependencies between **TypeScript type-only imports** are usually harmless.
+
+### Reverse dependency (or "dependents")
+
+Files that *import* a given file.
+Useful for answering: "What breaks if I change or delete this file?"
+
+### Import graph / Dependency graph
+
+A visual representation of how files or modules import each other.
+
+### Missing dependency / unused node module
+
+A module that your code imports but is **not listed in package.json**.
+
+### Unused dependency / unused node module
+
+A dependency listed in **package.json** that is **never imported** in the source code.
+
+### Root directory / Project root
+
+The top-level directory used as the starting point for dependency analysis.
 
 ## Made in 🇵🇱 and 🇯🇵 with 🧠 by [@jayu](https://github.com/jayu)
 

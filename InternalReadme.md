@@ -22,10 +22,12 @@
 `go test -run=None -bench=BenchmarkParseImportsWithTypes600Loc --cpuprofile prof.cpu`
 `go tool pprof -http=":8081" rev-dep-go.test prof.cpu`
 
-## Deploying
+## Publishing
 
 `node scripts/setVersions.js`
 
 `scripts/buildProdBinaries.sh`
 
-`scripts/publish.sh` dw
+`node scripts/addCliDocsToReadme.js`
+
+`scripts/publish.sh` 

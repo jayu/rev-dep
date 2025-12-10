@@ -96,11 +96,11 @@ If your project feels like a dependency maze, rev-dep gives you a map.
 * 🔍 **Reverse dependency lookup** — see all entry points that require a given file
 * 🗂️ **Entry point discovery**
 * 🧹 **Dead file detection**
-* 📦 **Unused / missing / used node modules / dependency analysis**
-* 🔄 **Circular imports/dependency detection**
+* 📦 **Unused / missing / used node modules / dependencies analysis**
+* 🔄 **Circular imports/dependencies detection**
 * 🧭 **Trace all import paths between files**
 * 📁 **List all files imported by any entry point**
-* 📏 **Count actual lines of code (excluding comments & blanks)**
+* 📏 **Count actual lines of code (excluding comments, blanks and ai prompts)**
 * 💽 **Node modules disk usage & size analysis**
 * 💡 **Works with both JavaScript and TypeScript**
 * ⚡ **Built for large codebases**

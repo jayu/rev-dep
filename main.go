@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
@@ -584,16 +585,35 @@ var linesOfCodeCmd = &cobra.Command{
 		cwd := ResolveAbsoluteCwd(locCwd)
 
 		files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
-		ch := make(chan int)
+		ch := make(chan [3]int) // [lines, linesWithoutComments, linesWithoutTemplates]
 		var wg sync.WaitGroup
 
 		for _, filePath := range files {
 			wg.Add(1)
-			go func(filePath string, ch chan int, wg *sync.WaitGroup) {
+			go func(filePath string, ch chan [3]int, wg *sync.WaitGroup) {
 				fileContent, err := os.ReadFile(filePath)
 				if err == nil {
-					newLineCharsCount := bytes.Count(bytes.ReplaceAll(RemoveCommentsFromCode(fileContent), []byte{'\n', '\n'}, []byte{'\n'}), []byte{'\n'})
-					ch <- newLineCharsCount
+
+					lines := bytes.Count(
+						bytes.ReplaceAll(fileContent, []byte{'\n', '\n'}, []byte{'\n'}),
+						[]byte{'\n'},
+					)
+
+					// Count lines without comments
+					linesWithoutComments := bytes.Count(
+						bytes.ReplaceAll(RemoveCommentsFromCode(fileContent), []byte{'\n', '\n'}, []byte{'\n'}),
+						[]byte{'\n'},
+					)
+
+					// Count lines without template literals (and comments)
+					linesWithoutTemplates := bytes.Count(
+						bytes.ReplaceAll(RemoveTaggedTemplateLiterals(fileContent), []byte{'\n', '\n'}, []byte{'\n'}),
+						[]byte{'\n'},
+					)
+
+					ch <- [3]int{lines, linesWithoutComments, linesWithoutTemplates}
+				} else {
+					ch <- [3]int{0, 0, 0}
 				}
 				wg.Done()
 			}(filePath, ch, &wg)
@@ -604,13 +624,40 @@ var linesOfCodeCmd = &cobra.Command{
 			close(ch)
 		}()
 
-		sum := 0
+		totalLines := 0
+		totalLinesWithoutComments := 0
+		totalLinesWithoutTemplates := 0
 
-		for fileLoc := range ch {
-			sum += fileLoc
+		for counts := range ch {
+			totalLines += counts[0]
+			totalLinesWithoutComments += counts[1]
+			totalLinesWithoutTemplates += counts[2]
 		}
-		fmt.Println(sum)
 
+		// formatNumber formats an integer with underscores as thousand separators
+		formatNumber := func(n int) string {
+			s := fmt.Sprintf("%d", n)
+			var b strings.Builder
+			for i, r := range s {
+				if i > 0 && (len(s)-i)%3 == 0 {
+					b.WriteRune('_')
+				}
+				b.WriteRune(r)
+			}
+			return b.String()
+		}
+
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "Metric\tLines\tPercentage")
+		fmt.Fprintln(w, "------\t-----\t----------")
+		fmt.Fprintf(w, "Total lines\t%v\t100.00%%\n", formatNumber(totalLines))
+		fmt.Fprintf(w, "Without comments\t%v\t%.2f%%\n",
+			formatNumber(totalLinesWithoutComments),
+			float64(totalLinesWithoutComments)/float64(totalLines)*100)
+		fmt.Fprintf(w, "Without comments and template strings\t%v\t%.2f%%\n",
+			formatNumber(totalLinesWithoutTemplates),
+			float64(totalLinesWithoutTemplates)/float64(totalLines)*100)
+		w.Flush()
 		return nil
 	},
 }

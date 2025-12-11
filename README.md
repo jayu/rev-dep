@@ -5,7 +5,6 @@
 <p align="center">
   <a href="#key-features-">Key Features</a>&nbsp;&nbsp;•&nbsp;&nbsp;  
   <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
-  <a href="#quick-examples-">Quick Examples</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
   <a href="#practical-examples-">Practical Examples</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
   <a href="#cli-reference-">CLI Reference</a>
 </p>
@@ -61,33 +60,29 @@ Works with mixed JS/TS projects, path aliases and thousands of files without con
 
 Unused files, unused or missing dependencies, reverse-imports, entry point detection, node_modules insights, dependency paths — everything in one tool.
 
-<!--
-### ✔ **Much faster than alternatives**
+
+### ✅ **Much faster than alternatives**
 
 rev-dep outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools. 
 
-For 500k+ lines of code and 6k+ source code files get checks as fast as:
+For large project with 500k+ lines of code and 6k+ source code files get checks as fast as:
 
-| Task | Execution Time |
-|------|----------------|
-| Find circular dependencies | |
-| Find unused files | |
-| Find unused node modules | |
-| Find missing node modules | |
-| Trace reverse dependencies for a file | |
-| Trace full dependency paths | |
-| List all files imported by an entry point | |
-| Discover entry points | |
-| Count lines of code | |
-| Check node_modules disk usage | |
-| Analyze node_modules directory sizes | |
-| List file-to-file dependency graph | |
+| Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
+|------|-------|--------------|------|----|
+| Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
+| Find unused files | 588 | knip | 6346 | 11x |
+| Find unused node modules | 594 | knip | 6230 | 10x |
+| Find missing node modules | 553 | knip| 6226 | 11x |
+| List all files imported by an entry point | 229 | madge | 4467 | 20x | 
+| Discover entry points | 323 | madge | 67000 | 207x
+| Resolve dependency path between files | 228 | please suggest | 
+| Count lines of code | 342 | please suggest | 
+| Check node_modules disk usage | 1619 | please suggest | 
+| Analyze node_modules directory sizes | 521 | please suggest | 
 
 >Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
 
---->
 
-If your project feels like a dependency maze, rev-dep gives you a map.
 
 ---
 
@@ -100,10 +95,12 @@ If your project feels like a dependency maze, rev-dep gives you a map.
 * 🔄 **Circular imports/dependencies detection**
 * 🧭 **Trace all import paths between files**
 * 📁 **List all files imported by any entry point**
-* 📏 **Count actual lines of code (excluding comments, blanks and ai prompts)**
+* 📏 **Count actual lines of code (excluding comments and blanks)**
 * 💽 **Node modules disk usage & size analysis**
 * 💡 **Works with both JavaScript and TypeScript**
 * ⚡ **Built for large codebases**
+
+If your project feels like a dependency maze, rev-dep gives you a map.
 
 ---
 

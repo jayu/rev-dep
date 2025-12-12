@@ -1,11 +1,10 @@
 <p align="center">
-<img src="https://github.com/jayu/rev-dep/raw/master/logo.png" width="400">
+<img src="https://github.com/jayu/rev-dep/raw/master/logo.png" width="400" alt="Rev-dep logo">
 </p>
 
 <p align="center">
   <a href="#key-features-">Key Features</a>&nbsp;&nbsp;•&nbsp;&nbsp;  
   <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
-  <a href="#quick-examples-">Quick Examples</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
   <a href="#practical-examples-">Practical Examples</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
   <a href="#cli-reference-">CLI Reference</a>
 </p>
@@ -18,11 +17,9 @@
 
 ---
 
-<img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep">
-<img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep">
-<img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
+<img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep"> <img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep"> <img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
 
----
+
 
 # **About 📣**
 
@@ -35,15 +32,14 @@ Working in large JS/TS projects makes it difficult to answer simple but crucial 
 * Which packages in node_modules are unused?
 * Which modules take the most disk space?
 
-rev-dep helps you understand the real structure of your codebase so you can debug issues faster, refactor safely, and keep your dependencies clean.
+Rev-dep helps you understand the real structure of your codebase so you can debug issues faster, refactor safely, and keep your dependencies clean.
 
 It's particularly useful for JavaScript projects without TypeScript or test coverage — places where answering question "What will break if I change this" is not straightforward  
 
----
 
-## **Why rev-dep? 🤔**
+## **Why Rev-dep? 🤔**
 
-rev-dep is designed for **fast iteration** and **minimal, actionable results** — no noise, just answers.
+Rev-dep is designed for **fast iteration** and **minimal, actionable results** — no noise, just answers.
 
 ### ✅ **Results in milliseconds**
 
@@ -61,35 +57,27 @@ Works with mixed JS/TS projects, path aliases and thousands of files without con
 
 Unused files, unused or missing dependencies, reverse-imports, entry point detection, node_modules insights, dependency paths — everything in one tool.
 
-<!--
-### ✔ **Much faster than alternatives**
 
-rev-dep outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools. 
+### ✅ **Much faster than alternatives**
 
-For 500k+ lines of code and 6k+ source code files get checks as fast as:
+Rev-dep outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools. 
 
-| Task | Execution Time |
-|------|----------------|
-| Find circular dependencies | |
-| Find unused files | |
-| Find unused node modules | |
-| Find missing node modules | |
-| Trace reverse dependencies for a file | |
-| Trace full dependency paths | |
-| List all files imported by an entry point | |
-| Discover entry points | |
-| Count lines of code | |
-| Check node_modules disk usage | |
-| Analyze node_modules directory sizes | |
-| List file-to-file dependency graph | |
+For large project with 500k+ lines of code and 6k+ source code files get checks as fast as:
+
+| Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
+|------|-------|--------------|------|----|
+| Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
+| Find unused files | 588 | knip | 6346 | 11x |
+| Find unused node modules | 594 | knip | 6230 | 10x |
+| Find missing node modules | 553 | knip| 6226 | 11x |
+| List all files imported by an entry point | 229 | madge | 4467 | 20x | 
+| Discover entry points | 323 | madge | 67000 | 207x
+| Resolve dependency path between files | 228 | please suggest | 
+| Count lines of code | 342 | please suggest | 
+| Check node_modules disk usage | 1619 | please suggest | 
+| Analyze node_modules directory sizes | 521 | please suggest | 
 
 >Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
-
---->
-
-If your project feels like a dependency maze, rev-dep gives you a map.
-
----
 
 # **Key Features 🚀**
 
@@ -100,12 +88,10 @@ If your project feels like a dependency maze, rev-dep gives you a map.
 * 🔄 **Circular imports/dependencies detection**
 * 🧭 **Trace all import paths between files**
 * 📁 **List all files imported by any entry point**
-* 📏 **Count actual lines of code (excluding comments, blanks and ai prompts)**
+* 📏 **Count actual lines of code (excluding comments and blanks)**
 * 💽 **Node modules disk usage & size analysis**
 * 💡 **Works with both JavaScript and TypeScript**
 * ⚡ **Built for large codebases**
-
----
 
 # **Installation 📦**
 
@@ -123,33 +109,36 @@ npm install -g rev-dep
 pnpm global add rev-dep
 ```
 
----
 
 # **Quick Examples ⚡**
 
 A few instant-use examples to get a feel for the tool:
 
 ```bash
-# Find every entry point that depends on a file
-rev-dep resolve --file src/utils/math.ts
+# Detect unused node modules
+rev-dep node-modules unused
+
+# Detect circular imports/dependencies
+rev-dep circular
 
 # List all entry points in the project
 rev-dep entry-points
 
-# Detect unused node modules
-rev-dep node-modules unused
-
 # Check which files an entry point imports
 rev-dep files --entry-point src/index.ts
 
-# Detect circular imports/dependencies
-rev-dep circular
-```
+# Find every entry point that depends on a file
+rev-dep resolve --file src/utils/math.ts
 
----
+# Resolve dependency path between files
+rev-dep resolve --file src/utils/math.ts --entry-point src/index.ts
+
+```
 
 # **Practical Examples 🔧**
 
+
+Practical examples show how to use rev-dep commands to build code quality checks for your project.
 
 ### **How to identify where a file is used in the project**
 
@@ -159,8 +148,6 @@ rev-dep resolve --file path/to/file.ts
 
 You’ll see all entry points that implicitly require that file, along with resolution paths.
 
----
-
 ### **How to check if a file is used**
 
 ```
@@ -168,8 +155,6 @@ rev-dep resolve --file path/to/file.ts --compact-summary
 ```
 
 Shows how many entry points indirectly depend on the file.
-
----
 
 ### **How to identify dead files**
 
@@ -179,8 +164,6 @@ rev-dep entry-points
 
 Exclude framework entry points if needed using `--result-exclude`.
 
----
-
 ### **How to list all files imported by an entry point**
 
 ```
@@ -188,8 +171,6 @@ rev-dep files --entry-point path/to/file.ts
 ```
 
 Useful for identifying heavy components or unintended dependencies.
-
----
 
 ### **How to reduce unnecessary imports for an entry point**
 
@@ -205,15 +186,11 @@ Useful for identifying heavy components or unintended dependencies.
    rev-dep resolve --file path/to/suspect --entry-points path/to/entry.ts --all
    ```
 
----
-
 ### **How to detect circular dependencies**
 
 ```
 rev-dep circular
 ```
-
----
 
 ### **How to find unused node modules**
 
@@ -221,15 +198,11 @@ rev-dep circular
 rev-dep node-modules unused
 ```
 
----
-
 ### **How to find missing node modules**
 
 ```
 rev-dep node-modules missing
 ```
-
----
 
 ### **How to check node_modules space usage**
 

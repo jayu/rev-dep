@@ -8,3 +8,4 @@ rev-dep-go-linux
 **/bin/rev-dep
 **/bin/rev-dep.exe
 .DS_Store
+notes/**

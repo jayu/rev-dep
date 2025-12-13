@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -694,7 +695,7 @@ func GetDuplicatedModulesCmd(cwd string, shouldOptimize bool, verbose bool, size
 	if shouldOptimize {
 		if sizeStats {
 			for _, modulePath := range nodeModuleDirs {
-				size, _ := dirSize(modulePath)
+				size, _ := dirSizeWithoutSymlinkSize(modulePath)
 				installedSizeBefore[modulePath] = size
 			}
 		}
@@ -783,7 +784,7 @@ func GetDuplicatedModulesCmd(cwd string, shouldOptimize bool, verbose bool, size
 		fmt.Fprintln(writer, "\t\t\t\t")
 
 		for _, modulePath := range nodeModuleDirs {
-			size, _ := dirSize(modulePath)
+			size, _ := dirSizeWithoutSymlinkSize(modulePath)
 			sumBefore += installedSizeBefore[modulePath]
 			sumAfter += size
 			// fmt.Fprintln(writer, modulePath, "\t", installedSizeBefore[modulePath], "After:", size, "Reduced:", installedSizeBefore[modulePath]-size)
@@ -880,7 +881,7 @@ func ModulesDiskSizeCmd(cwd string) string {
 	fmt.Fprintln(writer, "\t\t\t\t")
 
 	for _, modulePath := range nodeModuleDirs {
-		size, _ := dirSize(modulePath)
+		size, _ := dirSizeWithoutSymlinkSize(modulePath)
 		sum += size
 		fmt.Fprintf(writer, "%s\t%.2f\n",
 			strings.Replace(modulePath, cwd, "", 1), bytesToMB(size),
@@ -911,6 +912,13 @@ type ModuleReport struct {
 
 // AnalyzeNodeModules performs dependency-aware size breakdown with semver-aware exclusivity.
 func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleReport, error) {
+	realPath := func(p string) string {
+		if rp, err := filepath.EvalSymlinks(p); err == nil {
+			return rp
+		}
+		return p
+	}
+
 	if cwd == "" {
 		wd, err := os.Getwd()
 		if err != nil {
@@ -922,6 +930,7 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 	if err != nil {
 		return nil, err
 	}
+	absCwd = realPath(absCwd)
 
 	// ---------- STEP 1: Build installed module index ----------
 	type node struct {
@@ -932,6 +941,7 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 		Size    int64
 		Deps    []DeclaredDep
 	}
+
 	installedByPkgJSON := make(map[string]*node)
 	installedPkgJSONSet := make(map[string]bool)
 
@@ -944,7 +954,9 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 			if err != nil {
 				continue
 			}
-			dir := filepath.Dir(absPath)
+			absPath = realPath(absPath)
+			dir := realPath(filepath.Dir(absPath))
+
 			installedByPkgJSON[absPath] = &node{
 				Key:     absPath,
 				Name:    pi.Name,
@@ -955,15 +967,41 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 		}
 	}
 
+	// ---------- STEP 1.5: Size calculation (follow symlinks) ----------
+	dirSizeWithSymlinksSize := func(root string) (int64, error) {
+		var size int64
+		visited := make(map[string]bool)
+
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			real := realPath(path)
+			if visited[real] {
+				return nil
+			}
+			visited[real] = true
+
+			info, err := os.Stat(real)
+			if err != nil {
+				return nil
+			}
+			if info.Mode().IsRegular() {
+				size += info.Size()
+			}
+			return nil
+		})
+		return size, err
+	}
+
 	// Fill in sizes and declared deps
 	for pkgJSONPath, n := range installedByPkgJSON {
-		n.Size, _ = dirSize(n.Dir)
+		n.Size, _ = dirSizeWithSymlinksSize(n.Dir)
 		deps, _ := readDeclaredDeps(pkgJSONPath)
 		n.Deps = deps
 	}
 
 	// ---------- STEP 2: Dependency resolution with semver ----------
-	// semverCompare checks if installedVersion satisfies declared range.
 	semverMatches := func(rangeStr, installed string) bool {
 		if rangeStr == "" || rangeStr == "*" {
 			return true
@@ -982,32 +1020,25 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 	resolveDependency := func(consumerDir, depName, depRange string) (string, bool) {
 		cur := consumerDir
 		for {
-			var candidate string
-			if strings.HasPrefix(depName, "@") {
-				candidate = filepath.Join(cur, "node_modules", depName, "package.json")
-			} else {
-				candidate = filepath.Join(cur, "node_modules", depName, "package.json")
-			}
+			candidate := filepath.Join(cur, "node_modules", depName, "package.json")
 			absCand, _ := filepath.Abs(candidate)
+			absCand = realPath(absCand)
+
 			if node, ok := installedByPkgJSON[absCand]; ok {
-				// ✅ Use semver to verify correct version
 				if semverMatches(depRange, node.Version) {
 					return absCand, true
 				}
 			}
+
 			parent := filepath.Dir(cur)
 			if parent == cur {
 				break
 			}
 			cur = parent
 		}
-		// fallback root
-		var rootCandidate string
-		if strings.HasPrefix(depName, "@") {
-			rootCandidate = filepath.Join(absCwd, "node_modules", depName, "package.json")
-		} else {
-			rootCandidate = filepath.Join(absCwd, "node_modules", depName, "package.json")
-		}
+
+		rootCandidate := filepath.Join(absCwd, "node_modules", depName, "package.json")
+		rootCandidate = realPath(rootCandidate)
 		if node, ok := installedByPkgJSON[rootCandidate]; ok {
 			if semverMatches(depRange, node.Version) {
 				return rootCandidate, true
@@ -1039,6 +1070,7 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 	rootPkgFiles, _ := findMonorepoPackageJSONs(absCwd)
 	rootToInstalled := make(map[string][]string)
 	rootsReferencingCount := make(map[string]int)
+
 	for _, rootPJ := range rootPkgFiles {
 		deps, _ := readDeclaredDeps(rootPJ)
 		rootDir := filepath.Dir(rootPJ)
@@ -1052,11 +1084,11 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 	}
 
 	// ---------- STEP 5: Compute exclusive/shared deps ----------
-	var reachableFrom func(start string) (map[string]bool, int64)
-	reachableFrom = func(start string) (map[string]bool, int64) {
+	var reachableFrom = func(start string) (map[string]bool, int64) {
 		visited := make(map[string]bool)
 		var total int64
 		stack := []string{start}
+
 		for len(stack) > 0 {
 			nk := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
@@ -1077,6 +1109,7 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 	}
 
 	results := []ModuleReport{}
+
 	for candidate := range rootsReferencingCount {
 		n := installedByPkgJSON[candidate]
 		if n == nil {
@@ -1086,24 +1119,22 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 		own := n.Size
 		visitedAll, totalSize := reachableFrom(candidate)
 
-		// Clone incoming map for simulation
 		tmpIncoming := make(map[string]int)
 		for k, v := range incoming {
 			tmpIncoming[k] = v
 		}
 
-		// remove root->candidate edges
-		for root, insts := range rootToInstalled {
+		for _, insts := range rootToInstalled {
 			for _, inst := range insts {
 				if inst == candidate {
 					tmpIncoming[candidate]--
-					_ = root // just informational
 				}
 			}
 		}
 
 		queue := []string{}
 		removedSet := make(map[string]bool)
+
 		for k := range installedByPkgJSON {
 			if tmpIncoming[k] == 0 && visitedAll[k] {
 				queue = append(queue, k)
@@ -1116,17 +1147,16 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 			queue = queue[1:]
 			for _, child := range graph[nk] {
 				tmpIncoming[child]--
-				if tmpIncoming[child] == 0 && visitedAll[child] {
-					if !removedSet[child] {
-						removedSet[child] = true
-						queue = append(queue, child)
-					}
+				if tmpIncoming[child] == 0 && visitedAll[child] && !removedSet[child] {
+					removedSet[child] = true
+					queue = append(queue, child)
 				}
 			}
 		}
 
 		var exclusiveSize int64
 		var removedPaths []string
+
 		for p := range removedSet {
 			if p == candidate {
 				continue
@@ -1136,6 +1166,7 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 				removedPaths = append(removedPaths, inst.Dir)
 			}
 		}
+
 		shared := totalSize - own - exclusiveSize
 		ownPlusExclusive := own + exclusiveSize
 
@@ -1156,6 +1187,7 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].OwnPlusExclusive > results[j].OwnPlusExclusive
 	})
+
 	return results, nil
 }
 
@@ -1219,7 +1251,7 @@ func findMonorepoPackageJSONs(root string) ([]string, error) {
 	return res, err
 }
 
-func dirSize(root string) (int64, error) {
+func dirSizeWithoutSymlinkSize(root string) (int64, error) {
 	var total int64
 	filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {

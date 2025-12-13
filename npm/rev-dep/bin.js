@@ -11,6 +11,7 @@ const nestedNodeModulesPath = path.join(__dirname, 'node_modules', binaryPackage
 const siblingNodeModulesPath = path.join(__dirname, '../', binaryPackageName)
 
 const checkedPaths = []
+const fsRoot = path.parse(__dirname).root
 
 if (fs.existsSync(nestedNodeModulesPath)) {
   packageDir = nestedNodeModulesPath
@@ -27,7 +28,7 @@ else if (fs.existsSync(siblingNodeModulesPath)) {
     }
     else {
       checkedPaths.push(pathToCheck)
-      if (lookupDir === '/') {
+      if (lookupDir === fsRoot) {
         lookupDir = undefined
       }
       else {
@@ -41,6 +42,7 @@ if (packageDir === '') {
   console.error("Could not locate rev-dep binary for your platform: ", binaryPackageName)
   console.log('Checked paths', checkedPaths)
   console.log('Please open an issue to request platform support')
+  console.log('https://github.com/jayu/rev-dep/issues')
   process.exit(1)
 }
 

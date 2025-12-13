@@ -320,9 +320,9 @@ Any other discrepancies between TypeScript module resolution and rev-dep should 
 
 - Linux x64
 - MacOS Apple Silicon
+- Windows x64
 
-There are the platforms I use and know. For these I build and tested binaries. 
-Go allows for cross-compiling, so I'm happy to build and distribute binaries for other platforms as well, but I haven't tested it. 
+Go allows for cross-compiling, so I'm happy to build and distribute binaries for other platforms as well.
 Feel free to open an issue if you need support for another platform.
 
 ## CLI reference 📖

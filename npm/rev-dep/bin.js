@@ -45,8 +45,8 @@ if (packageDir === '') {
   console.log('https://github.com/jayu/rev-dep/issues')
   process.exit(1)
 }
-
-const binary = path.join(packageDir, 'bin', 'rev-dep')
+const isWin = process.platform === "win32"
+const binary = path.join(packageDir, 'bin', 'rev-dep' + (isWin ? '.exe' : ''))
 
 if (!fs.existsSync(binary)) {
   console.error("Could not locate binary in package directory.")

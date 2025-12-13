@@ -6,4 +6,5 @@ rev-dep-go-linux
 *.cpu
 *.test
 **/bin/rev-dep
+**/bin/rev-dep.exe
 .DS_Store

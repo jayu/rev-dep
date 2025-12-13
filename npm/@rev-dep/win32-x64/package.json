@@ -1,6 +1,6 @@
 {
   "name": "@rev-dep/win32-x64",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "The Windows 64-bit binary for rev-dep",
   "repository": {
     "type": "git",
@@ -8,7 +8,7 @@
   },
   "license": "MIT",
   "files": [
-    "bin/rev-dep"
+    "bin/rev-dep.exe"
   ],
   "private": false,
   "engines": {

@@ -66,7 +66,7 @@ func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
 }
 
 func NewImportsResolver(tsconfigContent []byte, allFilePaths []string) *ModuleResolver {
-	debug := false
+	debug := true
 	tsconfigContent = jsonc.ToJSON(tsconfigContent)
 
 	if debug {
@@ -328,17 +328,22 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		tsConfigPath = filepath.Join(cwd, "tsconfig.json")
 	}
 
+	fmt.Println("Resolve imports tsConfigPath", tsConfigPath)
+
 	tsConfigDir := filepath.Dir(tsConfigPath)
 
 	if packageJson == "" {
 		pkgJsonPath = filepath.Join(cwd, "package.json")
 	}
 
-	tsconfigContent, err := os.ReadFile(tsConfigPath)
-
-	if err != nil {
-		tsconfigContent = []byte("")
-		fmt.Fprintf(os.Stderr, "⚠️  Error when reading tsconfig file: '%v' from path: '%s'\n\n", err, tsConfigPath)
+	// Let ParseTsConfig read and resolve the tsconfig file. If user provided
+	// an explicit tsconfig path and parsing fails, exit with error to match
+	// previous behaviour. Otherwise continue with empty tsconfig content.
+	tsconfigContent := []byte("")
+	if merged, err := ParseTsConfig(tsConfigPath); err == nil {
+		tsconfigContent = merged
+	} else {
+		fmt.Fprintf(os.Stderr, "⚠️  Error when parsing tsconfig: %v\n", err)
 		if tsconfigJson != "" {
 			os.Exit(1)
 		}

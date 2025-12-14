@@ -156,6 +156,8 @@ func NodeModulesCmd(
 	shouldIncludeModule := createShouldModuleByIncluded(modulesToInclude, modulesToExclude)
 	excludeFiles := []string{}
 
+	fmt.Println("nodeModules tsconfigJson", tsconfigJson)
+
 	minimalTree, _, packageJsonNodeModules := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, absolutePathToEntryPoints, packageJson, tsconfigJson)
 
 	if listMissing {
@@ -383,18 +385,18 @@ func GetUsedNodeModules(
 	if tsconfigJson != "" {
 		tsconfigPath = filepath.Join(cwd, tsconfigJson)
 	}
-	tsconfigContent, _ := os.ReadFile(tsconfigPath)
 
-	var tsconfig map[string]map[string][]string
-
-	json.Unmarshal(tsconfigContent, &tsconfig)
-
-	if tsconfig != nil {
-		if co, ok := tsconfig["compilerOptions"]; ok {
-			if typesArr, ok2 := co["types"]; ok2 {
-				for _, typesModule := range typesArr {
-					nodeModuleName := "@types/" + typesModule
-					setFilePathInNodeModuleFilesMap(&usedNodeModules, nodeModuleName, tsconfigPath)
+	// Use ParseTsConfig which reads and resolves "extends" chains. If parsing
+	// fails, treat as absent tsconfig (don't mark any types).
+	if merged, err := ParseTsConfig(tsconfigPath); err == nil {
+		var tsconfig map[string]map[string][]string
+		if err := json.Unmarshal(merged, &tsconfig); err == nil && tsconfig != nil {
+			if co, ok := tsconfig["compilerOptions"]; ok {
+				if typesArr, ok2 := co["types"]; ok2 {
+					for _, typesModule := range typesArr {
+						nodeModuleName := "@types/" + typesModule
+						setFilePathInNodeModuleFilesMap(&usedNodeModules, nodeModuleName, tsconfigPath)
+					}
 				}
 			}
 		}

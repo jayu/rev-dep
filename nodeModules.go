@@ -156,8 +156,6 @@ func NodeModulesCmd(
 	shouldIncludeModule := createShouldModuleByIncluded(modulesToInclude, modulesToExclude)
 	excludeFiles := []string{}
 
-	fmt.Println("nodeModules tsconfigJson", tsconfigJson)
-
 	minimalTree, _, packageJsonNodeModules := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, absolutePathToEntryPoints, packageJson, tsconfigJson)
 
 	if listMissing {

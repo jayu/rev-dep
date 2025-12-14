@@ -66,7 +66,7 @@ func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
 }
 
 func NewImportsResolver(tsconfigContent []byte, allFilePaths []string) *ModuleResolver {
-	debug := true
+	debug := false
 	tsconfigContent = jsonc.ToJSON(tsconfigContent)
 
 	if debug {
@@ -327,8 +327,6 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	if tsconfigJson == "" {
 		tsConfigPath = filepath.Join(cwd, "tsconfig.json")
 	}
-
-	fmt.Println("Resolve imports tsConfigPath", tsConfigPath)
 
 	tsConfigDir := filepath.Dir(tsConfigPath)
 

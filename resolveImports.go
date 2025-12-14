@@ -152,7 +152,7 @@ func NewImportsResolver(tsconfigContent []byte, allFilePaths []string) *ModuleRe
 	filesAndExtensions := &map[string]string{}
 
 	for _, filePath := range allFilePaths {
-		addFilePathToFilesAndExtensions(filePath, filesAndExtensions)
+		addFilePathToFilesAndExtensions(NormalizePathForInternal(filePath), filesAndExtensions)
 	}
 
 	factory := &ModuleResolver{
@@ -243,6 +243,12 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 }
 
 func (f *ModuleResolver) ResolveModule(request string, filePath string, root string) (path string, err *ResolutionError) {
+	// fmt.Println("Resolve module")
+	// fmt.Println("Request", request)
+	// fmt.Println("FilePath", filePath)
+	// fmt.Println("Root", root)
+	// fmt.Printf("module resolver filesAndExtensions %v\n", f.filesAndExtensions)
+	// fmt.Printf("module resolver tsconfig parsed %v \n", f.tsConfigParsed)
 	cached, ok := f.aliasesCache[request]
 
 	if ok {
@@ -257,8 +263,10 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 		modulePath = filepath.Join(root, relativeFileName, "../"+request)
 
 		cleanedModulePath := filepath.Clean(modulePath)
+		// Normalize to internal forward-slash form for matching against files map
+		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
 
-		return f.getModulePathWithExtension(cleanedModulePath)
+		return f.getModulePathWithExtension(modulePathInternal)
 	}
 
 	aliasKey := ""
@@ -289,6 +297,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 		}
 
 		modulePath = filepath.Join(root, relative)
+		modulePath = NormalizePathForInternal(modulePath)
 
 		if modulePath == "" {
 			fmt.Println("Alias resolved to empty string for request", request)
@@ -452,7 +461,7 @@ func resolveSingleFileImports(importsResolver *ModuleResolver, missingResolution
 					missingFilePath := GetMissingFile(modulePath)
 
 					if missingFilePath != "" {
-						missingFileContent, err := os.ReadFile(missingFilePath)
+						missingFileContent, err := os.ReadFile(DenormalizePathForOS(missingFilePath))
 						if err == nil {
 							mu.Lock()
 							imports[impIdx].PathOrName = missingFilePath
@@ -516,7 +525,7 @@ func resolveSingleFileImports(importsResolver *ModuleResolver, missingResolution
 			_, hasFileInDiscoveredFiles := (*discoveredFiles)[importPath]
 			mu.Unlock()
 			if !hasFileInDiscoveredFiles {
-				missingFileContent, err := os.ReadFile(importPath)
+				missingFileContent, err := os.ReadFile(DenormalizePathForOS(importPath))
 				if err == nil {
 
 					missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)

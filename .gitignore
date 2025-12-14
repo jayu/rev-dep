@@ -7,5 +7,6 @@ rev-dep-go-linux
 *.test
 **/bin/rev-dep
 **/bin/rev-dep.exe
+**/*.exe
 .DS_Store
 notes/**

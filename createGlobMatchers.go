@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -18,6 +17,11 @@ type GlobMatcher struct {
 
 func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 	globMatchers := []GlobMatcher{}
+	// normalize pattern root to internal form and ensure trailing '/'
+	patternRootNorm := NormalizePathForInternal(patternsRoot)
+	if patternRootNorm != "" && !strings.HasSuffix(patternRootNorm, "/") {
+		patternRootNorm = patternRootNorm + "/"
+	}
 
 	for _, excludePattern := range patterns {
 		// .gitignore for entries without `/` or `*` - so effectively plain text names, matches directories of files with that exact name. We want to align with .gitignore behavior
@@ -29,10 +33,13 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 
 		}
 
+		// normalize pattern separators (globs and gitignore entries use forward slashes)
+		patternNorm := NormalizeGlobPattern(excludePattern)
+
 		item := GlobMatcher{
-			globPattern:                        glob.MustCompile(excludePattern),
-			inputString:                        excludePattern,
-			patternRoot:                        patternsRoot,
+			globPattern:                        glob.MustCompile(patternNorm),
+			inputString:                        patternNorm,
+			patternRoot:                        patternRootNorm,
 			shouldMatchAnyFileOrDirWithPattern: shouldMatchAnyFileOrDirWithPattern,
 			isAdditional:                       false,
 		}
@@ -40,12 +47,12 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 		// !!! This glob library does not match files in using directory wildcard (**/) if file is in root directory. eg `**/*.log`` will not match against `file.log`, but will match against `dir/file.log`
 		// This is not aligned with TS rev-dep implementation and not aligned with .gitignore behavior
 		// So we add additional pattern to patch the discrepancy
-		if strings.HasPrefix(excludePattern, "**/") {
-			additionalPattern := strings.Replace(excludePattern, "**/", "", 1)
+		if strings.HasPrefix(patternNorm, "**/") {
+			additionalPattern := strings.Replace(patternNorm, "**/", "", 1)
 			additionalItem := GlobMatcher{
 				globPattern:                        glob.MustCompile(additionalPattern),
 				inputString:                        additionalPattern,
-				patternRoot:                        patternsRoot,
+				patternRoot:                        patternRootNorm,
 				shouldMatchAnyFileOrDirWithPattern: false,
 				isAdditional:                       true,
 			}
@@ -55,12 +62,11 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 	return globMatchers
 }
 
-var osSeparator = string(os.PathSeparator)
-
 func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) bool {
-
 	for _, matcher := range matchers {
-		fileWithoutPrefix := strings.TrimPrefix(filePath, matcher.patternRoot)
+		// convert candidate path to internal form (forward slashes)
+		fileInternal := NormalizePathForInternal(filePath)
+		fileWithoutPrefix := strings.TrimPrefix(fileInternal, matcher.patternRoot)
 		if debug {
 			fmt.Println("Matcher", matcher.globPattern, matcher.inputString, matcher.patternRoot, matcher.shouldMatchAnyFileOrDirWithPattern, matcher.isAdditional)
 			fmt.Println("Input", fileWithoutPrefix, filePath)
@@ -71,14 +77,14 @@ func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) 
 			}
 			return true
 		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && strings.HasSuffix(fileWithoutPrefix, osSeparator+matcher.inputString) {
+		if matcher.shouldMatchAnyFileOrDirWithPattern && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
 			// matches file with name exactly as the pattern
 			if debug {
 				fmt.Println(fileWithoutPrefix, "return matches file name exactly", matcher.inputString)
 			}
 			return true
 		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && (strings.Contains(fileWithoutPrefix, osSeparator+matcher.inputString+osSeparator) || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+osSeparator)) {
+		if matcher.shouldMatchAnyFileOrDirWithPattern && (strings.Contains(fileWithoutPrefix, "/"+matcher.inputString+"/") || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/")) {
 			// matches directory with name exactly as the pattern
 			if debug {
 				fmt.Println(fileWithoutPrefix, "return matches directory", matcher.inputString)

@@ -561,7 +561,9 @@ by the specified entry point.`,
 		} else {
 			filePaths := make([]string, 0, len(depsGraph.Vertices))
 			for _, node := range depsGraph.Vertices {
-				relative, _ := filepath.Rel(cwd, node.Path)
+				// node.Path is internal-normalized; convert to OS path before computing relative path
+				nodePathOs := DenormalizePathForOS(node.Path)
+				relative, _ := filepath.Rel(cwd, nodePathOs)
 				filePaths = append(filePaths, relative)
 			}
 			slices.Sort(filePaths)
@@ -591,7 +593,8 @@ var linesOfCodeCmd = &cobra.Command{
 		for _, filePath := range files {
 			wg.Add(1)
 			go func(filePath string, ch chan [3]int, wg *sync.WaitGroup) {
-				fileContent, err := os.ReadFile(filePath)
+				// filePath is internal-normalized; convert back to OS-native for IO
+				fileContent, err := os.ReadFile(DenormalizePathForOS(filePath))
 				if err == nil {
 
 					lines := bytes.Count(

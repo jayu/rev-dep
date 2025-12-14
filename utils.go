@@ -6,6 +6,8 @@ import (
 	"slices"
 )
 
+var osSeparator = string(os.PathSeparator)
+
 func StandardiseDirPath(cwd string) string {
 	if string(cwd[len(cwd)-1]) == osSeparator {
 		return cwd

@@ -416,10 +416,13 @@ func getGroupByFileResult(modulesArr []string, modulesFilesMap map[string]map[st
 
 	usedByFileSorted := GetSortedMap(moduleByFile)
 
+	// normalize cwd to internal form (analysis uses internal forward-slash paths)
+	cwdInternal := NormalizePathForInternal(cwd)
+
 	for _, kv := range usedByFileSorted {
 		filePath := kv.k
 		moduleNames := kv.v
-		result += fmt.Sprintln("\n", strings.Replace(filePath, cwd, "", 1))
+		result += fmt.Sprintln("\n", strings.Replace(filePath, cwdInternal, "", 1))
 		slices.Sort(moduleNames)
 		for _, moduleName := range moduleNames {
 			result += fmt.Sprintln("    ➞", moduleName)
@@ -442,8 +445,10 @@ func getGroupByModuleResult(modulesArr []string, modulesFilesMap map[string]map[
 
 		slices.Sort(filesPaths)
 
+		// normalize cwd to internal form
+		cwdInternal := NormalizePathForInternal(cwd)
 		for _, filePath := range filesPaths {
-			result += fmt.Sprintln("    ➞", strings.Replace(filePath, cwd, "", 1))
+			result += fmt.Sprintln("    ➞", strings.Replace(filePath, cwdInternal, "", 1))
 		}
 		result += fmt.Sprintln()
 	}
@@ -487,6 +492,7 @@ func ParsePackageJson(filePath string, cwd string, ch chan PackageInfo, wg *sync
 		version, hasVersion := pkgJson["version"]
 
 		if hasName && hasVersion {
+			// filePath and cwd are OS-native here
 			ch <- PackageInfo{
 				Name:     name,
 				Version:  version,

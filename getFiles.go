@@ -93,7 +93,8 @@ func GetFiles(directory string, existingFiles []string, parentGlobMatchers []Glo
 		}
 
 		if hasCorrectExtension(entryName) && !MatchesAnyGlobMatcher(entryFilePath, parentGlobMatchers, false) {
-			existingFiles = append(existingFiles, entryFilePath)
+			// store internal normalized path (forward slashes) for analysis and tests
+			existingFiles = append(existingFiles, NormalizePathForInternal(entryFilePath))
 		}
 	}
 
@@ -108,18 +109,22 @@ func GetMissingFile(modulePath string) string {
 	// First we check for file
 	for ext := range allowedExts {
 		filePath := modulePath + ext
-		_, err := os.Stat(filePath)
+		// modulePath may be internal (forward slashes) or OS-native; try denormalized form for FS checks
+		filePathOs := DenormalizePathForOS(filePath)
+		_, err := os.Stat(filePathOs)
 		if err == nil {
-			return filePath
+			return NormalizePathForInternal(filePath)
 		}
 	}
 
 	// Then we check for directory with index.ts file, it has lower precedence if both exists
 	for ext := range allowedExts {
+		// check directory index; normalize to OS path for Stat
 		filePath := modulePath + "/index" + ext
-		_, err := os.Stat(filePath)
+		filePathOs := DenormalizePathForOS(filePath)
+		_, err := os.Stat(filePathOs)
 		if err == nil {
-			return filePath
+			return NormalizePathForInternal(filePath)
 		}
 	}
 

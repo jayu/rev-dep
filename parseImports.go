@@ -318,7 +318,8 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool) ([]FileIm
 		go func(path string) {
 			defer wg.Done()
 
-			fileContent, err := os.ReadFile(path)
+			// path is internal-normalized (forward slashes); convert to OS-native for file IO
+			fileContent, err := os.ReadFile(DenormalizePathForOS(path))
 			if err != nil {
 				mu.Lock()
 				errCount++

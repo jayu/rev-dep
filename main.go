@@ -88,7 +88,8 @@ Helps understand how different parts of your codebase are connected.`,
 			absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
 		}
 
-		absolutePathToFilePath := filepath.Join(cwd, filePath)
+		absolutePathToFilePath := NormalizePathForInternal(filepath.Join(cwd, filePath))
+
 		notFoundCount := 0
 		for _, absolutePathToEntryPoint := range absolutePathToEntryPoints {
 			if _, found := minimalTree[absolutePathToEntryPoint]; !found {
@@ -519,7 +520,10 @@ with options to filter results.`,
 					if listFilesCount {
 						count++
 					} else {
-						fmt.Println(strings.Replace(filePath, cwd, "", 1))
+						// filePath is internal-normalized; convert to OS-native and compute relative path for printing
+						filePathOs := DenormalizePathForOS(filePath)
+						rel, _ := filepath.Rel(cwd, filePathOs)
+						fmt.Println(rel)
 					}
 				}
 			}

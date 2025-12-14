@@ -57,21 +57,26 @@ func GetNodeModuleName(request string) string {
 }
 
 func FindNodeModuleBinaries(nodeModules map[string]bool, cwd string) map[string][]string {
-	osSeparator := string(os.PathSeparator)
 	nodeModuleDirs := []string{}
-	pathParts := strings.Split(cwd, osSeparator)
+	// Walk up the directory tree from cwd and collect any "node_modules" dirs
+	cur := filepath.Clean(cwd)
 	result := make(map[string][]string, len(nodeModules))
 
 	for moduleName := range nodeModules {
 		result[moduleName] = []string{}
 	}
 
-	for i := len(pathParts) - 1; i > 0; i-- {
-		currentPath := osSeparator + filepath.Join(filepath.Join(pathParts[:i]...), "node_modules")
-		fileInfo, fileInfoErr := os.Stat(currentPath)
+	for {
+		nmPath := filepath.Join(cur, "node_modules")
+		fileInfo, fileInfoErr := os.Stat(nmPath)
 		if fileInfoErr == nil && fileInfo.IsDir() {
-			nodeModuleDirs = append(nodeModuleDirs, currentPath)
+			nodeModuleDirs = append(nodeModuleDirs, nmPath)
 		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			break
+		}
+		cur = parent
 	}
 
 	for nodeModule := range nodeModules {
@@ -117,6 +122,7 @@ func FindNodeModuleBinaries(nodeModules map[string]bool, cwd string) map[string]
 		}
 	}
 
+	// debug lines removed
 	return result
 }
 
@@ -379,6 +385,9 @@ func GetUsedNodeModules(
 	}
 
 	additionalContentToLookUpForNodeModules := map[string]string{}
+	// Do NOT include full package.json content for module name lookups —
+	// package.json lists dependencies which would incorrectly mark packages as "used".
+	// Only include additional files explicitly requested via `filesWithModules`.
 
 	for _, filePath := range filesWithModules {
 		absoluteFilePath := filepath.Join(cwd, filePath)
@@ -422,7 +431,9 @@ func getGroupByFileResult(modulesArr []string, modulesFilesMap map[string]map[st
 	for _, kv := range usedByFileSorted {
 		filePath := kv.k
 		moduleNames := kv.v
-		result += fmt.Sprintln("\n", strings.Replace(filePath, cwdInternal, "", 1))
+		cleaned := strings.Replace(filePath, cwdInternal, "", 1)
+		cleaned = strings.TrimPrefix(cleaned, "/")
+		result += fmt.Sprintln("\n", cleaned)
 		slices.Sort(moduleNames)
 		for _, moduleName := range moduleNames {
 			result += fmt.Sprintln("    ➞", moduleName)
@@ -448,7 +459,9 @@ func getGroupByModuleResult(modulesArr []string, modulesFilesMap map[string]map[
 		// normalize cwd to internal form
 		cwdInternal := NormalizePathForInternal(cwd)
 		for _, filePath := range filesPaths {
-			result += fmt.Sprintln("    ➞", strings.Replace(filePath, cwdInternal, "", 1))
+			cleaned := strings.Replace(filePath, cwdInternal, "", 1)
+			cleaned = strings.TrimPrefix(cleaned, "/")
+			result += fmt.Sprintln("    ➞", cleaned)
 		}
 		result += fmt.Sprintln()
 	}
@@ -456,11 +469,13 @@ func getGroupByModuleResult(modulesArr []string, modulesFilesMap map[string]map[
 }
 
 func setFilePathInNodeModuleFilesMap(nodeModuleFilesMap *map[string]map[string]bool, moduleName string, filePath string) {
+	// normalize stored file path to internal forward-slash form
+	key := NormalizePathForInternal(filePath)
 	_, has := (*nodeModuleFilesMap)[moduleName]
 	if has {
-		(*nodeModuleFilesMap)[moduleName][filePath] = true
+		(*nodeModuleFilesMap)[moduleName][key] = true
 	} else {
-		(*nodeModuleFilesMap)[moduleName] = map[string]bool{filePath: true}
+		(*nodeModuleFilesMap)[moduleName] = map[string]bool{key: true}
 	}
 }
 

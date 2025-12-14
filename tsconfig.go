@@ -130,6 +130,13 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 		return nil, err
 	}
 
+	// rebase any relative paths in the resolved base so they are correct
+	// relative to the current config's baseDir. Extended configs can contain
+	// paths that are relative to their own location; when merged into the
+	// child config we must adjust them to point correctly from the child's
+	// directory.
+	rebasePaths(resolvedBase, baseDirNext, baseDir)
+
 	// merge resolvedBase into result: child (result) overrides base
 	merged := map[string]interface{}{}
 	// copy base first
@@ -240,4 +247,57 @@ func mergeCompilerOptions(base, child map[string]interface{}) map[string]interfa
 	}
 
 	return out
+}
+
+// rebasePaths rewrites any relative entries in cfg.compilerOptions.paths so
+// that they point correctly from toDir instead of fromDir. fromDir is the
+// directory where the base (extended) tsconfig was located; toDir is the
+// directory of the child config that is merging the base into itself.
+func rebasePaths(cfg map[string]interface{}, fromDir, toDir string) {
+	co, ok := cfg["compilerOptions"].(map[string]interface{})
+ 	if !ok {
+ 		return
+ 	}
+
+ 	pathsRaw, ok := co["paths"].(map[string]interface{})
+ 	if !ok {
+ 		return
+ 	}
+
+ 	newPaths := map[string]interface{}{}
+ 	for key, val := range pathsRaw {
+ 		switch arr := val.(type) {
+ 		case []interface{}:
+ 			newArr := make([]interface{}, 0, len(arr))
+ 			for _, e := range arr {
+ 				str, ok := e.(string)
+ 				if !ok {
+ 					newArr = append(newArr, e)
+ 					continue
+ 				}
+
+ 				// If absolute, keep as-is (normalized). Otherwise resolve from fromDir
+ 				if filepath.IsAbs(str) {
+ 					newArr = append(newArr, filepath.ToSlash(str))
+ 					continue
+ 				}
+
+ 				abs := filepath.Clean(filepath.Join(fromDir, str))
+ 				rel, err := filepath.Rel(toDir, abs)
+ 				if err != nil {
+ 					// fallback to absolute path if relative conversion fails
+ 					newArr = append(newArr, filepath.ToSlash(abs))
+ 				} else {
+ 					// Use forward slashes for TS paths
+ 					newArr = append(newArr, filepath.ToSlash(rel))
+ 				}
+ 			}
+ 			newPaths[key] = newArr
+ 		default:
+ 			newPaths[key] = val
+ 		}
+ 	}
+
+ 	co["paths"] = newPaths
+ 	cfg["compilerOptions"] = co
 }

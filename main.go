@@ -342,6 +342,8 @@ Helps keep track of your project's runtime dependencies.`,
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			packageJsonPath,
+			tsconfigJsonPath,
 		)
 
 		fmt.Print(result)
@@ -371,6 +373,8 @@ to identify potentially unused packages.`,
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			packageJsonPath,
+			tsconfigJsonPath,
 		)
 
 		fmt.Print(result)
@@ -404,6 +408,8 @@ in your package.json dependencies.`,
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			packageJsonPath,
+			tsconfigJsonPath,
 		)
 
 		fmt.Print(result)

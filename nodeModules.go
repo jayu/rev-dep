@@ -140,6 +140,8 @@ func NodeModulesCmd(
 	filesWithModules []string,
 	modulesToInclude []string,
 	modulesToExclude []string,
+	packageJson string,
+	tsconfigJson string,
 ) (string, int) {
 	cwd := StandardiseDirPath(inputCwd)
 	var absolutePathToEntryPoints []string
@@ -154,13 +156,13 @@ func NodeModulesCmd(
 	shouldIncludeModule := createShouldModuleByIncluded(modulesToInclude, modulesToExclude)
 	excludeFiles := []string{}
 
-	minimalTree, _, packageJsonNodeModules := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, absolutePathToEntryPoints, "", "")
+	minimalTree, _, packageJsonNodeModules := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, absolutePathToEntryPoints, packageJson, tsconfigJson)
 
 	if listMissing {
 		return GetMissingNodeModules(minimalTree, packageJsonNodeModules, cwd, countFlag, groupByModule, groupByFile, shouldIncludeModule)
 	}
 
-	usedNodeModules := GetUsedNodeModules(minimalTree, packageJsonNodeModules, cwd, pkgJsonFieldsWithBinaries, filesWithBinaries, filesWithModules)
+	usedNodeModules := GetUsedNodeModules(minimalTree, packageJsonNodeModules, cwd, pkgJsonFieldsWithBinaries, filesWithBinaries, filesWithModules, packageJson, tsconfigJson)
 
 	if listUnused {
 		return GetUnusedNodeModules(usedNodeModules, packageJsonNodeModules, countFlag, shouldIncludeModule)
@@ -278,6 +280,8 @@ func GetUsedNodeModules(
 	pkgJsonFieldsWithBinaries []string,
 	filesWithBinaries []string,
 	filesWithModules []string,
+	packageJson string,
+	tsconfigJson string,
 ) map[string]map[string]bool {
 
 	usedNodeModules := map[string]map[string]bool{}
@@ -299,6 +303,9 @@ func GetUsedNodeModules(
 	}
 
 	pkgJsonPath := filepath.Join(cwd, "package.json")
+	if packageJson != "" {
+		pkgJsonPath = filepath.Join(cwd, packageJson)
+	}
 	pkgJsonContent, _ := os.ReadFile(pkgJsonPath)
 
 	var pkgJson map[string]any
@@ -373,15 +380,24 @@ func GetUsedNodeModules(
 	}
 
 	tsconfigPath := filepath.Join(cwd, "tsconfig.json")
+	if tsconfigJson != "" {
+		tsconfigPath = filepath.Join(cwd, tsconfigJson)
+	}
 	tsconfigContent, _ := os.ReadFile(tsconfigPath)
 
 	var tsconfig map[string]map[string][]string
 
 	json.Unmarshal(tsconfigContent, &tsconfig)
 
-	for _, typesModule := range tsconfig["compilerOptions"]["types"] {
-		nodeModuleName := "@types/" + typesModule
-		setFilePathInNodeModuleFilesMap(&usedNodeModules, nodeModuleName, tsconfigPath)
+	if tsconfig != nil {
+		if co, ok := tsconfig["compilerOptions"]; ok {
+			if typesArr, ok2 := co["types"]; ok2 {
+				for _, typesModule := range typesArr {
+					nodeModuleName := "@types/" + typesModule
+					setFilePathInNodeModuleFilesMap(&usedNodeModules, nodeModuleName, tsconfigPath)
+				}
+			}
+		}
 	}
 
 	additionalContentToLookUpForNodeModules := map[string]string{}

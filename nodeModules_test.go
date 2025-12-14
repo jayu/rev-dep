@@ -83,6 +83,8 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		// TODO command should return also dep5 - used by not defined in pkg json
@@ -111,6 +113,8 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "6\n"
@@ -137,6 +141,8 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n file.ts\n    ➞ dep4\n    ➞ dep5\n\n\n index.ts\n    ➞ @types/dep-types-2\n    ➞ dep2\n\n\n package.json\n    ➞ dep1\n\n\n tsconfig.json\n    ➞ @types/dep-types-1\n\n"
@@ -163,6 +169,8 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n @types/dep-types-1\n    ➞ tsconfig.json\n\n\n @types/dep-types-2\n    ➞ index.ts\n\n\n dep1\n    ➞ package.json\n\n\n dep2\n    ➞ index.ts\n\n\n dep4\n    ➞ file.ts\n\n\n dep5\n    ➞ file.ts\n\n"
@@ -204,6 +212,8 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "dep3\n"
@@ -229,6 +239,8 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "1\n"
@@ -271,6 +283,8 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "dep5\n"
@@ -297,6 +311,8 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "1\n"
@@ -323,6 +339,8 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n file.ts\n    ➞ dep5\n\n"
@@ -349,6 +367,8 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n dep5\n    ➞ file.ts\n\n"
@@ -391,6 +411,8 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n"
@@ -416,6 +438,8 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n"
@@ -441,6 +465,8 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n"
@@ -466,6 +492,8 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n"
@@ -508,6 +536,8 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -533,6 +563,8 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -558,6 +590,8 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -583,6 +617,8 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -625,6 +661,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "@types/dep-types-2\ndep4\n"
@@ -650,6 +688,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "@types/dep-types-1\ndep1\ndep2\ndep5\n"
@@ -676,6 +716,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "dep3\n"
@@ -702,6 +744,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n"
@@ -728,6 +772,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "dep5\n"
@@ -754,6 +800,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
+			"",
+			"",
 		)
 
 		expected := "\n"

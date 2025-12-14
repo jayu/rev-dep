@@ -261,35 +261,6 @@ V2 comes with bunch of new commands
 
 Comparing to previous versions, these tsconfig features are not supported
 
-#### Config extends
-
-If you tsconfig uses extends, and you have some paths defined in config being extended, paths from extended config won't be used during resolution
-
-eg. 
-
-```json
-// tsconfig.json
-{
-  "extends": "./tsconfig.base.json",
-  "paths": {
-    "@/components": ["src/components/*"]
-  }
-}
-```
-
-```json
-// tsconfig.base.json
-{
-  "paths": {
-    "@/utils": ["src/utils/*"]
-  }
-}
-```
-
-In that scenario imports with `@/utils` won't be resolved.
-
-Why it's not supported ? I consider this typescript capability as an usage edge-case. I forgot to to implement it at the begging and I don't feel like investing more time now, before this package get some reasonable adoption and people will be actually requesting this feature.
-
 #### Multiple path aliases
 
 Only first path will be used in resolution.

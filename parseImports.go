@@ -19,6 +19,7 @@ const (
 	UserModule ResolvedImportType = iota
 	NodeModule
 	BuiltInModule
+	ExcludedByUser
 	NotResolvedModule
 	AssetModule
 )

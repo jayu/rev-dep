@@ -49,8 +49,8 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 			if parent != nil {
 				parentPath = parent.Path
 			}
-			fmt.Fprintf(os.Stderr, "Dependency '%s' not found! Imported from '%s'", path, parentPath)
-			os.Exit(0)
+			fmt.Fprintf(os.Stderr, "Dependency '%s' not found! Imported from '%s'\n", path, parentPath)
+			os.Exit(1)
 		}
 
 		// Create new node

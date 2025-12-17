@@ -31,6 +31,14 @@ func TransformToMinimalDependencyTreeCustomParser(fileImportsArr []FileImports) 
 
 			dependencies = append(dependencies, dependency)
 
+			// If this import was excluded by the user, ensure it exists as a key
+			// in the result map with an empty dependency list.
+			if imp.ResolvedType == ExcludedByUser && imp.PathOrName != "" {
+				if _, exists := result[imp.PathOrName]; !exists {
+					result[imp.PathOrName] = []MinimalDependency{}
+				}
+			}
+
 		}
 
 		result[filePath] = dependencies

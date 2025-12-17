@@ -44,6 +44,7 @@ var docsCmd = &cobra.Command{
 var (
 	packageJsonPath  string
 	tsconfigJsonPath string
+	verboseFlag      bool
 )
 
 func addSharedFlags(command *cobra.Command) {
@@ -51,6 +52,14 @@ func addSharedFlags(command *cobra.Command) {
 		"Path to package.json (default: ./package.json)")
 	command.Flags().StringVar(&tsconfigJsonPath, "tsconfig-json", "",
 		"Path to tsconfig.json (default: ./tsconfig.json)")
+	command.Flags().BoolVarP(&verboseFlag, "verbose", "v", false,
+		"Show warnings and verbose output")
+}
+
+func logWarning(format string, a ...interface{}) {
+	if verboseFlag {
+		fmt.Printf("⚠️  Warning: "+format+"\n", a...)
+	}
 }
 
 // ---------------- resolve ----------------
@@ -129,7 +138,7 @@ Helps understand how different parts of your codebase are connected.`,
 
 			// Print this warning only if user provided entry points list
 			if depsGraph.FileOrNodeModuleNode == nil && len(resolveEntryPoints) > 0 {
-				fmt.Printf("Error: Could not find target file '%s' in dependency graph.\n", filePath)
+				logWarning("Error: Could not find target file '%s' in dependency graph.\n", filePath)
 			}
 			wg.Done()
 		}

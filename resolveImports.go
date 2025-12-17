@@ -341,7 +341,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	if merged, err := ParseTsConfig(tsConfigPath); err == nil {
 		tsconfigContent = merged
 	} else {
-		fmt.Fprintf(os.Stderr, "⚠️  Error when parsing tsconfig: %v\n", err)
+		logWarning("Error when parsing tsconfig: %v", err)
 		if tsconfigJson != "" {
 			os.Exit(1)
 		}
@@ -385,6 +385,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 				ch_idx,
 				nodeModules,
 				BuiltInModules,
+				excludeFilePatterns,
 			)
 		}
 	}()
@@ -419,7 +420,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	return filteredFileImportsArr, filteredFiles, nodeModules
 }
 
-func resolveSingleFileImports(importsResolver *ModuleResolver, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, tsConfigDirOrCwd string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, nodeModules map[string]bool, builtInModules map[string]bool) {
+func resolveSingleFileImports(importsResolver *ModuleResolver, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, tsConfigDirOrCwd string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, nodeModules map[string]bool, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()
@@ -464,32 +465,39 @@ func resolveSingleFileImports(importsResolver *ModuleResolver, missingResolution
 					missingFilePath := GetMissingFile(modulePath)
 
 					if missingFilePath != "" {
-						missingFileContent, err := os.ReadFile(DenormalizePathForOS(missingFilePath))
-						if err == nil {
+						// If file exists on disk but matches exclude patterns, mark it as excluded by user and do not add to discovery lists
+						if MatchesAnyGlobMatcher(missingFilePath, excludeFilePatterns, false) {
 							mu.Lock()
 							imports[impIdx].PathOrName = missingFilePath
-							imports[impIdx].ResolvedType = UserModule
-							mu.Unlock()
-
-							missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)
-
-							mu.Lock()
-							*fileImportsArr = append(*fileImportsArr, FileImports{
-								FilePath: missingFilePath,
-								Imports:  missingFileImports,
-							})
-							wg.Add(1)
-							ch_idx <- len(*fileImportsArr) - 1
-
-							*sortedFiles = append(*sortedFiles, missingFilePath)
-							importsResolver.AddFilePathToFilesAndExtensions(missingFilePath)
+							imports[impIdx].ResolvedType = ExcludedByUser
 							mu.Unlock()
 						} else {
-							mu.Lock()
-							// In case we encounter missing import, we don't know if it was node_module or path to user file
-							// For comparison convenience we store both cases as paths prefixed with cwd
-							(*missingResolutionFailedAttempts)[importPath] = true
-							mu.Unlock()
+							missingFileContent, err := os.ReadFile(DenormalizePathForOS(missingFilePath))
+							if err == nil {
+								mu.Lock()
+								imports[impIdx].PathOrName = missingFilePath
+								imports[impIdx].ResolvedType = UserModule
+								mu.Unlock()
+
+								missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)
+
+								mu.Lock()
+								*fileImportsArr = append(*fileImportsArr, FileImports{
+									FilePath: missingFilePath,
+									Imports:  missingFileImports,
+								})
+								wg.Add(1)
+								ch_idx <- len(*fileImportsArr) - 1
+
+								*sortedFiles = append(*sortedFiles, missingFilePath)
+								importsResolver.AddFilePathToFilesAndExtensions(missingFilePath)
+								mu.Unlock()
+							} else {
+								mu.Lock()
+								(*missingResolutionFailedAttempts)[importPath] = true
+								mu.Unlock()
+								logWarning("could not read resolved file '%s' imported from '%s'", missingFilePath, filePath)
+							}
 						}
 					} else if isAssetPath(modulePath) {
 						_, err := os.Stat(modulePath)
@@ -504,6 +512,7 @@ func resolveSingleFileImports(importsResolver *ModuleResolver, missingResolution
 							// For comparison convenience we store both cases as paths prefixed with cwd
 							(*missingResolutionFailedAttempts)[importPath] = true
 							mu.Unlock()
+							logWarning("asset import '%s' not found in %s", modulePath, filePath)
 						}
 
 					} else {
@@ -512,6 +521,7 @@ func resolveSingleFileImports(importsResolver *ModuleResolver, missingResolution
 						// For comparison convenience we store both cases as paths prefixed with cwd
 						(*missingResolutionFailedAttempts)[importPath] = true
 						mu.Unlock()
+						logWarning("import '%s' in '%s' could not be resolved to a file", imp.Request, filePath)
 					}
 				}
 
@@ -524,32 +534,40 @@ func resolveSingleFileImports(importsResolver *ModuleResolver, missingResolution
 			}
 
 		} else {
-			mu.Lock()
-			_, hasFileInDiscoveredFiles := (*discoveredFiles)[importPath]
-			mu.Unlock()
-			if !hasFileInDiscoveredFiles {
-				missingFileContent, err := os.ReadFile(DenormalizePathForOS(importPath))
-				if err == nil {
+			// resolved to a path; if it's excluded by user, mark and do not add to discovery
+			if MatchesAnyGlobMatcher(importPath, excludeFilePatterns, false) {
+				mu.Lock()
+				fileImports.Imports[impIdx].PathOrName = importPath
+				imports[impIdx].ResolvedType = ExcludedByUser
+				mu.Unlock()
+			} else {
+				mu.Lock()
+				_, hasFileInDiscoveredFiles := (*discoveredFiles)[importPath]
+				mu.Unlock()
+				if !hasFileInDiscoveredFiles {
+					missingFileContent, err := os.ReadFile(DenormalizePathForOS(importPath))
+					if err == nil {
 
-					missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)
-					mu.Lock()
-					*fileImportsArr = append(*fileImportsArr, FileImports{
-						FilePath: importPath,
-						Imports:  missingFileImports,
-					})
-					wg.Add(1)
-					ch_idx <- len(*fileImportsArr) - 1
+						missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)
+						mu.Lock()
+						*fileImportsArr = append(*fileImportsArr, FileImports{
+							FilePath: importPath,
+							Imports:  missingFileImports,
+						})
+						wg.Add(1)
+						ch_idx <- len(*fileImportsArr) - 1
 
-					*sortedFiles = append(*sortedFiles, importPath)
-					(*discoveredFiles)[importPath] = true
-					importsResolver.AddFilePathToFilesAndExtensions(importPath)
-					mu.Unlock()
+						*sortedFiles = append(*sortedFiles, importPath)
+						(*discoveredFiles)[importPath] = true
+						importsResolver.AddFilePathToFilesAndExtensions(importPath)
+						mu.Unlock()
+					}
 				}
+				mu.Lock()
+				fileImports.Imports[impIdx].PathOrName = importPath
+				imports[impIdx].ResolvedType = UserModule
+				mu.Unlock()
 			}
-			mu.Lock()
-			fileImports.Imports[impIdx].PathOrName = importPath
-			imports[impIdx].ResolvedType = UserModule
-			mu.Unlock()
 		}
 	}
 

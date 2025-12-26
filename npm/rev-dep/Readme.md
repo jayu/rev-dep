@@ -164,6 +164,12 @@ rev-dep entry-points
 
 Exclude framework entry points if needed using `--result-exclude`.
 
+For example exclude Next.js valid entry points when using pages router, exclude scripts directory - scripts are valid entry-points and exclude all test files:
+
+```
+rev-dep entry-points --result-exclude "pages/**","scripts/**","**/*.test.*"
+```
+
 ### **How to list all files imported by an entry point**
 
 ```
@@ -327,6 +333,7 @@ rev-dep circular --ignore-types-imports
   -t, --ignore-type-imports    Exclude type imports from the analysis
       --package-json string    Path to package.json (default: ./package.json)
       --tsconfig-json string   Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                Show warnings and verbose output
 ```
 
 
@@ -362,6 +369,7 @@ rev-dep entry-points --print-deps-count
       --result-exclude strings   Exclude files matching these glob patterns from results
       --result-include strings   Only include files matching these glob patterns in results
       --tsconfig-json string     Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                  Show warnings and verbose output
 ```
 
 
@@ -394,6 +402,7 @@ rev-dep files --entry-point src/index.ts
   -t, --ignore-type-imports    Exclude type imports from the analysis
       --package-json string    Path to package.json (default: ./package.json)
       --tsconfig-json string   Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                Show warnings and verbose output
 ```
 
 
@@ -596,6 +605,7 @@ rev-dep node-modules missing --entry-points=src/main.ts
       --package-json string                Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings   Additional package.json fields to check for binary usages
       --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                            Show warnings and verbose output
       --zero-exit-code                     Use this flag to always return zero exit code
 ```
 
@@ -634,6 +644,7 @@ rev-dep node-modules unused --exclude-modules=@types/*
       --package-json string                Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings   Additional package.json fields to check for binary usages
       --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                            Show warnings and verbose output
       --zero-exit-code                     Use this flag to always return zero exit code
 ```
 
@@ -674,6 +685,7 @@ rev-dep node-modules used -p src/index.ts --group-by-module
       --package-json string                Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings   Additional package.json fields to check for binary usages
       --tsconfig-json string               Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                            Show warnings and verbose output
 ```
 
 
@@ -709,6 +721,7 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
   -t, --ignore-type-imports     Exclude type imports from the analysis
       --package-json string     Path to package.json (default: ./package.json)
       --tsconfig-json string    Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                 Show warnings and verbose output
 ```
 
 

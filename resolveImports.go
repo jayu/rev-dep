@@ -259,7 +259,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 	relativeFileName, _ := filepath.Rel(root, filePath)
 
 	// Relative path
-	if strings.HasPrefix(request, ".") {
+	if strings.HasPrefix(request, "./") || strings.HasPrefix(request, "../") || request == "." || request == ".." {
 		modulePath = filepath.Join(root, relativeFileName, "../"+request)
 
 		cleanedModulePath := filepath.Clean(modulePath)

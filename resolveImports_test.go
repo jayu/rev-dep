@@ -294,6 +294,109 @@ func TestResolve(t *testing.T) {
 	})
 }
 
+func TestRelativeImports(t *testing.T) {
+
+	t.Run("Should resolve relative import to parent dir", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/dir/fileA.ts",
+			cwd + "app/index.js",
+		}
+		tsConfig := `{
+			"compilerOptions" : {
+			  "baseUrl": "."
+			}
+		}`
+
+		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+
+		resolvedPath, err := importsResolver.ResolveModule("../index", "/root/app/dir/fileA.ts", cwd)
+
+		if resolvedPath != "/root/app/index.js" {
+			t.Errorf("Path not resolved correctly, got %v", resolvedPath)
+		}
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
+
+	t.Run("Should resolve directory import to index file", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/dir/index.ts",
+			cwd + "app/index.js",
+		}
+		tsConfig := `{
+			"compilerOptions" : {
+			  "baseUrl": "."
+			}
+		}`
+
+		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+
+		resolvedPath, err := importsResolver.ResolveModule("./dir", "/root/app/index.js", cwd)
+
+		if resolvedPath != "/root/app/dir/index.ts" {
+			t.Errorf("Path not resolved correctly, got %v", resolvedPath)
+		}
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
+
+	t.Run("Should resolve import '.' to current dir index", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/dir/index.ts",
+			cwd + "app/index.js",
+		}
+		tsConfig := `{
+			"compilerOptions" : {
+			  "baseUrl": "."
+			}
+		}`
+
+		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+
+		resolvedPath, err := importsResolver.ResolveModule(".", "/root/app/dir/file.ts", cwd)
+
+		if resolvedPath != "/root/app/dir/index.ts" {
+			t.Errorf("Path not resolved correctly for '.', got %v", resolvedPath)
+		}
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
+
+	t.Run("Should resolve import '..' to parent dir index", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/index.ts",
+			cwd + "app/dir/file.ts",
+		}
+		tsConfig := `{
+			"compilerOptions" : {
+			  "baseUrl": "."
+			}
+		}`
+
+		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+
+		resolvedPath, err := importsResolver.ResolveModule("..", "/root/app/dir/file.ts", cwd)
+
+		if resolvedPath != "/root/app/index.ts" {
+			t.Errorf("Path not resolved correctly for '..', got %v", resolvedPath)
+		}
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
+}
+
 func TestGetNodeModulesFromPkg(t *testing.T) {
 	pkgJson := `
 	{

@@ -322,7 +322,7 @@ rev-dep circular [flags]
 #### Examples
 
 ```
-rev-dep circular --ignore-type-imports
+rev-dep circular --ignore-types-imports
 ```
 
 #### Options

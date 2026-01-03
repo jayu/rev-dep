@@ -12,7 +12,7 @@
 <p align="center">
   Dependency analysis and optimization toolkit for modern JavaScript and TypeScript projects.  
   <br>
-  Trace imports, find unused code, clean dependencies — all from a blazing-fast CLI.
+  Trace imports, identify circular dependencies, find unused code, clean node modules — all from a blazing-fast CLI.
 </p>
 
 ---
@@ -743,7 +743,7 @@ Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, t
 | 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 2.0.0 | `rev-dep circular` | 397 ms |
 | 🥈 [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-progress  --no-warning` + list of directories with source code  | 4960 ms |
 | 🥉 [dpdm](https://github.com/acrazing/dpdm) | 3.14.0 | `dpdm  --no-warning` + list of directories with source code | 5030 ms |
-| [skott](https://github.com/antoine-coulon/skott) | 0.35.6 | node skoscript using `findCircularDependencies` function  | 29575 ms |
+| [skott](https://github.com/antoine-coulon/skott) | 0.35.6 | node script using skott `findCircularDependencies` function  | 29575 ms |
 | [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions js,ts,jsx,tsx .` | 69328 ms |
 | [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
 

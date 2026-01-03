@@ -1,6 +1,7 @@
 main
 main-linux
 rev-dep-go
+rev-dep-go-dev
 rev-dep-go-linux
 *.log
 *.cpu

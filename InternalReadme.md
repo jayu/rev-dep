@@ -1,6 +1,6 @@
 ## Build native development
 
-`go build -tags "dev" -o rev-dep-go .`
+`go build -tags "dev" -o rev-dep-go-dev .`
 
 ## Build native production
 
@@ -31,5 +31,7 @@
 `node scripts/addCliRefToReadme.js`
 
 `git add . && git commit`
+
+`npm login`
 
 `scripts/publish.sh` 

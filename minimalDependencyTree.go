@@ -5,6 +5,7 @@ type MinimalDependency struct {
 	ID           *string            `json:"id"`
 	Request      string             `json:"request"`
 	ResolvedType ResolvedImportType `json:"resolvedType"`
+	ImportKind   *ImportKind        `json:"importKind"`
 }
 
 type MinimalDependencyTree map[string][]MinimalDependency
@@ -27,6 +28,7 @@ func TransformToMinimalDependencyTreeCustomParser(fileImportsArr []FileImports) 
 				ID:           &imp.PathOrName, // Set to the requested file path
 				Request:      imp.Request,
 				ResolvedType: imp.ResolvedType,
+				ImportKind:   &imp.Kind,
 			}
 
 			dependencies = append(dependencies, dependency)

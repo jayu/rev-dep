@@ -54,11 +54,38 @@ var debugParseFileCmd = &cobra.Command{
 		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{path}, packageJsonPath, tsconfigJsonPath)
 
 		fmt.Println(path)
-		jsonTree, err := json.MarshalIndent(minimalTree[path], "", " ")
-		if err == nil {
-			fmt.Println(string(jsonTree))
+
+		type MinimalDependencyWithLabels struct {
+			ID                *string            `json:"id"`
+			Request           string             `json:"request"`
+			ResolvedType      ResolvedImportType `json:"resolvedType"`
+			ResolvedTypeLabel string             `json:"resolvedTypeLabel"`
+			ImportKind        *ImportKind        `json:"importKind"`
+			ImportKindLabel   string             `json:"importKindLabel"`
 		}
-		return err
+
+		minimalDep := minimalTree[path]
+
+		for _, dep := range minimalDep {
+			resolvedTypeLabel := ResolvedImportTypeToString(dep.ResolvedType)
+			importKindLabel := ImportKindToString(*dep.ImportKind)
+			depWithLabels := MinimalDependencyWithLabels{
+				ID:                dep.ID,
+				Request:           dep.Request,
+				ResolvedType:      dep.ResolvedType,
+				ResolvedTypeLabel: resolvedTypeLabel,
+				ImportKind:        dep.ImportKind,
+				ImportKindLabel:   importKindLabel,
+			}
+			jsonDep, err := json.MarshalIndent(depWithLabels, "  ", "  ")
+			if err == nil {
+				fmt.Println(string(jsonDep))
+			} else {
+				fmt.Println("Error marshaling dependency:", err)
+			}
+		}
+
+		return nil
 	},
 }
 

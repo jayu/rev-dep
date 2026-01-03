@@ -129,6 +129,42 @@ func parseExpression(code []byte, i int) (string, int) {
 	return string(module), i
 }
 
+// areAllImportsInBracesTypes checks if a named import block { ... } contains only "type" imports.
+// It assumes code[i] is pointing at '{'.
+func areAllImportsInBracesTypes(code []byte, i int) bool {
+	i++ // skip '{'
+	for i < len(code) {
+		i = skipSpaces(code, i)
+		if i >= len(code) {
+			return false
+		}
+		if code[i] == '}' {
+			return true // End of block, all checked items were types
+		}
+
+		// We expect "type" keyword followed by a whitespace (inside braces, 'type' must be separated from Identifier)
+		// "type" is 4 chars.
+		if len(code) > i+4 && bytes.HasPrefix(code[i:], []byte("type")) && isWhiteSpace(code[i+4]) {
+			i += 4 // skip "type"
+			i = skipSpaces(code, i)
+
+			// Consume the identifier (and potential "as Alias") until we hit a comma or closing brace
+			for i < len(code) && code[i] != ',' && code[i] != '}' {
+				i++
+			}
+		} else {
+			// Found an element that is NOT a type
+			return false
+		}
+
+		// Skip comma if present
+		if i < len(code) && code[i] == ',' {
+			i++
+		}
+	}
+	return false
+}
+
 // ParseImportsByte parses JS/TS code and extracts all imports/exports
 func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 	imports := make([]Import, 0, 32)
@@ -181,10 +217,22 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 				i = skipSpaces(code, i)
 
 				kind := NotTypeOrMixedImport
+
+				// Fix: Instead of checking isWhiteSpace(code[i+4]), we check if the next char is NOT an identifier char.
+				// This handles "import type{" correctly while rejecting "import typeScript".
 				if bytes.HasPrefix(code[i:], []byte("type")) {
-					kind = OnlyTypeImport
-					i += len("type")
-					i = skipSpaces(code, i)
+					isTypeKeyword := false
+					if i+4 >= n {
+						isTypeKeyword = true
+					} else if !isByteIdentifierChar(code[i+4]) {
+						isTypeKeyword = true
+					}
+
+					if isTypeKeyword {
+						kind = OnlyTypeImport
+						i += len("type")
+						i = skipSpaces(code, i)
+					}
 				}
 
 				if i < n && (code[i] == '"' || code[i] == '\'') {
@@ -202,6 +250,14 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 					i = next
 				} else {
 					// static import: find 'from' keyword
+
+					// Check if we have { type A, type B } case (mixed import promoted to type import)
+					if kind == NotTypeOrMixedImport && code[i] == '{' {
+						if areAllImportsInBracesTypes(code, i) {
+							kind = OnlyTypeImport
+						}
+					}
+
 					for i < n && !bytes.HasPrefix(code[i:], []byte("from")) {
 						i++
 					}
@@ -242,13 +298,30 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 				}
 
 				// drop processing export statement if followed by "type".
+				// Fix: Same logic as import type - check boundaries correctly
 				if bytes.HasPrefix(code[i:], []byte("type")) {
-					kind = OnlyTypeImport
-					i += len("type")
-					i = skipSpaces(code, i)
-					if !bytes.HasPrefix(code[i:], []byte("{")) {
-						// Drop if `export type SomeType = ...`
-						continue
+					isTypeKeyword := false
+					if i+4 >= n {
+						isTypeKeyword = true
+					} else if !isByteIdentifierChar(code[i+4]) {
+						isTypeKeyword = true
+					}
+
+					if isTypeKeyword {
+						kind = OnlyTypeImport
+						i += len("type")
+						i = skipSpaces(code, i)
+						if !bytes.HasPrefix(code[i:], []byte("{")) {
+							// Drop if `export type SomeType = ...`
+							continue
+						}
+					}
+				}
+
+				// Check if we have { type A } case in export
+				if kind == NotTypeOrMixedImport && code[i] == '{' {
+					if areAllImportsInBracesTypes(code, i) {
+						kind = OnlyTypeImport
 					}
 				}
 
@@ -341,6 +414,36 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool) ([]FileIm
 
 	wg.Wait()
 	return results, errCount
+}
+
+func ImportKindToString(kind ImportKind) string {
+	switch kind {
+	case NotTypeOrMixedImport:
+		return "NotTypeOrMixedImport"
+	case OnlyTypeImport:
+		return "OnlyTypeImport"
+	default:
+		return "Unknown"
+	}
+}
+
+func ResolvedImportTypeToString(resolvedType ResolvedImportType) string {
+	switch resolvedType {
+	case UserModule:
+		return "UserModule"
+	case NodeModule:
+		return "NodeModule"
+	case BuiltInModule:
+		return "BuiltInModule"
+	case ExcludedByUser:
+		return "ExcludedByUser"
+	case NotResolvedModule:
+		return "NotResolvedModule"
+	case AssetModule:
+		return "AssetModule"
+	default:
+		return "Unknown"
+	}
 }
 
 /*

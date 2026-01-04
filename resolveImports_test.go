@@ -79,7 +79,7 @@ func TestParsingTsConfig(t *testing.T) {
 	t.Run("Should not crash on empty config file", func(t *testing.T) {
 		tsConfig := `{}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []string{})
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, []string{})
 
 		aliasesCount := len(importsResolver.tsConfigParsed.aliases)
 
@@ -97,7 +97,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []string{})
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, []string{})
 
 		aliasesCount := len(importsResolver.tsConfigParsed.aliases)
 		_, hasAlias := importsResolver.tsConfigParsed.aliases["@/dir/*"]
@@ -122,7 +122,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []string{})
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, []string{})
 
 		aliasesCount := len(importsResolver.tsConfigParsed.aliases)
 		_, hasAlias := importsResolver.tsConfigParsed.aliases["@/dir/*"]
@@ -151,7 +151,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []string{})
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, []string{})
 
 		aliasesCount := len(importsResolver.tsConfigParsed.aliases)
 		_, hasAlias := importsResolver.tsConfigParsed.aliases["@/dir/*"]
@@ -181,7 +181,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule("@/dir/fileA", "/root/app/index.js", cwd)
 
@@ -205,7 +205,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule("app/dir/fileA", "/root/app/index.js", cwd)
 
@@ -230,7 +230,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule("./dir/fileA", "/root/app/index.js", cwd)
 
@@ -255,7 +255,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule("../index", "/root/app/dir/fileA.ts", cwd)
 
@@ -280,7 +280,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule("./dir/fileA.jsx", "/root/app/index.ts", cwd)
 
@@ -308,7 +308,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule("../index", "/root/app/dir/fileA.ts", cwd)
 
@@ -333,7 +333,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule("./dir", "/root/app/index.js", cwd)
 
@@ -358,7 +358,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule(".", "/root/app/dir/file.ts", cwd)
 
@@ -383,7 +383,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), filePaths)
+		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths)
 
 		resolvedPath, err := importsResolver.ResolveModule("..", "/root/app/dir/file.ts", cwd)
 

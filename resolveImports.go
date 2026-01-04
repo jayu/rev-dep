@@ -23,8 +23,15 @@ type TsConfigParsed struct {
 	aliasesRegexps []RegExpArrItem
 }
 
+type PackageJsonImports struct {
+	imports        map[string]interface{}
+	importsRegexps []RegExpArrItem
+	conditionNames []string
+}
+
 type ModuleResolver struct {
 	tsConfigParsed     *TsConfigParsed
+	packageJsonImports *PackageJsonImports
 	aliasesCache       map[string]string
 	filesAndExtensions *map[string]string
 }
@@ -65,7 +72,7 @@ func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
 	return result
 }
 
-func NewImportsResolver(tsconfigContent []byte, allFilePaths []string) *ModuleResolver {
+func NewImportsResolver(tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string) *ModuleResolver {
 	debug := false
 	tsconfigContent = jsonc.ToJSON(tsconfigContent)
 
@@ -141,6 +148,39 @@ func NewImportsResolver(tsconfigContent []byte, allFilePaths []string) *ModuleRe
 		})
 	}
 
+	packageJsonImports := &PackageJsonImports{
+		imports:        map[string]interface{}{},
+		importsRegexps: []RegExpArrItem{},
+		conditionNames: conditionNames,
+	}
+
+	var rawPackageJson map[string]interface{}
+	json.Unmarshal(packageJsonContent, &rawPackageJson)
+
+	if imports, ok := rawPackageJson["imports"]; ok {
+		if importsMap, ok := imports.(map[string]interface{}); ok {
+			packageJsonImports.imports = importsMap
+			for key := range importsMap {
+				// imports keys like "#foo" or "#foo/*"
+				// regex should match them.
+				// Spec says keys starting with #.
+				// If key has *, replace with .+?
+				pattern := "^" + strings.Replace(key, "*", ".+?", 1) + "$"
+				regExp := regexp.MustCompile(pattern)
+				packageJsonImports.importsRegexps = append(packageJsonImports.importsRegexps, RegExpArrItem{
+					aliasKey: key,
+					regExp:   regExp,
+				})
+			}
+			// Sort regexps longest prefix first
+			slices.SortFunc(packageJsonImports.importsRegexps, func(itemA RegExpArrItem, itemB RegExpArrItem) int {
+				keyAMatchingPrefix := strings.Replace(itemA.aliasKey, "*", "", 1)
+				keyBMatchingPrefix := strings.Replace(itemB.aliasKey, "*", "", 1)
+				return len(keyBMatchingPrefix) - len(keyAMatchingPrefix)
+			})
+		}
+	}
+
 	// Sort regexps as they are matched starting from longest matching prefix
 	slices.SortFunc(tsConfigParsed.aliasesRegexps, func(itemA RegExpArrItem, itemB RegExpArrItem) int {
 		keyAMatchingPrefix := strings.Replace(itemA.aliasKey, "*", "", 1)
@@ -157,6 +197,7 @@ func NewImportsResolver(tsconfigContent []byte, allFilePaths []string) *ModuleRe
 
 	factory := &ModuleResolver{
 		tsConfigParsed:     tsConfigParsed,
+		packageJsonImports: packageJsonImports,
 		aliasesCache:       map[string]string{},
 		filesAndExtensions: filesAndExtensions,
 	}
@@ -242,6 +283,66 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 	return modulePath, &e
 }
 
+func (f *ModuleResolver) resolveCondition(target interface{}) string {
+	if targetStr, ok := target.(string); ok {
+		return targetStr
+	}
+
+	if targetMap, ok := target.(map[string]interface{}); ok {
+		// iterate through conditionNames
+		for _, condition := range f.packageJsonImports.conditionNames {
+			if val, ok := targetMap[condition]; ok {
+				return f.resolveCondition(val)
+			}
+		}
+		// Try default
+		if val, ok := targetMap["default"]; ok {
+			return f.resolveCondition(val)
+		}
+	}
+
+	return ""
+}
+
+func (f *ModuleResolver) resolvePackageJsonImport(request string, root string) (path string, found bool) {
+	if !strings.HasPrefix(request, "#") {
+		return "", false
+	}
+
+	for _, importRegex := range f.packageJsonImports.importsRegexps {
+		if importRegex.regExp.MatchString(request) {
+			key := importRegex.aliasKey
+			target := f.packageJsonImports.imports[key]
+
+			resolvedTarget := f.resolveCondition(target)
+
+			if resolvedTarget != "" {
+				// Replace * if present
+				if strings.Contains(key, "*") {
+					regexKey := strings.Replace(key, "*", "(.*)", 1)
+					re := regexp.MustCompile("^" + regexKey + "$")
+					matches := re.FindStringSubmatch(request)
+					if len(matches) > 1 {
+						wildcardValue := matches[1]
+						resolvedTarget = strings.Replace(resolvedTarget, "*", wildcardValue, 1)
+					}
+				}
+
+				// If result starts with ./, it is relative to package.json (root)
+				if strings.HasPrefix(resolvedTarget, "./") {
+					return filepath.Join(root, resolvedTarget), true
+				}
+				// Otherwise it might be external package reference or other import?
+				// Node spec says targets must start with ./ for file paths.
+				// Or they can be package names.
+				return resolvedTarget, true
+			}
+		}
+	}
+
+	return "", false
+}
+
 func (f *ModuleResolver) ResolveModule(request string, filePath string, root string) (path string, err *ResolutionError) {
 	// fmt.Println("Resolve module")
 	// fmt.Println("Request", request)
@@ -267,6 +368,23 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
 
 		return f.getModulePathWithExtension(modulePathInternal)
+	}
+
+	// Package.json imports
+	// Should take precedence over tsconfig paths but not relative paths (which are handled above)
+	if resolvedImport, found := f.resolvePackageJsonImport(request, root); found {
+		// Is resolvedImport absolute? resolvePackageJsonImport returns join(root, target) which is absolute if root is absolute.
+		// Use it directly
+		modulePath = NormalizePathForInternal(resolvedImport)
+		actualFilePath, e := f.getModulePathWithExtension(modulePath)
+		if e == nil {
+			f.aliasesCache[request] = actualFilePath
+			return actualFilePath, nil
+		}
+		// If not found, maybe we should return error or continue?
+		// Node spec says if import mapping exists but file not found, it's an error.
+		// But here we return error from getModulePathWithExtension which is FileNotFound
+		return actualFilePath, e
 	}
 
 	aliasKey := ""
@@ -320,7 +438,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 	return "", &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher) (fileImports []FileImports, adjustedSortedFiles []string, nodeModules map[string]bool) {
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string) (fileImports []FileImports, adjustedSortedFiles []string, nodeModules map[string]bool) {
 	tsConfigPath := filepath.Join(cwd, tsconfigJson)
 	pkgJsonPath := filepath.Join(cwd, packageJson)
 
@@ -355,7 +473,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 
 	nodeModules = GetNodeModulesFromPkgJson(jsonc.ToJSON(pkgJsonContent))
 
-	importsResolver := NewImportsResolver(tsconfigContent, sortedFiles)
+	importsResolver := NewImportsResolver(tsconfigContent, pkgJsonContent, conditionNames, sortedFiles)
 
 	missingResolutionFailedAttempts := map[string]bool{}
 	discoveredFiles := map[string]bool{}

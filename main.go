@@ -45,6 +45,7 @@ var (
 	packageJsonPath  string
 	tsconfigJsonPath string
 	verboseFlag      bool
+	conditionNames   []string
 )
 
 func addSharedFlags(command *cobra.Command) {
@@ -54,6 +55,8 @@ func addSharedFlags(command *cobra.Command) {
 		"Path to tsconfig.json (default: ./tsconfig.json)")
 	command.Flags().BoolVarP(&verboseFlag, "verbose", "v", false,
 		"Show warnings and verbose output")
+	command.Flags().StringSliceVar(&conditionNames, "condition-names", []string{},
+		"List of conditions for package.json imports resolution (e.g. node, imports, default)")
 }
 
 func logWarning(format string, a ...interface{}) {
@@ -841,7 +844,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, nodeModules := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns)
+	fileImportsArr, sortedFiles, nodeModules := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

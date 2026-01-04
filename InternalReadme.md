@@ -35,3 +35,5 @@
 `npm login`
 
 `scripts/publish.sh` 
+
+`git push origin HEAD` 

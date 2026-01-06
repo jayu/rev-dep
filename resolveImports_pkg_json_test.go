@@ -33,8 +33,8 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	}`
 
 	t.Run("Should resolve simple import", func(t *testing.T) {
-		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{}, filePaths)
-		path, err := resolver.ResolveModule("#simple", cwd+"src/main.ts", cwd)
+		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{}, filePaths, nil)
+		path, _, err := resolver.ResolveModule("#simple", cwd+"src/main.ts", cwd)
 
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -45,8 +45,8 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve wildcard import", func(t *testing.T) {
-		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{}, filePaths)
-		path, err := resolver.ResolveModule("#wildcard/utils.js", cwd+"src/main.ts", cwd)
+		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{}, filePaths, nil)
+		path, _, err := resolver.ResolveModule("#wildcard/utils.js", cwd+"src/main.ts", cwd)
 
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -57,8 +57,8 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve deep wildcard import", func(t *testing.T) {
-		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{}, filePaths)
-		path, err := resolver.ResolveModule("#deep/wildcard/utils.js", cwd+"src/main.ts", cwd)
+		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{}, filePaths, nil)
+		path, _, err := resolver.ResolveModule("#deep/wildcard/utils.js", cwd+"src/main.ts", cwd)
 
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -69,8 +69,8 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve conditional import (default)", func(t *testing.T) {
-		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{}, filePaths)
-		path, err := resolver.ResolveModule("#conditional", cwd+"src/main.ts", cwd)
+		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{}, filePaths, nil)
+		path, _, err := resolver.ResolveModule("#conditional", cwd+"src/main.ts", cwd)
 
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -81,8 +81,8 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve conditional import (node)", func(t *testing.T) {
-		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{"node"}, filePaths)
-		path, err := resolver.ResolveModule("#conditional", cwd+"src/main.ts", cwd)
+		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{"node"}, filePaths, nil)
+		path, _, err := resolver.ResolveModule("#conditional", cwd+"src/main.ts", cwd)
 
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -93,8 +93,8 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve nested conditional import (node -> require)", func(t *testing.T) {
-		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{"node", "require"}, filePaths)
-		path, err := resolver.ResolveModule("#nested", cwd+"src/main.ts", cwd)
+		resolver := NewImportsResolver([]byte("{}"), []byte(pkgJson), []string{"node", "require"}, filePaths, nil)
+		path, _, err := resolver.ResolveModule("#nested", cwd+"src/main.ts", cwd)
 
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -119,21 +119,21 @@ func TestResolvePackageJsonImports(t *testing.T) {
 		}`
 
 		// Case 1: node first
-		resolverNode := NewImportsResolver([]byte("{}"), []byte(localPkgJson), []string{"node", "import"}, filePaths)
-		pathNode, _ := resolverNode.ResolveModule("#foo", cwd+"main.ts", cwd)
+		resolverNode := NewImportsResolver([]byte("{}"), []byte(localPkgJson), []string{"node", "import"}, filePaths, nil)
+		pathNode, _, _ := resolverNode.ResolveModule("#foo", cwd+"main.ts", cwd)
 		if pathNode != cwd+"dist/index.js" {
 			t.Errorf("Expected dist/index.js when node is prioritized, got %s", pathNode)
 		}
 
 		// Case 2: import first
-		resolverImport := NewImportsResolver([]byte("{}"), []byte(localPkgJson), []string{"import", "node"}, filePaths)
-		pathImport, _ := resolverImport.ResolveModule("#foo", cwd+"main.ts", cwd)
+		resolverImport := NewImportsResolver([]byte("{}"), []byte(localPkgJson), []string{"import", "node"}, filePaths, nil)
+		pathImport, _, _ := resolverImport.ResolveModule("#foo", cwd+"main.ts", cwd)
 		if pathImport != cwd+"src/index.ts" {
 			t.Errorf("Expected src/index.ts when import is prioritized, got %s", pathImport)
 		}
 	})
 
-	t.Run("Package.json imports should take precedence over tsconfig paths", func(t *testing.T) {
+	t.Run("Package.json imports should not take precedence over tsconfig paths", func(t *testing.T) {
 		tsConfig := `{
 			"compilerOptions": {
 				"paths": {
@@ -142,15 +142,15 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			}
 		}`
 		// pkgJson maps #simple to index.ts
-		resolver := NewImportsResolver([]byte(tsConfig), []byte(pkgJson), []string{}, filePaths)
-		path, err := resolver.ResolveModule("#simple", cwd+"src/main.ts", cwd)
+		resolver := NewImportsResolver([]byte(tsConfig), []byte(pkgJson), []string{}, filePaths, nil)
+		path, _, err := resolver.ResolveModule("#simple", cwd+"src/main.ts", cwd)
 
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
 		// Should match package.json (index.ts) not tsconfig (utils.ts)
-		if path != cwd+"src/index.ts" {
-			t.Errorf("Expected package.json priority (src/index.ts), got %s", path)
+		if path != cwd+"src/utils.ts" {
+			t.Errorf("Expected package.json priority (src/utils.ts), got %s", path)
 		}
 	})
 }

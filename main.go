@@ -42,10 +42,11 @@ var docsCmd = &cobra.Command{
 // ---------------- shared flags ----------------
 
 var (
-	packageJsonPath  string
-	tsconfigJsonPath string
-	verboseFlag      bool
-	conditionNames   []string
+	packageJsonPath        string
+	tsconfigJsonPath       string
+	verboseFlag            bool
+	conditionNames         []string
+	followMonorepoPackages bool
 )
 
 func addSharedFlags(command *cobra.Command) {
@@ -57,6 +58,8 @@ func addSharedFlags(command *cobra.Command) {
 		"Show warnings and verbose output")
 	command.Flags().StringSliceVar(&conditionNames, "condition-names", []string{},
 		"List of conditions for package.json imports resolution (e.g. node, imports, default)")
+	command.Flags().BoolVar(&followMonorepoPackages, "follow-monorepo-packages", false,
+		"Enable resolution of imports from monorepo workspace packages")
 }
 
 func logWarning(format string, a ...interface{}) {
@@ -90,7 +93,7 @@ Helps understand how different parts of your codebase are connected.`,
 		if len(resolveEntryPoints) > 0 {
 			absolutePathToEntryPoints = make([]string, 0, len(resolveEntryPoints))
 			for _, entryPoint := range resolveEntryPoints {
-				absolutePathToEntryPoints = append(absolutePathToEntryPoints, filepath.Join(cwd, entryPoint))
+				absolutePathToEntryPoints = append(absolutePathToEntryPoints, JoinWithCwd(cwd, entryPoint))
 			}
 		}
 
@@ -100,7 +103,7 @@ Helps understand how different parts of your codebase are connected.`,
 			absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
 		}
 
-		absolutePathToFilePath := NormalizePathForInternal(filepath.Join(cwd, filePath))
+		absolutePathToFilePath := NormalizePathForInternal(JoinWithCwd(cwd, filePath))
 
 		notFoundCount := 0
 		for _, absolutePathToEntryPoint := range absolutePathToEntryPoints {
@@ -111,7 +114,7 @@ Helps understand how different parts of your codebase are connected.`,
 		}
 
 		if _, found := minimalTree[absolutePathToFilePath]; !found {
-			fmt.Printf("Error: Target file '%s' not found in dependency tree.\n", filePath)
+			fmt.Printf("Error: Target file '%s' ('%s') not found in dependency tree.\n", filePath, absolutePathToFilePath)
 			fmt.Println("Available files:")
 			count := 0
 			for path := range minimalTree {
@@ -571,7 +574,7 @@ by the specified entry point.`,
 	Example: "rev-dep files --entry-point src/index.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd := ResolveAbsoluteCwd(filesCwd)
-		absolutePathToEntryPoint := filepath.Join(cwd, filesEntryPoint)
+		absolutePathToEntryPoint := JoinWithCwd(cwd, filesEntryPoint)
 		excludeFiles := []string{}
 
 		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, filesIgnoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath)
@@ -844,7 +847,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, nodeModules := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames)
+	fileImportsArr, sortedFiles, nodeModules := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

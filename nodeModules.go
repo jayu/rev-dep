@@ -149,7 +149,7 @@ func NodeModulesCmd(
 	if len(entryPoints) > 0 {
 		absolutePathToEntryPoints = make([]string, 0, len(entryPoints))
 		for _, entryPoint := range entryPoints {
-			absolutePathToEntryPoints = append(absolutePathToEntryPoints, filepath.Join(cwd, entryPoint))
+			absolutePathToEntryPoints = append(absolutePathToEntryPoints, JoinWithCwd(cwd, entryPoint))
 		}
 	}
 
@@ -302,9 +302,9 @@ func GetUsedNodeModules(
 		}
 	}
 
-	pkgJsonPath := filepath.Join(cwd, "package.json")
+	pkgJsonPath := JoinWithCwd(cwd, "package.json")
 	if packageJson != "" {
-		pkgJsonPath = filepath.Join(cwd, packageJson)
+		pkgJsonPath = JoinWithCwd(cwd, packageJson)
 	}
 	pkgJsonContent, _ := os.ReadFile(pkgJsonPath)
 
@@ -331,7 +331,7 @@ func GetUsedNodeModules(
 	}
 
 	for _, filePath := range filesWithBinaries {
-		absoluteFilePath := filepath.Join(cwd, filePath)
+		absoluteFilePath := JoinWithCwd(cwd, filePath)
 
 		fileContent, err := os.ReadFile(absoluteFilePath)
 		if err == nil && len(fileContent) > 0 {
@@ -379,9 +379,9 @@ func GetUsedNodeModules(
 		}
 	}
 
-	tsconfigPath := filepath.Join(cwd, "tsconfig.json")
+	tsconfigPath := JoinWithCwd(cwd, "tsconfig.json")
 	if tsconfigJson != "" {
-		tsconfigPath = filepath.Join(cwd, tsconfigJson)
+		tsconfigPath = JoinWithCwd(cwd, tsconfigJson)
 	}
 
 	// Use ParseTsConfig which reads and resolves "extends" chains. If parsing
@@ -406,7 +406,7 @@ func GetUsedNodeModules(
 	// Only include additional files explicitly requested via `filesWithModules`.
 
 	for _, filePath := range filesWithModules {
-		absoluteFilePath := filepath.Join(cwd, filePath)
+		absoluteFilePath := JoinWithCwd(cwd, filePath)
 
 		fileContent, err := os.ReadFile(absoluteFilePath)
 		if err == nil && len(fileContent) > 0 {

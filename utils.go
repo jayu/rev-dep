@@ -25,6 +25,13 @@ func ResolveAbsoluteCwd(cwd string) string {
 	}
 }
 
+func JoinWithCwd(cwd string, filePath string) string {
+	if filepath.IsAbs(filePath) {
+		return filePath
+	}
+	return filepath.Join(cwd, filePath)
+}
+
 // RemoveTaggedTemplateLiterals removes tagged template literals (e.g., `styled.div`\`...\“ or `css`\`...\“) from the code.
 // It first removes comments to avoid false positives. It preserves regular template literals (without a tag).
 func RemoveTaggedTemplateLiterals(code []byte) []byte {

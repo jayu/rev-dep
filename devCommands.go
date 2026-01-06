@@ -6,7 +6,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -26,7 +25,7 @@ of your project's dependency graph.`,
 	Example: "rev-dep browser --entry-point src/index.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd := ResolveAbsoluteCwd(browserCwd)
-		absolutePathToEntryPoint := filepath.Join(cwd, browserEntryPoint)
+		absolutePathToEntryPoint := JoinWithCwd(cwd, browserEntryPoint)
 		excludeFiles := []string{}
 
 		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, browserIgnoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath)
@@ -34,6 +33,15 @@ of your project's dependency graph.`,
 		StartServer(minimalTree, absolutePathToEntryPoint, cwd)
 		return nil
 	},
+}
+
+type MinimalDependencyWithLabels struct {
+	ID                *string            `json:"id"`
+	Request           string             `json:"request"`
+	ResolvedType      ResolvedImportType `json:"resolvedType"`
+	ResolvedTypeLabel string             `json:"resolvedTypeLabel"`
+	ImportKind        *ImportKind        `json:"importKind"`
+	ImportKindLabel   string             `json:"importKindLabel"`
 }
 
 // ---------------- debug-parse-file ----------------
@@ -48,34 +56,24 @@ var debugParseFileCmd = &cobra.Command{
 	Long:  `Development tool to inspect how the parser processes a specific file.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd := ResolveAbsoluteCwd(debugFileCwd)
-		path := filepath.Join(cwd, debugFile)
+		path := JoinWithCwd(cwd, debugFile)
 		excludeFiles := []string{}
 
 		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{path}, packageJsonPath, tsconfigJsonPath)
 
 		fmt.Println(path)
 
-		type MinimalDependencyWithLabels struct {
-			ID                *string            `json:"id"`
-			Request           string             `json:"request"`
-			ResolvedType      ResolvedImportType `json:"resolvedType"`
-			ResolvedTypeLabel string             `json:"resolvedTypeLabel"`
-			ImportKind        *ImportKind        `json:"importKind"`
-			ImportKindLabel   string             `json:"importKindLabel"`
-		}
-
 		minimalDep := minimalTree[path]
-
 		for _, dep := range minimalDep {
-			resolvedTypeLabel := ResolvedImportTypeToString(dep.ResolvedType)
-			importKindLabel := ImportKindToString(*dep.ImportKind)
 			depWithLabels := MinimalDependencyWithLabels{
 				ID:                dep.ID,
 				Request:           dep.Request,
 				ResolvedType:      dep.ResolvedType,
-				ResolvedTypeLabel: resolvedTypeLabel,
+				ResolvedTypeLabel: ResolvedImportTypeToString(dep.ResolvedType),
 				ImportKind:        dep.ImportKind,
-				ImportKindLabel:   importKindLabel,
+			}
+			if dep.ImportKind != nil {
+				depWithLabels.ImportKindLabel = ImportKindToString(*dep.ImportKind)
 			}
 			jsonDep, err := json.MarshalIndent(depWithLabels, "  ", "  ")
 			if err == nil {
@@ -105,7 +103,26 @@ var debugGetTreeCmd = &cobra.Command{
 
 		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath)
 
-		jsonTree, err := json.MarshalIndent(minimalTree, "", " ")
+		treeWithLabels := make(map[string][]MinimalDependencyWithLabels)
+		for key, deps := range minimalTree {
+			var depsWithLabels []MinimalDependencyWithLabels
+			for _, dep := range deps {
+				dwl := MinimalDependencyWithLabels{
+					ID:                dep.ID,
+					Request:           dep.Request,
+					ResolvedType:      dep.ResolvedType,
+					ResolvedTypeLabel: ResolvedImportTypeToString(dep.ResolvedType),
+					ImportKind:        dep.ImportKind,
+				}
+				if dep.ImportKind != nil {
+					dwl.ImportKindLabel = ImportKindToString(*dep.ImportKind)
+				}
+				depsWithLabels = append(depsWithLabels, dwl)
+			}
+			treeWithLabels[key] = depsWithLabels
+		}
+
+		jsonTree, err := json.MarshalIndent(treeWithLabels, "", " ")
 		if err == nil {
 			fmt.Println(string(jsonTree))
 		}

@@ -67,7 +67,7 @@ func DetectMonorepo(cwd string) *MonorepoContext {
 	return nil
 }
 
-func (ctx *MonorepoContext) FindWorkspacePackages(cwd string) {
+func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatterns []GlobMatcher) {
 	pkgJsonPath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), "package.json")
 	content, err := os.ReadFile(pkgJsonPath)
 	if err != nil {
@@ -111,77 +111,144 @@ func (ctx *MonorepoContext) FindWorkspacePackages(cwd string) {
 		}
 	}
 
-	/**
-	Sub packages discovery logic could be simplified if we would ignore the pnpm ability to to have exclude patterns
-	Then we could just build the allowlist of dirs to scan, rather than walking the whole workspace and matching against patterns and excluding negations
-	*/
-
-	type matcher struct {
-		g          glob.Glob
-		isNegative bool
+	type positivePattern struct {
+		basePath string
+		isDeep   bool
+		isDir    bool
 	}
 
-	var matchers []matcher
-
-	for _, p := range patterns {
-		isNegative := strings.HasPrefix(p, "!")
-		cleanP := p
-		if isNegative {
-			cleanP = strings.TrimPrefix(p, "!")
-		}
-		// Ensure pattern uses forward slashes
-		cleanP = NormalizeGlobPattern(cleanP)
-
-		g, err := glob.Compile(cleanP, '/')
-		if err == nil {
-			matchers = append(matchers, matcher{g: g, isNegative: isNegative})
-		}
+	var positive []positivePattern
+	type negativeMatcher struct {
+		g glob.Glob
 	}
+	var negative []negativeMatcher
 
-	filepath.WalkDir(ctx.WorkspaceRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			if d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == ".idea" || d.Name() == ".vscode" {
-				return filepath.SkipDir
+	for _, pattern := range patterns {
+		if strings.HasPrefix(pattern, "!") {
+			cleanP := strings.TrimPrefix(pattern, "!")
+			cleanP = NormalizeGlobPattern(cleanP)
+			g, err := glob.Compile(cleanP, '/')
+			if err == nil {
+				negative = append(negative, negativeMatcher{g: g})
 			}
-			return nil
-		}
-		if d.Name() != "package.json" {
-			return nil
+			continue
 		}
 
-		dir := filepath.Dir(path)
-
-		rel, err := filepath.Rel(ctx.WorkspaceRoot, dir)
-		if err != nil {
-			return nil
+		if pattern == "*" {
+			positive = append(positive, positivePattern{
+				basePath: "",
+				isDir:    true,
+			})
+			continue
 		}
 
-		rel = NormalizePathForInternal(rel)
-
-		if rel == "." || rel == "" {
-			return nil
+		if strings.HasSuffix(pattern, "/**") {
+			positive = append(positive, positivePattern{
+				basePath: strings.TrimSuffix(pattern, "/**"),
+				isDeep:   true,
+			})
+		} else if strings.HasSuffix(pattern, "/*") {
+			positive = append(positive, positivePattern{
+				basePath: strings.TrimSuffix(pattern, "/*"),
+				isDir:    true,
+			})
+		} else {
+			positive = append(positive, positivePattern{
+				basePath: pattern,
+			})
 		}
+	}
 
-		included := false
-		for _, m := range matchers {
-			if m.g.Match(rel) {
-				if m.isNegative {
-					included = false
-					break
-				} else {
-					included = true
+	candidateDirs := make(map[string]bool)
+
+	for _, pos := range positive {
+		fullBasePath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), DenormalizePathForOS(pos.basePath))
+
+		if pos.isDeep {
+			// Recursive walk, stop at package.json
+			ctx.walkForPackages(fullBasePath, excludeFilePatterns, candidateDirs)
+		} else if pos.isDir {
+			// One star: check immediate subdirectories
+			entries, err := os.ReadDir(fullBasePath)
+			if err != nil {
+				continue
+			}
+			for _, entry := range entries {
+				if entry.IsDir() {
+					dirPath := filepath.Join(fullBasePath, entry.Name())
+					if _, err := os.Stat(filepath.Join(dirPath, "package.json")); err == nil {
+						candidateDirs[NormalizePathForInternal(dirPath)] = true
+					}
 				}
 			}
+		} else {
+			// Direct path
+			if _, err := os.Stat(filepath.Join(fullBasePath, "package.json")); err == nil {
+				candidateDirs[NormalizePathForInternal(fullBasePath)] = true
+			}
+		}
+	}
+
+	// Filter and process
+	for dirPath := range candidateDirs {
+		rel, err := filepath.Rel(ctx.WorkspaceRoot, dirPath)
+		if err != nil {
+			continue
+		}
+		rel = NormalizePathForInternal(rel)
+		if rel == "." || rel == "" {
+			continue
 		}
 
-		if included {
-			ctx.processPossiblePackage(dir)
+		isExcluded := false
+		for _, m := range negative {
+			if m.g.Match(rel) {
+				isExcluded = true
+				break
+			}
 		}
-		return nil
-	})
+
+		if !isExcluded {
+			ctx.processPossiblePackage(dirPath)
+		}
+	}
+}
+
+func (ctx *MonorepoContext) walkForPackages(basePath string, excludeFilePatterns []GlobMatcher, candidateDirs map[string]bool) {
+	entries, err := os.ReadDir(basePath)
+	if err != nil {
+		return
+	}
+
+	hasPkgJson := false
+	for _, entry := range entries {
+		if !entry.IsDir() && entry.Name() == "package.json" {
+			hasPkgJson = true
+			break
+		}
+	}
+
+	if hasPkgJson {
+		// Stop recursing in this branch
+		candidateDirs[NormalizePathForInternal(basePath)] = true
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == ".git" || name == ".idea" || name == ".vscode" || name == "node_modules" {
+				continue
+			}
+
+			dirPath := filepath.Join(basePath, name)
+			if MatchesAnyGlobMatcher(dirPath, excludeFilePatterns, false) {
+				continue
+			}
+
+			ctx.walkForPackages(dirPath, excludeFilePatterns, candidateDirs)
+		}
+	}
 }
 
 func (ctx *MonorepoContext) processPossiblePackage(path string) {

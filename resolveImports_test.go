@@ -84,7 +84,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -108,7 +108,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -139,7 +139,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -174,7 +174,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -210,7 +210,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("@/dir/fileA", cwd+"app/index.js")
@@ -240,7 +240,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("app/dir/fileA", cwd+"app/index.js")
@@ -271,7 +271,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA", cwd+"app/index.js")
@@ -302,7 +302,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/dir/fileA.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("../index", cwd+"app/dir/fileA.ts")
@@ -333,7 +333,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA.jsx", cwd+"app/index.ts")
@@ -367,7 +367,7 @@ func TestRelativeImports(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/dir/fileA.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("../index", cwd+"app/dir/fileA.ts")
@@ -398,7 +398,7 @@ func TestRelativeImports(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir", cwd+"app/index.js")
@@ -430,7 +430,7 @@ func TestRelativeImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgConfig),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/dir/file.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule(".", cwd+"app/dir/file.ts")
@@ -461,7 +461,7 @@ func TestRelativeImports(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		})
+		}, []GlobMatcher{})
 		resolver := rm.GetResolverForFile(cwd + "app/dir/file.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("..", cwd+"app/dir/file.ts")

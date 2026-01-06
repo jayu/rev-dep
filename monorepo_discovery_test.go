@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -34,7 +36,7 @@ func TestPnpmWorkspaceParsing(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
 	}
 
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
+	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
 
 	expectedPackages := []string{
 		"@pnpm/pkg-a",
@@ -74,7 +76,7 @@ func TestNpmWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via npm workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
+	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
 
 	expected := []string{"@npm/a", "@npm/b"}
 	for _, pkg := range expected {
@@ -111,7 +113,7 @@ func TestYarnWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via yarn workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
+	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
 
 	expected := []string{"@yarn/x", "@yarn/y"}
 	for _, pkg := range expected {
@@ -146,7 +148,7 @@ func TestBunWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via bun workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
+	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
 
 	if _, ok := monorepoCtx.PackageToPath["bun-lib-1"]; !ok {
 		t.Errorf("Expected to find bun-lib-1")
@@ -205,7 +207,7 @@ func TestPnpmResolution(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(true, []string{"import"}, rootParams)
+	manager := NewResolverManager(true, []string{"import"}, rootParams, []GlobMatcher{})
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/main.ts"))
 	resolver := manager.GetResolverForFile(appFile)
 
@@ -220,5 +222,182 @@ func TestPnpmResolution(t *testing.T) {
 	expected := NormalizePathForInternal(filepath.Join(tmpDir, "packages/lib/src/index.ts"))
 	if path != expected {
 		t.Errorf("Expected %s, got %s", expected, path)
+	}
+}
+
+func TestFindWorkspacePackages(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "monorepo-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Set up structure:
+	// /root
+	//   package.json (root)
+	//   apps/
+	//     app1/package.json
+	//     app2/package.json
+	//   libs/
+	//     lib1/package.json
+	//     lib1/node_modules/pkg/package.json (should be ignored)
+	//     lib2/package.json
+	//     lib2/internal/lib2-internal/package.json (recursion should stop at lib2)
+	//   tools/
+	//     tool1/package.json
+	//   ignored/
+	//     pkg/package.json
+
+	root := tempDir
+	mkdir := func(p ...string) string {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(path, 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", path, err)
+		}
+		return path
+	}
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	writeFile(`{"name": "root", "workspaces": ["apps/*", "libs/**", "tools/tool1", "!**/ignored/**"]}`, "package.json")
+
+	mkdir("apps", "app1")
+	writeFile(`{"name": "@app/app1"}`, "apps", "app1", "package.json")
+
+	mkdir("apps", "app2")
+	writeFile(`{"name": "@app/app2"}`, "apps", "app2", "package.json")
+
+	mkdir("libs", "lib1")
+	writeFile(`{"name": "@lib/lib1"}`, "libs", "lib1", "package.json")
+	mkdir("libs", "lib1", "node_modules", "pkg")
+	writeFile(`{"name": "ignored-node-module"}`, "libs", "lib1", "node_modules", "pkg", "package.json")
+
+	mkdir("libs", "lib2")
+	writeFile(`{"name": "@lib/lib2"}`, "libs", "lib2", "package.json")
+	mkdir("libs", "lib2", "internal", "lib2-internal")
+	writeFile(`{"name": "@lib/lib2-internal"}`, "libs", "lib2", "internal", "lib2-internal", "package.json")
+
+	mkdir("tools", "tool1")
+	writeFile(`{"name": "@tool/tool1"}`, "tools", "tool1", "package.json")
+
+	mkdir("ignored", "pkg")
+	writeFile(`{"name": "@ignored/pkg"}`, "ignored", "pkg", "package.json")
+
+	ctx := NewMonorepoContext(root)
+
+	excludeMatchers := CreateGlobMatchers([]string{"**/ignored/**"}, root)
+
+	ctx.FindWorkspacePackages(root, excludeMatchers)
+
+	expectedPackages := map[string]string{
+		"@app/app1":   NormalizePathForInternal(filepath.Join(root, "apps", "app1")),
+		"@app/app2":   NormalizePathForInternal(filepath.Join(root, "apps", "app2")),
+		"@lib/lib1":   NormalizePathForInternal(filepath.Join(root, "libs", "lib1")),
+		"@lib/lib2":   NormalizePathForInternal(filepath.Join(root, "libs", "lib2")),
+		"@tool/tool1": NormalizePathForInternal(filepath.Join(root, "tools", "tool1")),
+	}
+
+	if len(ctx.PackageToPath) != len(expectedPackages) {
+		t.Errorf("Expected %d packages, got %d", len(expectedPackages), len(ctx.PackageToPath))
+	}
+
+	for pkg, path := range expectedPackages {
+		if gotPath, ok := ctx.PackageToPath[pkg]; !ok || gotPath != path {
+			t.Errorf("Package %s: expected path %s, got %s", pkg, path, gotPath)
+		}
+	}
+
+	// Verify that lib2-internal was NOT found because recursion stopped at lib2
+	if _, ok := ctx.PackageToPath["@lib/lib2-internal"]; ok {
+		t.Errorf("Recursion did NOT stop at lib2; found lib2-internal")
+	}
+
+	// Verify that ignored/pkg was NOT found because of exclude patterns
+	if _, ok := ctx.PackageToPath["@ignored/pkg"]; ok {
+		t.Errorf("Found package in ignored directory")
+	}
+
+	// Verify that node_modules was skipped
+	if _, ok := ctx.PackageToPath["ignored-node-module"]; ok {
+		t.Errorf("Found package in node_modules")
+	}
+}
+
+func TestFindWorkspacePackagesSingleStarAtRoot(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "monorepo-test-root-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	root := tempDir
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	writeFile(`{"name": "@pkg/a"}`, "a", "package.json")
+	writeFile(`{"name": "@pkg/b"}`, "b", "package.json")
+	writeFile(`{"name": "root", "workspaces": ["*"]}`, "package.json")
+
+	ctx := NewMonorepoContext(root)
+
+	ctx.FindWorkspacePackages(root, []GlobMatcher{})
+
+	expectedPackages := []string{"@pkg/a", "@pkg/b"}
+	var gotPackages []string
+	for pkg := range ctx.PackageToPath {
+		gotPackages = append(gotPackages, pkg)
+	}
+	sort.Strings(gotPackages)
+	sort.Strings(expectedPackages)
+
+	if !reflect.DeepEqual(gotPackages, expectedPackages) {
+		t.Errorf("Expected packages %v, got %v", expectedPackages, gotPackages)
+	}
+}
+func TestWorkspaceRootExclusion(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "monorepo-root-excl-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	root := tempDir
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Package at root
+	writeFile(`{"name": "@pkg/root", "workspaces": ["packages/*"]}`, "package.json")
+	// Package in workspace
+	writeFile(`{"name": "@pkg/a"}`, "packages", "a", "package.json")
+
+	ctx := NewMonorepoContext(root)
+	ctx.FindWorkspacePackages(root, []GlobMatcher{})
+
+	// Assert root package is NOT in the map
+	if _, ok := ctx.PackageToPath["@pkg/root"]; ok {
+		t.Errorf("Workspace root package '@pkg/root' should be excluded from discovery")
+	}
+
+	// Assert workspace package IS in the map
+	if _, ok := ctx.PackageToPath["@pkg/a"]; !ok {
+		t.Errorf("Workspace package '@pkg/a' should be discovered")
 	}
 }

@@ -95,12 +95,12 @@ type RootParams struct {
 	Cwd             string
 }
 
-func NewResolverManager(followMonorepoPackages bool, conditionNames []string, rootParams RootParams) *ResolverManager {
+func NewResolverManager(followMonorepoPackages bool, conditionNames []string, rootParams RootParams, excludeFilePatterns []GlobMatcher) *ResolverManager {
 	var monorepoCtx *MonorepoContext
 	if followMonorepoPackages {
 		monorepoCtx = DetectMonorepo(rootParams.Cwd)
 		if monorepoCtx != nil {
-			monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
+			monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, excludeFilePatterns)
 		}
 	}
 
@@ -695,7 +695,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		PkgJsonContent:  pkgJsonContent,
 		SortedFiles:     sortedFiles,
 		Cwd:             cwd,
-	})
+	}, excludeFilePatterns)
 
 	missingResolutionFailedAttempts := map[string]bool{}
 	discoveredFiles := map[string]bool{}

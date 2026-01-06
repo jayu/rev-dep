@@ -189,11 +189,6 @@ func TestPnpmResolution(t *testing.T) {
 
 	// Detect Monorepo
 	cwd := filepath.Join(tmpDir, "packages/app")
-	monorepoCtx := DetectMonorepo(cwd)
-	if monorepoCtx == nil {
-		t.Fatalf("Failed to detect monorepo")
-	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
 
 	// Setup Resolver
 	allKeys := []string{}
@@ -207,14 +202,15 @@ func TestPnpmResolution(t *testing.T) {
 		TsConfigContent: []byte("{}"),
 		PkgJsonContent:  []byte(files["packages/app/package.json"]),
 		SortedFiles:     allKeys,
+		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(monorepoCtx, true, []string{"import"}, rootParams)
+	manager := NewResolverManager(true, []string{"import"}, rootParams)
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/main.ts"))
 	resolver := manager.GetResolverForFile(appFile)
 
 	// Resolve
-	path, rtype, resErr := resolver.ResolveModule("@pnpm/lib", appFile, NormalizePathForInternal(cwd))
+	path, rtype, resErr := resolver.ResolveModule("@pnpm/lib", appFile)
 	if resErr != nil {
 		t.Errorf("Expected nil error for pnpm resolution, got %v", resErr)
 	}

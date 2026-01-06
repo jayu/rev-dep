@@ -79,9 +79,15 @@ func TestParsingTsConfig(t *testing.T) {
 	t.Run("Should not crash on empty config file", func(t *testing.T) {
 		tsConfig := `{}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, []string{}, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     []string{},
+			Cwd:             "/root/",
+		})
+		resolver := rm.GetResolverForFile("/root/")
 
-		aliasesCount := len(importsResolver.tsConfigParsed.aliases)
+		aliasesCount := len(resolver.tsConfigParsed.aliases)
 
 		if aliasesCount != 0 {
 			t.Errorf("Aliases should be empty")
@@ -97,10 +103,16 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, []string{}, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     []string{},
+			Cwd:             "/root/",
+		})
+		resolver := rm.GetResolverForFile("/root/")
 
-		aliasesCount := len(importsResolver.tsConfigParsed.aliases)
-		_, hasAlias := importsResolver.tsConfigParsed.aliases["@/dir/*"]
+		aliasesCount := len(resolver.tsConfigParsed.aliases)
+		_, hasAlias := resolver.tsConfigParsed.aliases["@/dir/*"]
 
 		if aliasesCount != 1 {
 			t.Errorf("Aliases count not match")
@@ -122,10 +134,16 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, []string{}, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     []string{},
+			Cwd:             "/root/",
+		})
+		resolver := rm.GetResolverForFile("/root/")
 
-		aliasesCount := len(importsResolver.tsConfigParsed.aliases)
-		_, hasAlias := importsResolver.tsConfigParsed.aliases["@/dir/*"]
+		aliasesCount := len(resolver.tsConfigParsed.aliases)
+		_, hasAlias := resolver.tsConfigParsed.aliases["@/dir/*"]
 
 		if aliasesCount != 1 {
 			t.Errorf("Aliases count not match")
@@ -151,10 +169,16 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, []string{}, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     []string{},
+			Cwd:             "/root/",
+		})
+		resolver := rm.GetResolverForFile("/root/")
 
-		aliasesCount := len(importsResolver.tsConfigParsed.aliases)
-		_, hasAlias := importsResolver.tsConfigParsed.aliases["@/dir/*"]
+		aliasesCount := len(resolver.tsConfigParsed.aliases)
+		_, hasAlias := resolver.tsConfigParsed.aliases["@/dir/*"]
 
 		if aliasesCount != 1 {
 			t.Errorf("Aliases count not match")
@@ -181,12 +205,18 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
-		resolvedPath, _, err := importsResolver.ResolveModule("@/dir/fileA", "/root/app/index.js", cwd)
+		resolvedPath, _, err := resolver.ResolveModule("@/dir/fileA", cwd+"app/index.js")
 
-		if resolvedPath != "/root/app/dir/fileA.ts" {
-			t.Errorf("Path not resolved correctly")
+		if resolvedPath != cwd+"app/dir/fileA.ts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/dir/fileA.ts", resolvedPath)
 		}
 
 		if err != nil {
@@ -205,12 +235,18 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
-		resolvedPath, _, err := importsResolver.ResolveModule("app/dir/fileA", "/root/app/index.js", cwd)
+		resolvedPath, _, err := resolver.ResolveModule("app/dir/fileA", cwd+"app/index.js")
 
-		if resolvedPath != "/root/app/dir/fileA.ts" {
-			t.Errorf("Path not resolved correctly")
+		if resolvedPath != cwd+"app/dir/fileA.ts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/dir/fileA.ts", resolvedPath)
 		}
 
 		if err != nil {
@@ -230,12 +266,18 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
-		resolvedPath, _, err := importsResolver.ResolveModule("./dir/fileA", "/root/app/index.js", cwd)
+		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA", cwd+"app/index.js")
 
-		if resolvedPath != "/root/app/dir/fileA.ts" {
-			t.Errorf("Path not resolved correctly")
+		if resolvedPath != cwd+"app/dir/fileA.ts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/dir/fileA.ts", resolvedPath)
 		}
 
 		if err != nil {
@@ -255,12 +297,18 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/dir/fileA.ts")
 
-		resolvedPath, _, err := importsResolver.ResolveModule("../index", "/root/app/dir/fileA.ts", cwd)
+		resolvedPath, _, err := resolver.ResolveModule("../index", cwd+"app/dir/fileA.ts")
 
-		if resolvedPath != "/root/app/index.js" {
-			t.Errorf("Path not resolved correctly")
+		if resolvedPath != cwd+"app/index.js" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/index.js", resolvedPath)
 		}
 
 		if err != nil {
@@ -280,12 +328,18 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
-		resolvedPath, _, err := importsResolver.ResolveModule("./dir/fileA.jsx", "/root/app/index.ts", cwd)
+		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA.jsx", cwd+"app/index.ts")
 
-		if resolvedPath != "/root/app/dir/fileA.ts" {
-			t.Errorf("Path not resolved correctly")
+		if resolvedPath != cwd+"app/dir/fileA.ts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/dir/fileA.ts", resolvedPath)
 		}
 
 		if err != nil {
@@ -308,12 +362,18 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/dir/fileA.ts")
 
-		resolvedPath, _, err := importsResolver.ResolveModule("../index", "/root/app/dir/fileA.ts", cwd)
+		resolvedPath, _, err := resolver.ResolveModule("../index", cwd+"app/dir/fileA.ts")
 
-		if resolvedPath != "/root/app/index.js" {
-			t.Errorf("Path not resolved correctly, got %v", resolvedPath)
+		if resolvedPath != cwd+"app/index.js" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/index.js", resolvedPath)
 		}
 
 		if err != nil {
@@ -333,12 +393,18 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
-		resolvedPath, _, err := importsResolver.ResolveModule("./dir", "/root/app/index.js", cwd)
+		resolvedPath, _, err := resolver.ResolveModule("./dir", cwd+"app/index.js")
 
-		if resolvedPath != "/root/app/dir/index.ts" {
-			t.Errorf("Path not resolved correctly, got %v", resolvedPath)
+		if resolvedPath != cwd+"app/dir/index.ts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/dir/index.ts", resolvedPath)
 		}
 
 		if err != nil {
@@ -359,11 +425,17 @@ func TestRelativeImports(t *testing.T) {
 		}`
 		pkgConfig := `{}` // Assuming an empty pkgConfig for this test
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte(pkgConfig), []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte(pkgConfig),
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/dir/file.ts")
 
-		resolvedPath, _, err := importsResolver.ResolveModule(".", "/root/app/dir/file.ts", cwd)
+		resolvedPath, _, err := resolver.ResolveModule(".", cwd+"app/dir/file.ts")
 
-		if resolvedPath != "/root/app/dir/index.ts" {
+		if resolvedPath != cwd+"app/dir/index.ts" {
 			t.Errorf("Path not resolved correctly for '.', got %v", resolvedPath)
 		}
 
@@ -384,11 +456,17 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		importsResolver := NewImportsResolver([]byte(tsConfig), []byte{}, []string{}, filePaths, nil)
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		})
+		resolver := rm.GetResolverForFile(cwd + "app/dir/file.ts")
 
-		resolvedPath, _, err := importsResolver.ResolveModule("..", "/root/app/dir/file.ts", cwd)
+		resolvedPath, _, err := resolver.ResolveModule("..", cwd+"app/dir/file.ts")
 
-		if resolvedPath != "/root/app/index.ts" {
+		if resolvedPath != cwd+"app/index.ts" {
 			t.Errorf("Path not resolved correctly for '..', got %v", resolvedPath)
 		}
 

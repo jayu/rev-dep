@@ -58,11 +58,6 @@ func TestMonorepoResolution(t *testing.T) {
 	}
 
 	cwd := filepath.Join(tmpDir, "apps/app-1")
-	monorepoCtx := DetectMonorepo(cwd)
-	if monorepoCtx == nil {
-		t.Fatalf("Failed to detect monorepo")
-	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
 
 	allKeys := []string{}
 	for k := range files {
@@ -75,13 +70,14 @@ func TestMonorepoResolution(t *testing.T) {
 		TsConfigContent: []byte("{}"),
 		PkgJsonContent:  []byte(files["apps/app-1/package.json"]),
 		SortedFiles:     allKeys,
+		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(monorepoCtx, true, []string{"import", "default", "node"}, rootParams)
+	manager := NewResolverManager(true, []string{"import", "default", "node"}, rootParams)
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/main.ts"))
 
 	// Test 1: Resolve @company/lib-a/utils
-	path1, rtype1, resErr := resolver.ResolveModule("@company/lib-a/utils", filepath.Join(cwd, "src/main.ts"), cwd)
+	path1, rtype1, resErr := resolver.ResolveModule("@company/lib-a/utils", filepath.Join(cwd, "src/main.ts"))
 	if resErr != nil {
 		t.Errorf("Failed to resolve @company/lib-a/utils: %v", resErr)
 	}
@@ -94,7 +90,7 @@ func TestMonorepoResolution(t *testing.T) {
 	}
 
 	// Test 2: Resolve @company/lib-a (main export)
-	path2, rtype2, resErr2 := resolver.ResolveModule("@company/lib-a", filepath.Join(cwd, "src/main.ts"), cwd)
+	path2, rtype2, resErr2 := resolver.ResolveModule("@company/lib-a", filepath.Join(cwd, "src/main.ts"))
 	if resErr2 != nil {
 		t.Errorf("Failed to resolve @company/lib-a: %v", resErr2)
 	}
@@ -107,7 +103,7 @@ func TestMonorepoResolution(t *testing.T) {
 	}
 
 	// Test 3: Resolve @company/lib-b (string export sugar)
-	path3, rtype3, resErr3 := resolver.ResolveModule("@company/lib-b", filepath.Join(cwd, "src/main.ts"), cwd)
+	path3, rtype3, resErr3 := resolver.ResolveModule("@company/lib-b", filepath.Join(cwd, "src/main.ts"))
 	if resErr3 != nil {
 		t.Errorf("Failed to resolve @company/lib-b: %v", resErr3)
 	}
@@ -142,19 +138,18 @@ func TestDependencyValidation(t *testing.T) {
 	}
 
 	cwd := filepath.Join(tmpDir, "packages/app")
-	monorepoCtx := DetectMonorepo(cwd)
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
 
 	rootParams := RootParams{
 		TsConfigContent: []byte("{}"),
 		PkgJsonContent:  []byte(files["packages/app/package.json"]),
 		SortedFiles:     []string{filepath.Join(cwd, "index.ts")},
+		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(monorepoCtx, true, []string{}, rootParams)
+	manager := NewResolverManager(true, []string{"import", "default", "node"}, rootParams)
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "index.ts"))
 
-	_, _, resErr := resolver.ResolveModule("@company/secret", filepath.Join(cwd, "index.ts"), cwd)
+	_, _, resErr := resolver.ResolveModule("@company/secret", filepath.Join(cwd, "index.ts"))
 
 	if resErr == nil || *resErr != AliasNotResolved {
 		t.Errorf("Expected AliasNotResolved for invalid dep, got %v", resErr)
@@ -201,11 +196,6 @@ func TestMonorepoSubpackageExports(t *testing.T) {
 	}
 
 	cwd := filepath.Join(tmpDir, "apps/app")
-	monorepoCtx := DetectMonorepo(cwd)
-	if monorepoCtx == nil {
-		t.Fatalf("Failed to detect monorepo")
-	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
 
 	allKeys := []string{}
 	for k := range files {
@@ -218,13 +208,14 @@ func TestMonorepoSubpackageExports(t *testing.T) {
 		TsConfigContent: []byte("{}"),
 		PkgJsonContent:  []byte(files["apps/app/package.json"]),
 		SortedFiles:     allKeys,
+		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(monorepoCtx, true, []string{"import", "default", "node"}, rootParams)
+	manager := NewResolverManager(true, []string{"import", "default", "node"}, rootParams)
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/index.ts"))
 
 	// Test 1: External import via exports
-	p, rtype, resErr := resolver.ResolveModule("@company/common/file-utils", filepath.Join(cwd, "src/index.ts"), cwd)
+	p, rtype, resErr := resolver.ResolveModule("@company/common/file-utils", filepath.Join(cwd, "src/index.ts"))
 	if resErr != nil {
 		t.Errorf("Expected nil error for exports resolution, got %v", resErr)
 	}
@@ -241,7 +232,7 @@ func TestMonorepoSubpackageExports(t *testing.T) {
 	commonFile := filepath.Join(tmpDir, "packages/common/src/file-utils.ts")
 	commonResolver := manager.GetResolverForFile(commonFile)
 
-	p2, rtype2, resErr2 := commonResolver.ResolveModule("#common/file-utils.ts", commonFile, filepath.Join(tmpDir, "packages/common"))
+	p2, rtype2, resErr2 := commonResolver.ResolveModule("#common/file-utils.ts", commonFile)
 	if resErr2 != nil {
 		t.Errorf("Expected nil error for imports resolution, got %v", resErr2)
 	}
@@ -291,11 +282,6 @@ func TestMonorepoRelaxedAndAliases(t *testing.T) {
 	}
 
 	appDir := NormalizePathForInternal(filepath.Join(tmpDir, "packages/app"))
-	monorepoCtx := DetectMonorepo(DenormalizePathForOS(appDir))
-	if monorepoCtx == nil {
-		t.Fatalf("Failed to detect monorepo")
-	}
-	monorepoCtx.FindWorkspacePackages(DenormalizePathForOS(appDir))
 
 	allKeys := []string{}
 	for k := range files {
@@ -308,14 +294,14 @@ func TestMonorepoRelaxedAndAliases(t *testing.T) {
 		TsConfigContent: []byte(files["packages/app/tsconfig.json"]),
 		PkgJsonContent:  []byte(files["packages/app/package.json"]),
 		SortedFiles:     allKeys,
+		Cwd:             appDir,
 	}
 
-	manager := NewResolverManager(monorepoCtx, true, []string{}, rootParams)
+	manager := NewResolverManager(true, []string{"import", "default", "node"}, rootParams)
 	resolver := manager.GetResolverForFile(NormalizePathForInternal(filepath.Join(appDir, "src/index.ts")))
 
-	// TODO: incorrect behaviour, if tsconfig alias points to workspace package then it should be UserModule anyway
 	// Test 1: Resolve via alias but should be MonorepoModule
-	path, rtype, resErr := resolver.ResolveModule("@lib/index", NormalizePathForInternal(filepath.Join(appDir, "src/index.ts")), appDir)
+	path, rtype, resErr := resolver.ResolveModule("@lib/index", NormalizePathForInternal(filepath.Join(appDir, "src/index.ts")))
 	if resErr != nil {
 		t.Errorf("Expected nil error, got %v", resErr)
 	}
@@ -328,7 +314,7 @@ func TestMonorepoRelaxedAndAliases(t *testing.T) {
 	}
 
 	// Test 2: Resolve via name with non-workspace version in package.json
-	path2, rtype2, resErr2 := resolver.ResolveModule("@company/lib", NormalizePathForInternal(filepath.Join(appDir, "src/index.ts")), appDir)
+	path2, rtype2, resErr2 := resolver.ResolveModule("@company/lib", NormalizePathForInternal(filepath.Join(appDir, "src/index.ts")))
 	if resErr2 != nil {
 		t.Errorf("Expected nil error for name resolution, got %v", resErr2)
 	}
@@ -378,11 +364,6 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 	}
 
 	cwd := filepath.Join(tmpDir, "apps/app")
-	monorepoCtx := DetectMonorepo(cwd)
-	if monorepoCtx == nil {
-		t.Fatalf("Failed to detect monorepo")
-	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
 
 	allKeys := []string{}
 	for k := range files {
@@ -395,15 +376,16 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 		TsConfigContent: []byte("{}"),
 		PkgJsonContent:  []byte(files["apps/app/package.json"]),
 		SortedFiles:     allKeys,
+		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(monorepoCtx, true, []string{"import", "default"}, rootParams)
+	manager := NewResolverManager(true, []string{"import", "default"}, rootParams)
 
 	// Test 1: Resolve @company/common/file-utils from apps/app
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
 	resolver := manager.GetResolverForFile(appFile)
 
-	p, rtype, resErr := resolver.ResolveModule("@company/common/file-utils", appFile, NormalizePathForInternal(cwd))
+	p, rtype, resErr := resolver.ResolveModule("@company/common/file-utils", appFile)
 	if resErr != nil {
 		t.Errorf("Expected nil error for exports resolution, got %v", resErr)
 	}
@@ -418,9 +400,8 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 	// Test 2: Resolve #common/helpers.ts from within packages/common/src/file-utils.ts
 	commonFileUtilsPath := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/file-utils.ts"))
 	commonResolver := manager.GetResolverForFile(commonFileUtilsPath)
-	commonRoot := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common"))
 
-	p2, rtype2, resErr2 := commonResolver.ResolveModule("#common/helpers.ts", commonFileUtilsPath, commonRoot)
+	p2, rtype2, resErr2 := commonResolver.ResolveModule("#common/helpers.ts", commonFileUtilsPath)
 	if resErr2 != nil {
 		t.Errorf("Expected nil error for internal #common import, got %v", resErr2)
 	}
@@ -479,11 +460,6 @@ func TestMonorepoInternalTsconfigAlias(t *testing.T) {
 	}
 
 	cwd := filepath.Join(tmpDir, "apps/app")
-	monorepoCtx := DetectMonorepo(cwd)
-	if monorepoCtx == nil {
-		t.Fatalf("Failed to detect monorepo")
-	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
 
 	allKeys := []string{}
 	for k := range files {
@@ -496,15 +472,16 @@ func TestMonorepoInternalTsconfigAlias(t *testing.T) {
 		TsConfigContent: []byte("{}"),
 		PkgJsonContent:  []byte(files["apps/app/package.json"]),
 		SortedFiles:     allKeys,
+		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(monorepoCtx, true, []string{"import", "default"}, rootParams)
+	manager := NewResolverManager(true, []string{"import", "default"}, rootParams)
 
 	// Test 1: Resolve @company/common/utils from apps/app
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
 	resolver := manager.GetResolverForFile(appFile)
 
-	p, rtype, resErr := resolver.ResolveModule("@company/common/utils", appFile, NormalizePathForInternal(cwd))
+	p, rtype, resErr := resolver.ResolveModule("@company/common/utils", appFile)
 	if resErr != nil {
 		t.Errorf("Expected nil error for exports resolution, got %v", resErr)
 	}
@@ -519,9 +496,8 @@ func TestMonorepoInternalTsconfigAlias(t *testing.T) {
 	// Test 2: Resolve @internal/core from within packages/common/src/utils.ts
 	commonUtilsPath := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/utils.ts"))
 	commonResolver := manager.GetResolverForFile(commonUtilsPath)
-	commonRoot := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common"))
 
-	p2, rtype2, resErr2 := commonResolver.ResolveModule("@internal/core", commonUtilsPath, commonRoot)
+	p2, rtype2, resErr2 := commonResolver.ResolveModule("@internal/core", commonUtilsPath)
 	if resErr2 != nil {
 		t.Errorf("Expected nil error for internal tsconfig alias, got %v", resErr2)
 	}
@@ -556,15 +532,15 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 		"packages/app/package.json": `{
 			"name": "@pkg/app",
 			"dependencies": {
-				"a": "*", 
-				"b": "^", 
-				"c": "~", 
-				"d": "1.5.0", 
-				"e": "^1.5.0", 
-				"f": "workspace:1.5.0", 
-				"g": "workspace:^1.5.0", 
-				"h": "workspace:*", 
-				"i": "workspace:^", 
+				"a": "*",
+				"b": "^",
+				"c": "~",
+				"d": "1.5.0",
+				"e": "^1.5.0",
+				"f": "workspace:1.5.0",
+				"g": "workspace:^1.5.0",
+				"h": "workspace:*",
+				"i": "workspace:^",
 				"j": "workspace:~"
 			}
 		}`,
@@ -649,12 +625,13 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 				NormalizePathForInternal(filepath.Join(appPath, "index.ts")),
 				targetPath,
 			},
+			Cwd: appPath,
 		}
 
-		manager := NewResolverManager(monorepoCtx, true, []string{"import"}, rootParams)
+		manager := NewResolverManager(true, []string{"import"}, rootParams)
 		resolver := manager.GetResolverForFile(NormalizePathForInternal(filepath.Join(appPath, "index.ts")))
 
-		path, rtype, resErr := resolver.ResolveModule("@pkg/target", NormalizePathForInternal(filepath.Join(appPath, "index.ts")), NormalizePathForInternal(appPath))
+		path, rtype, resErr := resolver.ResolveModule("@pkg/target", NormalizePathForInternal(filepath.Join(appPath, "index.ts")))
 
 		if resErr != nil {
 			t.Errorf("[%s] Resolution failed: %v", appName, resErr)

@@ -38,8 +38,7 @@ type ModuleResolver struct {
 	tsConfigParsed     *TsConfigParsed
 	packageJsonImports *PackageJsonImports
 	aliasesCache       map[string]ResolvedModuleInfo
-	filesAndExtensions *map[string]string
-	packageRoot        string
+	resolverRoot       string
 	manager            *ResolverManager
 }
 
@@ -81,147 +80,81 @@ func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
 
 type ResolverManager struct {
 	monorepoContext        *MonorepoContext
-	resolvers              map[string]*ModuleResolver
-	mu                     sync.RWMutex
+	subpackageResolvers    map[string]*ModuleResolver
+	rootResolver           *ModuleResolver
 	followMonorepoPackages bool
 	conditionNames         []string
 	rootParams             RootParams
-	filesAndExtensions     map[string]string
-	muFiles                sync.Mutex
+	filesAndExtensions     *map[string]string
 }
 
 type RootParams struct {
 	TsConfigContent []byte
 	PkgJsonContent  []byte
 	SortedFiles     []string
+	Cwd             string
 }
 
-func NewResolverManager(monorepoContext *MonorepoContext, followMonorepoPackages bool, conditionNames []string, rootParams RootParams) *ResolverManager {
+func NewResolverManager(followMonorepoPackages bool, conditionNames []string, rootParams RootParams) *ResolverManager {
+	var monorepoCtx *MonorepoContext
+	if followMonorepoPackages {
+		monorepoCtx = DetectMonorepo(rootParams.Cwd)
+		if monorepoCtx != nil {
+			monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot)
+		}
+	}
+
 	rm := &ResolverManager{
-		monorepoContext:        monorepoContext,
-		resolvers:              make(map[string]*ModuleResolver),
+		monorepoContext:        monorepoCtx,
+		subpackageResolvers:    make(map[string]*ModuleResolver),
+		rootResolver:           nil,
 		followMonorepoPackages: followMonorepoPackages,
 		conditionNames:         conditionNames,
 		rootParams:             rootParams,
-		filesAndExtensions:     make(map[string]string),
+		filesAndExtensions:     &map[string]string{},
 	}
 
 	for _, filePath := range rootParams.SortedFiles {
-		addFilePathToFilesAndExtensions(NormalizePathForInternal(filePath), &rm.filesAndExtensions)
+		addFilePathToFilesAndExtensions(NormalizePathForInternal(filePath), rm.filesAndExtensions)
+	}
+
+	// Create resolvers
+	if monorepoCtx != nil {
+		rm.rootResolver = createResolverForDir(monorepoCtx.WorkspaceRoot, rm)
+		for _, pkgPath := range monorepoCtx.PackageToPath {
+			rm.subpackageResolvers[pkgPath] = createResolverForDir(pkgPath, rm)
+		}
+	} else {
+		rm.rootResolver = NewImportsResolver(rootParams.Cwd, rootParams.TsConfigContent, rootParams.PkgJsonContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
 	}
 
 	return rm
 }
 
-/*
-	TODO this function is weird, get resolver for file should be simple and straightforward
-  We need to have thre resolvers created upfront. If there is only one resolver, use it without any checks.
-*/
+func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
 
-func (rm *ResolverManager) GetResolverForFile(filePath string) *ModuleResolver {
-	// 1. Determine package root for filePath
-	// If monorepo support is enabled, traversing up to find nearest package.json
-	// If not enabled or no package.json found (except root), use root resolver.
+	var pkgContent []byte
 
-	packageRoot := ""
+	pkgContent, _ = os.ReadFile(filepath.Join(dirPath, "package.json"))
 
-	if rm.followMonorepoPackages && rm.monorepoContext != nil {
-		// Traverse up from filePath to find package.json
-		// Only consider packages known in monorepo context to avoid scanning unrelated directories?
-		// Or just find nearest package.json.
-		// Use known packages map for validation or lookup efficiency.
+	tsConfigPath := filepath.Join(dirPath, "tsconfig.json")
+	tsConfigContent, _ := ParseTsConfig(tsConfigPath)
 
-		dir := NormalizePathForInternal(filepath.Dir(filePath))
-		for {
-			if dir == "." || dir == "/" || dir == "" || len(dir) < len(rm.monorepoContext.WorkspaceRoot) {
-				break
-			}
-			if _, ok := rm.monorepoContext.PackageToPath[filepath.Base(dir)]; ok { // This check is insufficient, key is name not path
-				// We have paths in Packages values.
-				// Inverting map or iterating reasonable?
-				// Better: check if package.json exists, parse it's name, check if valid.
-			}
-			// Optimization: MonorepoContext already has packages map [name] -> path.
-			// We can check if `dir` is a value in that map.
-			// Iterating map is slow?
-			// Let's rely on finding package.json and checking if it matches a known workspace package.
+	resolver := NewImportsResolver(dirPath, tsConfigContent, pkgContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
 
-			// Simpler: Just look for package.json.
-			pkgPath := filepath.Join(dir, "package.json")
-			if _, err := os.Stat(pkgPath); err == nil {
-				// Found a package root
-				packageRoot = dir
-				break
-			}
-
-			dir = filepath.Dir(dir)
-			dir = NormalizePathForInternal(dir)
-		}
-	}
-
-	// Fallback to root if not found or outside known packages
-	if packageRoot == "" || (rm.monorepoContext != nil && packageRoot == rm.monorepoContext.WorkspaceRoot) {
-		// Use Root Resolver
-		// Root resolver key can be special or just empty string?
-		// Let's use root workspace path or "ROOT"
-		packageRoot = "ROOT"
-	}
-
-	rm.mu.RLock()
-	if resolver, ok := rm.resolvers[packageRoot]; ok {
-		rm.mu.RUnlock()
-		return resolver
-	}
-	rm.mu.RUnlock()
-
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-
-	// Double check
-	if resolver, ok := rm.resolvers[packageRoot]; ok {
-		return resolver
-	}
-
-	// Create new resolver
-	var resolver *ModuleResolver
-
-	if packageRoot == "ROOT" {
-		resolver = NewImportsResolver(rm.rootParams.TsConfigContent, rm.rootParams.PkgJsonContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
-	} else {
-		// Load package.json for this package
-		// We need to load tsconfig? Monorepo packages likely have their own tsconfig or extend base.
-		// For simplicity V1: try to load tsconfig.json in that dir, or empty if fail.
-
-		_, err := rm.monorepoContext.GetPackageConfig(packageRoot)
-		var pkgContent []byte
-		if err == nil {
-			// Re-marshal to bytes or store bytes in cache?
-			// Since NewImportsResolver takes bytes, maybe we should have stored bytes.
-			// Or read file again.
-			pkgContent, _ = os.ReadFile(filepath.Join(packageRoot, "package.json"))
-		}
-
-		tsConfigPath := filepath.Join(packageRoot, "tsconfig.json")
-		tsConfigContent, _ := ParseTsConfig(tsConfigPath)
-		// if err, tsConfigContent is empty/partial, handled by NewImportsResolver
-
-		// Note: sortedFiles passed here is technically "files known so far".
-		// But for a new resolver, the filesAndExtensions map starts fresh?
-		// Actually, filesAndExtensions is used to check existence of files.
-		// It should probably be shared or populated with all files?
-		// NewImportsResolver currently builds a map from allFilePaths.
-		// Effectively we want to know legal files relative to this package?
-		// Or just all files in project.
-		// We can pass the same file list.
-		resolver = NewImportsResolver(tsConfigContent, pkgContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
-		resolver.packageRoot = packageRoot // Store root for relative calc
-	}
-
-	rm.resolvers[packageRoot] = resolver
 	return resolver
 }
 
-func NewImportsResolver(tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
+func (rm *ResolverManager) GetResolverForFile(filePath string) *ModuleResolver {
+	for pkgPath, resolver := range rm.subpackageResolvers {
+		if strings.HasPrefix(filePath, pkgPath) {
+			return resolver
+		}
+	}
+	return rm.rootResolver
+}
+
+func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
 	debug := false
 	tsconfigContent = jsonc.ToJSON(tsconfigContent)
 
@@ -338,24 +271,12 @@ func NewImportsResolver(tsconfigContent []byte, packageJsonContent []byte, condi
 		return len(keyBMatchingPrefix) - len(keyAMatchingPrefix)
 	})
 
-	// TODO when manager can be nil ? It should always exist
-	var filesAndExtensions *map[string]string
-	if manager != nil {
-		filesAndExtensions = &manager.filesAndExtensions
-	} else {
-		m := make(map[string]string)
-		filesAndExtensions = &m
-		for _, filePath := range allFilePaths {
-			addFilePathToFilesAndExtensions(NormalizePathForInternal(filePath), filesAndExtensions)
-		}
-	}
-
 	factory := &ModuleResolver{
 		tsConfigParsed:     tsConfigParsed,
 		packageJsonImports: packageJsonImports,
 		aliasesCache:       map[string]ResolvedModuleInfo{},
-		filesAndExtensions: filesAndExtensions,
 		manager:            manager,
+		resolverRoot:       dirPath,
 	}
 	return factory
 }
@@ -408,15 +329,11 @@ func addFilePathToFilesAndExtensions(filePath string, filesAndExtensions *map[st
 	}
 }
 
-func (f *ModuleResolver) AddFilePathToFilesAndExtensions(filePath string) {
-	if f.manager != nil {
-		f.manager.muFiles.Lock()
-		defer f.manager.muFiles.Unlock()
-	}
+func (f *ResolverManager) AddFilePathToFilesAndExtensions(filePath string) {
 	addFilePathToFilesAndExtensions(filePath, f.filesAndExtensions)
 }
 
-func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path string, err *ResolutionError) {
+func (f *ResolverManager) getModulePathWithExtension(modulePath string) (path string, err *ResolutionError) {
 	match := extensionRegExp.FindString(modulePath)
 
 	if match != "" {
@@ -431,11 +348,6 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 		modulePath = strings.Replace(modulePath, tsSupportedExtension, "", 1)
 	}
 
-	if f.manager != nil {
-		// TODO why we need this?
-		f.manager.muFiles.Lock()
-		defer f.manager.muFiles.Unlock()
-	}
 	extension, has := (*f.filesAndExtensions)[modulePath]
 
 	if has {
@@ -508,7 +420,8 @@ func (f *ModuleResolver) resolvePackageJsonImport(request string, root string) (
 	return "", false
 }
 
-func (f *ModuleResolver) ResolveModule(request string, filePath string, root string) (path string, rtype ResolvedImportType, err *ResolutionError) {
+/* This should be whole wrapped with mu.lock whenever used */
+func (f *ModuleResolver) ResolveModule(request string, filePath string) (path string, rtype ResolvedImportType, err *ResolutionError) {
 	// fmt.Println("Resolve module")
 	// fmt.Println("Request", request)
 	// fmt.Println("FilePath", filePath)
@@ -521,6 +434,8 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 		return cached.Path, cached.Type, nil
 	}
 
+	root := f.resolverRoot
+
 	var modulePath string
 	relativeFileName, _ := filepath.Rel(root, filePath)
 
@@ -531,7 +446,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 		cleanedModulePath := filepath.Clean(modulePath)
 		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
 
-		p, e := f.getModulePathWithExtension(modulePathInternal)
+		p, e := f.manager.getModulePathWithExtension(modulePathInternal)
 		return p, UserModule, e
 	}
 
@@ -566,7 +481,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 			fmt.Println("Alias resolved to empty string for request", request)
 		}
 
-		actualFilePath, e := f.getModulePathWithExtension(modulePath)
+		actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
 
 		if e != nil {
 			return actualFilePath, UserModule, e
@@ -579,7 +494,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 
 	if resolvedImport, found := f.resolvePackageJsonImport(request, root); found {
 		modulePath = NormalizePathForInternal(resolvedImport)
-		actualFilePath, e := f.getModulePathWithExtension(modulePath)
+		actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
 		if e == nil {
 			f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
 			return actualFilePath, UserModule, nil
@@ -642,7 +557,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 							// resolvedExport is relative to target package root
 							fullPath := filepath.Join(pkgPath, resolvedExport)
 							modulePath = NormalizePathForInternal(fullPath)
-							actualFilePath, e := f.getModulePathWithExtension(modulePath)
+							actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
 							if e == nil {
 								f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule}
 								return actualFilePath, MonorepoModule, nil
@@ -662,7 +577,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string, root str
 
 						fullPath := filepath.Join(pkgPath, resolvedSubpath)
 						modulePath = NormalizePathForInternal(fullPath)
-						actualFilePath, e := f.getModulePathWithExtension(modulePath)
+						actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
 						if e == nil {
 							f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule}
 							return actualFilePath, MonorepoModule, nil
@@ -775,22 +690,12 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 
 	nodeModules = GetNodeModulesFromPkgJson(jsonc.ToJSON(pkgJsonContent))
 
-	var monorepoCtx *MonorepoContext
-	if followMonorepoPackages {
-		monorepoCtx = DetectMonorepo(cwd)
-		if monorepoCtx != nil {
-			monorepoCtx.FindWorkspacePackages(cwd)
-		}
-	}
-
-	resolverManager := NewResolverManager(monorepoCtx, followMonorepoPackages, conditionNames, RootParams{
+	resolverManager := NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
 		TsConfigContent: tsconfigContent,
 		PkgJsonContent:  pkgJsonContent,
 		SortedFiles:     sortedFiles,
+		Cwd:             cwd,
 	})
-
-	// TODO all resolvers should be created here, not inside resolveSingleFileImports
-	// TODO there shold be simple map between filePath part -> resolver
 
 	missingResolutionFailedAttempts := map[string]bool{}
 	discoveredFiles := map[string]bool{}
@@ -862,15 +767,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 	imports := fileImports.Imports
 	filePath := fileImports.FilePath
 
-	fmt.Println("Resolving imports for", filePath)
-
 	importsResolver := resolverManager.GetResolverForFile(filePath)
-
-	currentRoot := tsConfigDirOrCwd
-	// TODO I don't like this ambiguity, we should have a single resolver for the root, what is root btw?
-	if importsResolver.packageRoot != "" && importsResolver.packageRoot != "ROOT" {
-		currentRoot = importsResolver.packageRoot
-	}
 
 	for impIdx, imp := range imports {
 		moduleName := GetNodeModuleName(imp.Request)
@@ -884,7 +781,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		}
 
 		_, isNodeModule := nodeModules[moduleName]
-		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath, currentRoot)
+		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
 
 		if isNodeModule && resolutionErr != nil {
 			// Check if it's a followed workspace package
@@ -947,7 +844,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 								ch_idx <- len(*fileImportsArr) - 1
 
 								*sortedFiles = append(*sortedFiles, missingFilePath)
-								importsResolver.AddFilePathToFilesAndExtensions(missingFilePath)
+								importsResolver.manager.AddFilePathToFilesAndExtensions(missingFilePath)
 								mu.Unlock()
 							} else {
 								mu.Lock()
@@ -1016,7 +913,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 						*sortedFiles = append(*sortedFiles, importPath)
 						(*discoveredFiles)[importPath] = true
-						importsResolver.AddFilePathToFilesAndExtensions(importPath)
+						importsResolver.manager.AddFilePathToFilesAndExtensions(importPath)
 						mu.Unlock()
 					}
 				}

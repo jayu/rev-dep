@@ -79,7 +79,7 @@ func TestMonorepoResolution(t *testing.T) {
 	// Test 1: Resolve @company/lib-a/utils
 	path1, rtype1, resErr := resolver.ResolveModule("@company/lib-a/utils", filepath.Join(cwd, "src/main.ts"))
 	if resErr != nil {
-		t.Errorf("Failed to resolve @company/lib-a/utils: %v", resErr)
+		t.Errorf("Failed to resolve @company/lib-a/utils: %v", *resErr)
 	}
 	if rtype1 != MonorepoModule {
 		t.Errorf("Expected MonorepoModule, got %v", rtype1)
@@ -152,7 +152,7 @@ func TestDependencyValidation(t *testing.T) {
 	_, _, resErr := resolver.ResolveModule("@company/secret", filepath.Join(cwd, "index.ts"))
 
 	if resErr == nil || *resErr != AliasNotResolved {
-		t.Errorf("Expected AliasNotResolved for invalid dep, got %v", resErr)
+		t.Errorf("Expected AliasNotResolved for invalid dep, got %v", *resErr)
 	}
 }
 
@@ -217,7 +217,7 @@ func TestMonorepoSubpackageExports(t *testing.T) {
 	// Test 1: External import via exports
 	p, rtype, resErr := resolver.ResolveModule("@company/common/file-utils", filepath.Join(cwd, "src/index.ts"))
 	if resErr != nil {
-		t.Errorf("Expected nil error for exports resolution, got %v", resErr)
+		t.Errorf("Expected nil error for exports resolution, got %v", *resErr)
 	}
 	if rtype != MonorepoModule {
 		t.Errorf("Expected MonorepoModule, got %v", rtype)
@@ -303,7 +303,7 @@ func TestMonorepoRelaxedAndAliases(t *testing.T) {
 	// Test 1: Resolve via alias but should be MonorepoModule
 	path, rtype, resErr := resolver.ResolveModule("@lib/index", NormalizePathForInternal(filepath.Join(appDir, "src/index.ts")))
 	if resErr != nil {
-		t.Errorf("Expected nil error, got %v", resErr)
+		t.Errorf("Expected nil error, got %v", *resErr)
 	}
 	if rtype != UserModule {
 		t.Errorf("Expected UserModule for alias pointing to workspace, got %v", rtype)
@@ -387,7 +387,7 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 
 	p, rtype, resErr := resolver.ResolveModule("@company/common/file-utils", appFile)
 	if resErr != nil {
-		t.Errorf("Expected nil error for exports resolution, got %v", resErr)
+		t.Errorf("Expected nil error for exports resolution, got %v", *resErr)
 	}
 	if rtype != MonorepoModule {
 		t.Errorf("Expected MonorepoModule, got %v", rtype)
@@ -405,10 +405,11 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 	if resErr2 != nil {
 		t.Errorf("Expected nil error for internal #common import, got %v", resErr2)
 	}
-	// TODO: incorrect behaviour, imports resolved by package.json imports mapping should be of type UserModule
+
 	if rtype2 != UserModule {
 		t.Errorf("Expected UserModule for internal import, got %v", rtype2)
 	}
+
 	expectedHelpers := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/helpers.ts"))
 	if p2 != expectedHelpers {
 		t.Errorf("Expected %s, got %s", expectedHelpers, p2)
@@ -483,7 +484,7 @@ func TestMonorepoInternalTsconfigAlias(t *testing.T) {
 
 	p, rtype, resErr := resolver.ResolveModule("@company/common/utils", appFile)
 	if resErr != nil {
-		t.Errorf("Expected nil error for exports resolution, got %v", resErr)
+		t.Errorf("Expected nil error for exports resolution, got %v", *resErr)
 	}
 	if rtype != MonorepoModule {
 		t.Errorf("Expected MonorepoModule, got %v", rtype)
@@ -634,7 +635,7 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 		path, rtype, resErr := resolver.ResolveModule("@pkg/target", NormalizePathForInternal(filepath.Join(appPath, "index.ts")))
 
 		if resErr != nil {
-			t.Errorf("[%s] Resolution failed: %v", appName, resErr)
+			t.Errorf("[%s] Resolution failed: %v", appName, *resErr)
 			continue
 		}
 		if rtype != MonorepoModule {
@@ -644,4 +645,252 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 			t.Errorf("[%s] Expected path %s, got %s", appName, targetPath, path)
 		}
 	}
+}
+
+func TestMonorepoImportAliasToWorkspacePackage(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-internal-imports")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"package.json": `{ "workspaces": ["packages/*", "apps/*"] }`,
+		"packages/common/package.json": `{
+			"name": "@company/common",
+			"exports": {
+				".": "./src/index.ts",
+				"./file-utils": "./src/file-utils.ts"
+			}
+		}`,
+		"packages/common/src/index.ts":      `export { helper } from "./src/helpers.ts";`,
+		"packages/common/src/helpers.ts":    `export const helper = () => {};`,
+		"packages/common/src/file-utils.ts": `import { helper } from "./src/helpers.ts"; export const file = helper();`,
+		"apps/app/package.json": `{
+			"name": "app",
+			"dependencies": {
+				"@company/common": "*"
+			},
+			"imports": {
+				"#common-pkg" : "@company/common",
+				"#common-pkg-file-utils" : "@company/common/file-utils",
+				"#common-pkg-wildcard/*" : "@company/common/*"
+			}
+		}`,
+		"apps/app/src/index.ts": `import { file } from "@company/common/file-utils";`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	cwd := filepath.Join(tmpDir, "apps/app")
+
+	allKeys := []string{}
+	for k := range files {
+		if filepath.Ext(k) == ".ts" {
+			allKeys = append(allKeys, NormalizePathForInternal(filepath.Join(tmpDir, k)))
+		}
+	}
+
+	rootParams := RootParams{
+		TsConfigContent: []byte("{}"),
+		PkgJsonContent:  []byte(files["apps/app/package.json"]),
+		SortedFiles:     allKeys,
+		Cwd:             cwd,
+	}
+
+	manager := NewResolverManager(true, []string{"import", "default"}, rootParams, []GlobMatcher{})
+
+	// Test 1: Resolve #common-pkg-file-utils from apps/app
+	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
+	resolver := manager.GetResolverForFile(appFile)
+
+	p, rtype, resErr := resolver.ResolveModule("#common-pkg-file-utils", appFile)
+	if resErr != nil {
+		t.Errorf("Expected nil error, got %v", *resErr)
+	}
+	if rtype != MonorepoModule {
+		t.Errorf("Expected MonorepoModule, got %v", rtype)
+	}
+	expectedFileUtils := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/file-utils.ts"))
+	if p != expectedFileUtils {
+		t.Errorf("Expected %s, got %s", expectedFileUtils, p)
+	}
+
+	// Test 2: Resolve #common-pkg from apps/app
+	appFile = NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
+	resolver = manager.GetResolverForFile(appFile)
+
+	p2, rtype2, resErr2 := resolver.ResolveModule("#common-pkg", appFile)
+	if resErr2 != nil {
+		t.Errorf("Expected nil error, got %v", resErr2)
+	}
+	if rtype2 != MonorepoModule {
+		t.Errorf("Expected MonorepoModule for internal import, got %v", rtype2)
+	}
+	expectedHelpers := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/index.ts"))
+	if p2 != expectedHelpers {
+		t.Errorf("Expected %s, got %s", expectedHelpers, p2)
+	}
+
+	// Test 3: Resolve #common-pkg-wildcard/* from apps/app
+	appFile = NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
+	resolver = manager.GetResolverForFile(appFile)
+
+	p2, rtype2, resErr2 = resolver.ResolveModule("#common-pkg-wildcard/file-utils", appFile)
+	if resErr2 != nil {
+		t.Errorf("Expected nil error, got %v", resErr2)
+	}
+	if rtype2 != MonorepoModule {
+		t.Errorf("Expected MonorepoModule for internal import, got %v", rtype2)
+	}
+	expectedHelpers = NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/file-utils.ts"))
+	if p2 != expectedHelpers {
+		t.Errorf("Expected %s, got %s", expectedHelpers, p2)
+	}
+
+	// Test 4: Resolve #common-pkg-wildcard/* from apps/app for not existing file should fail
+	appFile = NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
+	resolver = manager.GetResolverForFile(appFile)
+
+	p2, rtype2, resErr2 = resolver.ResolveModule("#common-pkg-wildcard/not-existing-file", appFile)
+	if resErr2 == nil {
+		t.Errorf("Expected error, got nil")
+	}
+	if rtype2 != NotResolvedModule {
+		t.Errorf("Expected NotResolvedModule for internal import, got %v", rtype2)
+	}
+	if p2 != "" {
+		t.Errorf("Expected empty path, got %s", p2)
+	}
+
+}
+
+func TestTsAliasToWorkspacePackage(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-internal-imports")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"package.json": `{ "workspaces": ["packages/*", "apps/*"] }`,
+		"packages/common/package.json": `{
+			"name": "@company/common",
+			"exports": {
+				".": "./src/index.ts",
+				"./file-utils": "./src/file-utils.ts"
+			}
+		}`,
+		"packages/common/src/index.ts":      `export { helper } from "./src/helpers.ts";`,
+		"packages/common/src/helpers.ts":    `export const helper = () => {};`,
+		"packages/common/src/file-utils.ts": `import { helper } from "./src/helpers.ts"; export const file = helper();`,
+		"apps/app/package.json": `{
+			"name": "app",
+			"dependencies": {
+				"@company/common": "*"
+			}
+		}`,
+		"apps/app/tsconfig.json": `{
+			"compilerOptions" : {
+				"paths": {
+					"#common-pkg" : ["@company/common"],
+					"#common-pkg-file-utils" : ["@company/common/file-utils"],
+					"#common-pkg-wildcard/*" : ["@company/common/*"]
+				}
+			}
+		}`,
+		"apps/app/src/index.ts": `import { file } from "@company/common/file-utils";`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	cwd := filepath.Join(tmpDir, "apps/app")
+
+	allKeys := []string{}
+	for k := range files {
+		if filepath.Ext(k) == ".ts" {
+			allKeys = append(allKeys, NormalizePathForInternal(filepath.Join(tmpDir, k)))
+		}
+	}
+
+	rootParams := RootParams{
+		TsConfigContent: []byte(files["apps/app/tsconfig.json"]),
+		PkgJsonContent:  []byte(files["apps/app/package.json"]),
+		SortedFiles:     allKeys,
+		Cwd:             cwd,
+	}
+
+	manager := NewResolverManager(true, []string{"import", "default"}, rootParams, []GlobMatcher{})
+
+	// Test 1: Resolve #common-pkg-file-utils from apps/app
+	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
+	resolver := manager.GetResolverForFile(appFile)
+
+	p, rtype, resErr := resolver.ResolveModule("#common-pkg-file-utils", appFile)
+	if resErr != nil {
+		t.Errorf("Expected nil error, got %v", *resErr)
+	}
+	if rtype != MonorepoModule {
+		t.Errorf("Expected MonorepoModule, got %v", rtype)
+	}
+	expectedFileUtils := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/file-utils.ts"))
+	if p != expectedFileUtils {
+		t.Errorf("Expected %s, got %s", expectedFileUtils, p)
+	}
+
+	// Test 2: Resolve #common-pkg from apps/app
+	appFile = NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
+	resolver = manager.GetResolverForFile(appFile)
+
+	p2, rtype2, resErr2 := resolver.ResolveModule("#common-pkg", appFile)
+	if resErr2 != nil {
+		t.Errorf("Expected nil error, got %v", resErr2)
+	}
+	if rtype2 != MonorepoModule {
+		t.Errorf("Expected MonorepoModule for internal import, got %v", rtype2)
+	}
+	expectedHelpers := NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/index.ts"))
+	if p2 != expectedHelpers {
+		t.Errorf("Expected %s, got %s", expectedHelpers, p2)
+	}
+
+	// Test 3: Resolve #common-pkg-wildcard/* from apps/app
+	appFile = NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
+	resolver = manager.GetResolverForFile(appFile)
+
+	p2, rtype2, resErr2 = resolver.ResolveModule("#common-pkg-wildcard/file-utils", appFile)
+	if resErr2 != nil {
+		t.Errorf("Expected nil error, got %v", resErr2)
+	}
+	if rtype2 != MonorepoModule {
+		t.Errorf("Expected MonorepoModule for internal import, got %v", rtype2)
+	}
+	expectedHelpers = NormalizePathForInternal(filepath.Join(tmpDir, "packages/common/src/file-utils.ts"))
+	if p2 != expectedHelpers {
+		t.Errorf("Expected %s, got %s", expectedHelpers, p2)
+	}
+
+	// Test 4: Resolve #common-pkg-wildcard/* from apps/app for not existing file should fail
+	appFile = NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
+	resolver = manager.GetResolverForFile(appFile)
+
+	p2, rtype2, resErr2 = resolver.ResolveModule("#common-pkg-wildcard/not-existing-file", appFile)
+	if resErr2 == nil {
+		t.Errorf("Expected error, got nil")
+	}
+	if rtype2 != NotResolvedModule {
+		t.Errorf("Expected NotResolvedModule for internal import, got %v", rtype2)
+	}
+	if p2 != "" {
+		t.Errorf("Expected empty path, got %s", p2)
+	}
+
 }

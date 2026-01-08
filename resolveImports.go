@@ -24,9 +24,12 @@ type TsConfigParsed struct {
 }
 
 type PackageJsonImports struct {
-	imports        map[string]interface{}
-	importsRegexps []RegExpArrItem
-	conditionNames []string
+	imports map[string]interface{}
+	// TODO when parsing the imports array we should also parse targets to avoid regexp recompilation
+	simpleImportTargetsByKey      map[string]string
+	conditionalImportTargetsByKey map[string]map[string]*regexp.Regexp
+	importsRegexps                []RegExpArrItem
+	conditionNames                []string
 }
 
 type ResolvedModuleInfo struct {
@@ -254,10 +257,33 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 					regExp:   regExp,
 				})
 			}
+			/**
+						TODO need to
+						- handle case when there is global wildcard ts alias, it matches before import from package.json.
+						  - package.json imports are more specific than tsconfig aliases, so maybe we should start with them first?
+							- what with export aliases are they also overriden by wildcard ts alias?
+							- maybe in case only global wildcard ts alias is matching and file is not resolved, we should keep trying other resolution methods?
+						- filter out keys with multiple wildcards
+						- filter out targets with multiple wildcards
+			      - pre-process targets to avoid regexp recompilation
+						- support comments in packagejson - does not work currently
+			*/
+
 			// Sort regexps longest prefix first
 			slices.SortFunc(packageJsonImports.importsRegexps, func(itemA RegExpArrItem, itemB RegExpArrItem) int {
+				aHasWildcard := strings.Contains(itemA.aliasKey, "*")
+				bHasWildcard := strings.Contains(itemB.aliasKey, "*")
+
+				if !aHasWildcard && bHasWildcard {
+					return -1
+				}
+				if aHasWildcard && !bHasWildcard {
+					return 1
+
+				}
 				keyAMatchingPrefix := strings.Replace(itemA.aliasKey, "*", "", 1)
 				keyBMatchingPrefix := strings.Replace(itemB.aliasKey, "*", "", 1)
+
 				return len(keyBMatchingPrefix) - len(keyAMatchingPrefix)
 			})
 		}
@@ -381,76 +407,69 @@ func (f *ModuleResolver) resolveCondition(target interface{}) string {
 	return ""
 }
 
-func (f *ModuleResolver) resolvePackageJsonImport(request string, root string) (path string, found bool) {
+var NotResolvedPath = "NotResolvedPath"
+
+func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string) (requestMatched bool, resolvedPath string, rtype ResolvedImportType, err *ResolutionError) {
 	if !strings.HasPrefix(request, "#") {
-		return "", false
+		return false, NotResolvedPath, NotResolvedModule, nil
 	}
+
+	resolvedTarget := ""
 
 	for _, importRegex := range f.packageJsonImports.importsRegexps {
 		if importRegex.regExp.MatchString(request) {
 			key := importRegex.aliasKey
 			target := f.packageJsonImports.imports[key]
 
-			resolvedTarget := f.resolveCondition(target)
+			localResolvedTarget := f.resolveCondition(target)
 
-			if resolvedTarget != "" {
+			if localResolvedTarget != "" {
 				// Replace * if present
 				if strings.Contains(key, "*") {
 					regexKey := strings.Replace(key, "*", "(.*)", 1)
-					re := regexp.MustCompile("^" + regexKey + "$")
+					re := regexp.MustCompile("^" + regexKey + "$") // TODO can we avoid using regexp here? There can be only one widlcard, but can be in the middle of the string. Defo we need to compile regexp only once
 					matches := re.FindStringSubmatch(request)
 					if len(matches) > 1 {
 						wildcardValue := matches[1]
-						resolvedTarget = strings.Replace(resolvedTarget, "*", wildcardValue, 1)
+						localResolvedTarget = strings.Replace(localResolvedTarget, "*", wildcardValue, 1)
 					}
 				}
 
 				// If result starts with ./, it is relative to package.json (root)
-				if strings.HasPrefix(resolvedTarget, "./") {
-					return filepath.Join(root, resolvedTarget), true
+				if strings.HasPrefix(localResolvedTarget, "./") {
+					resolvedTarget = filepath.Join(root, localResolvedTarget)
+					break
 				}
 				// Otherwise it might be external package reference or other import?
 				// Node spec says targets must start with ./ for file paths.
-				// Or they can be package names.
-				return resolvedTarget, true
+				// Or they can be 3rd party package names.
+				// TODO handle case when it is external package reference
+				resolvedTarget = localResolvedTarget
+				break
 			}
 		}
 	}
 
-	return "", false
+	if resolvedTarget == "" {
+		return false, NotResolvedPath, NotResolvedModule, nil
+	}
+
+	modulePath := NormalizePathForInternal(resolvedTarget)
+	actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
+
+	if e == nil {
+		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
+		return true, actualFilePath, UserModule, nil
+	}
+
+	// Return modulePath becasue user can alias node-module or other external module
+	return true, modulePath, NotResolvedModule, e
 }
 
-/* This should be whole wrapped with mu.lock whenever used */
-func (f *ModuleResolver) ResolveModule(request string, filePath string) (path string, rtype ResolvedImportType, err *ResolutionError) {
-	// fmt.Println("Resolve module")
-	// fmt.Println("Request", request)
-	// fmt.Println("FilePath", filePath)
-	// fmt.Println("Root", root)
-	// fmt.Printf("module resolver filesAndExtensions %v\n", f.filesAndExtensions)
-	// fmt.Printf("module resolver tsconfig parsed %v \n", f.tsConfigParsed)
-	cached, ok := f.aliasesCache[request]
-
-	if ok {
-		return cached.Path, cached.Type, nil
-	}
-
+func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool, resolvedPath string, rtype ResolvedImportType, err *ResolutionError) {
 	root := f.resolverRoot
-
-	var modulePath string
-	relativeFileName, _ := filepath.Rel(root, filePath)
-
-	// Relative path
-	if strings.HasPrefix(request, "./") || strings.HasPrefix(request, "../") || request == "." || request == ".." {
-		modulePath = filepath.Join(root, relativeFileName, "../"+request)
-
-		cleanedModulePath := filepath.Clean(modulePath)
-		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
-
-		p, e := f.manager.getModulePathWithExtension(modulePathInternal)
-		return p, UserModule, e
-	}
-
 	aliasKey := ""
+
 	for _, aliasRegex := range f.tsConfigParsed.aliasesRegexps {
 		if aliasRegex.regExp.MatchString(request) {
 			aliasKey = aliasRegex.aliasKey
@@ -467,41 +486,38 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 
 	// AliasedPath
 	if alias != "" {
-		relative := alias
+		resolvedTarget := alias
 
 		if strings.HasSuffix(aliasKey, "*") {
 			aliasKeyPrefix := strings.TrimSuffix(aliasKey, "*")
-			relative = strings.Replace(alias, "*", strings.Replace(request, aliasKeyPrefix, "", 1), 1)
+			resolvedTarget = strings.Replace(alias, "*", strings.Replace(request, aliasKeyPrefix, "", 1), 1)
 		}
 
-		modulePath = filepath.Join(root, relative)
+		modulePath := filepath.Join(root, resolvedTarget)
 		modulePath = NormalizePathForInternal(modulePath)
 
 		if modulePath == "" {
 			fmt.Println("Alias resolved to empty string for request", request)
+			return true, modulePath, NotResolvedModule, nil
 		}
 
 		actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
 
 		if e != nil {
-			return actualFilePath, UserModule, e
+			// alias matched, but file was not resolved
+			return true, resolvedTarget, NotResolvedModule, e
 		}
 
 		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
 
-		return actualFilePath, UserModule, nil
+		return true, actualFilePath, UserModule, nil
 	}
 
-	if resolvedImport, found := f.resolvePackageJsonImport(request, root); found {
-		modulePath = NormalizePathForInternal(resolvedImport)
-		actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
-		if e == nil {
-			f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
-			return actualFilePath, UserModule, nil
-		}
-		return actualFilePath, UserModule, e
-	}
+	return false, NotResolvedPath, NotResolvedModule, nil
+}
 
+// TODO review this function, seems very messy
+func (f *ModuleResolver) tryResolveWorkspacePackageImport(request string, root string) (requestMatched bool, resolvedPath string, rtype ResolvedImportType, err *ResolutionError) {
 	// Check if it is a workspace package import (Monorepo support)
 	// Only if manager is present and monorepo is enabled
 	if f.manager != nil && f.manager.followMonorepoPackages && f.manager.monorepoContext != nil {
@@ -556,13 +572,13 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 						if resolvedExport != "" {
 							// resolvedExport is relative to target package root
 							fullPath := filepath.Join(pkgPath, resolvedExport)
-							modulePath = NormalizePathForInternal(fullPath)
+							modulePath := NormalizePathForInternal(fullPath)
 							actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
 							if e == nil {
 								f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule}
-								return actualFilePath, MonorepoModule, nil
+								return true, actualFilePath, MonorepoModule, nil
 							}
-							return actualFilePath, MonorepoModule, e
+							return true, actualFilePath, MonorepoModule, e
 						}
 					} else {
 						// No exports? Fallback to main/module or default index
@@ -576,22 +592,20 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 						}
 
 						fullPath := filepath.Join(pkgPath, resolvedSubpath)
-						modulePath = NormalizePathForInternal(fullPath)
+						modulePath := NormalizePathForInternal(fullPath)
 						actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
 						if e == nil {
 							f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule}
-							return actualFilePath, MonorepoModule, nil
+							return true, actualFilePath, MonorepoModule, nil
 						}
-						return actualFilePath, MonorepoModule, e
+						return true, actualFilePath, MonorepoModule, e
 					}
 				}
 			}
 		}
 	}
 
-	// Could not resolve alias
-	e := AliasNotResolved
-	return "", NotResolvedModule, &e
+	return false, NotResolvedPath, NotResolvedModule, nil
 }
 
 // TODO compare this code with ts alias resolution, can it be simplified?
@@ -640,7 +654,7 @@ func (f *ModuleResolver) resolveExports(exports map[string]interface{}, subpath 
 	for _, key := range keys {
 		if strings.Contains(key, "*") {
 			regexKey := "^" + strings.Replace(key, "*", "(.*)", 1) + "$"
-			re := regexp.MustCompile(regexKey)
+			re := regexp.MustCompile(regexKey) // TODO: we should cache regexps
 			matches := re.FindStringSubmatch(subpath)
 			if len(matches) > 1 {
 				target := exports[key]
@@ -653,6 +667,66 @@ func (f *ModuleResolver) resolveExports(exports map[string]interface{}, subpath 
 	}
 
 	return ""
+}
+
+func (f *ModuleResolver) ResolveModule(request string, filePath string) (path string, rtype ResolvedImportType, err *ResolutionError) {
+	// fmt.Println("Resolve module")
+	// fmt.Println("Request", request)
+	// fmt.Println("FilePath", filePath)
+	// fmt.Println("Root", f.resolverRoot)
+	// fmt.Printf("module resolver filesAndExtensions %v\n", f.manager.filesAndExtensions)
+	// fmt.Printf("module resolver tsconfig parsed %v \n", f.tsConfigParsed)
+	cached, ok := f.aliasesCache[request]
+
+	if ok {
+		return cached.Path, cached.Type, nil
+	}
+
+	root := f.resolverRoot
+
+	var modulePath string
+	relativeFileName, _ := filepath.Rel(root, filePath)
+
+	// Relative path
+	if strings.HasPrefix(request, "./") || strings.HasPrefix(request, "../") || request == "." || request == ".." {
+		modulePath = filepath.Join(root, relativeFileName, "../"+request)
+
+		cleanedModulePath := filepath.Clean(modulePath)
+		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
+
+		p, e := f.manager.getModulePathWithExtension(modulePathInternal)
+		// fmt.Println("Return relative path")
+		return p, UserModule, e
+	}
+
+	requestForWorkspacePackageImportResolution := request
+
+	if requestMatched, resolvedPath, rtype, err := f.tryResolvePackageJsonImport(request, root); requestMatched {
+		if err != nil {
+			// Alias was matched, but path was not resolved
+			requestForWorkspacePackageImportResolution = resolvedPath
+		} else {
+
+			return resolvedPath, rtype, err
+		}
+	}
+
+	if requestMatched, resolvedPath, rtype, err := f.tryResolveTsAlias(request); requestMatched {
+		if err != nil {
+			// Alias was matched, but path was not resolved
+			requestForWorkspacePackageImportResolution = resolvedPath
+		} else {
+			return resolvedPath, rtype, err
+		}
+	}
+
+	if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(requestForWorkspacePackageImportResolution, root); requestMatched {
+		return resolvedPath, rtype, err
+	}
+
+	// Could not resolve alias
+	e := AliasNotResolved
+	return "", NotResolvedModule, &e
 }
 
 func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages bool) (fileImports []FileImports, adjustedSortedFiles []string, nodeModules map[string]bool) {
@@ -784,7 +858,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
 
 		if isNodeModule && resolutionErr != nil {
-			// Check if it's a followed workspace package
+			// Check if it's a followed workspace package, only if not, consider package a node module
 			isFollowedWorkspace := false
 			if importsResolver.manager != nil && importsResolver.manager.followMonorepoPackages && importsResolver.manager.monorepoContext != nil {
 				name := GetNodeModuleName(imp.Request)

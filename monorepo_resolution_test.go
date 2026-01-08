@@ -763,8 +763,8 @@ func TestMonorepoImportAliasToWorkspacePackage(t *testing.T) {
 	if rtype2 != NotResolvedModule {
 		t.Errorf("Expected NotResolvedModule for internal import, got %v", rtype2)
 	}
-	if p2 != "" {
-		t.Errorf("Expected empty path, got %s", p2)
+	if p2 != "@company/common/not-existing-file" {
+		t.Errorf("Expected @company/common/not-existing-file, got %s", p2)
 	}
 
 }
@@ -889,8 +889,8 @@ func TestTsAliasToWorkspacePackage(t *testing.T) {
 	if rtype2 != NotResolvedModule {
 		t.Errorf("Expected NotResolvedModule for internal import, got %v", rtype2)
 	}
-	if p2 != "" {
-		t.Errorf("Expected empty path, got %s", p2)
+	if p2 != "@company/common/not-existing-file" {
+		t.Errorf("Expected @company/common/not-existing-file, got %s", p2)
 	}
 
 }

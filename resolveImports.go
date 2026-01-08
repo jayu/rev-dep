@@ -37,8 +37,7 @@ type TsConfigParsed struct {
 }
 
 type PackageJsonImports struct {
-	imports map[string]interface{}
-	// TODO when parsing the imports array we should also parse targets to avoid regexp recompilation
+	imports                       map[string]interface{}
 	simpleImportTargetsByKey      map[string]string
 	conditionalImportTargetsByKey map[string]map[string]*regexp.Regexp
 	importsRegexps                []RegExpArrItem
@@ -808,33 +807,53 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		return p, UserModule, e
 	}
 
-	requestForWorkspacePackageImportResolution := request
+	aliasMatchedButNotResolved := ""
 
 	if requestMatched, resolvedPath, rtype, err := f.tryResolvePackageJsonImport(request, root); requestMatched {
+		// fmt.Println("PackageJson import matched", resolvedPath, rtype, *err)
 		if err != nil {
 			// Alias was matched, but path was not resolved
-			requestForWorkspacePackageImportResolution = resolvedPath
+			aliasMatchedButNotResolved = resolvedPath
 		} else {
 
 			return resolvedPath, rtype, err
 		}
 	}
 
+	// fmt.Println("before ts aliasMatchedButNotResolved", aliasMatchedButNotResolved)
+
 	if requestMatched, resolvedPath, rtype, err := f.tryResolveTsAlias(request); requestMatched {
-		if err != nil {
+		// fmt.Println("Ts alias matched", resolvedPath, rtype, err)
+		if err != nil && aliasMatchedButNotResolved == "" {
 			// Alias was matched, but path was not resolved
-			requestForWorkspacePackageImportResolution = resolvedPath
-		} else {
+			aliasMatchedButNotResolved = resolvedPath
+		}
+
+		if err == nil {
 			return resolvedPath, rtype, err
 		}
+	}
+
+	requestForWorkspacePackageImportResolution := request
+
+	if aliasMatchedButNotResolved != "" {
+		requestForWorkspacePackageImportResolution = aliasMatchedButNotResolved
 	}
 
 	if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(requestForWorkspacePackageImportResolution, root); requestMatched {
+		// fmt.Println("resolved workspace package", resolvedPath, rtype, err)
 		return resolvedPath, rtype, err
 	}
 
-	// Could not resolve alias
+	// fmt.Println("Returning resolution error")
+
 	e := AliasNotResolved
+
+	if aliasMatchedButNotResolved != "" {
+		return aliasMatchedButNotResolved, NotResolvedModule, &e
+	}
+
+	// Could not resolve alias
 	return "", NotResolvedModule, &e
 }
 
@@ -966,11 +985,27 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		_, isNodeModule := nodeModules[moduleName]
 		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
 
+		if resolvedType == NotResolvedModule && resolutionErr != nil && importPath != imp.Request {
+			// Some alias matched, but file was not resolved to project file or workspace package file
+			_, isNodeModule2 := nodeModules[importPath]
+			if isNodeModule2 {
+				isNodeModule = true
+				moduleName = importPath
+			}
+		}
+
 		if isNodeModule && resolutionErr != nil {
 			// Check if it's a followed workspace package, only if not, consider package a node module
 			isFollowedWorkspace := false
 			if importsResolver.manager != nil && importsResolver.manager.followMonorepoPackages && importsResolver.manager.monorepoContext != nil {
-				name := GetNodeModuleName(imp.Request)
+				resolvedModuleName := imp.Request
+
+				if imp.Request != importPath {
+					// Might have been resolved via alias
+					resolvedModuleName = importPath
+				}
+
+				name := GetNodeModuleName(resolvedModuleName)
 				if _, ok := importsResolver.manager.monorepoContext.PackageToPath[name]; ok {
 					isFollowedWorkspace = true
 				}

@@ -4,12 +4,6 @@ import (
 	"testing"
 )
 
-/*
-Need more test cases here
-- test for pjson import alias for 3rd party modules - this test to make sense should use ResolveImports fn instead of just resolver. Becasue actual node_modules resolution happens in ResolveImports fn
-- test for TSAlias for 3rd party modules
-*/
-
 // Test for exports blocking paths
 // {
 //   "exports": {
@@ -455,4 +449,42 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			t.Errorf("Expected 2 regex patterns for valid entries, got %d", regexCount)
 		}
 	})
+}
+
+func TestShouldResolvePJsonAliasToExternalModule(t *testing.T) {
+	cwd := "__fixtures__/mockProject/"
+	ignoreTypeImports := true
+	excludeFiles := []string{}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "")
+
+	imports := minimalTree["__fixtures__/mockProject/index.ts"]
+	aliasedImport := imports[len(imports)-2]
+
+	if aliasedImport.Request != "#utils-lib" {
+		t.Errorf("Expected aliased import request to be '#utils-lib', got '%s'", aliasedImport.Request)
+	}
+
+	if *aliasedImport.ID != "lodash" {
+		t.Errorf("Expected aliased import ID to be 'lodash', got '%s'", *aliasedImport.ID)
+	}
+}
+
+func TestShouldResolveTsConfigAliasToExternalModule(t *testing.T) {
+	cwd := "__fixtures__/mockProject/"
+	ignoreTypeImports := true
+	excludeFiles := []string{}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "")
+
+	imports := minimalTree["__fixtures__/mockProject/index.ts"]
+	aliasedImport := imports[len(imports)-1]
+
+	if aliasedImport.Request != "@utils-lib" {
+		t.Errorf("Expected aliased import request to be '@utils-lib', got '%s'", aliasedImport.Request)
+	}
+
+	if *aliasedImport.ID != "lodash" {
+		t.Errorf("Expected aliased import ID to be 'lodash', got '%s'", *aliasedImport.ID)
+	}
 }

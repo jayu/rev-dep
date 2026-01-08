@@ -6,7 +6,6 @@ import (
 
 /*
 Need more test cases here
-- test against pattern with multiple wildcards - they are invalid
 - test for pjson import alias for 3rd party modules - this test to make sense should use ResolveImports fn instead of just resolver. Becasue actual node_modules resolution happens in ResolveImports fn
 - test for TSAlias for 3rd party modules
 */
@@ -47,6 +46,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	"dependencies": {
 		"some-dep": "^1.0.0"
 	},
+	// comments should be supported
 	"imports": {
 		  "#root/*": "./*",
 			"#simple": "./src/index.ts",
@@ -54,6 +54,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			"#wildcard/specific.js": "./src/specific/file.ts",
 			"#deep/wildcard/*.js": "./src/*.ts",
 			"#directory/*/index.js": "./src/dirs/*.ts",
+			// comments should be supported
 			"#multiple/*/wildcards/*.js": "./src/*/*.ts",
 			"#some-dep-alias": "some-dep",
 			"#conditional": {
@@ -350,6 +351,108 @@ func TestResolvePackageJsonImports(t *testing.T) {
 
 		if err == nil || *err != AliasNotResolved {
 			t.Fatalf("Expected error, got %v", err)
+		}
+	})
+
+	t.Run("Should parse import targets into tree structure", func(t *testing.T) {
+		rm := NewResolverManager(false, []string{"node", "import"}, RootParams{
+			TsConfigContent: []byte("{}"),
+			PkgJsonContent:  []byte(pkgJson),
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
+
+		// Test simple string target
+		simpleTarget := resolver.packageJsonImports.parsedImportTargets["#simple"]
+		if simpleTarget == nil || simpleTarget.nodeType != LeafNode || simpleTarget.value != "./src/index.ts" {
+			t.Errorf("Expected simple leaf node with value './src/index.ts', got %+v", simpleTarget)
+		}
+
+		// Test conditional target
+		conditionalTarget := resolver.packageJsonImports.parsedImportTargets["#conditional"]
+		if conditionalTarget == nil || conditionalTarget.nodeType != MapNode {
+			t.Errorf("Expected conditional map node, got %+v", conditionalTarget)
+		}
+
+		// Check node condition
+		nodeChild := conditionalTarget.conditionsMap["node"]
+		if nodeChild == nil || nodeChild.nodeType != LeafNode || nodeChild.value != "./dist/index.js" {
+			t.Errorf("Expected node leaf node with value './dist/index.js', got %+v", nodeChild)
+		}
+
+		// Check default condition
+		defaultChild := conditionalTarget.conditionsMap["default"]
+		if defaultChild == nil || defaultChild.nodeType != LeafNode || defaultChild.value != "./src/index.ts" {
+			t.Errorf("Expected default leaf node with value './src/index.ts', got %+v", defaultChild)
+		}
+
+		// Test nested conditional target
+		nestedTarget := resolver.packageJsonImports.parsedImportTargets["#nested"]
+		if nestedTarget == nil || nestedTarget.nodeType != MapNode {
+			t.Errorf("Expected nested map node, got %+v", nestedTarget)
+		}
+
+		// Check node condition with nested import/require
+		nodeNestedChild := nestedTarget.conditionsMap["node"]
+		if nodeNestedChild == nil || nodeNestedChild.nodeType != MapNode {
+			t.Errorf("Expected node nested map node, got %+v", nodeNestedChild)
+		}
+
+		importChild := nodeNestedChild.conditionsMap["import"]
+		if importChild == nil || importChild.nodeType != LeafNode || importChild.value != "./dist/index.js" {
+			t.Errorf("Expected import leaf node with value './dist/index.js', got %+v", importChild)
+		}
+	})
+
+	t.Run("Should reject targets with multiple wildcards", func(t *testing.T) {
+		pkgJsonWithInvalidTargets := `{
+			"imports": {
+				"#valid": "./src/*.ts",
+				"#invalid-target": "./src/*/*.js",
+				"#invalid/*/key/*": "file.js",
+				"#valid-wildcard": "./*.ts"
+			}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte("{}"),
+			PkgJsonContent:  []byte(pkgJsonWithInvalidTargets),
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
+
+		// Valid targets should be parsed
+		validTarget := resolver.packageJsonImports.parsedImportTargets["#valid"]
+		if validTarget == nil || validTarget.nodeType != LeafNode || validTarget.value != "./src/*.ts" {
+			t.Errorf("Expected valid leaf node with value './src/*.ts', got %+v", validTarget)
+		}
+
+		validWildcardTarget := resolver.packageJsonImports.parsedImportTargets["#valid-wildcard"]
+		if validWildcardTarget == nil || validWildcardTarget.nodeType != LeafNode || validWildcardTarget.value != "./*.ts" {
+			t.Errorf("Expected valid wildcard leaf node with value './*.ts', got %+v", validWildcardTarget)
+		}
+
+		// Invalid targets should be rejected (not present in parsed targets)
+		if _, exists := resolver.packageJsonImports.parsedImportTargets["#invalid-target"]; exists {
+			t.Errorf("Expected #invalid-target to be rejected due to multiple wildcards in target")
+		}
+
+		// Keys with multiple wildcards should also be rejected
+		if _, exists := resolver.packageJsonImports.parsedImportTargets["#invalid-key"]; exists {
+			t.Errorf("Expected #invalid-key to be rejected due to multiple wildcards in key")
+		}
+
+		// Verify that regex patterns are only created for valid entries
+		regexCount := 0
+		for _, regexItem := range resolver.packageJsonImports.importsRegexps {
+			if regexItem.aliasKey == "#valid" || regexItem.aliasKey == "#valid-wildcard" {
+				regexCount++
+			}
+		}
+		if regexCount != 2 {
+			t.Errorf("Expected 2 regex patterns for valid entries, got %d", regexCount)
 		}
 	})
 }

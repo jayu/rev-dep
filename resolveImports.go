@@ -18,6 +18,19 @@ type RegExpArrItem struct {
 	regExp   *regexp.Regexp
 }
 
+type NodeType string
+
+const (
+	LeafNode NodeType = "leaf"
+	MapNode  NodeType = "map"
+)
+
+type ImportTargetTreeNode struct {
+	nodeType      NodeType                         // "leaf" | "map"
+	value         string                           // target value or empty string
+	conditionsMap map[string]*ImportTargetTreeNode // conditional targets
+}
+
 type TsConfigParsed struct {
 	aliases        map[string]string
 	aliasesRegexps []RegExpArrItem
@@ -30,6 +43,7 @@ type PackageJsonImports struct {
 	conditionalImportTargetsByKey map[string]map[string]*regexp.Regexp
 	importsRegexps                []RegExpArrItem
 	conditionNames                []string
+	parsedImportTargets           map[string]*ImportTargetTreeNode // parsed tree structure for targets
 }
 
 type ResolvedModuleInfo struct {
@@ -234,40 +248,43 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 	}
 
 	packageJsonImports := &PackageJsonImports{
-		imports:        map[string]interface{}{},
-		importsRegexps: []RegExpArrItem{},
-		conditionNames: conditionNames,
+		imports:             map[string]interface{}{},
+		importsRegexps:      []RegExpArrItem{},
+		conditionNames:      conditionNames,
+		parsedImportTargets: map[string]*ImportTargetTreeNode{},
 	}
 
 	var rawPackageJson map[string]interface{}
-	json.Unmarshal(packageJsonContent, &rawPackageJson)
+	json.Unmarshal(jsonc.ToJSON(packageJsonContent), &rawPackageJson)
 
 	if imports, ok := rawPackageJson["imports"]; ok {
 		if importsMap, ok := imports.(map[string]interface{}); ok {
 			packageJsonImports.imports = importsMap
-			for key := range importsMap {
-				// imports keys like "#foo" or "#foo/*"
-				// regex should match them.
-				// Spec says keys starting with #.
-				// If key has *, replace with .+?
-				pattern := "^" + strings.Replace(key, "*", ".+?", 1) + "$"
+			for key, target := range importsMap {
+				if strings.Count(key, "*") > 1 {
+					continue
+				}
+
+				// Parse the target into tree structure
+				parsedTarget := parseImportTarget(target, conditionNames)
+				if parsedTarget == nil {
+					// Skip this key entirely if its target is invalid
+					continue
+				}
+
+				// Only add valid parsed targets
+				packageJsonImports.parsedImportTargets[key] = parsedTarget
+
+				// pre process and store import targets
+
+				pattern := "^" + strings.Replace(key, "*", "(.*)", 1) + "$" // Since there can be only one wildcard, we could use prefix + suffix instead of regexp. Do it only if there will be perf issues with regexps
 				regExp := regexp.MustCompile(pattern)
 				packageJsonImports.importsRegexps = append(packageJsonImports.importsRegexps, RegExpArrItem{
 					aliasKey: key,
 					regExp:   regExp,
 				})
+
 			}
-			/**
-						TODO need to
-						- handle case when there is global wildcard ts alias, it matches before import from package.json.
-						  - package.json imports are more specific than tsconfig aliases, so maybe we should start with them first?
-							- what with export aliases are they also overriden by wildcard ts alias?
-							- maybe in case only global wildcard ts alias is matching and file is not resolved, we should keep trying other resolution methods?
-						- filter out keys with multiple wildcards
-						- filter out targets with multiple wildcards
-			      - pre-process targets to avoid regexp recompilation
-						- support comments in packagejson - does not work currently
-			*/
 
 			// Sort regexps longest prefix first
 			slices.SortFunc(packageJsonImports.importsRegexps, func(itemA RegExpArrItem, itemB RegExpArrItem) int {
@@ -386,6 +403,97 @@ func (f *ResolverManager) getModulePathWithExtension(modulePath string) (path st
 	return modulePath, &e
 }
 
+func parseImportTarget(target interface{}, conditionNames []string) *ImportTargetTreeNode {
+	if targetStr, ok := target.(string); ok {
+		// Check if string contains more than one wildcard
+		if strings.Count(targetStr, "*") > 1 {
+			return nil // Invalid target - too many wildcards
+		}
+		// Simple string target - leaf node
+		return &ImportTargetTreeNode{
+			nodeType:      LeafNode,
+			value:         targetStr,
+			conditionsMap: nil,
+		}
+	}
+
+	if targetMap, ok := target.(map[string]interface{}); ok {
+		// Check if this is a conditional map or nested conditions
+		hasConditions := false
+		conditionsMap := make(map[string]*ImportTargetTreeNode)
+
+		// First, check for condition names (conditional exports)
+		for _, condition := range conditionNames {
+			if val, ok := targetMap[condition]; ok {
+				hasConditions = true
+				parsedChild := parseImportTarget(val, conditionNames)
+				if parsedChild != nil {
+					conditionsMap[condition] = parsedChild
+				}
+			}
+		}
+
+		// Check for default condition
+		if val, ok := targetMap["default"]; ok {
+			hasConditions = true
+			parsedChild := parseImportTarget(val, conditionNames)
+			if parsedChild != nil {
+				conditionsMap["default"] = parsedChild
+			}
+		}
+
+		if hasConditions {
+			// This is a conditional map node
+			return &ImportTargetTreeNode{
+				nodeType:      MapNode,
+				value:         "",
+				conditionsMap: conditionsMap,
+			}
+		} else {
+			// This might be a nested condition (like import/require within node)
+			// Treat all keys as conditions
+			for key, val := range targetMap {
+				parsedChild := parseImportTarget(val, conditionNames)
+				if parsedChild != nil {
+					conditionsMap[key] = parsedChild
+				}
+			}
+			return &ImportTargetTreeNode{
+				nodeType:      MapNode,
+				value:         "",
+				conditionsMap: conditionsMap,
+			}
+		}
+	}
+
+	return nil // Invalid target
+}
+
+func (f *ModuleResolver) resolveParsedImportTarget(node *ImportTargetTreeNode) string {
+	if node == nil {
+		return ""
+	}
+
+	if node.nodeType == LeafNode {
+		return node.value
+	}
+
+	if node.nodeType == MapNode {
+		// iterate through conditionNames
+		for _, condition := range f.packageJsonImports.conditionNames {
+			if child, ok := node.conditionsMap[condition]; ok {
+				return f.resolveParsedImportTarget(child)
+			}
+		}
+		// Try default
+		if child, ok := node.conditionsMap["default"]; ok {
+			return f.resolveParsedImportTarget(child)
+		}
+	}
+
+	return ""
+}
+
 func (f *ModuleResolver) resolveCondition(target interface{}) string {
 	if targetStr, ok := target.(string); ok {
 		return targetStr
@@ -419,16 +527,17 @@ func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string
 	for _, importRegex := range f.packageJsonImports.importsRegexps {
 		if importRegex.regExp.MatchString(request) {
 			key := importRegex.aliasKey
-			target := f.packageJsonImports.imports[key]
+			keyMatchRegexp := importRegex.regExp
 
-			localResolvedTarget := f.resolveCondition(target)
+			var localResolvedTarget string
+			if parsedTarget, ok := f.packageJsonImports.parsedImportTargets[key]; ok {
+				localResolvedTarget = f.resolveParsedImportTarget(parsedTarget)
+			}
 
 			if localResolvedTarget != "" {
 				// Replace * if present
 				if strings.Contains(key, "*") {
-					regexKey := strings.Replace(key, "*", "(.*)", 1)
-					re := regexp.MustCompile("^" + regexKey + "$") // TODO can we avoid using regexp here? There can be only one widlcard, but can be in the middle of the string. Defo we need to compile regexp only once
-					matches := re.FindStringSubmatch(request)
+					matches := keyMatchRegexp.FindStringSubmatch(request)
 					if len(matches) > 1 {
 						wildcardValue := matches[1]
 						localResolvedTarget = strings.Replace(localResolvedTarget, "*", wildcardValue, 1)

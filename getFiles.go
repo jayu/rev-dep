@@ -106,13 +106,19 @@ func GetMissingFile(modulePath string) string {
 	// or to file without extension -> we have to check all files in directory
 	// dirName := filepath.Dir(modulePath)
 
-	// First we check for file
+	// First we check for file with possible extensions
 	for ext := range allowedExts {
-		filePath := modulePath + ext
+		filePath := modulePath
+
+		// filePath might be the exact path already
+		if !strings.HasSuffix(modulePath, ext) {
+			filePath = modulePath + ext
+		}
+
 		// modulePath may be internal (forward slashes) or OS-native; try denormalized form for FS checks
 		filePathOs := DenormalizePathForOS(filePath)
-		_, err := os.Stat(filePathOs)
-		if err == nil {
+		info, err := os.Stat(filePathOs)
+		if err == nil && !info.IsDir() {
 			return NormalizePathForInternal(filePath)
 		}
 	}
@@ -122,8 +128,8 @@ func GetMissingFile(modulePath string) string {
 		// check directory index; normalize to OS path for Stat
 		filePath := modulePath + "/index" + ext
 		filePathOs := DenormalizePathForOS(filePath)
-		_, err := os.Stat(filePathOs)
-		if err == nil {
+		info, err := os.Stat(filePathOs)
+		if err == nil && !info.IsDir() {
 			return NormalizePathForInternal(filePath)
 		}
 	}

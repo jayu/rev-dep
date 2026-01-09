@@ -803,30 +803,25 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
 
 		p, e := f.manager.getModulePathWithExtension(modulePathInternal)
-		// fmt.Println("Return relative path")
 		return p, UserModule, e
 	}
 
-	aliasMatchedButNotResolved := ""
+	aliasMatchedButFileNotFound := ""
 
 	if requestMatched, resolvedPath, rtype, err := f.tryResolvePackageJsonImport(request, root); requestMatched {
-		// fmt.Println("PackageJson import matched", resolvedPath, rtype, *err)
 		if err != nil {
 			// Alias was matched, but path was not resolved
-			aliasMatchedButNotResolved = resolvedPath
+			aliasMatchedButFileNotFound = resolvedPath
 		} else {
 
 			return resolvedPath, rtype, err
 		}
 	}
 
-	// fmt.Println("before ts aliasMatchedButNotResolved", aliasMatchedButNotResolved)
-
 	if requestMatched, resolvedPath, rtype, err := f.tryResolveTsAlias(request); requestMatched {
-		// fmt.Println("Ts alias matched", resolvedPath, rtype, err)
-		if err != nil && aliasMatchedButNotResolved == "" {
+		if err != nil && aliasMatchedButFileNotFound == "" {
 			// Alias was matched, but path was not resolved
-			aliasMatchedButNotResolved = resolvedPath
+			aliasMatchedButFileNotFound = resolvedPath
 		}
 
 		if err == nil {
@@ -836,23 +831,20 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 
 	requestForWorkspacePackageImportResolution := request
 
-	if aliasMatchedButNotResolved != "" {
-		requestForWorkspacePackageImportResolution = aliasMatchedButNotResolved
+	if aliasMatchedButFileNotFound != "" {
+		requestForWorkspacePackageImportResolution = aliasMatchedButFileNotFound
 	}
 
 	if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(requestForWorkspacePackageImportResolution, root); requestMatched {
-		// fmt.Println("resolved workspace package", resolvedPath, rtype, err)
 		return resolvedPath, rtype, err
 	}
 
-	// fmt.Println("Returning resolution error")
-
-	e := AliasNotResolved
-
-	if aliasMatchedButNotResolved != "" {
-		return aliasMatchedButNotResolved, NotResolvedModule, &e
+	if aliasMatchedButFileNotFound != "" {
+		e := FileNotFound
+		return aliasMatchedButFileNotFound, UserModule, &e
 	}
 
+	e := AliasNotResolved
 	// Could not resolve alias
 	return "", NotResolvedModule, &e
 }

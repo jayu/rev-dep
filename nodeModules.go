@@ -890,6 +890,13 @@ func GetInstalledModulesCmd(cwd string, modulesToInclude []string, modulesToExcl
 				return -1
 			}
 
+			if a.FilePath < b.FilePath {
+				return -1
+			}
+			if a.FilePath > b.FilePath {
+				return 1
+			}
+
 			return 0
 		})
 

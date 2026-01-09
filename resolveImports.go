@@ -601,19 +601,19 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 			resolvedTarget = strings.Replace(alias, "*", strings.Replace(request, aliasKeyPrefix, "", 1), 1)
 		}
 
+		if resolvedTarget == "" {
+			fmt.Println("Alias resolved to empty string for request", request)
+			return true, "", NotResolvedModule, nil
+		}
+
 		modulePath := filepath.Join(root, resolvedTarget)
 		modulePath = NormalizePathForInternal(modulePath)
-
-		if modulePath == "" {
-			fmt.Println("Alias resolved to empty string for request", request)
-			return true, modulePath, NotResolvedModule, nil
-		}
 
 		actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
 
 		if e != nil {
 			// alias matched, but file was not resolved
-			return true, resolvedTarget, NotResolvedModule, e
+			return true, modulePath, NotResolvedModule, e
 		}
 
 		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
@@ -986,11 +986,13 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
 
 		if resolvedType == NotResolvedModule && resolutionErr != nil && importPath != imp.Request {
-			// Some alias matched, but file was not resolved to project file or workspace package file
-			_, isNodeModule2 := nodeModules[importPath]
+			// Some alias matched, but file was not resolved to project file or workspace package file. The resolution might be to some node module sub path eg `lodash/files/utils`
+			localModuleName := GetNodeModuleName(importPath)
+
+			_, isNodeModule2 := nodeModules[localModuleName]
 			if isNodeModule2 {
 				isNodeModule = true
-				moduleName = importPath
+				moduleName = localModuleName
 			}
 		}
 

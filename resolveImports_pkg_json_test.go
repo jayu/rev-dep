@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+// Add test for import alias to resolve to node_module but with subpath, eg `lodash/files/utils`
+
 // Test for exports blocking paths
 // {
 //   "exports": {

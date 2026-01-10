@@ -4,23 +4,24 @@ import (
 	"testing"
 )
 
-// Test for exports blocking paths
-// {
-//   "exports": {
-//     "./features/*": "./dist/features/*.js",
-//     "./features/private-internal-utils": null,
-//     "./features/*.config.js": null
-//   }
-// }
-
+/*
+Test for exports blocking paths
+{
+  "exports": {
+    "./features/*": "./dist/features/*.js",
+    "./features/private-internal-utils": null,
+    "./features/*.config.js": null
+  }
+}
+*/
 /*
  Make sure there are exports tests for the
- - different specifity
- - conditional exports respecing conditions param
- - directory swap with file name
- - multiple wildcards
- - basic wildcard scenario
- - root wildcard scenario
+ - different exports specificity
+ - conditional exports respecting conditions provided in the params
+ - directory swap with file name (e.g. "./dir/*" -> "./*\/file")
+ - multiple wildcards in the key and target (to be excluded during parsing, as they are invalid)
+ - basic wildcard scenario (e.g. "#wildcard/*.js" -> "./src/*.ts")
+ - root wildcard scenario (e.g. "#root/*" -> "./*")
 */
 
 func TestResolvePackageJsonImports(t *testing.T) {

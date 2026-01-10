@@ -799,7 +799,18 @@ func GetDuplicatedModulesCmd(cwd string, shouldOptimize bool, verbose bool, size
 	for _, name := range sortedDuplicatedModuleNames {
 		data := duplicatedModulesByVersion[name]
 		result += fmt.Sprintln(name)
-		for version, paths := range data {
+
+		// Get and sort versions
+		versions := make([]string, 0, len(data))
+		for version := range data {
+			versions = append(versions, version)
+		}
+		slices.Sort(versions)
+
+		for _, version := range versions {
+			paths := data[version]
+			// Sort paths alphabetically
+			slices.Sort(paths)
 			result += fmt.Sprintf("   %s:\n", version)
 			result += fmt.Sprintf("      %s\n", strings.Join(paths, "\n      "))
 		}

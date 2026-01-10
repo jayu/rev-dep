@@ -757,11 +757,17 @@ func TestMonorepoImportAliasToWorkspacePackage(t *testing.T) {
 	resolver = manager.GetResolverForFile(appFile)
 
 	p2, rtype2, resErr2 = resolver.ResolveModule("#common-pkg-wildcard/not-existing-file", appFile)
-	if resErr2 == nil {
-		t.Errorf("Expected error, got nil")
+
+	if resErr2 != nil && *resErr2 != FileNotFound {
+		t.Errorf("Expected FileNotFound error, got %v", resErr2)
 	}
-	if rtype2 != NotResolvedModule {
-		t.Errorf("Expected NotResolvedModule for internal import, got %v", rtype2)
+
+	if resErr2 == nil {
+		t.Errorf("Expected FileNotFound error, got nil")
+	}
+
+	if rtype2 != UserModule {
+		t.Errorf("Expected UserModule for internal import, got %v", rtype2)
 	}
 	if p2 != "@company/common/not-existing-file" {
 		t.Errorf("Expected @company/common/not-existing-file, got %s", p2)

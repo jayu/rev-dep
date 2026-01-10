@@ -199,12 +199,7 @@ func (rm *ResolverManager) GetNodeModulesForFile(filePath string) map[string]boo
 	return map[string]bool{}
 }
 
-// isValidTsAliasTargetPath checks if a path is a valid relative path that starts with "./" or "../"
 func isValidTsAliasTargetPath(path string) bool {
-	if path == "" {
-		return false
-	}
-	// Check if path starts with "./" or "../"
 	return strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
 }
 

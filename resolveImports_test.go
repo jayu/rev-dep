@@ -254,6 +254,39 @@ func TestResolve(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve non-wildcard alias with file extension", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "db/index.ts",
+			cwd + "app/index.js",
+		}
+		tsConfig := `{
+			"compilerOptions": {
+			  "paths": {
+				  "db": ["./db/index.ts"]
+				}
+			}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.js")
+
+		resolvedPath, _, err := resolver.ResolveModule("db", cwd+"app/index.js")
+
+		if resolvedPath != cwd+"db/index.ts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"db/index.ts", resolvedPath)
+		}
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
+
 	t.Run("Should resolve relative import", func(t *testing.T) {
 		cwd := "/root/"
 		filePaths := []string{

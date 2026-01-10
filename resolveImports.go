@@ -599,10 +599,7 @@ func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string
 					resolvedTarget = filepath.Join(root, localResolvedTarget)
 					break
 				}
-				// Otherwise it might be external package reference or other import?
-				// Node spec says targets must start with ./ for file paths.
-				// Or they can be 3rd party package names.
-				// TODO handle case when it is external package reference
+				// External package or monorepo workspace package
 				resolvedTarget = localResolvedTarget
 				break
 			}
@@ -830,12 +827,6 @@ func (f *ModuleResolver) resolveExports(exports map[string]interface{}, subpath 
 }
 
 func (f *ModuleResolver) ResolveModule(request string, filePath string) (path string, rtype ResolvedImportType, err *ResolutionError) {
-	// fmt.Println("Resolve module")
-	// fmt.Println("Request", request)
-	// fmt.Println("FilePath", filePath)
-	// fmt.Println("Root", f.resolverRoot)
-	// fmt.Printf("module resolver filesAndExtensions %v\n", f.manager.filesAndExtensions)
-	// fmt.Printf("module resolver tsconfig parsed %v \n", f.tsConfigParsed)
 	cached, ok := f.aliasesCache[request]
 
 	if ok {
@@ -859,14 +850,11 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	}
 
 	aliasMatchedButFileNotFound := ""
-	// aliasMatchedButFileNotFoundType := UserModule
 
 	if requestMatched, resolvedPath, rtype, err := f.tryResolvePackageJsonImport(request, root); requestMatched {
-		// fmt.Println("Pkg json resolvedType", ResolvedImportTypeToString(rtype))
 		if err != nil {
 			// Alias was matched, but path was not resolved
 			aliasMatchedButFileNotFound = resolvedPath
-			// aliasMatchedButFileNotFoundType = rtype
 		} else {
 
 			return resolvedPath, rtype, err
@@ -877,7 +865,6 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		if err != nil && aliasMatchedButFileNotFound == "" {
 			// Alias was matched, but path was not resolved
 			aliasMatchedButFileNotFound = resolvedPath
-			// aliasMatchedButFileNotFoundType = rtype
 		}
 
 		if err == nil {
@@ -897,12 +884,10 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 
 	if aliasMatchedButFileNotFound != "" {
 		e := FileNotFound
-		// return aliasMatchedButFileNotFound, aliasMatchedButFileNotFoundType, &e
 		return aliasMatchedButFileNotFound, UserModule, &e
 	}
 
 	e := AliasNotResolved
-	// Could not resolve alias
 	return "", NotResolvedModule, &e
 }
 
@@ -1030,23 +1015,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
 
-		// fmt.Printf("Request: %s, Path: %s, Type: %s", imp.Request, importPath, ResolvedImportTypeToString(resolvedType))
-
-		// if resolutionErr != nil {
-		// 	fmt.Printf(" Resolution error: %v", *resolutionErr)
-		// }
-		// fmt.Println()
-		/**
-				The problem is that ts main wildcard alias is matching node module
-		    Such matching is incorrect, result in bad path, so we have to handle that
-				At the same time, some aliases might match valid node modules, we need to support that
-				And the valid path to node module, might be overriden by ts alias, so we have to handle that too
-				So we can have a path that is both valid node module, and valid path alias
-				Currently the code choses to classify that as a node module, we have path alias but we don't know yet if the path aliased file exists
-		*/
-
 		if resolutionErr != nil && importPath != imp.Request {
-			// fmt.Println("request", imp.Request, "resolved  path", importPath)
 			// Some alias matched, but file was not resolved to project file or workspace package file. The resolution might be to some node module sub path eg `lodash/files/utils`
 			localModuleName := GetNodeModuleName(importPath)
 			if _, isNodeModule2 := importsResolver.nodeModules[localModuleName]; isNodeModule2 {
@@ -1056,19 +1025,10 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 		_, isNodeModule := importsResolver.nodeModules[moduleName]
 
-		// fmt.Println("Node modules check 1", isNodeModule, moduleName)
-
 		if isNodeModule && resolutionErr != nil {
 			// Check if it's a followed workspace package, only if not, consider package a node module
 			isFollowedWorkspace := false
-			// fmt.Println("followMonorepoPackages", importsResolver.manager.followMonorepoPackages)
 			if importsResolver.manager != nil && importsResolver.manager.followMonorepoPackages && importsResolver.manager.monorepoContext != nil {
-				// resolvedModuleName := moduleName
-
-				// if imp.Request != importPath {
-				// 	// Might have been resolved via alias
-				// 	resolvedModuleName = importPath
-				// }
 
 				name := GetNodeModuleName(moduleName)
 				if _, ok := importsResolver.manager.monorepoContext.PackageToPath[name]; ok {
@@ -1080,18 +1040,13 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 				fileImports.Imports[impIdx].PathOrName = moduleName
 				fileImports.Imports[impIdx].ResolvedType = NodeModule
 				mu.Unlock()
-				// fmt.Println("Node modules check 2 continue", moduleName)
 
 				continue
 			}
 
-			// fmt.Println("Node modules check 2 not continue", moduleName, isFollowedWorkspace)
-
 		}
 
 		mu.Unlock()
-
-		// fmt.Println("Passed node module checks?")
 
 		if resolutionErr != nil {
 
@@ -1173,7 +1128,6 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 			if *resolutionErr == AliasNotResolved {
 				// Likely external dependency, TODO handle that later
-				// fmt.Printf("Likely external dep '%s' -> '%s' in %s\n", imp.Request, importPath, filePath)
 				continue
 			}
 

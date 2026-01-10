@@ -142,6 +142,8 @@ func NodeModulesCmd(
 	modulesToExclude []string,
 	packageJson string,
 	tsconfigJson string,
+	conditionNames []string,
+	followMonorepoPackages bool,
 ) (string, int) {
 	cwd := StandardiseDirPath(inputCwd)
 	var absolutePathToEntryPoints []string
@@ -156,7 +158,7 @@ func NodeModulesCmd(
 	shouldIncludeModule := createShouldModuleByIncluded(modulesToInclude, modulesToExclude)
 	excludeFiles := []string{}
 
-	minimalTree, _, packageJsonNodeModules := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, absolutePathToEntryPoints, packageJson, tsconfigJson)
+	minimalTree, _, packageJsonNodeModules := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, absolutePathToEntryPoints, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
 
 	if listMissing {
 		return GetMissingNodeModules(minimalTree, packageJsonNodeModules, cwd, countFlag, groupByModule, groupByFile, shouldIncludeModule)

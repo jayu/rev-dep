@@ -89,7 +89,7 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 		}
 	}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, absolutePathToEntryPoints, packageJsonPath, tsconfigJsonPath)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, absolutePathToEntryPoints, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 	if len(absolutePathToEntryPoints) == 0 {
 		absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
@@ -236,7 +236,7 @@ var (
 )
 
 func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string) error {
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 	notReferencedFiles := GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
 
@@ -312,7 +312,7 @@ var (
 func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string) error {
 	excludeFiles := []string{}
 
-	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath)
+	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 	cycles := FindCircularDependencies(minimalTree, files)
 
 	fmt.Fprint(os.Stderr, FormatCircularDependencies(cycles, cwd, minimalTree))
@@ -392,6 +392,8 @@ Helps keep track of your project's runtime dependencies.`,
 			nodeModulesExcludeModules,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 
 		fmt.Print(result)
@@ -423,6 +425,8 @@ to identify potentially unused packages.`,
 			nodeModulesExcludeModules,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 
 		fmt.Print(result)
@@ -458,6 +462,8 @@ in your package.json dependencies.`,
 			nodeModulesExcludeModules,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 
 		fmt.Print(result)
@@ -611,7 +617,7 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJson
 	absolutePathToEntryPoint := JoinWithCwd(cwd, entryPoint)
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 	depsGraph := buildDepsGraph(minimalTree, absolutePathToEntryPoint, nil, false)
 
@@ -876,7 +882,7 @@ func main() {
 	}
 }
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string) (MinimalDependencyTree, []string, map[string]bool) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (MinimalDependencyTree, []string, map[string]bool) {
 	var files []string
 
 	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)

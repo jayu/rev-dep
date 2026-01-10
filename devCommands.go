@@ -28,7 +28,7 @@ of your project's dependency graph.`,
 		absolutePathToEntryPoint := JoinWithCwd(cwd, browserEntryPoint)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, browserIgnoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath)
+		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, browserIgnoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 		StartServer(minimalTree, absolutePathToEntryPoint, cwd)
 		return nil
@@ -59,7 +59,7 @@ var debugParseFileCmd = &cobra.Command{
 		path := JoinWithCwd(cwd, debugFile)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{path}, packageJsonPath, tsconfigJsonPath)
+		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{path}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 		fmt.Println(path)
 
@@ -101,7 +101,7 @@ var debugGetTreeCmd = &cobra.Command{
 		cwd := ResolveAbsoluteCwd(debugTreeCwd)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath)
+		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 		treeWithLabels := make(map[string][]MinimalDependencyWithLabels)
 		for key, deps := range minimalTree {

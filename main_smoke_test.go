@@ -72,7 +72,7 @@ func TestCircularCmd(t *testing.T) {
 	output, err := captureOutput(func() error {
 		// Use minimal dependency tree to avoid os.Exit
 		excludeFiles := []string{}
-		minimalTree, files, _ := GetMinimalDepsTreeForCwd(mockProjectPath, false, excludeFiles, []string{}, "", "")
+		minimalTree, files, _ := GetMinimalDepsTreeForCwd(mockProjectPath, false, excludeFiles, []string{}, "", "", []string{}, false)
 		cycles := FindCircularDependencies(minimalTree, files)
 
 		// Format the output manually and write to stdout (not stderr like original)
@@ -205,6 +205,8 @@ func TestNodeModulesUsedCmd(t *testing.T) {
 			[]string{},
 			"",
 			"",
+			[]string{},
+			false,
 		)
 		fmt.Print(result)
 		return nil
@@ -234,6 +236,8 @@ func TestNodeModulesUnusedCmd(t *testing.T) {
 			[]string{},
 			"",
 			"",
+			[]string{},
+			false,
 		)
 		fmt.Print(result)
 		return nil
@@ -263,6 +267,8 @@ func TestNodeModulesMissingCmd(t *testing.T) {
 			[]string{},
 			"",
 			"",
+			[]string{},
+			false,
 		)
 		fmt.Print(result)
 		return nil

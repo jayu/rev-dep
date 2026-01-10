@@ -40,8 +40,9 @@ type ImportTargetTreeNode struct {
 }
 
 type TsConfigParsed struct {
-	aliases        map[string]string
-	aliasesRegexps []RegExpArrItem
+	aliases          map[string]string
+	aliasesRegexps   []RegExpArrItem // Keep for backward compatibility during transition
+	wildcardPatterns []WildcardPattern
 }
 
 type PackageJsonImports struct {
@@ -266,8 +267,9 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 	}
 
 	tsConfigParsed := &TsConfigParsed{
-		aliases:        map[string]string{},
-		aliasesRegexps: []RegExpArrItem{},
+		aliases:          map[string]string{},
+		aliasesRegexps:   []RegExpArrItem{},
+		wildcardPatterns: []WildcardPattern{},
 	}
 
 	if debug {
@@ -286,6 +288,20 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		}
 
 		tsConfigParsed.aliases[aliasKey] = aliasValue
+
+		// Create wildcard pattern if alias contains wildcard
+		if strings.Contains(aliasKey, "*") {
+			wildcardIndex := strings.Index(aliasKey, "*")
+			prefix := aliasKey[:wildcardIndex]
+			suffix := aliasKey[wildcardIndex+1:]
+			tsConfigParsed.wildcardPatterns = append(tsConfigParsed.wildcardPatterns, WildcardPattern{
+				key:    aliasKey,
+				prefix: prefix,
+				suffix: suffix,
+			})
+		}
+
+		// Keep regex for backward compatibility during transition
 		escapedAliasKey := escapeRegexPattern(aliasKey)
 		regExp := regexp.MustCompile("^" + strings.Replace(escapedAliasKey, "*", ".+?", 1) + "$")
 
@@ -299,6 +315,15 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		baseUrlAliasKey := "*"
 		baseUrlAliasValue := strings.TrimSuffix(baseUrl, "/") + "/*"
 		tsConfigParsed.aliases[baseUrlAliasKey] = baseUrlAliasValue
+
+		// Create wildcard pattern for baseUrl
+		tsConfigParsed.wildcardPatterns = append(tsConfigParsed.wildcardPatterns, WildcardPattern{
+			key:    baseUrlAliasKey,
+			prefix: "",
+			suffix: "",
+		})
+
+		// Keep regex for backward compatibility during transition
 		escapedBaseUrlAliasKey := escapeRegexPattern(baseUrlAliasKey)
 		regExp := regexp.MustCompile(strings.Replace(escapedBaseUrlAliasKey, "*", ".+?", 1))
 
@@ -374,6 +399,11 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		keyBMatchingPrefix := strings.Replace(itemB.aliasKey, "*", "", 1)
 
 		return len(keyBMatchingPrefix) - len(keyAMatchingPrefix)
+	})
+
+	// Sort wildcard patterns by key length descending for specificity
+	slices.SortFunc(tsConfigParsed.wildcardPatterns, func(patternA, patternB WildcardPattern) int {
+		return len(patternB.key) - len(patternA.key)
 	})
 
 	factory := &ModuleResolver{
@@ -639,9 +669,29 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 	root := f.resolverRoot
 	aliasKey := ""
 
-	for _, aliasRegex := range f.tsConfigParsed.aliasesRegexps {
-		if aliasRegex.regExp.MatchString(request) {
-			aliasKey = aliasRegex.aliasKey
+	// First try exact match
+	if aliasValue, ok := f.tsConfigParsed.aliases[request]; ok {
+		aliasKey = request
+		alias := aliasValue
+
+		resolvedTarget := alias
+		modulePath := filepath.Join(root, resolvedTarget)
+		modulePath = NormalizePathForInternal(modulePath)
+
+		actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
+		if e != nil {
+			// alias matched, but file was not resolved
+			return true, modulePath, NotResolvedModule, e
+		}
+
+		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
+		return true, actualFilePath, UserModule, nil
+	}
+
+	// Try wildcard patterns using prefix/suffix matching
+	for _, pattern := range f.tsConfigParsed.wildcardPatterns {
+		if strings.HasPrefix(request, pattern.prefix) && strings.HasSuffix(request, pattern.suffix) {
+			aliasKey = pattern.key
 			break
 		}
 	}
@@ -657,9 +707,13 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 	if alias != "" {
 		resolvedTarget := alias
 
-		if strings.HasSuffix(aliasKey, "*") {
-			aliasKeyPrefix := strings.TrimSuffix(aliasKey, "*")
-			resolvedTarget = strings.Replace(alias, "*", strings.Replace(request, aliasKeyPrefix, "", 1), 1)
+		if strings.Contains(aliasKey, "*") {
+			// Extract wildcard value
+			wildcardIndex := strings.Index(aliasKey, "*")
+			prefix := aliasKey[:wildcardIndex]
+			suffix := aliasKey[wildcardIndex+1:]
+			wildcardValue := request[len(prefix) : len(request)-len(suffix)]
+			resolvedTarget = strings.Replace(alias, "*", wildcardValue, 1)
 		}
 
 		if resolvedTarget == "" {

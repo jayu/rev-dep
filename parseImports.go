@@ -166,6 +166,43 @@ func areAllImportsInBracesTypes(code []byte, i int) bool {
 	return false
 }
 
+// skipToStringEnd skips to the end of a string literal
+func skipToStringEnd(code []byte, start int, quote byte) int {
+	i := start + 1
+	for i < len(code) {
+		if code[i] == quote {
+			return i
+		}
+		if code[i] == '\\' && i+1 < len(code) {
+			i += 2
+		} else {
+			i++
+		}
+	}
+	return i
+}
+
+// skipLineComment skips to the end of a line comment
+func skipLineComment(code []byte, start int) int {
+	i := start + 2
+	for i < len(code) && code[i] != '\n' {
+		i++
+	}
+	return i
+}
+
+// skipBlockComment skips to the end of a block comment
+func skipBlockComment(code []byte, start int) int {
+	i := start + 2
+	for i+1 < len(code) && !(code[i] == '*' && code[i+1] == '/') {
+		i++
+	}
+	if i+1 < len(code) {
+		i += 2
+	}
+	return i
+}
+
 // ParseImportsByte parses JS/TS code and extracts all imports/exports
 func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 	imports := make([]Import, 0, 32)
@@ -179,36 +216,22 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 		}
 
 		// skip string context
-		if bytes.HasPrefix(code[i:], []byte("'")) {
-			i++
-			endOfString := bytes.Index(code[i:], []byte("'"))
-			i += endOfString
-		}
-		if bytes.HasPrefix(code[i:], []byte("\"")) {
-			i++
-			endOfString := bytes.Index(code[i:], []byte("\""))
-			i += endOfString
-		}
-		if bytes.HasPrefix(code[i:], []byte("`")) {
-			i++
-			endOfString := bytes.Index(code[i:], []byte("`"))
-			i += endOfString
+		if code[i] == '\'' {
+			i = skipToStringEnd(code, i, '\'')
+		} else if code[i] == '"' {
+			i = skipToStringEnd(code, i, '"')
+		} else if code[i] == '`' {
+			i = skipToStringEnd(code, i, '`')
 		}
 
 		// skip line comment
-		if bytes.HasPrefix(code[i:], []byte("//")) {
-			i += 2
-			endOfLineIndex := bytes.Index(code[i:], []byte("\n"))
-
-			i += endOfLineIndex
+		if i+1 < len(code) && code[i] == '/' && code[i+1] == '/' {
+			i = skipLineComment(code, i)
 		}
 
 		// skip multi-line comment
-		if bytes.HasPrefix(code[i:], []byte("/*")) {
-			i += 2
-			endOfCommentIndex := bytes.Index(code[i:], []byte("*/"))
-
-			i += endOfCommentIndex
+		if i+1 < len(code) && code[i] == '/' && code[i+1] == '*' {
+			i = skipBlockComment(code, i)
 		}
 
 		// Detect keywords

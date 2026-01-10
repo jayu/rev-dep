@@ -1016,7 +1016,6 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 			continue
 		}
 
-		_, isNodeModule := importsResolver.nodeModules[moduleName]
 		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
 
 		// fmt.Printf("Request: %s, Path: %s, Type: %s", imp.Request, importPath, ResolvedImportTypeToString(resolvedType))
@@ -1025,30 +1024,41 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		// 	fmt.Printf(" Resolution error: %v", *resolutionErr)
 		// }
 		// fmt.Println()
+		/**
+				The problem is that ts main wildcard alias is matching node module
+		    Such matching is incorrect, result in bad path, so we have to handle that
+				At the same time, some aliases might match valid node modules, we need to support that
+				And the valid path to node module, might be overriden by ts alias, so we have to handle that too
+				So we can have a path that is both valid node module, and valid path alias
+				Currently the code choses to classify that as a node module, we have path alias but we don't know yet if the path aliased file exists
+		*/
 
 		if resolutionErr != nil && importPath != imp.Request {
+			// fmt.Println("request", imp.Request, "resolved  path", importPath)
 			// Some alias matched, but file was not resolved to project file or workspace package file. The resolution might be to some node module sub path eg `lodash/files/utils`
 			localModuleName := GetNodeModuleName(importPath)
-
-			_, isNodeModule2 := importsResolver.nodeModules[localModuleName]
-			if isNodeModule2 {
-				isNodeModule = true
+			if _, isNodeModule2 := importsResolver.nodeModules[localModuleName]; isNodeModule2 {
 				moduleName = localModuleName
 			}
 		}
 
+		_, isNodeModule := importsResolver.nodeModules[moduleName]
+
+		// fmt.Println("Node modules check 1", isNodeModule, moduleName)
+
 		if isNodeModule && resolutionErr != nil {
 			// Check if it's a followed workspace package, only if not, consider package a node module
 			isFollowedWorkspace := false
+			// fmt.Println("followMonorepoPackages", importsResolver.manager.followMonorepoPackages)
 			if importsResolver.manager != nil && importsResolver.manager.followMonorepoPackages && importsResolver.manager.monorepoContext != nil {
-				resolvedModuleName := imp.Request
+				// resolvedModuleName := moduleName
 
-				if imp.Request != importPath {
-					// Might have been resolved via alias
-					resolvedModuleName = importPath
-				}
+				// if imp.Request != importPath {
+				// 	// Might have been resolved via alias
+				// 	resolvedModuleName = importPath
+				// }
 
-				name := GetNodeModuleName(resolvedModuleName)
+				name := GetNodeModuleName(moduleName)
 				if _, ok := importsResolver.manager.monorepoContext.PackageToPath[name]; ok {
 					isFollowedWorkspace = true
 				}
@@ -1058,11 +1068,18 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 				fileImports.Imports[impIdx].PathOrName = moduleName
 				fileImports.Imports[impIdx].ResolvedType = NodeModule
 				mu.Unlock()
+				// fmt.Println("Node modules check 2 continue", moduleName)
+
 				continue
 			}
+
+			// fmt.Println("Node modules check 2 not continue", moduleName, isFollowedWorkspace)
+
 		}
 
 		mu.Unlock()
+
+		// fmt.Println("Passed node module checks?")
 
 		if resolutionErr != nil {
 

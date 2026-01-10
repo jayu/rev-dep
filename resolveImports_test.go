@@ -604,7 +604,7 @@ func TestResolveNodeModules(t *testing.T) {
 
 	for idx, isOk := range results {
 		if !isOk {
-			t.Errorf("Module %d not resolved correctly", idx+1)
+			t.Errorf("Module %d not resolved correctly. ID: '%s', Type: %s", idx, *nodeModulesImports[idx].ID, ResolvedImportTypeToString(nodeModulesImports[idx].ResolvedType))
 		}
 	}
 }

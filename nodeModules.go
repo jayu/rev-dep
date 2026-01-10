@@ -1229,7 +1229,19 @@ func AnalyzeNodeModules(cwd string, modules map[string][]PackageInfo) ([]ModuleR
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].OwnPlusExclusive > results[j].OwnPlusExclusive
+		if results[i].OwnPlusExclusive != results[j].OwnPlusExclusive {
+			return results[i].OwnPlusExclusive > results[j].OwnPlusExclusive
+		}
+		// If OwnPlusExclusive values are equal, sort by package name
+		if results[i].Name != results[j].Name {
+			return results[i].Name < results[j].Name
+		}
+		// If package names are equal, sort by version
+		if results[i].Version != results[j].Version {
+			return results[i].Version > results[j].Version
+		}
+		// If all previous criteria are equal, sort by total size
+		return results[i].TotalSize > results[j].TotalSize
 	})
 
 	return results, nil

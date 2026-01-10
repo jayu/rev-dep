@@ -1,0 +1,14 @@
+Found 2 circular dependencies:
+
+Circular Dependency 1:
+ ➞ /_index.ts (cycle start)
+  ➞ /fileA.ts ('./fileA')
+   ➞ /fileB.ts ('./fileB')
+    ➞ /_index.ts ('./_index.ts')
+
+Circular Dependency 2:
+ ➞ /_index.ts (cycle start)
+  ➞ /fileA.ts ('./fileA')
+   ➞ /fileC.ts ('./fileC')
+    ➞ /_index.ts ('./_index.ts')
+

@@ -1,0 +1,20 @@
+{
+  "dependencies": {
+    "dep1": "0.0.0",
+    "dep2": "0.0.0",
+    "dep3": "0.0.0"
+  },
+  "devDependencies": {
+    "dep4": "0.0.0",
+    "@types/dep-types-1": "0.0.0",
+    "@types/dep-types-2": "0.0.0"
+  },
+  "scripts": {
+    "some-script": "dep-bin-1 cmd --arg"
+  },
+  "some-tool-settings": {
+    "some field": [
+      "dep-bin-3 cmd --arg"
+    ]
+  }
+}

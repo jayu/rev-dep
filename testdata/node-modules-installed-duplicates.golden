@@ -1,0 +1,10 @@
+
+
+@types/dep-types-1
+   1.0.0:
+      /node_modules/@types/dep-types-2/package.json
+      /node_modules/@types/dep-types-1/package.json
+dep1
+   1.0.0:
+      /node_modules/dep1/package.json
+      /node_modules/dep1/node_modules/dep1/package.json

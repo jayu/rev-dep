@@ -56,6 +56,7 @@ type ModuleResolver struct {
 	aliasesCache       map[string]ResolvedModuleInfo
 	resolverRoot       string
 	manager            *ResolverManager
+	nodeModules        map[string]bool
 }
 
 type ResolutionError int8
@@ -168,6 +169,34 @@ func (rm *ResolverManager) GetResolverForFile(filePath string) *ModuleResolver {
 		}
 	}
 	return rm.rootResolver
+}
+
+func (rm *ResolverManager) CollectAllNodeModules() map[string]bool {
+	allNodeModules := map[string]bool{}
+
+	// Collect from root resolver
+	if rm.rootResolver != nil {
+		for module := range rm.rootResolver.nodeModules {
+			allNodeModules[module] = true
+		}
+	}
+
+	// Collect from subpackage resolvers
+	for _, resolver := range rm.subpackageResolvers {
+		for module := range resolver.nodeModules {
+			allNodeModules[module] = true
+		}
+	}
+
+	return allNodeModules
+}
+
+func (rm *ResolverManager) GetNodeModulesForFile(filePath string) map[string]bool {
+	resolver := rm.GetResolverForFile(filePath)
+	if resolver != nil {
+		return resolver.nodeModules
+	}
+	return map[string]bool{}
 }
 
 func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
@@ -319,6 +348,7 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		aliasesCache:       map[string]ResolvedModuleInfo{},
 		manager:            manager,
 		resolverRoot:       dirPath,
+		nodeModules:        GetNodeModulesFromPkgJson(packageJsonContent),
 	}
 	return factory
 }
@@ -849,7 +879,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	return "", NotResolvedModule, &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages bool) (fileImports []FileImports, adjustedSortedFiles []string, nodeModules map[string]bool) {
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages bool) (fileImports []FileImports, adjustedSortedFiles []string) {
 	tsConfigPath := JoinWithCwd(cwd, tsconfigJson)
 	pkgJsonPath := JoinWithCwd(cwd, packageJson)
 
@@ -881,8 +911,6 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	if err != nil {
 		pkgJsonContent = []byte("")
 	}
-
-	nodeModules = GetNodeModulesFromPkgJson(jsonc.ToJSON(pkgJsonContent))
 
 	resolverManager := NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
 		TsConfigContent: tsconfigContent,
@@ -917,7 +945,6 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 				&wg,
 				&mu,
 				ch_idx,
-				nodeModules,
 				BuiltInModules,
 				excludeFilePatterns,
 			)
@@ -951,10 +978,10 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		}
 	}
 
-	return filteredFileImportsArr, filteredFiles, nodeModules
+	return filteredFileImportsArr, filteredFiles
 }
 
-func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, tsConfigDirOrCwd string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, nodeModules map[string]bool, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {
+func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, tsConfigDirOrCwd string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()
@@ -974,14 +1001,14 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 			continue
 		}
 
-		_, isNodeModule := nodeModules[moduleName]
+		_, isNodeModule := importsResolver.nodeModules[moduleName]
 		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
 
 		if resolvedType == NotResolvedModule && resolutionErr != nil && importPath != imp.Request {
 			// Some alias matched, but file was not resolved to project file or workspace package file. The resolution might be to some node module sub path eg `lodash/files/utils`
 			localModuleName := GetNodeModuleName(importPath)
 
-			_, isNodeModule2 := nodeModules[localModuleName]
+			_, isNodeModule2 := importsResolver.nodeModules[localModuleName]
 			if isNodeModule2 {
 				isNodeModule = true
 				moduleName = localModuleName

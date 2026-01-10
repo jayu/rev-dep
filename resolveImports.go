@@ -50,6 +50,7 @@ type PackageJsonImports struct {
 	simpleImportTargetsByKey      map[string]string
 	conditionalImportTargetsByKey map[string]map[string]*regexp.Regexp
 	importsRegexps                []RegExpArrItem
+	wildcardPatterns              []WildcardPattern
 	conditionNames                []string
 	parsedImportTargets           map[string]*ImportTargetTreeNode // parsed tree structure for targets
 }
@@ -336,6 +337,7 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 	packageJsonImports := &PackageJsonImports{
 		imports:             map[string]interface{}{},
 		importsRegexps:      []RegExpArrItem{},
+		wildcardPatterns:    []WildcardPattern{},
 		conditionNames:      conditionNames,
 		parsedImportTargets: map[string]*ImportTargetTreeNode{},
 	}
@@ -360,6 +362,18 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 
 				// Only add valid parsed targets
 				packageJsonImports.parsedImportTargets[key] = parsedTarget
+
+				// Create wildcard pattern if key contains wildcard
+				if strings.Contains(key, "*") {
+					wildcardIndex := strings.Index(key, "*")
+					prefix := key[:wildcardIndex]
+					suffix := key[wildcardIndex+1:]
+					packageJsonImports.wildcardPatterns = append(packageJsonImports.wildcardPatterns, WildcardPattern{
+						key:    key,
+						prefix: prefix,
+						suffix: suffix,
+					})
+				}
 
 				// pre process and store import targets
 
@@ -403,6 +417,11 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 
 	// Sort wildcard patterns by key length descending for specificity
 	slices.SortFunc(tsConfigParsed.wildcardPatterns, func(patternA, patternB WildcardPattern) int {
+		return len(patternB.key) - len(patternA.key)
+	})
+
+	// Sort wildcard patterns by key length descending for specificity
+	slices.SortFunc(packageJsonImports.wildcardPatterns, func(patternA, patternB WildcardPattern) int {
 		return len(patternB.key) - len(patternA.key)
 	})
 
@@ -617,33 +636,26 @@ func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string
 
 	resolvedTarget := ""
 
-	for _, importRegex := range f.packageJsonImports.importsRegexps {
-		if importRegex.regExp.MatchString(request) {
-			key := importRegex.aliasKey
-			keyMatchRegexp := importRegex.regExp
+	// First try exact match in imports map (fast path)
+	if _, ok := f.packageJsonImports.imports[request]; ok {
+		if parsedTarget, ok := f.packageJsonImports.parsedImportTargets[request]; ok {
+			resolvedTarget = f.resolveParsedImportTarget(parsedTarget)
+		}
+	}
 
-			var localResolvedTarget string
-			if parsedTarget, ok := f.packageJsonImports.parsedImportTargets[key]; ok {
-				localResolvedTarget = f.resolveParsedImportTarget(parsedTarget)
-			}
+	// If no exact match, try wildcard patterns using prefix/suffix matching
+	if resolvedTarget == "" {
+		for _, pattern := range f.packageJsonImports.wildcardPatterns {
+			if strings.HasPrefix(request, pattern.prefix) && strings.HasSuffix(request, pattern.suffix) {
+				if parsedTarget, ok := f.packageJsonImports.parsedImportTargets[pattern.key]; ok {
+					resolvedTarget = f.resolveParsedImportTarget(parsedTarget)
 
-			if localResolvedTarget != "" {
-				// Replace * if present
-				if strings.Contains(key, "*") {
-					matches := keyMatchRegexp.FindStringSubmatch(request)
-					if len(matches) > 1 {
-						wildcardValue := matches[1]
-						localResolvedTarget = strings.Replace(localResolvedTarget, "*", wildcardValue, 1)
+					// Extract wildcard value using string slicing
+					if strings.Contains(pattern.key, "*") {
+						wildcardValue := request[len(pattern.prefix) : len(request)-len(pattern.suffix)]
+						resolvedTarget = strings.Replace(resolvedTarget, "*", wildcardValue, 1)
 					}
 				}
-
-				// If result starts with ./, it is relative to package.json (root)
-				if strings.HasPrefix(localResolvedTarget, "./") {
-					resolvedTarget = filepath.Join(root, localResolvedTarget)
-					break
-				}
-				// External package or monorepo workspace package
-				resolvedTarget = localResolvedTarget
 				break
 			}
 		}
@@ -651,6 +663,11 @@ func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string
 
 	if resolvedTarget == "" {
 		return false, NotResolvedPath, NotResolvedModule, nil
+	}
+
+	// If result starts with ./, it is relative to package.json (root)
+	if strings.HasPrefix(resolvedTarget, "./") {
+		resolvedTarget = filepath.Join(root, resolvedTarget)
 	}
 
 	modulePath := NormalizePathForInternal(resolvedTarget)
@@ -661,7 +678,7 @@ func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string
 		return true, actualFilePath, UserModule, nil
 	}
 
-	// Return modulePath becasue user can alias node-module or other external module
+	// Return modulePath because user can alias node-module or other external module
 	return true, modulePath, NotResolvedModule, e
 }
 

@@ -53,6 +53,13 @@ type PackageJsonImports struct {
 	parsedImportTargets           map[string]*ImportTargetTreeNode // parsed tree structure for targets
 }
 
+type PackageJsonExports struct {
+	exports        map[string]interface{}
+	exportsRegexps []RegExpArrItem
+	parsedTargets  map[string]*ImportTargetTreeNode // parsed tree structure for targets
+	hasDotPrefix   bool                             // cached check if any key starts with "."
+}
+
 type ResolvedModuleInfo struct {
 	Path string
 	Type ResolvedImportType
@@ -672,99 +679,131 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 	return false, NotResolvedPath, NotResolvedModule, nil
 }
 
-// TODO review this function, seems very messy
+// validateWorkspaceDependency checks if the consumer package can depend on the target package
+func (f *ModuleResolver) validateWorkspaceDependency(consumerRoot, targetPkgName string) bool {
+	if f.manager == nil || f.manager.monorepoContext == nil {
+		return false
+	}
+
+	// Check if we're at root level
+	if consumerRoot == f.manager.monorepoContext.WorkspaceRoot {
+		return true
+	}
+
+	consumerConfig, err := f.manager.monorepoContext.GetPackageConfig(consumerRoot)
+	if err != nil {
+		return false
+	}
+
+	// Check dependencies and devDependencies
+	_, hasDep := consumerConfig.Dependencies[targetPkgName]
+	_, hasDevDep := consumerConfig.DevDependencies[targetPkgName]
+	return hasDep || hasDevDep
+}
+
 func (f *ModuleResolver) tryResolveWorkspacePackageImport(request string, root string) (requestMatched bool, resolvedPath string, rtype ResolvedImportType, err *ResolutionError) {
 	// Check if it is a workspace package import (Monorepo support)
 	// Only if manager is present and monorepo is enabled
-	if f.manager != nil && f.manager.followMonorepoPackages && f.manager.monorepoContext != nil {
-		pkgName := GetNodeModuleName(request)
-		// Check if pkgName is in our monorepo packages
-		if pkgPath, ok := f.manager.monorepoContext.PackageToPath[pkgName]; ok {
-			// Found a workspace package!
+	if f.manager == nil || !f.manager.followMonorepoPackages || f.manager.monorepoContext == nil {
+		return false, NotResolvedPath, NotResolvedModule, nil
+	}
 
-			// NOTE: Validation logic:
-			validDep := false
-			if consumerConfig, err := f.manager.monorepoContext.GetPackageConfig(root); err == nil {
-				// Check dependencies and devDependencies
-				// RELAXED: allow any version if the package name is in workspaces
-				if _, ok := consumerConfig.Dependencies[pkgName]; ok {
-					validDep = true
-				} else if _, ok := consumerConfig.DevDependencies[pkgName]; ok {
-					validDep = true
-				}
-			} else if root == f.manager.monorepoContext.WorkspaceRoot || root == "ROOT" || root == "" {
-				// If we are at root (or root resolution), allow it if flag is enabled
-				validDep = true
-			}
+	pkgName := GetNodeModuleName(request)
+	pkgPath, ok := f.manager.monorepoContext.PackageToPath[pkgName]
+	if !ok {
+		return false, NotResolvedPath, NotResolvedModule, nil
+	}
 
-			if validDep {
-				// Resolve against exports of target package
-				targetConfig, err := f.manager.monorepoContext.GetPackageConfig(pkgPath)
-				if err == nil {
-					// Get exports from targetConfig
-					// request is like "@company/common/utils"
-					// pkgName is "@company/common"
-					// subpath is "./utils" (or "." if exact match)
+	// Validate dependency relationship
+	if !f.validateWorkspaceDependency(root, pkgName) {
+		return false, NotResolvedPath, NotResolvedModule, nil
+	}
 
-					subpath := "."
-					if len(request) > len(pkgName) {
-						subpath = "." + request[len(pkgName):]
-					}
+	// Extract subpath from request
+	subpath := "."
+	if len(request) > len(pkgName) {
+		subpath = "." + request[len(pkgName):]
+	}
 
-					var exportsMap map[string]interface{}
-					if targetConfig.Exports != nil {
-						if exportsString, ok := targetConfig.Exports.(string); ok {
-							exportsMap = map[string]interface{}{
-								".": exportsString,
-							}
-						} else if m, ok := targetConfig.Exports.(map[string]interface{}); ok {
-							exportsMap = m
-						}
-					}
+	// Try to resolve using exports first
+	actualFilePath, err := f.resolvePackageExports(pkgPath, subpath)
+	if err != nil {
+		return true, actualFilePath, MonorepoModule, err
+	}
 
-					if exportsMap != nil {
-						// Resolve using exports logic
-						resolvedExport := f.resolveExports(exportsMap, subpath)
-						if resolvedExport != "" {
-							// resolvedExport is relative to target package root
-							fullPath := filepath.Join(pkgPath, resolvedExport)
-							modulePath := NormalizePathForInternal(fullPath)
-							actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
-							if e == nil {
-								f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule}
-								return true, actualFilePath, MonorepoModule, nil
-							}
-							return true, actualFilePath, MonorepoModule, e
-						}
-					} else {
-						// No exports? Fallback to main/module or default index
-						resolvedSubpath := subpath
-						if subpath == "." {
-							if targetConfig.Module != "" {
-								resolvedSubpath = targetConfig.Module
-							} else if targetConfig.Main != "" {
-								resolvedSubpath = targetConfig.Main
-							}
-						}
-
-						fullPath := filepath.Join(pkgPath, resolvedSubpath)
-						modulePath := NormalizePathForInternal(fullPath)
-						actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
-						if e == nil {
-							f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule}
-							return true, actualFilePath, MonorepoModule, nil
-						}
-						return true, actualFilePath, MonorepoModule, e
-					}
-				}
-			}
+	// If exports resolution returned empty but there are exports, don't try fallback
+	if actualFilePath == "" {
+		// Check if the package has exports defined
+		exports, _ := f.manager.monorepoContext.GetPackageExports(pkgPath, f.manager.conditionNames)
+		if exports != nil && len(exports.exports) > 0 {
+			// Package has exports but the subpath wasn't found, so fail
+			return false, NotResolvedPath, NotResolvedModule, nil
 		}
+
+		// No exports, try fallback
+		actualFilePath, err = f.resolvePackageFallback(pkgPath, subpath)
+		if err != nil {
+			return true, actualFilePath, MonorepoModule, err
+		}
+	}
+
+	// Cache and return the result
+	if actualFilePath != "" {
+		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule}
+		return true, actualFilePath, MonorepoModule, nil
 	}
 
 	return false, NotResolvedPath, NotResolvedModule, nil
 }
 
-// TODO compare this code with ts alias resolution, can it be simplified?
+// resolvePackageExports resolves the subpath using the package's exports configuration
+func (f *ModuleResolver) resolvePackageExports(pkgPath, subpath string) (string, *ResolutionError) {
+	exports, err := f.manager.monorepoContext.GetPackageExports(pkgPath, f.manager.conditionNames)
+	if err != nil {
+		e := FileNotFound
+		return "", &e
+	}
+
+	if exports == nil || len(exports.exports) == 0 {
+		return "", nil // No exports, caller should use fallback
+	}
+
+	// Use the cached resolveExports method
+	resolvedExport := f.resolveExportsCached(exports, subpath)
+	if resolvedExport == "" {
+		return "", nil // Export not found, don't try fallback
+	}
+
+	// resolvedExport is relative to target package root
+	fullPath := filepath.Join(pkgPath, resolvedExport)
+	modulePath := NormalizePathForInternal(fullPath)
+	actualFilePath, resolveErr := f.manager.getModulePathWithExtension(modulePath)
+	return actualFilePath, resolveErr
+}
+
+// resolvePackageFallback resolves the subpath using main/module fallback when no exports are defined
+func (f *ModuleResolver) resolvePackageFallback(pkgPath, subpath string) (string, *ResolutionError) {
+	config, err := f.manager.monorepoContext.GetPackageConfig(pkgPath)
+	if err != nil {
+		e := FileNotFound
+		return "", &e
+	}
+
+	resolvedSubpath := subpath
+	if subpath == "." {
+		if config.Module != "" {
+			resolvedSubpath = config.Module
+		} else if config.Main != "" {
+			resolvedSubpath = config.Main
+		}
+	}
+
+	fullPath := filepath.Join(pkgPath, resolvedSubpath)
+	modulePath := NormalizePathForInternal(fullPath)
+	actualFilePath, resolveErr := f.manager.getModulePathWithExtension(modulePath)
+	return actualFilePath, resolveErr
+}
+
 func (f *ModuleResolver) resolveExports(exports map[string]interface{}, subpath string) string {
 	// 1. Check exact match
 	if target, ok := exports[subpath]; ok {
@@ -815,6 +854,40 @@ func (f *ModuleResolver) resolveExports(exports map[string]interface{}, subpath 
 			matches := re.FindStringSubmatch(subpath)
 			if len(matches) > 1 {
 				target := exports[key]
+				resolved := f.resolveCondition(target)
+				if resolved != "" {
+					return strings.Replace(resolved, "*", matches[1], 1)
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// resolveExportsCached resolves exports using pre-compiled regex patterns and cached data
+func (f *ModuleResolver) resolveExportsCached(exports *PackageJsonExports, subpath string) string {
+	// 1. Check exact match
+	if target, ok := exports.exports[subpath]; ok {
+		return f.resolveCondition(target)
+	}
+
+	// 2. Handle sugar form (no dot prefix)
+	if !exports.hasDotPrefix {
+		// Sugar for "." export
+		if subpath == "." {
+			return f.resolveCondition(exports.exports)
+		}
+		return "" // Subpaths not allowed if only root export defined in sugar form
+	}
+
+	// 3. Check wildcard matches using cached regex patterns
+	for _, regexItem := range exports.exportsRegexps {
+		if regexItem.regExp.MatchString(subpath) {
+			key := regexItem.aliasKey
+			matches := regexItem.regExp.FindStringSubmatch(subpath)
+			if len(matches) > 1 {
+				target := exports.exports[key]
 				resolved := f.resolveCondition(target)
 				if resolved != "" {
 					return strings.Replace(resolved, "*", matches[1], 1)

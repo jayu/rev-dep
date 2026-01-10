@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -24,16 +26,18 @@ type PackageJsonConfig struct {
 }
 
 type MonorepoContext struct {
-	WorkspaceRoot      string
-	PackageToPath      map[string]string
-	PackageConfigCache map[string]*PackageJsonConfig
+	WorkspaceRoot       string
+	PackageToPath       map[string]string
+	PackageConfigCache  map[string]*PackageJsonConfig
+	PackageExportsCache map[string]*PackageJsonExports
 }
 
 func NewMonorepoContext(root string) *MonorepoContext {
 	return &MonorepoContext{
-		WorkspaceRoot:      root,
-		PackageToPath:      make(map[string]string),
-		PackageConfigCache: make(map[string]*PackageJsonConfig),
+		WorkspaceRoot:       root,
+		PackageToPath:       make(map[string]string),
+		PackageConfigCache:  make(map[string]*PackageJsonConfig),
+		PackageExportsCache: make(map[string]*PackageJsonExports),
 	}
 }
 
@@ -291,4 +295,73 @@ func (ctx *MonorepoContext) GetPackageConfig(packageRoot string) (*PackageJsonCo
 
 	ctx.PackageConfigCache[packageRoot] = &config
 	return &config, nil
+}
+
+func (ctx *MonorepoContext) GetPackageExports(packageRoot string, conditionNames []string) (*PackageJsonExports, error) {
+	packageRoot = NormalizePathForInternal(packageRoot)
+	if exports, ok := ctx.PackageExportsCache[packageRoot]; ok {
+		return exports, nil
+	}
+
+	config, err := ctx.GetPackageConfig(packageRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	exports := &PackageJsonExports{
+		exports:        make(map[string]interface{}),
+		exportsRegexps: []RegExpArrItem{},
+		parsedTargets:  make(map[string]*ImportTargetTreeNode),
+		hasDotPrefix:   false,
+	}
+
+	if config.Exports != nil {
+		if exportsString, ok := config.Exports.(string); ok {
+			exports.exports = map[string]interface{}{
+				".": exportsString,
+			}
+			exports.hasDotPrefix = true
+		} else if exportsMap, ok := config.Exports.(map[string]interface{}); ok {
+			exports.exports = exportsMap
+
+			// Check if any key starts with "."
+			for k := range exportsMap {
+				if strings.HasPrefix(k, ".") {
+					exports.hasDotPrefix = true
+					break
+				}
+			}
+
+			// Pre-process and cache regex patterns for wildcard keys
+			for key, target := range exportsMap {
+				if strings.Count(key, "*") > 1 {
+					continue // Skip invalid keys with multiple wildcards
+				}
+
+				// Parse target into tree structure
+				parsedTarget := parseImportTarget(target, conditionNames)
+				if parsedTarget != nil {
+					exports.parsedTargets[key] = parsedTarget
+				}
+
+				if strings.Contains(key, "*") {
+					escapedKey := escapeRegexPattern(key)
+					pattern := "^" + strings.Replace(escapedKey, "*", "(.*)", 1) + "$"
+					regExp := regexp.MustCompile(pattern)
+					exports.exportsRegexps = append(exports.exportsRegexps, RegExpArrItem{
+						aliasKey: key,
+						regExp:   regExp,
+					})
+				}
+			}
+
+			// Sort regexps by key length descending for specificity
+			slices.SortFunc(exports.exportsRegexps, func(itemA, itemB RegExpArrItem) int {
+				return len(itemB.aliasKey) - len(itemA.aliasKey)
+			})
+		}
+	}
+
+	ctx.PackageExportsCache[packageRoot] = exports
+	return exports, nil
 }

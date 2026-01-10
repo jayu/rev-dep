@@ -28,8 +28,22 @@
     "./wildcard/*.js": "./src/*.ts",
     "./root/*": "./src/*",
     "./some/*/file.js": "./some/files/*.js",
-    "./invalid/*/pattern/*": "./invalid/here/*.js",
+    "./invalid/*/to/*/file.js": "./invalid/*/to/*/file.js",
+    "./deep": {
+      "development": {
+        "node": "./src/deep/node.ts",
+        "default": "./src/deep/dev-default.ts"
+      },
+      "production": {
+        "browser": "./dist/deep/browser.js",
+        "default": "./dist/deep/prod-default.js"
+      },
+      "default": "./src/deep/fallback.ts"
+    },
+    "./deep/*": "./src/deep/*.ts",
+    "./deep/blocked": null,
     "./features/private-internal-utils": null,
+    "./blocked/something": "./src/blocked/something.ts",
     "./blocked/*": null
   }
 }

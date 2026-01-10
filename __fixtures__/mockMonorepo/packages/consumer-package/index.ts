@@ -21,10 +21,21 @@ import { testFile } from "exported-package/some/xyz/file.js";
 // Test multiple wildcards (should be excluded/unresolvable)
 import { invalidFile } from "exported-package/invalid/a/to/b/file.js";
 
+// Test deeply nested exports with different condition sets
+import { deepNode } from "exported-package/deep";
+import { deepDevDefault } from "exported-package/deep";
+import { deepFallback } from "exported-package/deep";
+
+// Test blocked path in deep nested structure
+import { deepBlocked } from "exported-package/deep/blocked";
+
 // This should fail due to blocked path
-// import { internal } from "exported-package/features/private-internal-utils";
+import { internal } from "exported-package/features/private-internal-utils";
+
 
 // This should fail due to blocked wildcard
-// import { blocked } from "exported-package/blocked/something";
+import { blocked } from "exported-package/blocked/something";
+import { blocked2 } from "exported-package/blocked/other";
 
-export { mainFunction, featureA, featureB, helper, something, config, featureFromDist, testFile, invalidFile };
+
+export { mainFunction, featureA, featureB, helper, something, config, featureFromDist, testFile, invalidFile, deepNode, deepDevDefault, deepFallback, deepBlocked };

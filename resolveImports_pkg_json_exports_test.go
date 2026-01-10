@@ -182,13 +182,117 @@ func TestPackageJsonExportsMultipleWildcardsExclusion(t *testing.T) {
 	// and should be excluded during parsing, but currently it's being resolved
 	// This reveals a bug in the implementation that needs to be fixed
 	multipleWildcardImport := findImportByRequest(imports, "exported-package/invalid/a/to/b/file.js")
+
 	if multipleWildcardImport == nil {
+		t.Error("Import request should exist but be marked as not resolved")
+	} else if multipleWildcardImport.ResolvedType == NotResolvedModule {
 		t.Log("Multiple wildcards correctly excluded (expected behavior)")
 	} else {
-		t.Logf("Multiple wildcards NOT excluded - this reveals a bug! Resolved as: %+v", multipleWildcardImport)
-		// TODO: This should fail once the bug is fixed - patterns with multiple
-		// wildcards should be excluded during parsing per package.json exports spec
-		t.Log("BUG: Multiple wildcard patterns should be excluded but are currently being resolved")
+		t.Errorf("Multiple wildcards NOT excluded - this reveals a bug! Resolved as: %+v", multipleWildcardImport)
+		// Patterns with multiple wildcards should be excluded during parsing per package.json exports spec
+	}
+}
+
+func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
+	// Test deeply nested exports map structure with different condition sets
+	// This verifies complex conditional export resolution with nested conditions
+
+	cwd := "__fixtures__/mockMonorepo/packages/consumer-package/"
+	ignoreTypeImports := true
+	excludeFiles := []string{}
+
+	// Test 1: development + node condition
+	minimalTreeDevNode, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"development", "node"}, true)
+	importsDevNode := minimalTreeDevNode["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
+
+	deepDevNodeImport := findImportByRequest(importsDevNode, "exported-package/deep")
+	if deepDevNodeImport == nil {
+		t.Errorf("Expected deep dev+node import for 'exported-package/deep' not found")
+	} else {
+		if deepDevNodeImport.ResolvedType != MonorepoModule {
+			t.Errorf("Expected deep dev+node import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepDevNodeImport.ResolvedType))
+		}
+		if *deepDevNodeImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/node.ts" {
+			t.Errorf("Expected deep dev+node import ID to be node.ts path, got '%s'", *deepDevNodeImport.ID)
+		}
+	}
+
+	// Test 2: development + default condition (nested)
+	minimalTreeDevDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"development"}, true)
+	importsDevDefault := minimalTreeDevDefault["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
+
+	deepDevDefaultImport := findImportByRequest(importsDevDefault, "exported-package/deep")
+	if deepDevDefaultImport == nil {
+		t.Errorf("Expected deep dev+default import for 'exported-package/deep' not found")
+	} else {
+		if deepDevDefaultImport.ResolvedType != MonorepoModule {
+			t.Errorf("Expected deep dev+default import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepDevDefaultImport.ResolvedType))
+		}
+		if *deepDevDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/dev-default.ts" {
+			t.Errorf("Expected deep dev+default import ID to be dev-default.ts path, got '%s'", *deepDevDefaultImport.ID)
+		}
+	}
+
+	// Test 3: production + browser condition
+	minimalTreeProdBrowser, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"production", "browser"}, true)
+	importsProdBrowser := minimalTreeProdBrowser["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
+
+	deepProdBrowserImport := findImportByRequest(importsProdBrowser, "exported-package/deep")
+	if deepProdBrowserImport == nil {
+		t.Errorf("Expected deep prod+browser import for 'exported-package/deep' not found")
+	} else {
+		if deepProdBrowserImport.ResolvedType != MonorepoModule {
+			t.Errorf("Expected deep prod+browser import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepProdBrowserImport.ResolvedType))
+		}
+		if *deepProdBrowserImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/deep/browser.js" {
+			t.Errorf("Expected deep prod+browser import ID to be browser.js path, got '%s'", *deepProdBrowserImport.ID)
+		}
+	}
+
+	// Test 4: production + default condition (nested)
+	minimalTreeProdDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"production"}, true)
+	importsProdDefault := minimalTreeProdDefault["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
+
+	deepProdDefaultImport := findImportByRequest(importsProdDefault, "exported-package/deep")
+	if deepProdDefaultImport == nil {
+		t.Errorf("Expected deep prod+default import for 'exported-package/deep' not found")
+	} else {
+		if deepProdDefaultImport.ResolvedType != MonorepoModule {
+			t.Errorf("Expected deep prod+default import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepProdDefaultImport.ResolvedType))
+		}
+		if *deepProdDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/deep/prod-default.js" {
+			t.Errorf("Expected deep prod+default import ID to be prod-default.js path, got '%s'", *deepProdDefaultImport.ID)
+		}
+	}
+
+	// Test 5: default condition (no environment specified)
+	minimalTreeDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	importsDefault := minimalTreeDefault["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
+
+	deepDefaultImport := findImportByRequest(importsDefault, "exported-package/deep")
+	if deepDefaultImport == nil {
+		t.Errorf("Expected deep default import for 'exported-package/deep' not found")
+	} else {
+		if deepDefaultImport.ResolvedType != MonorepoModule {
+			t.Errorf("Expected deep default import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepDefaultImport.ResolvedType))
+		}
+		if *deepDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/fallback.ts" {
+			t.Errorf("Expected deep default import ID to be fallback.ts path, got '%s'", *deepDefaultImport.ID)
+		}
+	}
+
+	// Test 6: blocked path in deep nested structure
+	minimalTreeBlocked, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	importsBlocked := minimalTreeBlocked["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
+
+	deepBlockedImport := findImportByRequest(importsBlocked, "exported-package/deep/blocked")
+	if deepBlockedImport == nil {
+		t.Error("Import request should exist but be marked as not resolved")
+	} else if deepBlockedImport.ResolvedType == NotResolvedModule {
+		t.Log("Deep blocked path correctly excluded (expected behavior)")
+	} else {
+		t.Errorf("Deep blocked path NOT excluded - this reveals a bug! Resolved as: %+v", deepBlockedImport)
+		// Blocked paths should be excluded during parsing per package.json exports spec
 	}
 }
 
@@ -203,14 +307,24 @@ func TestPackageJsonExportsBlockingPaths(t *testing.T) {
 
 	// Test that blocked paths are not resolved
 	blockedImport := findImportByRequest(imports, "exported-package/features/private-internal-utils")
-	if blockedImport != nil {
-		t.Errorf("Expected blocked import for 'exported-package/features/private-internal-utils' to be nil, but got: %+v", blockedImport)
+	if blockedImport == nil {
+		t.Error("Import request should exist but be marked as not resolved")
+	} else if blockedImport.ResolvedType == NotResolvedModule {
+		t.Log("Blocked path correctly excluded (expected behavior)")
+	} else {
+		t.Errorf("Blocked path NOT excluded - this reveals a bug! Resolved as: %+v", blockedImport)
+		// Blocked paths should be excluded during parsing per package.json exports spec
 	}
 
-	// Test that blocked wildcard paths are not resolved
+	// Test that blocked with wildcard has no effect because there is more specific export
 	blockedWildcardImport := findImportByRequest(imports, "exported-package/blocked/something")
-	if blockedWildcardImport != nil {
-		t.Errorf("Expected blocked wildcard import for 'exported-package/blocked/something' to be nil, but got: %+v", blockedWildcardImport)
+	if blockedWildcardImport == nil {
+		t.Error("Import request should exist but be marked as not resolved")
+	} else if blockedWildcardImport.ResolvedType == MonorepoModule {
+		t.Log("Blocked wildcard path correctly excluded (expected behavior)")
+	} else {
+		t.Errorf("Blocked wildcard path NOT excluded - this reveals a bug! Resolved as: %+v", blockedWildcardImport)
+		// Blocked wildcard paths should be excluded during parsing per package.json exports spec
 	}
 }
 

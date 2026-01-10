@@ -199,6 +199,15 @@ func (rm *ResolverManager) GetNodeModulesForFile(filePath string) map[string]boo
 	return map[string]bool{}
 }
 
+// isValidTsAliasTargetPath checks if a path is a valid relative path that starts with "./" or "../"
+func isValidTsAliasTargetPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	// Check if path starts with "./" or "../"
+	return strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
+}
+
 func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
 	debug := false
 	tsconfigContent = jsonc.ToJSON(tsconfigContent)
@@ -254,6 +263,12 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		// In order to do it we would have to store aliasValues as array and return possibly multiple paths from ResolveModule and then process all of them in loop in resolveSingleFileImports
 		// This is a lot of additional complexity, so it's not supported in initial version.
 		aliasValue := aliasValues[0]
+
+		// Validate that alias target is a relative path
+		if !isValidTsAliasTargetPath(aliasValue) {
+			continue // Skip aliases with non-relative paths
+		}
+
 		tsConfigParsed.aliases[aliasKey] = aliasValue
 		regExp := regexp.MustCompile("^" + strings.Replace(aliasKey, "*", ".+?", 1) + "$")
 
@@ -837,11 +852,14 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	}
 
 	aliasMatchedButFileNotFound := ""
+	// aliasMatchedButFileNotFoundType := UserModule
 
 	if requestMatched, resolvedPath, rtype, err := f.tryResolvePackageJsonImport(request, root); requestMatched {
+		// fmt.Println("Pkg json resolvedType", ResolvedImportTypeToString(rtype))
 		if err != nil {
 			// Alias was matched, but path was not resolved
 			aliasMatchedButFileNotFound = resolvedPath
+			// aliasMatchedButFileNotFoundType = rtype
 		} else {
 
 			return resolvedPath, rtype, err
@@ -852,6 +870,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		if err != nil && aliasMatchedButFileNotFound == "" {
 			// Alias was matched, but path was not resolved
 			aliasMatchedButFileNotFound = resolvedPath
+			// aliasMatchedButFileNotFoundType = rtype
 		}
 
 		if err == nil {
@@ -871,6 +890,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 
 	if aliasMatchedButFileNotFound != "" {
 		e := FileNotFound
+		// return aliasMatchedButFileNotFound, aliasMatchedButFileNotFoundType, &e
 		return aliasMatchedButFileNotFound, UserModule, &e
 	}
 
@@ -1004,7 +1024,14 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		_, isNodeModule := importsResolver.nodeModules[moduleName]
 		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
 
-		if resolvedType == NotResolvedModule && resolutionErr != nil && importPath != imp.Request {
+		// fmt.Printf("Request: %s, Path: %s, Type: %s", imp.Request, importPath, ResolvedImportTypeToString(resolvedType))
+
+		// if resolutionErr != nil {
+		// 	fmt.Printf(" Resolution error: %v", *resolutionErr)
+		// }
+		// fmt.Println()
+
+		if resolutionErr != nil && importPath != imp.Request {
 			// Some alias matched, but file was not resolved to project file or workspace package file. The resolution might be to some node module sub path eg `lodash/files/utils`
 			localModuleName := GetNodeModuleName(importPath)
 

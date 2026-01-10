@@ -188,6 +188,57 @@ func TestParsingTsConfig(t *testing.T) {
 			t.Errorf("Aliases not found")
 		}
 	})
+
+	t.Run("Should filter out non-relative aliases", func(t *testing.T) {
+		tsConfig := `{
+			"compilerOptions": {
+			  "paths": {
+				  "@/valid/*": ["./src/*"],
+				  "@/another-valid": ["../lib/*"],
+				  "@/invalid": ["node_modules/package"],
+				  "@root": ["root"],
+				  "@/also-invalid": ["/absolute/path"]
+				}
+			}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     []string{},
+			Cwd:             "/root/",
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile("/root/")
+
+		aliasesCount := len(resolver.tsConfigParsed.aliases)
+
+		// Should only have 2 aliases (the ones with relative paths)
+		if aliasesCount != 2 {
+			t.Errorf("Expected 2 aliases, got %d", aliasesCount)
+		}
+
+		// Check that valid aliases are present
+		if _, hasValid := resolver.tsConfigParsed.aliases["@/valid/*"]; !hasValid {
+			t.Errorf("@/valid/* alias should be present")
+		}
+
+		if _, hasAnotherValid := resolver.tsConfigParsed.aliases["@/another-valid"]; !hasAnotherValid {
+			t.Errorf("@/another-valid alias should be present")
+		}
+
+		// Check that invalid aliases are filtered out
+		if _, hasInvalid := resolver.tsConfigParsed.aliases["@/invalid"]; hasInvalid {
+			t.Errorf("@/invalid alias should be filtered out")
+		}
+
+		if _, hasRoot := resolver.tsConfigParsed.aliases["@root"]; hasRoot {
+			t.Errorf("@root alias should be filtered out")
+		}
+
+		if _, hasAlsoInvalid := resolver.tsConfigParsed.aliases["@/also-invalid"]; hasAlsoInvalid {
+			t.Errorf("@/also-invalid alias should be filtered out")
+		}
+	})
 }
 
 func TestResolve(t *testing.T) {

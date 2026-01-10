@@ -13,6 +13,14 @@ import (
 	"github.com/tidwall/jsonc"
 )
 
+// escapeRegexPattern escapes all regex special characters except * which we want to preserve for wildcard replacement
+func escapeRegexPattern(pattern string) string {
+	escaped := strings.Replace(pattern, "*", "\x00", -1) // Temporarily replace *
+	escaped = regexp.QuoteMeta(escaped)
+	escaped = strings.Replace(escaped, "\x00", "*", -1) // Restore *
+	return escaped
+}
+
 type RegExpArrItem struct {
 	aliasKey string
 	regExp   *regexp.Regexp
@@ -265,7 +273,8 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		}
 
 		tsConfigParsed.aliases[aliasKey] = aliasValue
-		regExp := regexp.MustCompile("^" + strings.Replace(aliasKey, "*", ".+?", 1) + "$")
+		escapedAliasKey := escapeRegexPattern(aliasKey)
+		regExp := regexp.MustCompile("^" + strings.Replace(escapedAliasKey, "*", ".+?", 1) + "$")
 
 		tsConfigParsed.aliasesRegexps = append(tsConfigParsed.aliasesRegexps, RegExpArrItem{
 			regExp:   regExp,
@@ -277,7 +286,8 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		baseUrlAliasKey := "*"
 		baseUrlAliasValue := strings.TrimSuffix(baseUrl, "/") + "/*"
 		tsConfigParsed.aliases[baseUrlAliasKey] = baseUrlAliasValue
-		regExp := regexp.MustCompile(strings.Replace(baseUrlAliasKey, "*", ".+?", 1))
+		escapedBaseUrlAliasKey := escapeRegexPattern(baseUrlAliasKey)
+		regExp := regexp.MustCompile(strings.Replace(escapedBaseUrlAliasKey, "*", ".+?", 1))
 
 		tsConfigParsed.aliasesRegexps = append(tsConfigParsed.aliasesRegexps, RegExpArrItem{
 			regExp:   regExp,
@@ -315,7 +325,8 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 
 				// pre process and store import targets
 
-				pattern := "^" + strings.Replace(key, "*", "(.*)", 1) + "$" // Since there can be only one wildcard, we could use prefix + suffix instead of regexp. Do it only if there will be perf issues with regexps
+				escapedKey := escapeRegexPattern(key)
+				pattern := "^" + strings.Replace(escapedKey, "*", "(.*)", 1) + "$" // Since there can be only one wildcard, we could use prefix + suffix instead of regexp. Do it only if there will be perf issues with regexps
 				regExp := regexp.MustCompile(pattern)
 				packageJsonImports.importsRegexps = append(packageJsonImports.importsRegexps, RegExpArrItem{
 					aliasKey: key,
@@ -801,7 +812,8 @@ func (f *ModuleResolver) resolveExports(exports map[string]interface{}, subpath 
 	// TODO: should we cache regexps like we do for ts aliases? Do we need regexps at all - they are slow?
 	for _, key := range keys {
 		if strings.Contains(key, "*") {
-			regexKey := "^" + strings.Replace(key, "*", "(.*)", 1) + "$"
+			escapedKey := escapeRegexPattern(key)
+			regexKey := "^" + strings.Replace(escapedKey, "*", "(.*)", 1) + "$"
 			re := regexp.MustCompile(regexKey) // TODO: we should cache regexps
 			matches := re.FindStringSubmatch(subpath)
 			if len(matches) > 1 {

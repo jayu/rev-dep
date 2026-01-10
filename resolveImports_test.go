@@ -608,3 +608,33 @@ func TestResolveNodeModules(t *testing.T) {
 		}
 	}
 }
+
+func TestSpecialCharactersInAliases(t *testing.T) {
+	// Test that aliases with special regexp characters like $ are properly escaped
+	// This test verifies the fix for the issue where $base/* would cause regexp compilation errors
+
+	cwd := "__fixtures__/mockProject/"
+	ignoreTypeImports := true
+	excludeFiles := []string{}
+
+	// Create a temporary tsconfig with special characters in alias names
+	tempTsConfig := `{
+		"compilerOptions": {
+			"paths": {
+				"$base/*": ["./src/*"],
+				"$test/*": ["./test/*"],
+				"foo+bar/*": ["./lib/*"]
+			}
+		}
+	}`
+
+	// This should not panic or cause regexp compilation errors
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, tempTsConfig, "")
+
+	// If we get here without panicking, the test passes
+	// The actual resolution might not find files since these are test aliases,
+	// but the important thing is that regexp compilation doesn't fail
+	if minimalTree == nil {
+		t.Errorf("Expected minimalTree to be created, but got nil")
+	}
+}

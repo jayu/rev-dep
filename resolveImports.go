@@ -54,10 +54,16 @@ type PackageJsonImports struct {
 }
 
 type PackageJsonExports struct {
-	exports        map[string]interface{}
-	exportsRegexps []RegExpArrItem
-	parsedTargets  map[string]*ImportTargetTreeNode // parsed tree structure for targets
-	hasDotPrefix   bool                             // cached check if any key starts with "."
+	exports          map[string]interface{}
+	wildcardPatterns []WildcardPattern
+	parsedTargets    map[string]*ImportTargetTreeNode // parsed tree structure for targets
+	hasDotPrefix     bool                             // cached check if any key starts with "."
+}
+
+type WildcardPattern struct {
+	key    string
+	prefix string
+	suffix string
 }
 
 type ResolvedModuleInfo struct {
@@ -804,68 +810,7 @@ func (f *ModuleResolver) resolvePackageFallback(pkgPath, subpath string) (string
 	return actualFilePath, resolveErr
 }
 
-func (f *ModuleResolver) resolveExports(exports map[string]interface{}, subpath string) string {
-	// 1. Check exact match
-	if target, ok := exports[subpath]; ok {
-		return f.resolveCondition(target)
-	}
-	// 2. Check wildcards
-	// Iterate exports keys, find wildcard matches.
-	// Spec says longest specific key match?
-	// Sort keys?
-	// Doing simple scan for now.
-
-	// Optimisation: if exports is just strings/nested conditions (no "." content), it treats as "." export?
-	// Actually exports can be just the condition map for "." export.
-	// e.g. "exports": { "import": "..." } -> equivalent to "exports": { ".": { "import": "..." } }
-	// Check if keys start with "."
-
-	hasDot := false
-	for k := range exports {
-		if strings.HasPrefix(k, ".") {
-			hasDot = true
-			break
-		}
-	}
-
-	if !hasDot {
-		// Sugar for "." export
-		if subpath == "." {
-			return f.resolveCondition(exports)
-		}
-		return "" // Subpaths not allowed if only root export defined in sugar form
-	}
-
-	// Sort keys by length desc
-	var keys []string
-	for k := range exports {
-		keys = append(keys, k)
-	}
-	slices.SortFunc(keys, func(a, b string) int {
-		return len(b) - len(a)
-	})
-
-	// TODO: should we cache regexps like we do for ts aliases? Do we need regexps at all - they are slow?
-	for _, key := range keys {
-		if strings.Contains(key, "*") {
-			escapedKey := escapeRegexPattern(key)
-			regexKey := "^" + strings.Replace(escapedKey, "*", "(.*)", 1) + "$"
-			re := regexp.MustCompile(regexKey) // TODO: we should cache regexps
-			matches := re.FindStringSubmatch(subpath)
-			if len(matches) > 1 {
-				target := exports[key]
-				resolved := f.resolveCondition(target)
-				if resolved != "" {
-					return strings.Replace(resolved, "*", matches[1], 1)
-				}
-			}
-		}
-	}
-
-	return ""
-}
-
-// resolveExportsCached resolves exports using pre-compiled regex patterns and cached data
+// resolveExportsCached resolves exports using pre-compiled string patterns and cached data
 func (f *ModuleResolver) resolveExportsCached(exports *PackageJsonExports, subpath string) string {
 	// 1. Check exact match
 	if target, ok := exports.exports[subpath]; ok {
@@ -881,17 +826,15 @@ func (f *ModuleResolver) resolveExportsCached(exports *PackageJsonExports, subpa
 		return "" // Subpaths not allowed if only root export defined in sugar form
 	}
 
-	// 3. Check wildcard matches using cached regex patterns
-	for _, regexItem := range exports.exportsRegexps {
-		if regexItem.regExp.MatchString(subpath) {
-			key := regexItem.aliasKey
-			matches := regexItem.regExp.FindStringSubmatch(subpath)
-			if len(matches) > 1 {
-				target := exports.exports[key]
-				resolved := f.resolveCondition(target)
-				if resolved != "" {
-					return strings.Replace(resolved, "*", matches[1], 1)
-				}
+	// 3. Check wildcard matches using cached string patterns
+	for _, pattern := range exports.wildcardPatterns {
+		if strings.HasPrefix(subpath, pattern.prefix) && strings.HasSuffix(subpath, pattern.suffix) {
+			// Extract wildcard value
+			wildcardValue := subpath[len(pattern.prefix) : len(subpath)-len(pattern.suffix)]
+			target := exports.exports[pattern.key]
+			resolved := f.resolveCondition(target)
+			if resolved != "" {
+				return strings.Replace(resolved, "*", wildcardValue, 1)
 			}
 		}
 	}

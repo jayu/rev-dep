@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -309,10 +308,10 @@ func (ctx *MonorepoContext) GetPackageExports(packageRoot string, conditionNames
 	}
 
 	exports := &PackageJsonExports{
-		exports:        make(map[string]interface{}),
-		exportsRegexps: []RegExpArrItem{},
-		parsedTargets:  make(map[string]*ImportTargetTreeNode),
-		hasDotPrefix:   false,
+		exports:          make(map[string]interface{}),
+		wildcardPatterns: []WildcardPattern{},
+		parsedTargets:    make(map[string]*ImportTargetTreeNode),
+		hasDotPrefix:     false,
 	}
 
 	if config.Exports != nil {
@@ -332,7 +331,7 @@ func (ctx *MonorepoContext) GetPackageExports(packageRoot string, conditionNames
 				}
 			}
 
-			// Pre-process and cache regex patterns for wildcard keys
+			// Pre-process and cache wildcard patterns for keys
 			for key, target := range exportsMap {
 				if strings.Count(key, "*") > 1 {
 					continue // Skip invalid keys with multiple wildcards
@@ -345,19 +344,21 @@ func (ctx *MonorepoContext) GetPackageExports(packageRoot string, conditionNames
 				}
 
 				if strings.Contains(key, "*") {
-					escapedKey := escapeRegexPattern(key)
-					pattern := "^" + strings.Replace(escapedKey, "*", "(.*)", 1) + "$"
-					regExp := regexp.MustCompile(pattern)
-					exports.exportsRegexps = append(exports.exportsRegexps, RegExpArrItem{
-						aliasKey: key,
-						regExp:   regExp,
+					// Extract prefix and suffix for faster string matching
+					wildcardIndex := strings.Index(key, "*")
+					prefix := key[:wildcardIndex]
+					suffix := key[wildcardIndex+1:]
+					exports.wildcardPatterns = append(exports.wildcardPatterns, WildcardPattern{
+						key:    key,
+						prefix: prefix,
+						suffix: suffix,
 					})
 				}
 			}
 
-			// Sort regexps by key length descending for specificity
-			slices.SortFunc(exports.exportsRegexps, func(itemA, itemB RegExpArrItem) int {
-				return len(itemB.aliasKey) - len(itemA.aliasKey)
+			// Sort wildcard patterns by key length descending for specificity
+			slices.SortFunc(exports.wildcardPatterns, func(patternA, patternB WildcardPattern) int {
+				return len(patternB.key) - len(patternA.key)
 			})
 		}
 	}

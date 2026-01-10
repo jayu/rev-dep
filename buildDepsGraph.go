@@ -21,14 +21,8 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 			return vertex
 		}
 
-		// Create local visited set to track circular dependencies
-		localVisited := make(map[string]bool)
-		for k, v := range visited {
-			localVisited[k] = v
-		}
-
-		// Check for circular dependency
-		if localVisited[path] {
+		// Check for circular dependency - use shared visited set without copying
+		if visited[path] {
 			circularNode := &Node{
 				Path:     "CIRCULAR",
 				Children: []*Node{},
@@ -39,7 +33,8 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 			return circularNode
 		}
 
-		localVisited[path] = true
+		// Add to visited set
+		visited[path] = true
 
 		// Get dependencies for this path
 		dep, exists := deps[path]
@@ -66,10 +61,13 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 		for _, d := range dep {
 			// Do not follow other modules than user modules and monorepo modules
 			if d.ID != nil && *d.ID != "" && (d.ResolvedType == UserModule || d.ResolvedType == MonorepoModule) {
-				childNode := inner(*d.ID, localVisited, depth+1, node)
+				childNode := inner(*d.ID, visited, depth+1, node)
 				node.Children = append(node.Children, childNode)
 			}
 		}
+
+		// Remove from visited set when backtracking to allow revisiting in other branches
+		delete(visited, path)
 
 		// Store vertex
 		vertices[path] = node
@@ -84,72 +82,22 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 
 	root := inner(entryPoint, make(map[string]bool), 1, nil)
 
-	// Convert to serializable format
+	// Convert to serializable format using helper function to avoid duplication
 	serializableVertices := make(map[string]*SerializableNode)
 	for path, node := range vertices {
-		serializableNode := &SerializableNode{
-			Path:     node.Path,
-			Parents:  make([]string, 0, len(node.Parents)),
-			Children: make([]string, 0, len(node.Children)),
-		}
-
-		for _, parent := range node.Parents {
-			if parent != nil {
-				serializableNode.Parents = append(serializableNode.Parents, parent.Path)
-			}
-		}
-
-		for _, child := range node.Children {
-			if child != nil {
-				serializableNode.Children = append(serializableNode.Children, child.Path)
-			}
-		}
-
-		serializableVertices[path] = serializableNode
+		serializableVertices[path] = nodeToSerializable(node)
 	}
 
-	// Convert root to serializable format
+	// Convert root to serializable format using helper function
 	var serializableRoot *SerializableNode
 	if root != nil {
-		serializableRoot = &SerializableNode{
-			Path:     root.Path,
-			Parents:  make([]string, 0, len(root.Parents)),
-			Children: make([]string, 0, len(root.Children)),
-		}
-
-		for _, parent := range root.Parents {
-			if parent != nil {
-				serializableRoot.Parents = append(serializableRoot.Parents, parent.Path)
-			}
-		}
-
-		for _, child := range root.Children {
-			if child != nil {
-				serializableRoot.Children = append(serializableRoot.Children, child.Path)
-			}
-		}
+		serializableRoot = nodeToSerializable(root)
 	}
 
-	// Convert fileOrNodeModuleNode to serializable format
+	// Convert fileOrNodeModuleNode to serializable format using helper function
 	var serializableFileOrNodeModuleNode *SerializableNode
 	if fileOrNodeModuleNode != nil {
-		serializableFileOrNodeModuleNode = &SerializableNode{
-			Path:     fileOrNodeModuleNode.Path,
-			Parents:  make([]string, 0, len(fileOrNodeModuleNode.Parents)),
-			Children: make([]string, 0, len(fileOrNodeModuleNode.Children)),
-		}
-
-		for _, parent := range fileOrNodeModuleNode.Parents {
-			if parent != nil {
-				serializableFileOrNodeModuleNode.Parents = append(serializableFileOrNodeModuleNode.Parents, parent.Path)
-			}
-		}
-
-		for _, child := range fileOrNodeModuleNode.Children {
-			if child != nil {
-				serializableFileOrNodeModuleNode.Children = append(serializableFileOrNodeModuleNode.Children, child.Path)
-			}
-		}
+		serializableFileOrNodeModuleNode = nodeToSerializable(fileOrNodeModuleNode)
 	}
 
 	// Compute resolution paths if a specific file was found
@@ -172,9 +120,11 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 func ResolvePathsToRoot(node *Node, all bool, resolvedPaths [][]string, depth int) [][]string {
 
 	// Create new paths by prepending current node path to each resolved path
+	// Optimize by preallocating and copying in place
 	newPaths := make([][]string, len(resolvedPaths))
 	for i, resolvedPath := range resolvedPaths {
-		newPath := make([]string, len(resolvedPath)+1)
+		// Preallocate with exact size to avoid multiple allocations
+		newPath := make([]string, 1+len(resolvedPath))
 		newPath[0] = node.Path
 		copy(newPath[1:], resolvedPath)
 		newPaths[i] = newPath
@@ -207,6 +157,29 @@ func ResolvePathsToRoot(node *Node, all bool, resolvedPaths [][]string, depth in
 
 	// Only follow the first parent
 	return ResolvePathsToRoot(node.Parents[0], false, newPaths, depth)
+}
+
+// nodeToSerializable converts a Node to SerializableNode, avoiding code duplication
+func nodeToSerializable(node *Node) *SerializableNode {
+	serializableNode := &SerializableNode{
+		Path:     node.Path,
+		Parents:  make([]string, 0, len(node.Parents)),
+		Children: make([]string, 0, len(node.Children)),
+	}
+
+	for _, parent := range node.Parents {
+		if parent != nil {
+			serializableNode.Parents = append(serializableNode.Parents, parent.Path)
+		}
+	}
+
+	for _, child := range node.Children {
+		if child != nil {
+			serializableNode.Children = append(serializableNode.Children, child.Path)
+		}
+	}
+
+	return serializableNode
 }
 
 // Node represents a node in the dependency graph

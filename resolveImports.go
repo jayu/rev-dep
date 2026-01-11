@@ -978,7 +978,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	return "", NotResolvedModule, &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages bool) (fileImports []FileImports, adjustedSortedFiles []string) {
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages bool) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
 	tsConfigPath := JoinWithCwd(cwd, tsconfigJson)
 	pkgJsonPath := JoinWithCwd(cwd, packageJson)
 
@@ -1011,7 +1011,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		pkgJsonContent = []byte("")
 	}
 
-	resolverManager := NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
+	resolverManager = NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
 		TsConfigContent: tsconfigContent,
 		PkgJsonContent:  pkgJsonContent,
 		SortedFiles:     sortedFiles,
@@ -1077,7 +1077,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		}
 	}
 
-	return filteredFileImportsArr, filteredFiles
+	return filteredFileImportsArr, filteredFiles, resolverManager
 }
 
 func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, tsConfigDirOrCwd string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {

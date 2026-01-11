@@ -906,30 +906,10 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 
-	// Collect node modules from resolver manager using the same parameters as ResolveImports
-	tsConfigPath := JoinWithCwd(cwd, tsconfigJson)
-	if tsconfigJson == "" {
-		tsConfigPath = filepath.Join(cwd, "tsconfig.json")
-	}
-
-	pkgJsonPath := JoinWithCwd(cwd, packageJson)
-	if packageJson == "" {
-		pkgJsonPath = JoinWithCwd(cwd, "package.json")
-	}
-
-	tsconfigContent, _ := ParseTsConfig(tsConfigPath)
-	pkgJsonContent, _ := os.ReadFile(pkgJsonPath)
-
-	resolverManager := NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
-		TsConfigContent: tsconfigContent,
-		PkgJsonContent:  pkgJsonContent,
-		SortedFiles:     sortedFiles,
-		Cwd:             cwd,
-	}, allExcludePatterns)
 	allNodeModules := resolverManager.CollectAllNodeModules()
 
 	return minimalTree, sortedFiles, allNodeModules

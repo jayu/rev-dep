@@ -948,6 +948,15 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		}
 	}
 
+	// Try workspace package resolution for the original request before TypeScript alias resolution
+	// to ensure monorepo packages take precedence over TypeScript aliases
+	// But only if no package.json import was matched
+	if aliasMatchedButFileNotFound == "" {
+		if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(request, root); requestMatched {
+			return resolvedPath, rtype, err
+		}
+	}
+
 	if requestMatched, resolvedPath, rtype, err := f.tryResolveTsAlias(request); requestMatched {
 		if err != nil && aliasMatchedButFileNotFound == "" {
 			// Alias was matched, but path was not resolved
@@ -959,14 +968,12 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		}
 	}
 
-	requestForWorkspacePackageImportResolution := request
-
-	if aliasMatchedButFileNotFound != "" {
-		requestForWorkspacePackageImportResolution = aliasMatchedButFileNotFound
-	}
-
-	if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(requestForWorkspacePackageImportResolution, root); requestMatched {
-		return resolvedPath, rtype, err
+	// Only try workspace package resolution again if we have a different target to resolve
+	// This avoids redundant calls when the target is the same as the original request
+	if aliasMatchedButFileNotFound != "" && aliasMatchedButFileNotFound != request {
+		if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(aliasMatchedButFileNotFound, root); requestMatched {
+			return resolvedPath, rtype, err
+		}
 	}
 
 	if aliasMatchedButFileNotFound != "" {

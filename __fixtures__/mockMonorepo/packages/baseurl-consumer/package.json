@@ -1,0 +1,7 @@
+{
+  "name": "baseurl-consumer",
+  "version": "1.0.0",
+  "dependencies": {
+    "baseurl-package": "workspace:*"
+  }
+}

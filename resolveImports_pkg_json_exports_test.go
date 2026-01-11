@@ -337,6 +337,28 @@ func findImportByRequest(imports []MinimalDependency, request string) *MinimalDe
 	}
 	return nil
 }
+func TestPackageJsonExportsBaseUrlWildcard(t *testing.T) {
+	cwd := "__fixtures__/mockMonorepo/packages/baseurl-consumer/"
+	ignoreTypeImports := true
+	excludeFiles := []string{}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+
+	// Test: Resolve monorepo package when baseUrl wildcard is configured
+	imports := minimalTree["__fixtures__/mockMonorepo/packages/baseurl-consumer/import-baseurl.ts"]
+
+	if len(imports) == 0 {
+		t.Errorf("Expected at least one import, got none")
+		return
+	}
+
+	// Expected: Should resolve to the monorepo package index file
+	expectedPath := "__fixtures__/mockMonorepo/packages/baseurl-package/index.ts"
+	if *imports[0].ID != expectedPath || imports[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedPath, *imports[0].ID, ResolvedImportTypeToString(imports[0].ResolvedType))
+	}
+}
+
 func TestPackageJsonExportsNoMain(t *testing.T) {
 	cwd := "__fixtures__/mockMonorepo/" // Run from monorepo root
 	ignoreTypeImports := true

@@ -1168,15 +1168,19 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 								missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)
 
 								mu.Lock()
-								*fileImportsArr = append(*fileImportsArr, FileImports{
-									FilePath: missingFilePath,
-									Imports:  missingFileImports,
-								})
-								wg.Add(1)
-								ch_idx <- len(*fileImportsArr) - 1
+								// Double-check after acquiring lock in case another goroutine added it
+								if _, alreadyAdded := (*discoveredFiles)[missingFilePath]; !alreadyAdded {
+									*fileImportsArr = append(*fileImportsArr, FileImports{
+										FilePath: missingFilePath,
+										Imports:  missingFileImports,
+									})
+									wg.Add(1)
+									ch_idx <- len(*fileImportsArr) - 1
 
-								*sortedFiles = append(*sortedFiles, missingFilePath)
-								importsResolver.manager.AddFilePathToFilesAndExtensions(missingFilePath)
+									*sortedFiles = append(*sortedFiles, missingFilePath)
+									(*discoveredFiles)[missingFilePath] = true
+									importsResolver.manager.AddFilePathToFilesAndExtensions(missingFilePath)
+								}
 								mu.Unlock()
 							} else {
 								mu.Lock()
@@ -1228,25 +1232,30 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 			} else {
 				mu.Lock()
 				_, hasFileInDiscoveredFiles := (*discoveredFiles)[importPath]
-				mu.Unlock()
 				if !hasFileInDiscoveredFiles {
+					mu.Unlock()
 					missingFileContent, err := os.ReadFile(DenormalizePathForOS(importPath))
 					if err == nil {
 
 						missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)
 						mu.Lock()
-						*fileImportsArr = append(*fileImportsArr, FileImports{
-							FilePath: importPath,
-							Imports:  missingFileImports,
-						})
-						wg.Add(1)
-						ch_idx <- len(*fileImportsArr) - 1
+						// Double-check after acquiring lock in case another goroutine added it
+						if _, alreadyAdded := (*discoveredFiles)[importPath]; !alreadyAdded {
+							*fileImportsArr = append(*fileImportsArr, FileImports{
+								FilePath: importPath,
+								Imports:  missingFileImports,
+							})
+							wg.Add(1)
+							ch_idx <- len(*fileImportsArr) - 1
 
-						*sortedFiles = append(*sortedFiles, importPath)
-						(*discoveredFiles)[importPath] = true
-						importsResolver.manager.AddFilePathToFilesAndExtensions(importPath)
+							*sortedFiles = append(*sortedFiles, importPath)
+							(*discoveredFiles)[importPath] = true
+							importsResolver.manager.AddFilePathToFilesAndExtensions(importPath)
+						}
 						mu.Unlock()
 					}
+				} else {
+					mu.Unlock()
 				}
 				mu.Lock()
 				fileImports.Imports[impIdx].PathOrName = importPath

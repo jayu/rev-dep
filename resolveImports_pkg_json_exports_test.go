@@ -337,3 +337,80 @@ func findImportByRequest(imports []MinimalDependency, request string) *MinimalDe
 	}
 	return nil
 }
+func TestPackageJsonExportsNoMain(t *testing.T) {
+	cwd := "__fixtures__/mockMonorepo/" // Run from monorepo root
+	ignoreTypeImports := true
+	excludeFiles := []string{}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+
+	// Test 0: Simple import test
+	imports0 := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/import-no-exports-simple.ts"]
+
+	if len(imports0) == 0 {
+		t.Errorf("Expected at least one import, got none")
+		return
+	}
+
+	// Expected: Should resolve to package root index file
+	expectedIndex := "__fixtures__/mockMonorepo/packages/no-exports-package/index.ts"
+	if *imports0[0].ID != expectedIndex || imports0[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedIndex, *imports0[0].ID, ResolvedImportTypeToString(imports0[0].ResolvedType))
+	}
+
+	// Test 1: Resolve index file from package without exports/main
+	imports := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/import-no-exports-index.ts"]
+
+	if len(imports) == 0 {
+		t.Errorf("Expected at least one import, got none")
+		return
+	}
+
+	// Expected: Should resolve to package root index file
+	expectedIndex = "__fixtures__/mockMonorepo/packages/no-exports-package/index.ts"
+	if *imports[0].ID != expectedIndex || imports[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedIndex, *imports[0].ID, ResolvedImportTypeToString(imports[0].ResolvedType))
+	}
+
+	// Test 2: Resolve non-index file from package without exports/main
+	imports2 := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/import-no-exports-utils.ts"]
+
+	if len(imports2) == 0 {
+		t.Errorf("Expected at least one import, got none")
+		return
+	}
+
+	// Expected: Should resolve to utils.ts file (file takes precedence over directory)
+	expectedUtils := "__fixtures__/mockMonorepo/packages/no-exports-package/utils.ts"
+	if *imports2[0].ID != expectedUtils || imports2[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedUtils, *imports2[0].ID, ResolvedImportTypeToString(imports2[0].ResolvedType))
+	}
+
+	// Test 3: Resolve utils/index.ts from package without exports/main
+	imports3 := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/import-no-exports-utils-index.ts"]
+
+	if len(imports3) == 0 {
+		t.Errorf("Expected at least one import, got none")
+		return
+	}
+
+	// Expected: Should resolve to utils.ts (file takes precedence over directory)
+	expectedUtilsIndex := "__fixtures__/mockMonorepo/packages/no-exports-package/utils.ts"
+	if *imports3[0].ID != expectedUtilsIndex || imports3[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedUtilsIndex, *imports3[0].ID, ResolvedImportTypeToString(imports3[0].ResolvedType))
+	}
+
+	// Test 4: Resolve lib/index.ts from package without exports/main (different directory)
+	imports4 := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/import-no-exports-lib-index.ts"]
+
+	if len(imports4) == 0 {
+		t.Errorf("Expected at least one import, got none")
+		return
+	}
+
+	// Expected: Should resolve to lib/index.ts
+	expectedLibIndex := "__fixtures__/mockMonorepo/packages/no-exports-package/lib/index.ts"
+	if *imports4[0].ID != expectedLibIndex || imports4[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedLibIndex, *imports4[0].ID, ResolvedImportTypeToString(imports4[0].ResolvedType))
+	}
+}

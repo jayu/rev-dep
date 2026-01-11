@@ -2,6 +2,7 @@
   "name": "consumer-package",
   "version": "1.0.0",
   "dependencies": {
-    "exported-package": "workspace:*"
+    "exported-package": "workspace:*",
+    "no-exports-package": "workspace:*"
   }
 }

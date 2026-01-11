@@ -11,13 +11,16 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 	visited := make(map[string]bool)
 	recStack := make(map[string]bool)
 
-	var dfs func(node string, path []string) bool
-	dfs = func(node string, path []string) bool {
+	// Use shared path slice to avoid copying
+	path := make([]string, 0, 64)
+
+	var dfs func(node string) bool
+	dfs = func(node string) bool {
 		visited[node] = true
 		recStack[node] = true
 
 		// Add current node to path
-		currentPath := append(path, node)
+		path = append(path, node)
 
 		// Check dependencies
 		if nodeDeps, exists := deps[node]; exists && nodeDeps != nil {
@@ -30,17 +33,17 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 
 				// Check if this dependency is in our recursion stack (cycle found)
 				if recStack[depPath] {
-					// Found a cycle - extract the cycle from the path
+					// Found a cycle - extract the cycle
 					cycleStart := -1
-					for i, pathNode := range currentPath {
-						if pathNode == depPath {
+					for i := len(path) - 1; i >= 0; i-- {
+						if path[i] == depPath {
 							cycleStart = i
 							break
 						}
 					}
 					if cycleStart >= 0 {
-						cycle := make([]string, len(currentPath)-cycleStart+1)
-						copy(cycle, currentPath[cycleStart:])
+						cycle := make([]string, len(path)-cycleStart+1)
+						copy(cycle, path[cycleStart:])
 						cycle[len(cycle)-1] = depPath // Close the cycle
 						cycles = append(cycles, cycle)
 					}
@@ -49,10 +52,13 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 
 				// If not visited, continue DFS
 				if !visited[depPath] {
-					dfs(depPath, currentPath)
+					dfs(depPath)
 				}
 			}
 		}
+
+		// Remove current node from path when backtracking
+		path = path[:len(path)-1]
 
 		recStack[node] = false
 		return false
@@ -61,7 +67,7 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 	// Run DFS from all unvisited nodes
 	for _, node := range sortedFilesList {
 		if !visited[node] {
-			dfs(node, []string{})
+			dfs(node)
 		}
 	}
 
@@ -88,16 +94,19 @@ func FormatCircularDependencies(cycles [][]string, pathPrefix string, deps Minim
 
 			request := ""
 			if j > 0 {
-				for _, imp := range deps[cycle[j-1]] {
-					if *imp.ID == file {
-						request = imp.Request
+				// Keep linear search for small dependency lists
+				if nodeDeps, exists := deps[cycle[j-1]]; exists {
+					for _, imp := range nodeDeps {
+						if imp.ID != nil && *imp.ID == file {
+							request = imp.Request
+							break
+						}
 					}
 				}
 			}
 
 			indent := strings.Repeat(" ", j)
 			if j == 0 {
-
 				result += fmt.Sprintf("%s ➞ %s (cycle start)\n", indent, cleanPath)
 			} else {
 				result += fmt.Sprintf("%s ➞ %s ('%s')\n", indent, cleanPath, request)
@@ -108,16 +117,16 @@ func FormatCircularDependencies(cycles [][]string, pathPrefix string, deps Minim
 	return result
 }
 
+// deduplicateStringArrays deduplicates cycles
 func deduplicateStringArrays(arr [][]string) [][]string {
-	entries := map[string]byte{}
-	result := [][]string{}
+	entries := make(map[string]struct{}, len(arr))
+	result := make([][]string, 0, len(arr))
 
 	for _, arrNested := range arr {
 		key := strings.Join(arrNested, ",")
-		_, has := entries[key]
-		if !has {
+		if _, exists := entries[key]; !exists {
 			result = append(result, arrNested)
-			entries[key] = 0
+			entries[key] = struct{}{}
 		}
 	}
 	return result

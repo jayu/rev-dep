@@ -30,7 +30,7 @@
 
 `node scripts/addCliRefToReadme.js`
 
-`git add . && git commit`
+`git add . && git commit -m "chore: release`
 
 `npm login`
 

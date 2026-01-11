@@ -328,12 +328,14 @@ rev-dep circular --ignore-types-imports
 #### Options
 
 ```
-  -c, --cwd string             Working directory for the command (default "$PWD")
-  -h, --help                   help for circular
-  -t, --ignore-type-imports    Exclude type imports from the analysis
-      --package-json string    Path to package.json (default: ./package.json)
-      --tsconfig-json string   Path to tsconfig.json (default: ./tsconfig.json)
-  -v, --verbose                Show warnings and verbose output
+      --condition-names strings    List of conditions for package.json imports resolution (e.g. node, imports, default)
+  -c, --cwd string                 Working directory for the command (default "$PWD")
+      --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
+  -h, --help                       help for circular
+  -t, --ignore-type-imports        Exclude type imports from the analysis
+      --package-json string        Path to package.json (default: ./package.json)
+      --tsconfig-json string       Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                    Show warnings and verbose output
 ```
 
 
@@ -359,17 +361,19 @@ rev-dep entry-points --print-deps-count
 #### Options
 
 ```
-  -n, --count                    Only display the number of entry points found
-  -c, --cwd string               Working directory for the command (default "$PWD")
-      --graph-exclude strings    Exclude files matching these glob patterns from analysis
-  -h, --help                     help for entry-points
-  -t, --ignore-type-imports      Exclude type imports from the analysis
-      --package-json string      Path to package.json (default: ./package.json)
-      --print-deps-count         Show the number of dependencies for each entry point
-      --result-exclude strings   Exclude files matching these glob patterns from results
-      --result-include strings   Only include files matching these glob patterns in results
-      --tsconfig-json string     Path to tsconfig.json (default: ./tsconfig.json)
-  -v, --verbose                  Show warnings and verbose output
+      --condition-names strings    List of conditions for package.json imports resolution (e.g. node, imports, default)
+  -n, --count                      Only display the number of entry points found
+  -c, --cwd string                 Working directory for the command (default "$PWD")
+      --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
+      --graph-exclude strings      Exclude files matching these glob patterns from analysis
+  -h, --help                       help for entry-points
+  -t, --ignore-type-imports        Exclude type imports from the analysis
+      --package-json string        Path to package.json (default: ./package.json)
+      --print-deps-count           Show the number of dependencies for each entry point
+      --result-exclude strings     Exclude files matching these glob patterns from results
+      --result-include strings     Only include files matching these glob patterns in results
+      --tsconfig-json string       Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                    Show warnings and verbose output
 ```
 
 
@@ -395,14 +399,16 @@ rev-dep files --entry-point src/index.ts
 #### Options
 
 ```
-  -n, --count                  Only display the count of files in the dependency tree
-  -c, --cwd string             Working directory for the command (default "$PWD")
-  -p, --entry-point string     Entry point file to analyze (required)
-  -h, --help                   help for files
-  -t, --ignore-type-imports    Exclude type imports from the analysis
-      --package-json string    Path to package.json (default: ./package.json)
-      --tsconfig-json string   Path to tsconfig.json (default: ./tsconfig.json)
-  -v, --verbose                Show warnings and verbose output
+      --condition-names strings    List of conditions for package.json imports resolution (e.g. node, imports, default)
+  -n, --count                      Only display the count of files in the dependency tree
+  -c, --cwd string                 Working directory for the command (default "$PWD")
+  -p, --entry-point string         Entry point file to analyze (required)
+      --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
+  -h, --help                       help for files
+  -t, --ignore-type-imports        Exclude type imports from the analysis
+      --package-json string        Path to package.json (default: ./package.json)
+      --tsconfig-json string       Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                    Show warnings and verbose output
 ```
 
 
@@ -591,12 +597,14 @@ rev-dep node-modules missing --entry-points=src/main.ts
 #### Options
 
 ```
+      --condition-names strings            List of conditions for package.json imports resolution (e.g. node, imports, default)
   -n, --count                              Only display the count of modules
   -c, --cwd string                         Working directory for the command (default "$PWD")
   -p, --entry-points strings               Entry point file(s) to start analysis from (default: auto-detected)
   -e, --exclude-modules strings            list of modules to exclude from the output
   -b, --files-with-binaries strings        Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings    Additional files to search for module imports. Use paths relative to cwd
+      --follow-monorepo-packages           Enable resolution of imports from monorepo workspace packages
       --group-by-file                      Organize output by project file path
       --group-by-module                    Organize output by npm package name
   -h, --help                               help for missing
@@ -632,12 +640,14 @@ rev-dep node-modules unused --exclude-modules=@types/*
 #### Options
 
 ```
+      --condition-names strings            List of conditions for package.json imports resolution (e.g. node, imports, default)
   -n, --count                              Only display the count of modules
   -c, --cwd string                         Working directory for the command (default "$PWD")
   -p, --entry-points strings               Entry point file(s) to start analysis from (default: auto-detected)
   -e, --exclude-modules strings            list of modules to exclude from the output
   -b, --files-with-binaries strings        Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings    Additional files to search for module imports. Use paths relative to cwd
+      --follow-monorepo-packages           Enable resolution of imports from monorepo workspace packages
   -h, --help                               help for unused
   -t, --ignore-type-imports                Exclude type imports from the analysis
   -i, --include-modules strings            list of modules to include in the output
@@ -671,12 +681,14 @@ rev-dep node-modules used -p src/index.ts --group-by-module
 #### Options
 
 ```
+      --condition-names strings            List of conditions for package.json imports resolution (e.g. node, imports, default)
   -n, --count                              Only display the count of modules
   -c, --cwd string                         Working directory for the command (default "$PWD")
   -p, --entry-points strings               Entry point file(s) to start analysis from (default: auto-detected)
   -e, --exclude-modules strings            list of modules to exclude from the output
   -b, --files-with-binaries strings        Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings    Additional files to search for module imports. Use paths relative to cwd
+      --follow-monorepo-packages           Enable resolution of imports from monorepo workspace packages
       --group-by-file                      Organize output by project file path
       --group-by-module                    Organize output by npm package name
   -h, --help                               help for used
@@ -711,17 +723,19 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
 #### Options
 
 ```
-  -a, --all                     Show all possible resolution paths, not just the first one
-      --compact-summary         Display a compact summary of found paths
-  -c, --cwd string              Working directory for the command (default "$PWD")
-  -p, --entry-points strings    Entry point file(s) to start analysis from (default: auto-detected)
-  -f, --file string             Target file to check for dependencies
-      --graph-exclude strings   Glob patterns to exclude files from dependency analysis
-  -h, --help                    help for resolve
-  -t, --ignore-type-imports     Exclude type imports from the analysis
-      --package-json string     Path to package.json (default: ./package.json)
-      --tsconfig-json string    Path to tsconfig.json (default: ./tsconfig.json)
-  -v, --verbose                 Show warnings and verbose output
+  -a, --all                        Show all possible resolution paths, not just the first one
+      --compact-summary            Display a compact summary of found paths
+      --condition-names strings    List of conditions for package.json imports resolution (e.g. node, imports, default)
+  -c, --cwd string                 Working directory for the command (default "$PWD")
+  -p, --entry-points strings       Entry point file(s) to start analysis from (default: auto-detected)
+  -f, --file string                Target file to check for dependencies
+      --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
+      --graph-exclude strings      Glob patterns to exclude files from dependency analysis
+  -h, --help                       help for resolve
+  -t, --ignore-type-imports        Exclude type imports from the analysis
+      --package-json string        Path to package.json (default: ./package.json)
+      --tsconfig-json string       Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                    Show warnings and verbose output
 ```
 
 

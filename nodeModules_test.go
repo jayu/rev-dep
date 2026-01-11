@@ -893,3 +893,39 @@ func TestSortPathsToNodeModulesByNestingLevel(t *testing.T) {
 		}
 	})
 }
+func TestTsConfigTypesComplexRealWorld(t *testing.T) {
+	currentDir, _ := os.Getwd()
+	tsconfigTypesComplexCwd := filepath.Join(currentDir, "__fixtures__/tsconfigTypesComplex")
+
+	t.Run("should handle complex tsconfig with mixed types", func(t *testing.T) {
+		result, _ := NodeModulesCmd(
+			tsconfigTypesComplexCwd,
+			false,      // ignoreType
+			[]string{}, // entryPoints
+			false,      // countFlag
+			true,       // listUnused
+			false,      // listMissing
+			false,      // groupByModule
+			false,      // groupByFile
+			[]string{}, // pkgJsonFieldsWithBinaries
+			[]string{}, // filesWithBinaries
+			[]string{}, // filesWithModules
+			[]string{}, // modulesToInclude
+			[]string{}, // modulesToExclude
+			"",         // packageJson
+			"",         // tsconfigJson
+			[]string{}, // conditionNames
+			false,      // followMonorepoPackages
+		)
+
+		// This test reproduces the original bug scenario:
+		// - Complex tsconfig with mixed types (booleans, strings, arrays, objects)
+		// - @types/google.maps and @types/node are referenced in tsconfig.json, so they should NOT be in the unused list
+		// - @types/unused-types is NOT referenced anywhere, so it SHOULD be in the unused list
+		expected := "@types/unused-types\n"
+
+		if result != expected {
+			t.Errorf("Incorrect unused modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+}

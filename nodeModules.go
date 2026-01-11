@@ -388,14 +388,22 @@ func GetUsedNodeModules(
 
 	// Use ParseTsConfig which reads and resolves "extends" chains. If parsing
 	// fails, treat as absent tsconfig (don't mark any types).
-	if merged, err := ParseTsConfig(tsconfigPath); err == nil {
-		var tsconfig map[string]map[string][]string
-		if err := json.Unmarshal(merged, &tsconfig); err == nil && tsconfig != nil {
-			if co, ok := tsconfig["compilerOptions"]; ok {
-				if typesArr, ok2 := co["types"]; ok2 {
-					for _, typesModule := range typesArr {
-						nodeModuleName := "@types/" + typesModule
-						setFilePathInNodeModuleFilesMap(&usedNodeModules, nodeModuleName, tsconfigPath)
+	if merged, parseErr := ParseTsConfig(tsconfigPath); parseErr == nil {
+		// First parse as generic interface to handle the mixed structure
+		var tsconfigGeneric map[string]interface{}
+		if unmarshalErr := json.Unmarshal(merged, &tsconfigGeneric); unmarshalErr == nil && tsconfigGeneric != nil {
+			if co, ok := tsconfigGeneric["compilerOptions"]; ok {
+				if compilerOptions, ok2 := co.(map[string]interface{}); ok2 {
+					if typesArr, ok3 := compilerOptions["types"]; ok3 {
+						// typesArr should be []interface{}, convert to []string
+						if typesSlice, ok4 := typesArr.([]interface{}); ok4 {
+							for _, typesModule := range typesSlice {
+								if typesModuleStr, ok5 := typesModule.(string); ok5 {
+									nodeModuleName := "@types/" + typesModuleStr
+									setFilePathInNodeModuleFilesMap(&usedNodeModules, nodeModuleName, tsconfigPath)
+								}
+							}
+						}
 					}
 				}
 			}

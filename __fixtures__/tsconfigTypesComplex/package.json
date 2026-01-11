@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "dep1": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "0.0.0",
+    "@types/google.maps": "0.0.0",
+    "@types/unused-types": "0.0.0"
+  },
+  "scripts": {}
+}

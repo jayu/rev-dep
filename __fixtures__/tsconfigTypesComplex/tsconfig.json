@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "downlevelIteration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "incremental": true,
+    "inlineSources": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "paths": {
+      "*": ["./*"],
+      "@/components/*": ["./app/components/*"]
+    },
+    "plugins": [{"name": "next"}],
+    "sourceMap": true,
+    "sourceRoot": "/",
+    "strict": false,
+    "strictNullChecks": false,
+    "target": "ESNext",
+    "types": ["google.maps", "node"]
+  }
+}

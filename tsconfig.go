@@ -255,49 +255,49 @@ func mergeCompilerOptions(base, child map[string]interface{}) map[string]interfa
 // directory of the child config that is merging the base into itself.
 func rebasePaths(cfg map[string]interface{}, fromDir, toDir string) {
 	co, ok := cfg["compilerOptions"].(map[string]interface{})
- 	if !ok {
- 		return
- 	}
+	if !ok {
+		return
+	}
 
- 	pathsRaw, ok := co["paths"].(map[string]interface{})
- 	if !ok {
- 		return
- 	}
+	pathsRaw, ok := co["paths"].(map[string]interface{})
+	if !ok {
+		return
+	}
 
- 	newPaths := map[string]interface{}{}
- 	for key, val := range pathsRaw {
- 		switch arr := val.(type) {
- 		case []interface{}:
- 			newArr := make([]interface{}, 0, len(arr))
- 			for _, e := range arr {
- 				str, ok := e.(string)
- 				if !ok {
- 					newArr = append(newArr, e)
- 					continue
- 				}
+	newPaths := map[string]interface{}{}
+	for key, val := range pathsRaw {
+		switch arr := val.(type) {
+		case []interface{}:
+			newArr := make([]interface{}, 0, len(arr))
+			for _, e := range arr {
+				str, ok := e.(string)
+				if !ok {
+					newArr = append(newArr, e)
+					continue
+				}
 
- 				// If absolute, keep as-is (normalized). Otherwise resolve from fromDir
- 				if filepath.IsAbs(str) {
- 					newArr = append(newArr, filepath.ToSlash(str))
- 					continue
- 				}
+				// If absolute, keep as-is (normalized). Otherwise resolve from fromDir
+				if filepath.IsAbs(str) {
+					newArr = append(newArr, filepath.ToSlash(str))
+					continue
+				}
 
- 				abs := filepath.Clean(filepath.Join(fromDir, str))
- 				rel, err := filepath.Rel(toDir, abs)
- 				if err != nil {
- 					// fallback to absolute path if relative conversion fails
- 					newArr = append(newArr, filepath.ToSlash(abs))
- 				} else {
- 					// Use forward slashes for TS paths
- 					newArr = append(newArr, filepath.ToSlash(rel))
- 				}
- 			}
- 			newPaths[key] = newArr
- 		default:
- 			newPaths[key] = val
- 		}
- 	}
+				abs := filepath.Clean(filepath.Join(fromDir, str))
+				rel, err := filepath.Rel(toDir, abs)
+				if err != nil {
+					// fallback to absolute path if relative conversion fails
+					newArr = append(newArr, filepath.ToSlash(abs))
+				} else {
+					// Use forward slashes for TS paths
+					newArr = append(newArr, filepath.ToSlash(rel))
+				}
+			}
+			newPaths[key] = newArr
+		default:
+			newPaths[key] = val
+		}
+	}
 
- 	co["paths"] = newPaths
- 	cfg["compilerOptions"] = co
+	co["paths"] = newPaths
+	cfg["compilerOptions"] = co
 }

@@ -85,70 +85,76 @@ func TestCircularCmd(t *testing.T) {
 	golden.Assert(t, output, "circular.golden")
 }
 
-func TestListCwdFilesCmd(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+func TestListCwdFiles(t *testing.T) {
+	t.Run("list-cwd-files", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
-	output, err := captureOutput(func() error {
-		return listCwdFilesCmdFn(mockProjectPath, []string{}, []string{}, false)
+		output, err := captureOutput(func() error {
+			return listCwdFilesCmdFn(mockProjectPath, []string{}, []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "list-cwd-files.golden")
 	})
 
-	assert.NilError(t, err)
-	golden.Assert(t, output, "list-cwd-files.golden")
+	t.Run("list-cwd-files --count", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return listCwdFilesCmdFn(mockProjectPath, []string{}, []string{}, true)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "list-cwd-files-count.golden")
+	})
 }
 
-func TestListCwdFilesCmdCount(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+func TestEntryPoints(t *testing.T) {
+	t.Run("entry-points", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
-	output, err := captureOutput(func() error {
-		return listCwdFilesCmdFn(mockProjectPath, []string{}, []string{}, true)
+		output, err := captureOutput(func() error {
+			return entryPointsCmdFn(mockProjectPath, false, false, false, []string{}, []string{}, []string{}, "", "")
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "entry-points.golden")
 	})
 
-	assert.NilError(t, err)
-	golden.Assert(t, output, "list-cwd-files-count.golden")
+	t.Run("entry-points --print-deps-count", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return entryPointsCmdFn(mockProjectPath, false, false, true, []string{}, []string{}, []string{}, "", "")
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "entry-points-deps-count.golden")
+	})
 }
 
-func TestEntryPointsCmd(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+func TestFiles(t *testing.T) {
+	t.Run("files --entry-point index.ts", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
-	output, err := captureOutput(func() error {
-		return entryPointsCmdFn(mockProjectPath, false, false, false, []string{}, []string{}, []string{}, "", "")
+		output, err := captureOutput(func() error {
+			return filesCmdFn(mockProjectPath, "index.ts", false, false, "", "")
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "files.golden")
 	})
 
-	assert.NilError(t, err)
-	golden.Assert(t, output, "entry-points.golden")
-}
+	t.Run("files --entry-point index.ts --count", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
-func TestEntryPointsCmdWithDepsCount(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+		output, err := captureOutput(func() error {
+			return filesCmdFn(mockProjectPath, "index.ts", false, true, "", "")
+		})
 
-	output, err := captureOutput(func() error {
-		return entryPointsCmdFn(mockProjectPath, false, false, true, []string{}, []string{}, []string{}, "", "")
+		assert.NilError(t, err)
+		golden.Assert(t, output, "files-count.golden")
 	})
-
-	assert.NilError(t, err)
-	golden.Assert(t, output, "entry-points-deps-count.golden")
-}
-
-func TestFilesCmd(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "mockProject")
-
-	output, err := captureOutput(func() error {
-		return filesCmdFn(mockProjectPath, "index.ts", false, false, "", "")
-	})
-
-	assert.NilError(t, err)
-	golden.Assert(t, output, "files.golden")
-}
-
-func TestFilesCmdCount(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "mockProject")
-
-	output, err := captureOutput(func() error {
-		return filesCmdFn(mockProjectPath, "index.ts", false, true, "", "")
-	})
-
-	assert.NilError(t, err)
-	golden.Assert(t, output, "files-count.golden")
 }
 
 func TestLinesOfCodeCmd(t *testing.T) {
@@ -163,184 +169,191 @@ func TestLinesOfCodeCmd(t *testing.T) {
 }
 
 func TestResolveCmd(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+	t.Run("resolve --file src/types.ts", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
-	output, err := captureOutput(func() error {
-		return resolveCmdFn(mockProjectPath, "src/types.ts", []string{}, []string{}, false, false, false, "", "")
+		output, err := captureOutput(func() error {
+			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{}, []string{}, false, false, false, "", "")
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "resolve.golden")
 	})
 
-	assert.NilError(t, err)
-	golden.Assert(t, output, "resolve.golden")
+	t.Run("resolve --file src/types.ts --entry-points index.ts", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts"}, []string{}, false, false, false, "", "")
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "resolve-with-entry-points.golden")
+	})
 }
 
-func TestResolveCmdWithEntryPoints(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+func TestNodeModules(t *testing.T) {
+	t.Run("node-modules used", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
 
-	output, err := captureOutput(func() error {
-		return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts"}, []string{}, false, false, false, "", "")
+		output, err := captureOutput(func() error {
+			result, _ := NodeModulesCmd(
+				nodeModulesPath,
+				false,
+				[]string{},
+				false,
+				false,
+				false,
+				false,
+				false,
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				"",
+				"",
+				[]string{},
+				false,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-used.golden")
 	})
 
-	assert.NilError(t, err)
-	golden.Assert(t, output, "resolve-with-entry-points.golden")
+	t.Run("node-modules unused", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+
+		output, err := captureOutput(func() error {
+			result, _ := NodeModulesCmd(
+				nodeModulesPath,
+				false,
+				[]string{},
+				false,
+				true,
+				false,
+				false,
+				false,
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				"",
+				"",
+				[]string{},
+				false,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-unused.golden")
+	})
+
+	t.Run("node-modules missing", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+
+		output, err := captureOutput(func() error {
+			result, _ := NodeModulesCmd(
+				nodeModulesPath,
+				false,
+				[]string{},
+				false,
+				false,
+				true,
+				false,
+				false,
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				"",
+				"",
+				[]string{},
+				false,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-missing.golden")
+	})
 }
 
-// Node modules tests using nodeModulesCmd fixture
-func TestNodeModulesUsedCmd(t *testing.T) {
-	nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+func TestNodeModulesInstalled(t *testing.T) {
+	t.Run("node-modules installed", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
 
-	output, err := captureOutput(func() error {
-		result, _ := NodeModulesCmd(
-			nodeModulesPath,
-			false,
-			[]string{},
-			false,
-			false,
-			false,
-			false,
-			false,
-			[]string{},
-			[]string{},
-			[]string{},
-			[]string{},
-			[]string{},
-			"",
-			"",
-			[]string{},
-			false,
-		)
-		fmt.Print(result)
-		return nil
+		output, err := captureOutput(func() error {
+			result := GetInstalledModulesCmd(
+				nodeModulesPath,
+				[]string{},
+				[]string{},
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-installed.golden")
 	})
 
-	assert.NilError(t, err)
-	golden.Assert(t, output, "node-modules-used.golden")
+	t.Run("node-modules installed-duplicates", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+
+		output, err := captureOutput(func() error {
+			result := GetDuplicatedModulesCmd(
+				nodeModulesPath,
+				false,
+				false,
+				false,
+				false,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-installed-duplicates.golden")
+	})
 }
 
-func TestNodeModulesUnusedCmd(t *testing.T) {
-	nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+func TestNodeModulesAnalyze(t *testing.T) {
+	t.Run("node-modules analyze-size", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
 
-	output, err := captureOutput(func() error {
-		result, _ := NodeModulesCmd(
-			nodeModulesPath,
-			false,
-			[]string{},
-			false,
-			true,
-			false,
-			false,
-			false,
-			[]string{},
-			[]string{},
-			[]string{},
-			[]string{},
-			[]string{},
-			"",
-			"",
-			[]string{},
-			false,
-		)
-		fmt.Print(result)
-		return nil
+		output, err := captureOutput(func() error {
+			modules, _ := GetInstalledModules(nodeModulesPath, []string{}, []string{})
+			results, err := AnalyzeNodeModules(nodeModulesPath, modules)
+			if err != nil {
+				return err
+			}
+
+			PrintAnalysis(results)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-analyze-size.golden")
 	})
 
-	assert.NilError(t, err)
-	golden.Assert(t, output, "node-modules-unused.golden")
-}
+	t.Run("node-modules dirs-size", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
 
-func TestNodeModulesMissingCmd(t *testing.T) {
-	nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+		output, err := captureOutput(func() error {
+			result := ModulesDiskSizeCmd(nodeModulesPath)
+			fmt.Print(result)
+			return nil
+		})
 
-	output, err := captureOutput(func() error {
-		result, _ := NodeModulesCmd(
-			nodeModulesPath,
-			false,
-			[]string{},
-			false,
-			false,
-			true,
-			false,
-			false,
-			[]string{},
-			[]string{},
-			[]string{},
-			[]string{},
-			[]string{},
-			"",
-			"",
-			[]string{},
-			false,
-		)
-		fmt.Print(result)
-		return nil
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-dirs-size.golden")
 	})
-
-	assert.NilError(t, err)
-	golden.Assert(t, output, "node-modules-missing.golden")
-}
-
-func TestNodeModulesInstalledCmd(t *testing.T) {
-	nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
-
-	output, err := captureOutput(func() error {
-		result := GetInstalledModulesCmd(
-			nodeModulesPath,
-			[]string{},
-			[]string{},
-		)
-		fmt.Print(result)
-		return nil
-	})
-
-	assert.NilError(t, err)
-	golden.Assert(t, output, "node-modules-installed.golden")
-}
-
-func TestNodeModulesInstalledDuplicatesCmd(t *testing.T) {
-	nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
-
-	output, err := captureOutput(func() error {
-		result := GetDuplicatedModulesCmd(
-			nodeModulesPath,
-			false,
-			false,
-			false,
-			false,
-		)
-		fmt.Print(result)
-		return nil
-	})
-
-	assert.NilError(t, err)
-	golden.Assert(t, output, "node-modules-installed-duplicates.golden")
-}
-
-func TestNodeModulesAnalyzeSizeCmd(t *testing.T) {
-	nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
-
-	output, err := captureOutput(func() error {
-		modules, _ := GetInstalledModules(nodeModulesPath, []string{}, []string{})
-		results, err := AnalyzeNodeModules(nodeModulesPath, modules)
-		if err != nil {
-			return err
-		}
-
-		PrintAnalysis(results)
-		return nil
-	})
-
-	assert.NilError(t, err)
-	golden.Assert(t, output, "node-modules-analyze-size.golden")
-}
-
-func TestNodeModulesDirsSizeCmd(t *testing.T) {
-	nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
-
-	output, err := captureOutput(func() error {
-		result := ModulesDiskSizeCmd(nodeModulesPath)
-		fmt.Print(result)
-		return nil
-	})
-
-	assert.NilError(t, err)
-	golden.Assert(t, output, "node-modules-dirs-size.golden")
 }

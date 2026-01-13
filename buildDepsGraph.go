@@ -7,28 +7,28 @@ import (
 
 // buildDepsGraph builds a dependency graph from the minimal dependency tree
 func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNodeModuleName *string, allPaths bool) BuildDepsGraphResult {
-	vertices := make(map[string]*Node)
-	var fileOrNodeModuleNode *Node
+	vertices := make(map[string]*SerializableNode)
+	var fileOrNodeModuleNode *SerializableNode
 
-	var inner func(path string, visited map[string]bool, depth int, parent *Node) *Node
-	inner = func(path string, visited map[string]bool, depth int, parent *Node) *Node {
+	var inner func(path string, visited map[string]bool, depth int, parent *SerializableNode) *SerializableNode
+	inner = func(path string, visited map[string]bool, depth int, parent *SerializableNode) *SerializableNode {
 		// Check if vertex already exists
 		if vertex, exists := vertices[path]; exists {
 			// Add parent to existing vertex
 			if parent != nil {
-				vertex.Parents = append(vertex.Parents, parent)
+				vertex.Parents = append(vertex.Parents, parent.Path)
 			}
 			return vertex
 		}
 
 		// Check for circular dependency - use shared visited set without copying
 		if visited[path] {
-			circularNode := &Node{
+			circularNode := &SerializableNode{
 				Path:     "CIRCULAR",
-				Children: []*Node{},
+				Children: []string{},
 			}
 			if parent != nil {
-				circularNode.Parents = []*Node{parent}
+				circularNode.Parents = []string{parent.Path}
 			}
 			return circularNode
 		}
@@ -49,20 +49,20 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 		}
 
 		// Create new node
-		node := &Node{
+		node := &SerializableNode{
 			Path:     path,
-			Children: []*Node{},
+			Children: []string{},
 		}
 
 		if parent != nil {
-			node.Parents = []*Node{parent}
+			node.Parents = []string{parent.Path}
 		}
 
 		for _, d := range dep {
 			// Do not follow other modules than user modules and monorepo modules
 			if d.ID != nil && *d.ID != "" && (d.ResolvedType == UserModule || d.ResolvedType == MonorepoModule) {
 				childNode := inner(*d.ID, visited, depth+1, node)
-				node.Children = append(node.Children, childNode)
+				node.Children = append(node.Children, childNode.Path)
 			}
 		}
 
@@ -82,42 +82,24 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 
 	root := inner(entryPoint, make(map[string]bool), 1, nil)
 
-	// Convert to serializable format using helper function to avoid duplication
-	serializableVertices := make(map[string]*SerializableNode)
-	for path, node := range vertices {
-		serializableVertices[path] = nodeToSerializable(node)
-	}
-
-	// Convert root to serializable format using helper function
-	var serializableRoot *SerializableNode
-	if root != nil {
-		serializableRoot = nodeToSerializable(root)
-	}
-
-	// Convert fileOrNodeModuleNode to serializable format using helper function
-	var serializableFileOrNodeModuleNode *SerializableNode
-	if fileOrNodeModuleNode != nil {
-		serializableFileOrNodeModuleNode = nodeToSerializable(fileOrNodeModuleNode)
-	}
-
 	// Compute resolution paths if a specific file was found
 	var resolutionPaths [][]string
 	if fileOrNodeModuleNode != nil {
 		// Initialize with empty path array for the resolvePathsToRoot function
 		initialPaths := [][]string{{}}
-		resolutionPaths = ResolvePathsToRoot(fileOrNodeModuleNode, allPaths, initialPaths, 0)
+		resolutionPaths = ResolvePathsToRoot(fileOrNodeModuleNode, vertices, allPaths, initialPaths, 0)
 	}
 
 	return BuildDepsGraphResult{
-		Root:                 serializableRoot,
-		FileOrNodeModuleNode: serializableFileOrNodeModuleNode,
+		Root:                 root,
+		FileOrNodeModuleNode: fileOrNodeModuleNode,
 		ResolutionPaths:      resolutionPaths,
-		Vertices:             serializableVertices,
+		Vertices:             vertices,
 	}
 }
 
 // ResolvePathsToRoot resolves all paths from a node to the root(s)
-func ResolvePathsToRoot(node *Node, all bool, resolvedPaths [][]string, depth int) [][]string {
+func ResolvePathsToRoot(node *SerializableNode, vertices map[string]*SerializableNode, all bool, resolvedPaths [][]string, depth int) [][]string {
 
 	// Create new paths by prepending current node path to each resolved path
 	// Optimize by preallocating and copying in place
@@ -143,9 +125,13 @@ func ResolvePathsToRoot(node *Node, all bool, resolvedPaths [][]string, depth in
 	if all {
 		// Collect paths from all parents
 		var allPaths [][]string
-		for _, parent := range node.Parents {
+		for _, parentPath := range node.Parents {
+			parent, exists := vertices[parentPath]
+			if !exists {
+				continue
+			}
 			// fmt.Println("check parent", parent.Path, depth)
-			parentPaths := ResolvePathsToRoot(parent, all, newPaths, depth+1)
+			parentPaths := ResolvePathsToRoot(parent, vertices, all, newPaths, depth+1)
 			allPaths = append(allPaths, parentPaths...)
 			if len(allPaths) > 1000 {
 				fmt.Println("Resolving all paths hard stop on 1000 paths")
@@ -156,37 +142,12 @@ func ResolvePathsToRoot(node *Node, all bool, resolvedPaths [][]string, depth in
 	}
 
 	// Only follow the first parent
-	return ResolvePathsToRoot(node.Parents[0], false, newPaths, depth)
-}
-
-// nodeToSerializable converts a Node to SerializableNode, avoiding code duplication
-func nodeToSerializable(node *Node) *SerializableNode {
-	serializableNode := &SerializableNode{
-		Path:     node.Path,
-		Parents:  make([]string, 0, len(node.Parents)),
-		Children: make([]string, 0, len(node.Children)),
-	}
-
-	for _, parent := range node.Parents {
-		if parent != nil {
-			serializableNode.Parents = append(serializableNode.Parents, parent.Path)
+	if len(node.Parents) > 0 {
+		if parent, exists := vertices[node.Parents[0]]; exists {
+			return ResolvePathsToRoot(parent, vertices, false, newPaths, depth)
 		}
 	}
-
-	for _, child := range node.Children {
-		if child != nil {
-			serializableNode.Children = append(serializableNode.Children, child.Path)
-		}
-	}
-
-	return serializableNode
-}
-
-// Node represents a node in the dependency graph
-type Node struct {
-	Path     string  `json:"path"`
-	Parents  []*Node `json:"parents,omitempty"`
-	Children []*Node `json:"children,omitempty"`
+	return newPaths
 }
 
 // SerializableNode represents a node that can be safely JSON marshaled

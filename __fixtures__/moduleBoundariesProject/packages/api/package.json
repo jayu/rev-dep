@@ -1,0 +1,8 @@
+{
+  "name": "@packages/api",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@packages/utils": "1.0.0"
+  }
+}

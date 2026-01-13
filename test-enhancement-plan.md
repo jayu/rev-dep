@@ -66,7 +66,7 @@ func TestResolveCmd(t *testing.T) {
 ### 1. Resolve Command Tests
 **Current Parameters**: file, entry-points, graph-exclude, ignore-type-imports, all, compact-summary, package-json, tsconfig-json, condition-names, follow-monorepo-packages
 
-🟡 **PENDING** - Multiple entry points with graph exclusion
+✅ **DONE** - Multiple entry points with graph exclusion
 ```go
 t.Run("resolve --file src/types.ts --entry-points index.ts,src/importFileA.ts --graph-exclude 'src/nested/**'", func(t *testing.T) {
     mockProjectPath := filepath.Join("__fixtures__", "mockProject")
@@ -74,7 +74,7 @@ t.Run("resolve --file src/types.ts --entry-points index.ts,src/importFileA.ts --
 })
 ```
 
-🟡 **PENDING** - Type imports with all paths
+✅ **DONE** - All paths with entry points
 ```go
 t.Run("resolve --file src/types.ts --entry-points index.ts --ignore-type-imports --all", func(t *testing.T) {
     mockProjectPath := filepath.Join("__fixtures__", "mockProject")

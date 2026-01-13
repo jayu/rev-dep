@@ -79,7 +79,7 @@ var (
 	resolveCompactSummary bool
 )
 
-func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string) error {
+func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
 	var absolutePathToEntryPoints []string
 
 	if len(entryPoints) > 0 {
@@ -220,6 +220,8 @@ Helps understand how different parts of your codebase are connected.`,
 			resolveCompactSummary,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 	},
 }
@@ -235,7 +237,7 @@ var (
 	entryPointsResultInclude     []string
 )
 
-func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string) error {
+func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 	notReferencedFiles := GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
@@ -299,6 +301,8 @@ Useful for understanding your application's architecture and dependencies.`,
 			entryPointsResultInclude,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 	},
 }
@@ -309,7 +313,7 @@ var (
 	circularIgnoreType bool
 )
 
-func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string) error {
+func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
 	excludeFiles := []string{}
 
 	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
@@ -335,6 +339,8 @@ Circular dependencies can cause hard-to-debug issues and should generally be avo
 			circularIgnoreType,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 	},
 }
@@ -613,7 +619,7 @@ var (
 	filesCount      bool
 )
 
-func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJsonPath, tsconfigJsonPath string) error {
+func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
 	absolutePathToEntryPoint := JoinWithCwd(cwd, entryPoint)
 	excludeFiles := []string{}
 
@@ -653,6 +659,8 @@ by the specified entry point.`,
 			filesCount,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 	},
 }

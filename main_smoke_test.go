@@ -114,7 +114,7 @@ func TestEntryPoints(t *testing.T) {
 		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
 		output, err := captureOutput(func() error {
-			return entryPointsCmdFn(mockProjectPath, false, false, false, []string{}, []string{}, []string{}, "", "")
+			return entryPointsCmdFn(mockProjectPath, false, false, false, []string{}, []string{}, []string{}, "", "", []string{}, false)
 		})
 
 		assert.NilError(t, err)
@@ -125,7 +125,7 @@ func TestEntryPoints(t *testing.T) {
 		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
 		output, err := captureOutput(func() error {
-			return entryPointsCmdFn(mockProjectPath, false, false, true, []string{}, []string{}, []string{}, "", "")
+			return entryPointsCmdFn(mockProjectPath, false, false, true, []string{}, []string{}, []string{}, "", "", []string{}, false)
 		})
 
 		assert.NilError(t, err)
@@ -138,7 +138,7 @@ func TestFiles(t *testing.T) {
 		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
 		output, err := captureOutput(func() error {
-			return filesCmdFn(mockProjectPath, "index.ts", false, false, "", "")
+			return filesCmdFn(mockProjectPath, "index.ts", false, false, "", "", []string{}, false)
 		})
 
 		assert.NilError(t, err)
@@ -149,7 +149,7 @@ func TestFiles(t *testing.T) {
 		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
 		output, err := captureOutput(func() error {
-			return filesCmdFn(mockProjectPath, "index.ts", false, true, "", "")
+			return filesCmdFn(mockProjectPath, "index.ts", false, true, "", "", []string{}, false)
 		})
 
 		assert.NilError(t, err)
@@ -173,7 +173,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{}, []string{}, false, false, false, "", "")
+			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{}, []string{}, false, false, false, "", "", []string{}, false)
 		})
 
 		assert.NilError(t, err)
@@ -184,11 +184,33 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts"}, []string{}, false, false, false, "", "")
+			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts"}, []string{}, false, false, false, "", "", []string{}, false)
 		})
 
 		assert.NilError(t, err)
 		golden.Assert(t, output, "resolve-with-entry-points.golden")
+	})
+
+	t.Run("resolve --file src/types.ts --entry-points index.ts,src/importFileA.ts --graph-exclude 'src/nested/**'", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts", "src/importFileA.ts"}, []string{"src/nested/**"}, false, false, false, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "resolve-multiple-entry-points-graph-exclude.golden")
+	})
+
+	t.Run("resolve --file src/types.ts --entry-points index.ts --all", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts"}, []string{}, false, true, false, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "resolve-all-paths.golden")
 	})
 }
 

@@ -313,7 +313,7 @@ var (
 	circularIgnoreType bool
 )
 
-func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) (int, error) {
 	excludeFiles := []string{}
 
 	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
@@ -321,10 +321,7 @@ func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPat
 
 	fmt.Fprint(os.Stderr, FormatCircularDependencies(cycles, cwd, minimalTree))
 
-	if len(cycles) > 0 {
-		os.Exit(len(cycles))
-	}
-	return nil
+	return len(cycles), nil
 }
 
 var circularCmd = &cobra.Command{
@@ -334,7 +331,7 @@ var circularCmd = &cobra.Command{
 Circular dependencies can cause hard-to-debug issues and should generally be avoided.`,
 	Example: "rev-dep circular --ignore-types-imports",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return circularCmdFn(
+		count, err := circularCmdFn(
 			ResolveAbsoluteCwd(circularCwd),
 			circularIgnoreType,
 			packageJsonPath,
@@ -342,6 +339,13 @@ Circular dependencies can cause hard-to-debug issues and should generally be avo
 			conditionNames,
 			followMonorepoPackages,
 		)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			os.Exit(count)
+		}
+		return nil
 	},
 }
 

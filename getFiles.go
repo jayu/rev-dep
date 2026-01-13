@@ -57,7 +57,12 @@ func findAndProcessGitIgnoreFilesUpToRepoRoot(dirPath string, globMatchers []Glo
 		return globMatchers
 	}
 
-	return findAndProcessGitIgnoreFilesUpToRepoRoot(StandardiseDirPath(filepath.Join(dirPath, "../")), globMatchers)
+	parent := StandardiseDirPath(filepath.Join(dirPath, "../"))
+	if parent == dirPath {
+		return globMatchers
+	}
+
+	return findAndProcessGitIgnoreFilesUpToRepoRoot(parent, globMatchers)
 }
 
 func GetFiles(directory string, existingFiles []string, parentGlobMatchers []GlobMatcher) []string {

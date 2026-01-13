@@ -1,0 +1,12 @@
+/packages/baseurl-consumer/import-baseurl.ts
+/packages/consumer-package/import-no-exports-index.ts
+/packages/consumer-package/import-no-exports-lib-index.ts
+/packages/consumer-package/import-no-exports-simple.ts
+/packages/consumer-package/import-no-exports-utils-index.ts
+/packages/consumer-package/import-no-exports-utils.ts
+/packages/consumer-package/index.ts
+/packages/exported-package/blocked/other.ts
+/packages/exported-package/blocked/something.ts
+/packages/exported-package/src/blocked/other.ts
+/packages/exported-package/src/features/private-internal-utils.ts
+/packages/no-exports-package/utils/index.ts

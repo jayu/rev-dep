@@ -1,3 +1,3 @@
 export const deepNode = () => {
-  return "Deep nested export - development + node condition";
+  return "Deep nested export - node condition";
 };

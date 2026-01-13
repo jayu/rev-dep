@@ -2,8 +2,12 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/module/*": ["./moduleSrc/*"],
-      "@utils-lib": ["lodash"]
+      "@/module/*": [
+        "./moduleSrc/*"
+      ],
+      "@utils-lib": [
+        "lodash"
+      ]
     }
   }
 }

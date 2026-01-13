@@ -1,18 +1,10 @@
 
 Dependency paths from entry points to 'src/types.ts':
 
-/index.ts (1):
+/src/exclude-test-entry.ts (1):
 
 Path 1:
- ➞ /index.ts
-  ➞ /moduleSrc/fileA.tsx
-   ➞ /src/types.ts
+ ➞ /src/exclude-test-entry.ts
+  ➞ /src/types.ts
 
-/src/importFileA.ts (1):
-
-Path 1:
- ➞ /src/importFileA.ts
-  ➞ /moduleSrc/fileA.tsx
-   ➞ /src/types.ts
-
-Total: 2
+Total: 1

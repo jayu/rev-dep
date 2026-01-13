@@ -1,41 +1,38 @@
-// Test different exports specificity
 import { mainFunction } from "exported-package";
 import { featureA } from "exported-package/features/feature-a";
 import { featureB } from "exported-package/features/feature-b";
 
-// Test conditional exports (development vs production)
+// This import uses conditional mapping
 import { helper } from "exported-package/utils/helper";
 
-// Test basic wildcard scenario
+// This import uses wildcard mapping
 import { something } from "exported-package/wildcard/something.js";
 
-// Test root wildcard scenario
-import { config } from "exported-package/root/config/setup.config.js";
+// This import uses root wildcard mapping
+import { setup } from "exported-package/root/config/setup.config.js";
 
-// Test directory swap with file name
-import { featureFromDist } from "exported-package/features/feature-from-dist.js";
+// This import uses directory swap mapping
+import { xyz } from "exported-package/features/feature-from-dist.js";
 
-// Test proper directory name with file name swap
-import { testFile } from "exported-package/some/xyz/file.js";
+// This import uses directory swap mapping
+import { swapped } from "exported-package/some/xyz/file.js";
 
-// Test multiple wildcards (should be excluded/unresolvable)
-import { invalidFile } from "exported-package/invalid/a/to/b/file.js";
+// This import uses invalid multiple wildcard pattern (currently bugged, but should be Mark as NotResolved)
+import { invalid } from "exported-package/invalid/a/to/b/file.js";
 
-// Test deeply nested exports with different condition sets
+// These imports test deeply nested conditional exports
 import { deepNode } from "exported-package/deep";
 import { deepDevDefault } from "exported-package/deep";
-import { deepFallback } from "exported-package/deep";
+import { deepProdBrowser } from "exported-package/deep";
 
-// Test blocked path in deep nested structure
-import { deepBlocked } from "exported-package/deep/blocked";
+// This tests a blocked path
+import { blocked } from "exported-package/deep/blocked";
 
-// This should fail due to blocked path
-import { internal } from "exported-package/features/private-internal-utils";
+// More blocked paths
+import { privateInternal } from "exported-package/features/private-internal-utils";
+import { blockedSomething } from "exported-package/blocked/something";
+import { blockedOther } from "exported-package/blocked/other";
 
-
-// This should fail due to blocked wildcard
-import { blocked } from "exported-package/blocked/something";
-import { blocked2 } from "exported-package/blocked/other";
-
-
-export { mainFunction, featureA, featureB, helper, something, config, featureFromDist, testFile, invalidFile, deepNode, deepDevDefault, deepFallback, deepBlocked };
+export const consumerFunction = () => {
+    return "This is the consumer package " + mainFunction() + featureA() + featureB() + helper() + something() + setup() + xyz() + swapped() + invalid() + deepNode() + deepDevDefault() + deepProdBrowser() + blocked() + privateInternal() + blockedSomething() + blockedOther();
+};

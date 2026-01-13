@@ -1,0 +1,15 @@
+global.d.ts
+index.ts
+lodash/file.ts
+moduleSrc/anotherFileForCycle.js
+moduleSrc/fileForCycle.ts
+script.js
+src/fileDirTheSameName/index.ts
+src/fileDirTheSameName.ts
+src/importFileA.ts
+src/importFileWithSamePathAsNodeModule.ts
+src/importFileWithTheSameNameAsDir.ts
+src/importFileWithTheSameNameAsDirOutsideCwd.ts
+src/importNestedFile.ts
+src/nodeModules.ts
+src/types.ts

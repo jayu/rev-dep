@@ -1,0 +1,14 @@
+{
+  "name": "@monorepo/pkg-b",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "exports": {
+    ".": {
+      "node": "./node.ts",
+      "default": "./index.ts"
+    }
+  },
+  "dependencies": {
+    "@monorepo/pkg-a": "*"
+  }
+}

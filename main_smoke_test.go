@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gotest.tools/v3/assert"
@@ -66,23 +68,57 @@ func captureOutput(fn func() error) (string, error) {
 }
 
 func TestCircularCmd(t *testing.T) {
-	mockProjectPath := filepath.Join("__fixtures__", "multipleCyclesFromSameNode")
+	t.Run("circular", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "circularSmoke")
 
-	// Run the command directly since os.Exit can't be captured
-	output, err := captureOutput(func() error {
-		// Use minimal dependency tree to avoid os.Exit
-		excludeFiles := []string{}
-		minimalTree, files, _ := GetMinimalDepsTreeForCwd(mockProjectPath, false, excludeFiles, []string{}, "", "", []string{}, false)
-		cycles := FindCircularDependencies(minimalTree, files)
+		output, err := captureOutput(func() error {
+			// finds standard cycle and path-based cycle (default tsconfig.json)
+			_, err := circularCmdFn(mockProjectPath, false, "", "", []string{}, false)
+			return err
+		})
 
-		// Format the output manually and write to stdout (not stderr like original)
-		result := FormatCircularDependencies(cycles, mockProjectPath, minimalTree)
-		fmt.Print(result)
-		return nil
+		assert.NilError(t, err)
+		golden.Assert(t, output, "circular.golden")
 	})
 
-	assert.NilError(t, err)
-	golden.Assert(t, output, "circular.golden")
+	t.Run("circular --ignore-type-imports --condition-names node,imports", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "circularMonorepoSmoke")
+
+		output, err := captureOutput(func() error {
+			// finds inter-package standard cycle AND condition-based cycle (node)
+			_, err := circularCmdFn(mockProjectPath, true, "", "", []string{"node", "imports"}, true)
+			return err
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "circular-monorepo-conditions-ignore-type.golden")
+	})
+
+	t.Run("circular --package-json custom.package.json --tsconfig-json custom.tsconfig.json", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "circularSmoke")
+
+		output, err := captureOutput(func() error {
+			// finds ONLY standard cycle because custom.tsconfig.json lacks paths
+			_, err := circularCmdFn(mockProjectPath, false, "custom.package.json", "custom.tsconfig.json", []string{}, false)
+			return err
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "circular-custom-config.golden")
+	})
+
+	t.Run("circular --follow-monorepo-packages --ignore-type-imports", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "circularMonorepoSmoke")
+
+		output, err := captureOutput(func() error {
+			// finds inter-package cycles
+			_, err := circularCmdFn(mockProjectPath, true, "", "", []string{}, true)
+			return err
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "circular-monorepo-ignore-type.golden")
+	})
 }
 
 func TestListCwdFiles(t *testing.T) {
@@ -106,6 +142,39 @@ func TestListCwdFiles(t *testing.T) {
 
 		assert.NilError(t, err)
 		golden.Assert(t, output, "list-cwd-files-count.golden")
+	})
+
+	t.Run("list-cwd-files --include 'src/**/*.ts' --exclude 'src/nested/**'", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return listCwdFilesCmdFn(mockProjectPath, []string{"src/**/*.ts"}, []string{"src/nested/**"}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "list-cwd-files-include-exclude.golden")
+	})
+
+	t.Run("list-cwd-files --include 'src/**/*.ts' --exclude '**/*.d.ts' --count", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return listCwdFilesCmdFn(mockProjectPath, []string{"src/**/*.ts"}, []string{"**/*.d.ts"}, true)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "list-cwd-files-complex-count.golden")
+	})
+
+	t.Run("list-cwd-files --include '**/*.ts' --include '**/*.js' --exclude 'src/nested/**'", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return listCwdFilesCmdFn(mockProjectPath, []string{"**/*.ts", "**/*.js"}, []string{"src/nested/**"}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "list-cwd-files-multiple-include.golden")
 	})
 }
 
@@ -154,15 +223,15 @@ func TestEntryPoints(t *testing.T) {
 		golden.Assert(t, output, "entry-points-include-patterns-deps-count.golden")
 	})
 
-	t.Run("entry-points --condition-names node,imports --follow-monorepo-packages --print-deps-count", func(t *testing.T) {
+	t.Run("entry-points --graph-exclude 'packages/exported-package/src/deep/**' --result-exclude '**/*.d.ts' --result-include 'packages/**/*.ts' --follow-monorepo-packages", func(t *testing.T) {
 		mockProjectPath := filepath.Join("__fixtures__", "mockMonorepo")
 
 		output, err := captureOutput(func() error {
-			return entryPointsCmdFn(mockProjectPath, false, false, true, []string{}, []string{}, []string{}, "", "", []string{"node", "imports"}, true)
+			return entryPointsCmdFn(mockProjectPath, false, false, false, []string{"packages/exported-package/src/deep/**"}, []string{"**/*.d.ts"}, []string{"packages/**/*.ts"}, "", "", []string{}, true)
 		})
 
 		assert.NilError(t, err)
-		golden.Assert(t, output, "entry-points-conditions-monorepo.golden")
+		golden.Assert(t, output, "entry-points-complex-filtering-monorepo.golden")
 	})
 }
 
@@ -187,6 +256,52 @@ func TestFiles(t *testing.T) {
 
 		assert.NilError(t, err)
 		golden.Assert(t, output, "files-count.golden")
+	})
+
+	t.Run("files --entry-point index.ts --ignore-type-imports --package-json custom.package.json", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return filesCmdFn(mockProjectPath, "index.ts", true, false, "custom.package.json", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "files-ignore-type-custom-config.golden")
+	})
+
+	t.Run("files --entry-point packages/exported-package/src/main.ts --condition-names node,imports --follow-monorepo-packages --count", func(t *testing.T) {
+		tempDir := t.TempDir()
+		mockProjectPath := filepath.Join("__fixtures__", "mockMonorepo")
+		tempProjectPath := filepath.Join(tempDir, "mockMonorepo")
+
+		err := copyDir(mockProjectPath, tempProjectPath)
+		assert.NilError(t, err)
+
+		// Create isolated entry point in temp monorepo that imports a conditional subpath
+		entryPointPath := filepath.Join(tempProjectPath, "packages", "exported-package", "src", "smoke-files-count.ts")
+		err = os.WriteFile(entryPointPath, []byte("import 'exported-package/deep';\nexport const countMe = 1;"), 0644)
+		assert.NilError(t, err)
+
+		output, err := captureOutput(func() error {
+			return filesCmdFn(tempProjectPath, "packages/exported-package/src/smoke-files-count.ts", false, true, "", "", []string{"node", "imports"}, true)
+		})
+
+		assert.NilError(t, err)
+
+		// Sanitize output
+		output = strings.ReplaceAll(output, tempProjectPath, "<TMP_FIXTURE_PATH>")
+		golden.Assert(t, output, "files-monorepo-conditions-count.golden")
+	})
+
+	t.Run("files --entry-point packages/consumer-package/index.ts --follow-monorepo-packages --ignore-type-imports", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockMonorepo")
+
+		output, err := captureOutput(func() error {
+			return filesCmdFn(mockProjectPath, "packages/consumer-package/index.ts", true, false, "", "", []string{}, true)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "files-monorepo-ignore-type.golden")
 	})
 }
 
@@ -224,14 +339,33 @@ func TestResolveCmd(t *testing.T) {
 		golden.Assert(t, output, "resolve-with-entry-points.golden")
 	})
 
-	t.Run("resolve --file src/types.ts --entry-points index.ts,src/importFileA.ts --graph-exclude 'src/nested/**'", func(t *testing.T) {
+	t.Run("resolve --file src/types.ts --entry-point src/exclude-test-entry.ts --graph-exclude 'src/nested/**'", func(t *testing.T) {
+		tempDir := t.TempDir()
 		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+		tempProjectPath := filepath.Join(tempDir, "mockProject")
+
+		err := copyDir(mockProjectPath, tempProjectPath)
+		assert.NilError(t, err)
+
+		// Create isolated entry points and helpers in temp project
+		err = os.MkdirAll(filepath.Join(tempProjectPath, "src", "nested"), 0755)
+		assert.NilError(t, err)
+
+		err = os.WriteFile(filepath.Join(tempProjectPath, "src", "nested", "exclude-helper.ts"), []byte("export const helper = 1;"), 0644)
+		assert.NilError(t, err)
+
+		err = os.WriteFile(filepath.Join(tempProjectPath, "src", "exclude-test-entry.ts"), []byte("import './nested/exclude-helper';\nimport './types';"), 0644)
+		assert.NilError(t, err)
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts", "src/importFileA.ts"}, []string{"src/nested/**"}, false, false, false, "", "", []string{}, false)
+			return resolveCmdFn(tempProjectPath, "src/types.ts", []string{"src/exclude-test-entry.ts"}, []string{"src/nested/**"}, false, false, false, "", "", []string{}, false)
 		})
 
 		assert.NilError(t, err)
+
+		// Sanitize output
+		output = strings.ReplaceAll(output, tempProjectPath, "<TMP_FIXTURE_PATH>")
+
 		golden.Assert(t, output, "resolve-multiple-entry-points-graph-exclude.golden")
 	})
 
@@ -301,6 +435,68 @@ func TestNodeModules(t *testing.T) {
 		golden.Assert(t, output, "node-modules-used.golden")
 	})
 
+	t.Run("node-modules used --entry-points index.ts,src/importFileA.ts --group-by-module --ignore-type-imports", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+
+		output, err := captureOutput(func() error {
+			result, _ := NodeModulesCmd(
+				nodeModulesPath,
+				true,
+				[]string{"index.ts", "src/importFileA.ts"},
+				false,
+				false,
+				false,
+				true,
+				false,
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				"",
+				"",
+				[]string{},
+				false,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-used-grouping-entry-points.golden")
+	})
+
+	t.Run("node-modules used --files-with-binaries fileWithBinary.txt --files-with-node-modules fileWithModule.txt --condition-names node,imports", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+
+		output, err := captureOutput(func() error {
+			result, _ := NodeModulesCmd(
+				nodeModulesPath,
+				false,
+				[]string{},
+				false,
+				false,
+				false,
+				false,
+				false,
+				[]string{},
+				[]string{"fileWithBinary.txt"},
+				[]string{"fileWithModule.txt"},
+				[]string{},
+				[]string{},
+				"",
+				"",
+				[]string{"node", "imports"},
+				false,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-used-file-filters-conditions.golden")
+	})
+
 	t.Run("node-modules unused", func(t *testing.T) {
 		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
 
@@ -330,6 +526,37 @@ func TestNodeModules(t *testing.T) {
 
 		assert.NilError(t, err)
 		golden.Assert(t, output, "node-modules-unused.golden")
+	})
+
+	t.Run("node-modules unused --exclude-modules @types/*,lodash-* --count", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+
+		output, err := captureOutput(func() error {
+			result, _ := NodeModulesCmd(
+				nodeModulesPath,
+				false,
+				[]string{},
+				true,
+				true,
+				false,
+				false,
+				false,
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{"@types/*", "lodash-*"},
+				"",
+				"",
+				[]string{},
+				false,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-unused-exclude-count.golden")
 	})
 
 	t.Run("node-modules missing", func(t *testing.T) {
@@ -362,6 +589,37 @@ func TestNodeModules(t *testing.T) {
 		assert.NilError(t, err)
 		golden.Assert(t, output, "node-modules-missing.golden")
 	})
+
+	t.Run("node-modules missing --entry-points packages/consumer-package/index.ts --condition-names node,imports --follow-monorepo-packages", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "mockMonorepo")
+
+		output, err := captureOutput(func() error {
+			result, _ := NodeModulesCmd(
+				nodeModulesPath,
+				false,
+				[]string{"packages/consumer-package/index.ts"},
+				false,
+				false,
+				true,
+				false,
+				false,
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				[]string{},
+				"",
+				"",
+				[]string{"node", "imports"},
+				true,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-missing-monorepo-conditions.golden")
+	})
 }
 
 func TestNodeModulesInstalled(t *testing.T) {
@@ -382,6 +640,23 @@ func TestNodeModulesInstalled(t *testing.T) {
 		golden.Assert(t, output, "node-modules-installed.golden")
 	})
 
+	t.Run("node-modules installed --include-modules dep1,dep2 --exclude-modules dep1", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+
+		output, err := captureOutput(func() error {
+			result := GetInstalledModulesCmd(
+				nodeModulesPath,
+				[]string{"dep1", "dep2"},
+				[]string{"dep1"},
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "node-modules-installed-include-exclude.golden")
+	})
+
 	t.Run("node-modules installed-duplicates", func(t *testing.T) {
 		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
 
@@ -399,6 +674,38 @@ func TestNodeModulesInstalled(t *testing.T) {
 
 		assert.NilError(t, err)
 		golden.Assert(t, output, "node-modules-installed-duplicates.golden")
+	})
+
+	t.Run("node-modules installed-duplicates --optimize --size-stats --verbose --isolate", func(t *testing.T) {
+		nodeModulesPath := filepath.Join("__fixtures__", "nodeModulesCmdSmoke")
+
+		// Create a temporary copy of the fixture to allow safe mutation
+		tmpDir, err := os.MkdirTemp("", "rev-dep-smoke-test-*")
+		assert.NilError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		tmpFixturePath := filepath.Join(tmpDir, "nodeModulesCmdSmoke")
+		err = copyDir(nodeModulesPath, tmpFixturePath)
+		assert.NilError(t, err)
+
+		output, err := captureOutput(func() error {
+			result := GetDuplicatedModulesCmd(
+				tmpFixturePath,
+				true,
+				true,
+				true,
+				true,
+			)
+			fmt.Print(result)
+			return nil
+		})
+
+		assert.NilError(t, err)
+
+		// Sanitize output to remove temporary directory paths
+		output = strings.ReplaceAll(output, tmpFixturePath, "<TMP_FIXTURE_PATH>")
+
+		golden.Assert(t, output, "node-modules-installed-duplicates-optimized.golden")
 	})
 }
 
@@ -433,4 +740,50 @@ func TestNodeModulesAnalyze(t *testing.T) {
 		assert.NilError(t, err)
 		golden.Assert(t, output, "node-modules-dirs-size.golden")
 	})
+}
+
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+
+		destPath := filepath.Join(dst, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(destPath, info.Mode())
+		}
+
+		return copyFile(path, destPath)
+	})
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err = io.Copy(out, in); err != nil {
+		return err
+	}
+
+	info, err := os.Stat(src)
+	if err == nil {
+		return os.Chmod(dst, info.Mode())
+	}
+
+	return nil
 }

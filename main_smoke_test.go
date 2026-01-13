@@ -131,6 +131,39 @@ func TestEntryPoints(t *testing.T) {
 		assert.NilError(t, err)
 		golden.Assert(t, output, "entry-points-deps-count.golden")
 	})
+
+	t.Run("entry-points --ignore-type-imports --graph-exclude 'src/nested/**' --result-exclude '**/*.d.ts' --count", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return entryPointsCmdFn(mockProjectPath, true, false, true, []string{"src/nested/**"}, []string{"**/*.d.ts"}, []string{}, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "entry-points-exclude-patterns-count.golden")
+	})
+
+	t.Run("entry-points --result-include '**/*.ts' --print-deps-count --ignore-type-imports", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return entryPointsCmdFn(mockProjectPath, true, false, true, []string{}, []string{}, []string{"**/*.ts"}, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "entry-points-include-patterns-deps-count.golden")
+	})
+
+	t.Run("entry-points --condition-names node,imports --follow-monorepo-packages --print-deps-count", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockMonorepo")
+
+		output, err := captureOutput(func() error {
+			return entryPointsCmdFn(mockProjectPath, false, false, true, []string{}, []string{}, []string{}, "", "", []string{"node", "imports"}, true)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "entry-points-conditions-monorepo.golden")
+	})
 }
 
 func TestFiles(t *testing.T) {
@@ -211,6 +244,28 @@ func TestResolveCmd(t *testing.T) {
 
 		assert.NilError(t, err)
 		golden.Assert(t, output, "resolve-all-paths.golden")
+	})
+
+	t.Run("resolve --file src/types.ts --entry-points index.ts --compact-summary --condition-names node,imports", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts"}, []string{}, false, false, true, "", "", []string{"node", "imports"}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "resolve-compact-summary-conditions.golden")
+	})
+
+	t.Run("resolve --file src/types.ts --entry-points index.ts --package-json custom.package.json --tsconfig-json custom.tsconfig.json", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return resolveCmdFn(mockProjectPath, "src/types.ts", []string{"index.ts"}, []string{}, false, false, false, "custom.package.json", "custom.tsconfig.json", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "resolve-custom-config.golden")
 	})
 }
 

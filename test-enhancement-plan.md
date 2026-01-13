@@ -54,10 +54,13 @@ func TestResolveCmd(t *testing.T) {
 - ✅ **DONE** - Test successfully implemented and working
 - ❌ **FAILED** - Test implementation failed or has issues
 
+**IMPORTANT NOTE**: All tests MUST produce non-empty, non-zero results. If a test returns "Total: 0" or empty output, the test configuration is incorrect and needs to be fixed. Each test should resolve at least one dependency to be meaningful.
+
 **How to use:**
 1. Each test has a status indicator before the code block
 2. Update status as tests are implemented
 3. Add notes about any issues or special considerations
+4. **Verify golden files contain meaningful results (not "Total: 0")**
 
 ---
 
@@ -82,15 +85,15 @@ t.Run("resolve --file src/types.ts --entry-points index.ts --ignore-type-imports
 })
 ```
 
-🟡 **PENDING** - Compact summary with conditions
+✅ **DONE** - Compact summary with conditions
 ```go
 t.Run("resolve --file src/types.ts --entry-points index.ts --compact-summary --condition-names node,imports", func(t *testing.T) {
-    mockProjectPath := filepath.Join("__fixtures__", "mockMonorepo")
+    mockProjectPath := filepath.Join("__fixtures__", "mockProject")
     // Test implementation
 })
 ```
 
-🟡 **PENDING** - Custom config files
+✅ **DONE** - Custom config files
 ```go
 t.Run("resolve --file src/types.ts --package-json custom.package.json --tsconfig-json custom.tsconfig.json", func(t *testing.T) {
     mockProjectPath := filepath.Join("__fixtures__", "mockProject")

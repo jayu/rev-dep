@@ -23,15 +23,26 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 
 		// Check for circular dependency - use shared visited set without copying
 		if visited[path] {
-			// Return nil for circular dependencies, parent will handle it
-			return nil
+			// For circular dependencies, we still create the node and link it to maintain the actual cycle
+			// but we don't recurse further to prevent infinite loops
+			if vertex, exists := vertices[path]; exists {
+				// Node already exists, just add parent relationship
+				if parent != nil {
+					vertex.Parents = append(vertex.Parents, parent.Path)
+				}
+				return vertex
+			}
+
+			// Create the circular node to maintain the cycle
 			circularNode := &SerializableNode{
-				Path:     "CIRCULAR",
+				Path:     path,
 				Children: []string{},
+				Parents:  []string{},
 			}
 			if parent != nil {
 				circularNode.Parents = []string{parent.Path}
 			}
+			vertices[path] = circularNode
 			return circularNode
 		}
 
@@ -66,6 +77,15 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 				childNode := inner(*d.ID, visited, depth+1, node)
 				if childNode != nil {
 					node.Children = append(node.Children, childNode.Path)
+				} else {
+					// Create a fallback node to prevent nil pointer issues
+					fallbackNode := &SerializableNode{
+						Path:     *d.ID,
+						Children: []string{},
+						Parents:  []string{path},
+					}
+					vertices[*d.ID] = fallbackNode
+					node.Children = append(node.Children, fallbackNode.Path)
 				}
 			}
 		}
@@ -79,6 +99,17 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 		// Check if this is the file we're looking for
 		if filePathOrNodeModuleName != nil && path == *filePathOrNodeModuleName {
 			fileOrNodeModuleNode = node
+		}
+
+		// Ensure we never return nil
+		if node == nil {
+			fmt.Fprintf(os.Stderr, "Critical error: node is nil for path %s\n", path)
+			node = &SerializableNode{
+				Path:     path,
+				Children: []string{},
+				Parents:  []string{},
+			}
+			vertices[path] = node
 		}
 
 		return node
@@ -122,16 +153,26 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 
 		// Check for circular dependency - use shared visited set without copying
 		if visited[path] {
-			// Return nil for circular dependencies, parent will handle it
-			return nil
+			// For circular dependencies, we still create the node and link it to maintain the actual cycle
+			// but we don't recurse further to prevent infinite loops
+			if vertex, exists := vertices[path]; exists {
+				// Node already exists, just add parent relationship
+				if parent != nil {
+					vertex.Parents = append(vertex.Parents, parent.Path)
+				}
+				return vertex
+			}
 
+			// Create the circular node to maintain the cycle
 			circularNode := &SerializableNode{
-				Path:     "CIRCULAR",
+				Path:     path,
 				Children: []string{},
+				Parents:  []string{},
 			}
 			if parent != nil {
 				circularNode.Parents = []string{parent.Path}
 			}
+			vertices[path] = circularNode
 			return circularNode
 		}
 
@@ -164,9 +205,7 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 			// Do not follow other modules than user modules and monorepo modules
 			if d.ID != nil && *d.ID != "" && (d.ResolvedType == UserModule || d.ResolvedType == MonorepoModule) {
 				childNode := inner(*d.ID, visited, depth+1, node)
-				if childNode != nil {
-					node.Children = append(node.Children, childNode.Path)
-				}
+				node.Children = append(node.Children, childNode.Path)
 			}
 		}
 
@@ -270,33 +309,28 @@ func bst(root *SerializableNode, vertices map[string]*SerializableNode) []string
 		return []string{}
 	}
 
-	visited := make(map[string]bool, len(vertices))
-	queue := make([]string, 0, len(vertices))
-	result := make([]string, 0, len(vertices))
-
-	// Start with root path
-	queue = append(queue, root.Path)
+	visited := make(map[string]bool)
+	queue := []*SerializableNode{root}
+	var result []string
 
 	for len(queue) > 0 {
-		// Dequeue efficiently
-		currentPath := queue[0]
+		// Dequeue the first node
+		current := queue[0]
 		queue = queue[1:]
 
-		// Skip if already visited
-		if visited[currentPath] {
+		// Skip if already visited (prevents infinite loops in circular dependencies)
+		if visited[current.Path] {
 			continue
 		}
 
 		// Mark as visited and add to result
-		visited[currentPath] = true
-		result = append(result, currentPath)
+		visited[current.Path] = true
+		result = append(result, current.Path)
 
 		// Add all children to the queue
-		if current, exists := vertices[currentPath]; exists {
-			for _, childPath := range current.Children {
-				if !visited[childPath] {
-					queue = append(queue, childPath)
-				}
+		for _, childPath := range current.Children {
+			if child, exists := vertices[childPath]; exists && !visited[childPath] {
+				queue = append(queue, child)
 			}
 		}
 	}

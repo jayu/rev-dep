@@ -37,12 +37,18 @@ func TestConfigValidation(t *testing.T) {
 	cwd, _ := os.Getwd()
 	invalidConfig := `
 	{
-		"module_boundaries": [
+		"configVersion": "1.0.0",
+		"rules": [
 			{
-				"name": "Invalid Boundary",
-				"pattern": "./packages/client/**",
-				"allow": [],
-				"deny": []
+				"path": "./",
+				"moduleBoundaries": [
+					{
+						"name": "Invalid Boundary",
+						"pattern": "./packages/client/**",
+						"allow": [],
+						"deny": []
+					}
+				]
 			}
 		]
 	}

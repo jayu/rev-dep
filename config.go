@@ -16,20 +16,56 @@ type BoundaryRule struct {
 	Deny    []string `json:"deny"`    // Glob patterns for denied imports (overrides allow)
 }
 
+type CircularImportsOptions struct {
+	Enabled           bool `json:"enabled"`
+	IgnoreTypeImports bool `json:"ignoreTypeImports"`
+}
+
+type OrphanFilesOptions struct {
+	Enabled           bool     `json:"enabled"`
+	ValidEntryPoints  []string `json:"validEntryPoints"`
+	IgnoreTypeImports bool     `json:"ignoreTypeImports"`
+	GraphExclude      []string `json:"graphExclude"`
+}
+
+type UnusedNodeModulesOptions struct {
+	Enabled                   bool     `json:"enabled"`
+	IncludeModules            []string `json:"includeModules"`
+	ExcludeModules            []string `json:"excludeModules"`
+	PkgJsonFieldsWithBinaries []string `json:"pkgJsonFieldsWithBinaries"`
+	FilesWithBinaries         []string `json:"filesWithBinaries"`
+	FilesWithModules          []string `json:"filesWithModules"`
+	OutputType                string   `json:"outputType"` // "list", "groupByModule", "groupByFile"
+}
+
+type MissingNodeModulesOptions struct {
+	Enabled        bool     `json:"enabled"`
+	IncludeModules []string `json:"includeModules"`
+	ExcludeModules []string `json:"excludeModules"`
+	OutputType     string   `json:"outputType"` // "list", "groupByModule", "groupByFile"
+}
+
+type Rule struct {
+	Path                        string                     `json:"path"` // Required
+	ModuleBoundaries            []BoundaryRule             `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetection    *CircularImportsOptions    `json:"circularImportsDetection,omitempty"`
+	OrphanFilesDetection        *OrphanFilesOptions        `json:"orphanFilesDetection,omitempty"`
+	UnusedNodeModulesDetection  *UnusedNodeModulesOptions  `json:"unusedNodeModulesDetection,omitempty"`
+	MissingNodeModulesDetection *MissingNodeModulesOptions `json:"missingNodeModulesDetection,omitempty"`
+}
+
 type RevDepConfig struct {
-	Path               string         `json:"path,omitempty"` // Working directory this config applies to (default: ".")
-	ModuleBoundaries   []BoundaryRule `json:"module_boundaries"`
-	EntryPoints        interface{}
-	NodeModulesConfig  interface{}
-	MissingNodeModules interface{}
-	UnusedNodeModules  interface{}
+	ConfigVersion  string   `json:"configVersion"` // Required
+	ConditionNames []string `json:"conditionNames,omitempty"`
+	IgnoreFiles    []string `json:"ignoreFiles,omitempty"`
+	Rules          []Rule   `json:"rules"`
 }
 
 var configFileName = "rev-dep.config.json"
 
 // LoadConfig loads the rev-dep configuration from the specified path.
 // configPath can be a specific file path or a directory containing rev-dep.config.json.
-// Returns a slice of RevDepConfig, allowing multiple configurations in one file (array of objects).
+// Returns a single RevDepConfig object.
 func LoadConfig(configPath string) ([]RevDepConfig, error) {
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
@@ -46,39 +82,39 @@ func LoadConfig(configPath string) ([]RevDepConfig, error) {
 		return nil, err
 	}
 
-	// Try to unmarshal as a list first
-	var configs []RevDepConfig
-	if err := json.Unmarshal(jsonc.ToJSON(content), &configs); err != nil {
-		// If that fails, maybe it's a single object (backward compatibility or user error)?
-		// Let's try single object
-		var singleConfig RevDepConfig
-		if err2 := json.Unmarshal(jsonc.ToJSON(content), &singleConfig); err2 == nil {
-			configs = []RevDepConfig{singleConfig}
-		} else {
-			// If both fail, return original error
-			return nil, fmt.Errorf("failed to parse config: %w", err)
+	// Parse as single object
+	var config RevDepConfig
+	if err := json.Unmarshal(jsonc.ToJSON(content), &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	// Validate config
+	if config.ConfigVersion == "" {
+		return nil, fmt.Errorf("configVersion is required")
+	}
+	for j, rule := range config.Rules {
+		if rule.Path == "" {
+			return nil, fmt.Errorf("rules[%d].path is required", j)
+		}
+		// Validate module boundaries in rules
+		for k, boundary := range rule.ModuleBoundaries {
+			if err := validatePattern(boundary.Pattern); err != nil {
+				return nil, fmt.Errorf("rules[%d].moduleBoundaries[%d].pattern: %w", j, k, err)
+			}
+			for l, p := range boundary.Allow {
+				if err := validatePattern(p); err != nil {
+					return nil, fmt.Errorf("rules[%d].moduleBoundaries[%d].allow[%d]: %w", j, k, l, err)
+				}
+			}
+			for l, p := range boundary.Deny {
+				if err := validatePattern(p); err != nil {
+					return nil, fmt.Errorf("rules[%d].moduleBoundaries[%d].deny[%d]: %w", j, k, l, err)
+				}
+			}
 		}
 	}
 
-	for i, config := range configs {
-		for j, rule := range config.ModuleBoundaries {
-			if err := validatePattern(rule.Pattern); err != nil {
-				return nil, fmt.Errorf("config[%d].module_boundaries[%d].pattern: %w", i, j, err)
-			}
-			for k, p := range rule.Allow {
-				if err := validatePattern(p); err != nil {
-					return nil, fmt.Errorf("config[%d].module_boundaries[%d].allow[%d]: %w", i, j, k, err)
-				}
-			}
-			for k, p := range rule.Deny {
-				if err := validatePattern(p); err != nil {
-					return nil, fmt.Errorf("config[%d].module_boundaries[%d].deny[%d]: %w", i, j, k, err)
-				}
-			}
-		}
-	}
-
-	return configs, nil
+	return []RevDepConfig{config}, nil
 }
 
 func validatePattern(pattern string) error {

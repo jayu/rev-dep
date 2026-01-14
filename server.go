@@ -27,18 +27,7 @@ func getEntryPointFiles(minimalTree MinimalDependencyTree, mainEntryPoint string
 
 		fmt.Println("Request: ", filePath)
 
-		graphMultiple := buildDepsGraphForMultiple(minimalTree, []string{filePath}, nil, false)
-
-		// Extract the single result for compatibility
-		var graph BuildDepsGraphResult
-		if root, exists := graphMultiple.Roots[filePath]; exists {
-			graph = BuildDepsGraphResult{
-				Root:                 root,
-				FileOrNodeModuleNode: graphMultiple.FileOrNodeModuleNode,
-				ResolutionPaths:      graphMultiple.ResolutionPaths[filePath],
-				Vertices:             graphMultiple.Vertices,
-			}
-		}
+		graph := buildDepsGraphForMultiple(minimalTree, []string{filePath}, nil, false)
 
 		files := make([]string, 0, len(graph.Vertices))
 
@@ -76,20 +65,11 @@ func explainDependency(minimalTree MinimalDependencyTree, mainEntryPoint string,
 
 		graphMultiple := buildDepsGraphForMultiple(minimalTree, []string{entryPoint}, &filePath, false)
 
-		// Extract the single result for compatibility
-		var graph BuildDepsGraphResult
-		if root, exists := graphMultiple.Roots[entryPoint]; exists {
-			graph = BuildDepsGraphResult{
-				Root:                 root,
-				FileOrNodeModuleNode: graphMultiple.FileOrNodeModuleNode,
-				ResolutionPaths:      graphMultiple.ResolutionPaths[entryPoint],
-				Vertices:             graphMultiple.Vertices,
-			}
-		}
+		entryPointResolutionPaths := graphMultiple.ResolutionPaths[entryPoint]
 
-		resolutionPaths := make([]string, 0, len(graph.ResolutionPaths[0]))
+		resolutionPaths := make([]string, 0, len(entryPointResolutionPaths[0]))
 
-		for _, filePath := range graph.ResolutionPaths[0] {
+		for _, filePath := range entryPointResolutionPaths[0] {
 			rel, _ := filepath.Rel(rootFilePath, filePath)
 			resolutionPaths = append(resolutionPaths, rel)
 		}

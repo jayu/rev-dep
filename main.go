@@ -122,14 +122,29 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 		os.Exit(1)
 	}
 
-	depsGraphs := make([]BuildDepsGraphResult, 0, len(absolutePathToEntryPoints))
+	type RootAndResolutionPaths struct {
+		Root                 *SerializableNode `json:"root"`
+		ResolutionPaths      [][]string        `json:"resolutionPaths,omitempty"`
+		FileOrNodeModuleNode *SerializableNode `json:"fileOrNodeModuleNode"`
+	}
+
+	depsGraphs := make([]RootAndResolutionPaths, 0, len(absolutePathToEntryPoints))
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	ch := make(chan string)
 
-	buildGraph := func(absolutePathToEntryPoint string, depsGraphs *[]BuildDepsGraphResult, wg *sync.WaitGroup, mu *sync.Mutex) {
-		depsGraph := buildDepsGraph(minimalTree, absolutePathToEntryPoint, &absolutePathToFilePath, resolveAll)
+	buildGraph := func(absolutePathToEntryPoint string, depsGraphs *[]RootAndResolutionPaths, wg *sync.WaitGroup, mu *sync.Mutex) {
+		// We cannot use multiple entry points here as it will break the reverse resolution.
+		// Reverse resolution which only looks for the first possible path, must have only one entry point
+		// Otherwise it may follow wrong path and not find the result
+		depsGraphsTemp := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, &absolutePathToFilePath, resolveAll)
+		depsGraph := RootAndResolutionPaths{
+			Root:                 depsGraphsTemp.Roots[absolutePathToEntryPoint],
+			ResolutionPaths:      depsGraphsTemp.ResolutionPaths[absolutePathToEntryPoint],
+			FileOrNodeModuleNode: depsGraphsTemp.FileOrNodeModuleNode,
+		}
+
 		mu.Lock()
 		*depsGraphs = append(*depsGraphs, depsGraph)
 		mu.Unlock()
@@ -155,7 +170,7 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 	wg.Wait()
 	close(ch)
 
-	slices.SortFunc(depsGraphs, func(a BuildDepsGraphResult, b BuildDepsGraphResult) int {
+	slices.SortFunc(depsGraphs, func(a RootAndResolutionPaths, b RootAndResolutionPaths) int {
 		rootA := a.Root.Path
 		rootB := b.Root.Path
 		if rootA < rootB {
@@ -636,18 +651,7 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJson
 
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
-	depsGraphMultiple := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false)
-
-	// Extract the single result for compatibility
-	var depsGraph BuildDepsGraphResult
-	if root, exists := depsGraphMultiple.Roots[absolutePathToEntryPoint]; exists {
-		depsGraph = BuildDepsGraphResult{
-			Root:                 root,
-			FileOrNodeModuleNode: depsGraphMultiple.FileOrNodeModuleNode,
-			ResolutionPaths:      depsGraphMultiple.ResolutionPaths[absolutePathToEntryPoint],
-			Vertices:             depsGraphMultiple.Vertices,
-		}
-	}
+	depsGraph := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false)
 
 	if filesCount {
 		fmt.Println(len(depsGraph.Vertices))

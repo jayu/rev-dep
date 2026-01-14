@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
@@ -259,12 +260,69 @@ func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDepen
 	maxFilePathLen := 0
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	var totalGraphBuildTime time.Duration
+	var totalBstTime time.Duration
+	testFileVerticesSingle := make([]string, 0)
+	loopStart := time.Now()
+	debugFilePath := "pages/consultants/retail-flex/my-timesheets/index.tsx"
 
 	for _, filePath := range notReferencedFiles {
 		wg.Add(1)
 		go func() {
+			start := time.Now()
 			graph := buildDepsGraph(minimalTree, filePath, nil, false)
+			graph2 := buildDepsGraphForMultiple(minimalTree, []string{filePath}, nil, false)
+			if strings.TrimPrefix(filePath, cwd) == debugFilePath {
+
+				for v := range graph.Vertices {
+					testFileVerticesSingle = append(testFileVerticesSingle, v)
+				}
+
+				problematicVertexNew, existsNew := graph.Vertices["/Users/jakubmazurek/Dweet/web-root/apps/web/app/components/web/CalendarSlotsPicker/DatesPicker/generateMonthDatesGrid.ts"]
+				if existsNew {
+					fmt.Println("\n\nGraph has vertex", strings.TrimPrefix(problematicVertexNew.Path, cwd))
+					for _, parent := range problematicVertexNew.Parents {
+						fmt.Println("Parent", strings.TrimPrefix(parent, cwd))
+					}
+					for _, child := range problematicVertexNew.Children {
+						fmt.Println("Child", strings.TrimPrefix(child, cwd))
+					}
+				}
+
+				problematicVertexNew2, existsNew2 := graph2.Vertices["/Users/jakubmazurek/Dweet/web-root/apps/web/app/components/web/CalendarSlotsPicker/DatesPicker/generateMonthDatesGrid.ts"]
+				if existsNew2 {
+					fmt.Println("\n\nGraph2 has vertex", strings.TrimPrefix(problematicVertexNew2.Path, cwd))
+					for _, parent := range problematicVertexNew2.Parents {
+						fmt.Println("Parent", strings.TrimPrefix(parent, cwd))
+					}
+					for _, child := range problematicVertexNew2.Children {
+						fmt.Println("Child", strings.TrimPrefix(child, cwd))
+					}
+				}
+
+			}
+			graphBuildTime := time.Since(start)
+
+			bstStart := time.Now()
+			bstGraph := bst(graph.Root, graph.Vertices)
+			bstGraph2 := bst(graph2.Roots[filePath], graph2.Vertices)
+
+			if len(bstGraph) != len(graph.Vertices) {
+				fmt.Printf("G1: File '%s' has different number of vertices in graph and BST, %d vs %d\n", filePath, len(graph.Vertices), len(bstGraph))
+			}
+			if len(bstGraph2) != len(graph2.Vertices) {
+				fmt.Printf("G2: File '%s' has different number of vertices in graph and BST, %d vs %d\n", filePath, len(graph2.Vertices), len(bstGraph2))
+			}
+
+			if len(graph.Vertices) != len(graph2.Vertices) {
+				fmt.Printf("G1 vs G2: File '%s' has different number of vertices in graphs, %d vs %d\n", filePath, len(graph.Vertices), len(graph2.Vertices))
+			}
+
+			bstTime := time.Since(bstStart)
+
 			mu.Lock()
+			totalGraphBuildTime += graphBuildTime
+			totalBstTime += bstTime
 			depsCountMeta[filePath] = len(graph.Vertices)
 			if len(filePath) > maxFilePathLen {
 				maxFilePathLen = len(filePath)
@@ -276,11 +334,100 @@ func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDepen
 
 	wg.Wait()
 
-	for _, filePath := range notReferencedFiles {
-		printPath := strings.TrimPrefix(filePath, cwd)
-		fmt.Println(PadRight(printPath, ' ', maxFilePathLen), depsCountMeta[filePath])
+	totalLoopTime := time.Since(loopStart)
+	log := false
+	if log {
+		fmt.Printf("Wall-clock loop execution time: %v\n", totalLoopTime)
+		fmt.Printf("Sum of all graph build times (parallel): %v\n", totalGraphBuildTime)
+		fmt.Printf("Sum of all BST collection times (parallel): %v\n", totalBstTime)
+		fmt.Printf("Average graph build time per file: %v\n", totalGraphBuildTime/time.Duration(len(notReferencedFiles)))
+		fmt.Printf("Average BST collection time per file: %v\n", totalBstTime/time.Duration(len(notReferencedFiles)))
+		// Alternative implementation using buildDepsGraphForMultiple
+		fmt.Println("\n--- Alternative Implementation ---")
 	}
 
+	altStart := time.Now()
+	multiGraph := buildDepsGraphForMultiple(minimalTree, notReferencedFiles, nil, false)
+	altGraphTime := time.Since(altStart)
+
+	// Calculate depsCountMeta from multi-graph
+	altDepsCountMeta := make(map[string]int, len(notReferencedFiles))
+
+	// Parallel BST processing for each entry point
+	var altBstWg sync.WaitGroup
+	var altMu sync.Mutex
+	var totalAltBstTime time.Duration
+	testFileVerticesMultiple := make([]string, 0)
+
+	altBstStart := time.Now()
+	for entryPoint, root := range multiGraph.Roots {
+		altBstWg.Add(1)
+		go func(ep string, r *SerializableNode) {
+			bstStart := time.Now()
+			vertices := bst(r, multiGraph.Vertices)
+			bstTime := time.Since(bstStart)
+
+			altMu.Lock()
+			if strings.TrimPrefix(ep, cwd) == debugFilePath {
+				for _, v := range vertices {
+					testFileVerticesMultiple = append(testFileVerticesMultiple, v)
+				}
+			}
+			altDepsCountMeta[entryPoint] = len(vertices)
+			totalAltBstTime += bstTime
+			altMu.Unlock()
+			altBstWg.Done()
+		}(entryPoint, root)
+	}
+	altBstWg.Wait()
+	altBstTime := time.Since(altBstStart)
+	if log {
+		fmt.Printf("Alternative graph build time (multiple entry points): %v\n", altGraphTime)
+		fmt.Printf("Alternative BST collection time (parallel): %v\n", totalAltBstTime)
+		fmt.Printf("Alternative total time: %v\n", altGraphTime+altBstTime)
+		fmt.Printf("Alternative average BST time per entry point: %v\n", totalAltBstTime/time.Duration(len(notReferencedFiles)))
+		fmt.Printf("Vertices in combined graph: %d\n", len(multiGraph.Vertices))
+
+	}
+
+	newImplHasLessVertices := 0
+	newImplHasMoreVertices := 0
+
+	for _, filePath := range notReferencedFiles {
+		printPath := strings.TrimPrefix(filePath, cwd)
+		// if printPath == debugFilePath {
+		if depsCountMeta[filePath] > altDepsCountMeta[filePath] {
+			printPath = "⚠️  " + printPath
+			newImplHasLessVertices++
+		}
+		if depsCountMeta[filePath] < altDepsCountMeta[filePath] {
+			printPath = "❗  " + printPath
+			newImplHasMoreVertices++
+		}
+		//fmt.Println(PadRight(printPath, ' ', maxFilePathLen), depsCountMeta[filePath], altDepsCountMeta[filePath])
+		// }
+	}
+	slices.Sort(testFileVerticesMultiple)
+	slices.Sort(testFileVerticesSingle)
+
+	os.WriteFile("testFileVerticesSingle.txt", []byte(strings.Join(testFileVerticesSingle, "\n")), 0644)
+	os.WriteFile("testFileVerticesMultiple.txt", []byte(strings.Join(testFileVerticesMultiple, "\n")), 0644)
+
+	fmt.Printf("New implementation has less vertices: %d\n", newImplHasLessVertices)
+	fmt.Printf("New implementation has more vertices: %d\n", newImplHasMoreVertices)
+	problematicVertexNew, existsNew := multiGraph.Vertices["/Users/jakubmazurek/Dweet/web-root/apps/web/app/components/web/CalendarSlotsPicker/DatesPicker/generateMonthDatesGrid.ts"]
+
+	if existsNew {
+		fmt.Println("\n\nMultiGraph has vertex", strings.TrimPrefix(problematicVertexNew.Path, cwd))
+		for _, parent := range problematicVertexNew.Parents {
+			fmt.Println("Parent", strings.TrimPrefix(parent, cwd))
+		}
+		for _, child := range problematicVertexNew.Children {
+			fmt.Println("Child", strings.TrimPrefix(child, cwd))
+		}
+	} else {
+		fmt.Println("MultiGraph does not have vertex")
+	}
 	return nil
 }
 
@@ -630,9 +777,10 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJson
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 	depsGraph := buildDepsGraph(minimalTree, absolutePathToEntryPoint, nil, false)
+	depsGraphMultiple := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false)
 
 	if filesCount {
-		fmt.Println(len(depsGraph.Vertices))
+		fmt.Println(len(depsGraph.Vertices), len(depsGraphMultiple.Vertices))
 	} else {
 		filePaths := make([]string, 0, len(depsGraph.Vertices))
 		for _, node := range depsGraph.Vertices {

@@ -17,8 +17,12 @@ type BoundaryRule struct {
 }
 
 type RevDepConfig struct {
-	Path             string         `json:"path,omitempty"` // Working directory this config applies to (default: ".")
-	ModuleBoundaries []BoundaryRule `json:"module_boundaries"`
+	Path               string         `json:"path,omitempty"` // Working directory this config applies to (default: ".")
+	ModuleBoundaries   []BoundaryRule `json:"module_boundaries"`
+	EntryPoints        interface{}
+	NodeModulesConfig  interface{}
+	MissingNodeModules interface{}
+	UnusedNodeModules  interface{}
 }
 
 var configFileName = "rev-dep.config.json"

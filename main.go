@@ -636,7 +636,18 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJson
 
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
-	depsGraph := buildDepsGraph(minimalTree, absolutePathToEntryPoint, nil, false)
+	depsGraphMultiple := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false)
+
+	// Extract the single result for compatibility
+	var depsGraph BuildDepsGraphResult
+	if root, exists := depsGraphMultiple.Roots[absolutePathToEntryPoint]; exists {
+		depsGraph = BuildDepsGraphResult{
+			Root:                 root,
+			FileOrNodeModuleNode: depsGraphMultiple.FileOrNodeModuleNode,
+			ResolutionPaths:      depsGraphMultiple.ResolutionPaths[absolutePathToEntryPoint],
+			Vertices:             depsGraphMultiple.Vertices,
+		}
+	}
 
 	if filesCount {
 		fmt.Println(len(depsGraph.Vertices))

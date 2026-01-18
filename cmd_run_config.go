@@ -1,21 +1,34 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
-// ---------------- run-config ----------------
+// ---------------- config ----------------
+var (
+	configCwd string
+)
+
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Create and execute rev-dep configuration files",
+	Long:  `Commands for creating and executing rev-dep configuration files.`,
+}
+
+// ---------------- config run ----------------
 var (
 	runConfigCwd string
 )
 
-var runConfigCmd = &cobra.Command{
-	Use:   "run-config",
+var configRunCmd = &cobra.Command{
+	Use:   "run",
 	Short: "Execute all checks defined in (.)rev-dep.config.json(c)",
 	Long:  `Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, node modules) per rule.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -52,6 +65,17 @@ var runConfigCmd = &cobra.Command{
 		}
 
 		return nil
+	},
+}
+
+// ---------------- config init ----------------
+var configInitCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Initialize a new rev-dep.config.json file",
+	Long:  `Create a new rev-dep.config.json configuration file in the current directory with default settings.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cwd := ResolveAbsoluteCwd(configCwd)
+		return initConfigFile(cwd)
 	},
 }
 
@@ -161,6 +185,157 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
 }
 
 func init() {
-	addSharedFlags(runConfigCmd)
-	runConfigCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
+	// config command
+	configCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")
+
+	// config run command
+	addSharedFlags(configRunCmd)
+	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
+
+	// config init command
+	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")
+
+	// Add subcommands to config
+	configCmd.AddCommand(configRunCmd, configInitCmd)
+}
+
+// initConfigFile initializes a new rev-dep.config.json file with minimal structure
+func initConfigFile(cwd string) error {
+	currentConfigVersion := "1.0"
+
+	// Check if any config file already exists
+	existingConfig, err := findConfigFile(cwd)
+	if err == nil && existingConfig != "" {
+		return fmt.Errorf("config file already exists at %s", existingConfig)
+	}
+
+	// Define the path for the new config file (always use the standard name)
+	configPath := filepath.Join(cwd, ".rev-dep.config.jsonc")
+
+	// Discover monorepo packages
+	var rules []Rule
+	monorepoCtx := DetectMonorepo(cwd)
+
+	if monorepoCtx != nil {
+		// Monorepo: Root rule only has module boundaries
+		rootRule := Rule{
+			Path: ".",
+			ModuleBoundaries: []BoundaryRule{
+				{
+					Name:    "packages",
+					Pattern: "packages/**/*",
+					Allow:   []string{"packages/**/*"},
+				},
+			},
+		}
+		rules = append(rules, rootRule)
+
+		// Find workspace packages
+		excludePatterns := CreateGlobMatchers([]string{}, cwd)
+		monorepoCtx.FindWorkspacePackages(cwd, excludePatterns)
+
+		// Collect and sort package paths
+		var packagePaths []string
+		for _, packagePath := range monorepoCtx.PackageToPath {
+			// Convert absolute path to relative path from cwd
+			relPath, err := filepath.Rel(cwd, packagePath)
+			if err != nil {
+				continue // Skip if we can't get relative path
+			}
+			relPath = filepath.ToSlash(relPath)
+
+			// Skip root package (already covered)
+			if relPath == "." || relPath == "" {
+				continue
+			}
+
+			packagePaths = append(packagePaths, relPath)
+		}
+
+		// Sort package paths alphabetically
+		slices.Sort(packagePaths)
+
+		// Create a rule for each discovered package in sorted order
+		for _, relPath := range packagePaths {
+			packageRule := Rule{
+				Path: relPath,
+				CircularImportsDetection: &CircularImportsOptions{
+					Enabled:           true,
+					IgnoreTypeImports: false,
+				},
+				OrphanFilesDetection: &OrphanFilesOptions{
+					Enabled: false,
+				},
+				UnusedNodeModulesDetection: &UnusedNodeModulesOptions{
+					Enabled: false,
+				},
+				MissingNodeModulesDetection: &MissingNodeModulesOptions{
+					Enabled: false,
+				},
+			}
+			rules = append(rules, packageRule)
+		}
+	} else {
+		// Non-monorepo: Single rule with all checks including module boundaries
+		rootRule := Rule{
+			Path: ".",
+			ModuleBoundaries: []BoundaryRule{
+				{
+					Name:    "src",
+					Pattern: "src/**/*",
+					Allow:   []string{"src/**/*"},
+				},
+			},
+			CircularImportsDetection: &CircularImportsOptions{
+				Enabled:           true,
+				IgnoreTypeImports: false,
+			},
+			OrphanFilesDetection: &OrphanFilesOptions{
+				Enabled: false,
+			},
+			UnusedNodeModulesDetection: &UnusedNodeModulesOptions{
+				Enabled: false,
+			},
+			MissingNodeModulesDetection: &MissingNodeModulesOptions{
+				Enabled: false,
+			},
+		}
+		rules = append(rules, rootRule)
+	}
+
+	// Create config structure
+	config := RevDepConfig{
+		ConfigVersion: currentConfigVersion,
+		Rules:         rules,
+		Schema:        "https://github.com/jayu/rev-dep/blob/module-boundaries/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
+	}
+
+	// Add schema reference if schema file exists
+	schemaPath := filepath.Join(cwd, "config-schema", "1.0.schema.json")
+	if _, err := os.Stat(schemaPath); err == nil {
+		// We'll add the schema field during JSON marshaling
+	}
+
+	// Marshal config to JSON with proper formatting
+	configJSON, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %v", err)
+	}
+
+	// Write config file
+	if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %v", err)
+	}
+
+	fmt.Printf("✅ Created .rev-dep.config.jsonc at %s\n", configPath)
+	if len(rules) > 1 {
+		fmt.Printf("📦 Discovered %d monorepo packages and created rules for each\n", len(rules)-1)
+	} else {
+		fmt.Printf("📁 Created single rule for root directory\n")
+	}
+
+	fmt.Println("Adjust rules to make them relevant to your project setup.\nGenerated module boundaries config is exemplary and does not make much sense.")
+	fmt.Println("Hint: feed LLM with config file JSON schema to get started.")
+
+	return nil
 }

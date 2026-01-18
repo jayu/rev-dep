@@ -8,6 +8,7 @@
     "configVersion",
     "rules"
   ],
+  "additionalProperties": false,
   "properties": {
     "configVersion": {
       "type": "string",
@@ -25,8 +26,8 @@
       "description": "List of condition names",
       "examples": [
         [
-          "node",
-          "imports"
+          "imports",
+          "node"
         ]
       ]
     },
@@ -57,10 +58,13 @@
       "required": [
         "path"
       ],
+      "additionalProperties": false,
       "properties": {
         "path": {
           "type": "string",
           "description": "Path for this rule (required)",
+          "minLength": 1,
+          "pattern": "^(?!.*\\.{2}[\\\\/]).+",
           "examples": [
             ".",
             "./",
@@ -100,6 +104,7 @@
         "name",
         "pattern"
       ],
+      "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string",
@@ -112,6 +117,7 @@
         "pattern": {
           "type": "string",
           "description": "Glob pattern for files in this boundary",
+          "pattern": "^(?!\\.{1,2}[\\\\/]).+",
           "examples": [
             "packages/client/**",
             "src/api/**"
@@ -120,7 +126,8 @@
         "allow": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
           },
           "description": "Glob patterns for allowed imports",
           "examples": [
@@ -133,7 +140,8 @@
         "deny": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
           },
           "description": "Glob patterns for denied imports (overrides allow)",
           "examples": [
@@ -149,6 +157,7 @@
       "required": [
         "enabled"
       ],
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -166,6 +175,7 @@
       "required": [
         "enabled"
       ],
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -174,7 +184,8 @@
         "validEntryPoints": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "description": "Valid entry point patterns",
           "examples": [
@@ -192,7 +203,8 @@
         "graphExclude": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
           },
           "description": "Patterns to exclude from graph analysis"
         }
@@ -203,6 +215,7 @@
       "required": [
         "enabled"
       ],
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -260,6 +273,7 @@
       "required": [
         "enabled"
       ],
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",

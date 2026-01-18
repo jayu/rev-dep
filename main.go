@@ -907,7 +907,7 @@ func init() {
 		"Directory to analyze")
 
 	// add commands
-	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, docsCmd, moduleBoundariesCmd, runConfigCmd)
+	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, docsCmd, moduleBoundariesCmd, configCmd)
 }
 
 func main() {

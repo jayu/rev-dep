@@ -12,9 +12,9 @@ import (
 
 type BoundaryRule struct {
 	Name    string   `json:"name"`
-	Pattern string   `json:"pattern"` // Glob pattern for files in this boundary
-	Allow   []string `json:"allow"`   // Glob patterns for allowed imports
-	Deny    []string `json:"deny"`    // Glob patterns for denied imports (overrides allow)
+	Pattern string   `json:"pattern"`        // Glob pattern for files in this boundary
+	Allow   []string `json:"allow"`          // Glob patterns for allowed imports
+	Deny    []string `json:"deny,omitempty"` // Glob patterns for denied imports (overrides allow)
 }
 
 type CircularImportsOptions struct {
@@ -24,31 +24,31 @@ type CircularImportsOptions struct {
 
 type OrphanFilesOptions struct {
 	Enabled           bool     `json:"enabled"`
-	ValidEntryPoints  []string `json:"validEntryPoints"`
-	IgnoreTypeImports bool     `json:"ignoreTypeImports"`
-	GraphExclude      []string `json:"graphExclude"`
+	ValidEntryPoints  []string `json:"validEntryPoints,omitempty"`
+	IgnoreTypeImports bool     `json:"ignoreTypeImports,omitempty"`
+	GraphExclude      []string `json:"graphExclude,omitempty"`
 }
 
 type UnusedNodeModulesOptions struct {
 	Enabled                   bool     `json:"enabled"`
-	IncludeModules            []string `json:"includeModules"`
-	ExcludeModules            []string `json:"excludeModules"`
-	PkgJsonFieldsWithBinaries []string `json:"pkgJsonFieldsWithBinaries"`
-	FilesWithBinaries         []string `json:"filesWithBinaries"`
-	FilesWithModules          []string `json:"filesWithModules"`
-	OutputType                string   `json:"outputType"` // "list", "groupByModule", "groupByFile"
+	IncludeModules            []string `json:"includeModules,omitempty"`
+	ExcludeModules            []string `json:"excludeModules,omitempty"`
+	PkgJsonFieldsWithBinaries []string `json:"pkgJsonFieldsWithBinaries,omitempty"`
+	FilesWithBinaries         []string `json:"filesWithBinaries,omitempty"`
+	FilesWithModules          []string `json:"filesWithModules,omitempty"`
+	OutputType                string   `json:"outputType,omitempty"` // "list", "groupByModule", "groupByFile"
 }
 
 type MissingNodeModulesOptions struct {
 	Enabled        bool     `json:"enabled"`
-	IncludeModules []string `json:"includeModules"`
-	ExcludeModules []string `json:"excludeModules"`
-	OutputType     string   `json:"outputType"` // "list", "groupByModule", "groupByFile"
+	IncludeModules []string `json:"includeModules,omitempty"`
+	ExcludeModules []string `json:"excludeModules,omitempty"`
+	OutputType     string   `json:"outputType,omitempty"` // "list", "groupByModule", "groupByFile"
 }
 
 type Rule struct {
-	Path                        string                     `json:"path"`                   // Required
-	FollowMonorepoPackages      bool                       `json:"followMonorepoPackages"` // Default: true
+	Path                        string                     `json:"path"`                             // Required
+	FollowMonorepoPackages      bool                       `json:"followMonorepoPackages,omitempty"` // Default: true
 	ModuleBoundaries            []BoundaryRule             `json:"moduleBoundaries,omitempty"`
 	CircularImportsDetection    *CircularImportsOptions    `json:"circularImportsDetection,omitempty"`
 	OrphanFilesDetection        *OrphanFilesOptions        `json:"orphanFilesDetection,omitempty"`
@@ -58,6 +58,7 @@ type Rule struct {
 
 type RevDepConfig struct {
 	ConfigVersion  string   `json:"configVersion"` // Required
+	Schema         string   `json:"$schema,omitempty"`
 	ConditionNames []string `json:"conditionNames,omitempty"`
 	IgnoreFiles    []string `json:"ignoreFiles,omitempty"`
 	Rules          []Rule   `json:"rules"`
@@ -213,6 +214,7 @@ func normalizeRulePath(path string) string {
 // validateRawConfig validates field names and basic structure before typed parsing
 func validateRawConfig(raw map[string]interface{}) error {
 	allowedRootFields := map[string]bool{
+		"$schema":        true,
 		"configVersion":  true,
 		"conditionNames": true,
 		"ignoreFiles":    true,

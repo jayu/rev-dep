@@ -6,6 +6,152 @@ import (
 	"testing"
 )
 
+func TestParseConfig_SchemaField(t *testing.T) {
+	configJSON := `{
+		"$schema": "./config-schema/1.0.schema.json",
+		"configVersion": "1.0",
+		"rules": [
+			{
+				"path": ".",
+				"circularImportsDetection": {"enabled": true}
+			}
+		]
+	}`
+
+	configs, err := ParseConfig([]byte(configJSON))
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if len(configs) != 1 {
+		t.Errorf("Expected 1 config, got %d", len(configs))
+	}
+
+	config := configs[0]
+	if config.ConfigVersion != "1.0" {
+		t.Errorf("Expected configVersion '1.0', got '%s'", config.ConfigVersion)
+	}
+
+	if len(config.Rules) != 1 {
+		t.Errorf("Expected 1 rule, got %d", len(config.Rules))
+	}
+
+	if config.Rules[0].Path != "." {
+		t.Errorf("Expected rule path '.', got '%s'", config.Rules[0].Path)
+	}
+}
+
+func TestInitConfigFile(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-init-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Test basic init
+	err = initConfigFile(tempDir)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	// Check that config file was created
+	configPath := filepath.Join(tempDir, "rev-dep.config.json")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Errorf("Expected config file to exist at %s", configPath)
+	}
+
+	// Test that init fails when config already exists
+	err = initConfigFile(tempDir)
+	if err == nil {
+		t.Errorf("Expected error when config already exists, got nil")
+	}
+
+	// Remove the config and test with different variants
+	os.Remove(configPath)
+
+	// Test with .rev-dep.config.json
+	hiddenConfigPath := filepath.Join(tempDir, ".rev-dep.config.json")
+	os.WriteFile(hiddenConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
+	err = initConfigFile(tempDir)
+	if err == nil {
+		t.Errorf("Expected error when hidden config exists, got nil")
+	}
+	os.Remove(hiddenConfigPath)
+
+	// Test with rev-dep.config.jsonc
+	jsoncConfigPath := filepath.Join(tempDir, "rev-dep.config.jsonc")
+	os.WriteFile(jsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
+	err = initConfigFile(tempDir)
+	if err == nil {
+		t.Errorf("Expected error when jsonc config exists, got nil")
+	}
+	os.Remove(jsoncConfigPath)
+
+	// Test with .rev-dep.config.jsonc
+	hiddenJsoncConfigPath := filepath.Join(tempDir, ".rev-dep.config.jsonc")
+	os.WriteFile(hiddenJsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
+	err = initConfigFile(tempDir)
+	if err == nil {
+		t.Errorf("Expected error when hidden jsonc config exists, got nil")
+	}
+	os.Remove(hiddenJsoncConfigPath)
+
+	// Now test that it works when no config files exist
+	err = initConfigFile(tempDir)
+	if err != nil {
+		t.Errorf("Expected no error when no config files exist, got %v", err)
+	}
+
+	// Read and verify the generated config
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("Failed to read config file: %v", err)
+	}
+
+	configs, err := ParseConfig(content)
+	if err != nil {
+		t.Errorf("Failed to parse generated config: %v", err)
+	}
+
+	if len(configs) != 1 {
+		t.Errorf("Expected 1 config, got %d", len(configs))
+	}
+
+	config := configs[0]
+	if config.ConfigVersion != "1.0" {
+		t.Errorf("Expected configVersion '1.0', got '%s'", config.ConfigVersion)
+	}
+
+	if len(config.Rules) != 1 {
+		t.Errorf("Expected 1 rule, got %d", len(config.Rules))
+	}
+
+	if config.Rules[0].Path != "." {
+		t.Errorf("Expected rule path '.', got '%s'", config.Rules[0].Path)
+	}
+
+	if config.Rules[0].CircularImportsDetection == nil || !config.Rules[0].CircularImportsDetection.Enabled {
+		t.Errorf("Expected circular imports detection to be enabled")
+	}
+
+	if config.Rules[0].CircularImportsDetection.IgnoreTypeImports {
+		t.Errorf("Expected circular imports detection ignoreTypeImports to be false")
+	}
+
+	if config.Rules[0].OrphanFilesDetection == nil || config.Rules[0].OrphanFilesDetection.Enabled {
+		t.Errorf("Expected orphan files detection to be disabled")
+	}
+
+	if config.Rules[0].UnusedNodeModulesDetection == nil || config.Rules[0].UnusedNodeModulesDetection.Enabled {
+		t.Errorf("Expected unused node modules detection to be disabled")
+	}
+
+	if config.Rules[0].MissingNodeModulesDetection == nil || config.Rules[0].MissingNodeModulesDetection.Enabled {
+		t.Errorf("Expected missing node modules detection to be disabled")
+	}
+}
+
 func TestParseConfig_ValidMinimalConfig(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0.0",

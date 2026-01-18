@@ -223,8 +223,8 @@ Currently `NodeModulesCmd` in [nodeModules.go](file:///Users/jakubmazurek/Progra
 
 - [x] **Add Command**: `runConfigCmd` in `main.go` or new file `cmd_run_config.go`
   ```go
-  var runConfigCmd = &cobra.Command{
-      Use:   "run-config",
+  var configRunCmd = &cobra.Command{
+      Use:   "run",
       Short: "Execute all checks defined in rev-dep.config.json",
       RunE: func(cmd *cobra.Command, args []string) error { ... }
   }
@@ -357,7 +357,7 @@ go test -v ./...
 
 2. **Run the new command**:
    ```bash
-   go build && ./rev-dep run-config
+   go build && ./rev-dep config run
    ```
 
 3. **Verify output** contains detected issues categorized by rule

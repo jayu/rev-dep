@@ -1042,7 +1042,7 @@ func init() {
 	importedByCmd.MarkFlagRequired("file")
 
 	// add commands
-	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, docsCmd, moduleBoundariesCmd, configCmd)
+	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, docsCmd, configCmd)
 }
 
 func main() {

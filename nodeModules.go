@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gobwas/glob"
 	"github.com/tidwall/jsonc"
 )
 
@@ -467,12 +468,39 @@ func setFilePathInNodeModuleFilesMap(nodeModuleFilesMap *map[string]map[string]b
 }
 
 func createShouldModuleByIncluded(modulesToInclude []string, modulesToExclude []string) func(moduleName string) bool {
+	// Pre-compile include patterns
+	includeGlobs := make([]glob.Glob, len(modulesToInclude))
+	for i, pattern := range modulesToInclude {
+		includeGlobs[i] = glob.MustCompile(pattern)
+	}
+
+	// Pre-compile exclude patterns
+	excludeGlobs := make([]glob.Glob, len(modulesToExclude))
+	for i, pattern := range modulesToExclude {
+		excludeGlobs[i] = glob.MustCompile(pattern)
+	}
+
 	return func(moduleName string) bool {
-		if slices.Contains(modulesToExclude, moduleName) {
-			return false
+		// Check exclusions first
+		for _, g := range excludeGlobs {
+			if g.Match(moduleName) {
+				return false
+			}
 		}
 
-		return !(len(modulesToInclude) > 0) || slices.Contains(modulesToInclude, moduleName)
+		// If no include patterns specified, include everything that's not excluded
+		if len(includeGlobs) == 0 {
+			return true
+		}
+
+		// Check inclusions
+		for _, g := range includeGlobs {
+			if g.Match(moduleName) {
+				return true
+			}
+		}
+
+		return false
 	}
 }
 

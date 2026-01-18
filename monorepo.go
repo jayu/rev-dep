@@ -49,7 +49,7 @@ func DetectMonorepo(cwd string) *MonorepoContext {
 			if err == nil {
 				var pkgJson map[string]interface{}
 				if err := json.Unmarshal(jsonc.ToJSON(content), &pkgJson); err == nil {
-					if _, hasWorkspaces := pkgJson["workspaces"]; hasWorkspaces {
+					if hasValidWorkspaces(pkgJson) {
 						return NewMonorepoContext(currentDir)
 					}
 				}
@@ -68,6 +68,29 @@ func DetectMonorepo(cwd string) *MonorepoContext {
 		currentDir = parent
 	}
 	return nil
+}
+
+// hasValidWorkspaces checks if a package.json has valid workspace configuration.
+// Valid means: workspaces is a non-empty array OR an object with non-empty "packages" array
+func hasValidWorkspaces(pkgJson map[string]interface{}) bool {
+	workspaces, ok := pkgJson["workspaces"]
+	if !ok {
+		return false
+	}
+
+	// Check if workspaces is an array
+	if list, ok := workspaces.([]interface{}); ok {
+		return len(list) > 0
+	}
+
+	// Check if workspaces is an object with "packages" array
+	if obj, ok := workspaces.(map[string]interface{}); ok {
+		if packages, ok := obj["packages"].([]interface{}); ok {
+			return len(packages) > 0
+		}
+	}
+
+	return false
 }
 
 func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatterns []GlobMatcher) {

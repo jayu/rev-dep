@@ -401,3 +401,107 @@ func TestWorkspaceRootExclusion(t *testing.T) {
 		t.Errorf("Workspace package '@pkg/a' should be discovered")
 	}
 }
+
+func TestDetectMonorepoFalsePositiveWithWorkspacesKey(t *testing.T) {
+	// Test case: non-root package with "workspaces" key should NOT be detected as monorepo root
+	tempDir, err := os.MkdirTemp("", "monorepo-false-positive-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	root := tempDir
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Root monorepo with proper workspaces configuration
+	writeFile(`{"name": "root", "workspaces": ["packages/*"]}`, "package.json")
+
+	// Package inside monorepo that also has a "workspaces" key (but it's not the root)
+	writeFile(`{"name": "@internal/nested", "workspaces": []}`, "packages", "nested", "package.json")
+
+	// Try to detect from the nested package
+	nestedPath := filepath.Join(root, "packages", "nested")
+	monorepoCtx := DetectMonorepo(nestedPath)
+
+	// Should find the root monorepo, not treat nested package as root
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo from nested package path")
+	}
+
+	if monorepoCtx.WorkspaceRoot != NormalizePathForInternal(root) {
+		t.Errorf("Expected monorepo root at %s, got %s", NormalizePathForInternal(root), monorepoCtx.WorkspaceRoot)
+	}
+}
+
+func TestDetectMonorepoIgnoresEmptyWorkspaces(t *testing.T) {
+	// Test case: package with empty workspaces array/object should NOT be detected as monorepo root
+	tempDir, err := os.MkdirTemp("", "monorepo-empty-ws-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	root := tempDir
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Package with empty workspaces
+	writeFile(`{"name": "@pkg/empty-ws", "workspaces": []}`, "package.json")
+
+	monorepoCtx := DetectMonorepo(root)
+
+	// Should NOT detect as monorepo because workspaces is empty
+	if monorepoCtx != nil {
+		t.Errorf("Package with empty workspaces should not be detected as monorepo root")
+	}
+}
+
+func TestDetectMonorepoWithValidWorkspacesArray(t *testing.T) {
+	// Test case: package with non-empty workspaces array SHOULD be detected as monorepo root
+	tempDir, err := os.MkdirTemp("", "monorepo-valid-ws-array-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	root := tempDir
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Package with valid workspaces array
+	writeFile(`{"name": "root", "workspaces": ["packages/*"]}`, "package.json")
+	writeFile(`{"name": "@pkg/a"}`, "packages", "a", "package.json")
+
+	monorepoCtx := DetectMonorepo(root)
+
+	// Should detect as monorepo
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo with valid workspaces array")
+	}
+
+	if monorepoCtx.WorkspaceRoot != NormalizePathForInternal(root) {
+		t.Errorf("Expected monorepo root at %s, got %s", NormalizePathForInternal(root), monorepoCtx.WorkspaceRoot)
+	}
+}

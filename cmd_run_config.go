@@ -144,6 +144,12 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
 		if ruleResult.FileCount == 0 {
 			fmt.Printf("  ⚠️  No files found for this rule - check if the path is correct\n")
 		}
+
+		// Show warning if package.json is missing in the rule path directory
+		if ruleResult.MissingPackageJson {
+			packageJsonPath := filepath.Join(cwd, ruleResult.RulePath, "package.json")
+			fmt.Printf("  ⚠️  Warning: Rule path missing package.json - some features may not work (missing: %s)\n", packageJsonPath)
+		}
 	}
 
 	// Print final verdict

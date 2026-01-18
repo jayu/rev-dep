@@ -1,11 +1,34 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 )
+
+// validateRulePathPackageJson checks if package.json exists in the rule path directory
+// and returns true if package.json is missing
+func validateRulePathPackageJson(rulePath, cwd string) bool {
+	// Construct the full path to the rule directory
+	fullRulePath := filepath.Join(cwd, rulePath)
+
+	// Check if the directory exists
+	if _, err := os.Stat(fullRulePath); os.IsNotExist(err) {
+		// Directory doesn't exist, no need to check for package.json
+		return false
+	}
+
+	// Check for package.json file in the rule directory
+	packageJsonPath := filepath.Join(fullRulePath, "package.json")
+	if _, err := os.Stat(packageJsonPath); os.IsNotExist(err) {
+		// package.json doesn't exist
+		return true
+	}
+
+	return false
+}
 
 // RuleResult contains the results for a single rule in the config
 type RuleResult struct {
@@ -18,6 +41,7 @@ type RuleResult struct {
 	OrphanFiles              []string
 	UnusedNodeModules        []string
 	MissingNodeModules       []MissingNodeModuleResult
+	MissingPackageJson       bool
 }
 
 // ConfigProcessingResult contains the results for processing an entire config
@@ -294,7 +318,6 @@ func ProcessConfig(
 	if err != nil {
 		return nil, err
 	}
-
 	// Step 2: Build dependency tree for config
 	fullTree, resolverManager, err := buildDependencyTreeForConfig(
 		allFiles,
@@ -312,6 +335,12 @@ func ProcessConfig(
 	result := &ConfigProcessingResult{
 		RuleResults: make([]RuleResult, len(config.Rules)),
 		HasFailures: false,
+	}
+
+	// Validate package.json exists for all rule paths before parallel processing
+	missingPackageJsonResults := make([]bool, len(config.Rules))
+	for i, rule := range config.Rules {
+		missingPackageJsonResults[i] = validateRulePathPackageJson(rule.Path, cwd)
 	}
 
 	var wg sync.WaitGroup
@@ -336,6 +365,9 @@ func ProcessConfig(
 				packageJson,
 				tsconfigJson,
 			)
+
+			// Set the missing package.json flag
+			ruleResult.MissingPackageJson = missingPackageJsonResults[ruleIndex]
 
 			// Check for failures and update result
 			hasFailures := len(ruleResult.CircularDependencies) > 0 ||

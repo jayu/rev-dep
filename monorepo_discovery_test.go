@@ -505,3 +505,65 @@ func TestDetectMonorepoWithValidWorkspacesArray(t *testing.T) {
 		t.Errorf("Expected monorepo root at %s, got %s", NormalizePathForInternal(root), monorepoCtx.WorkspaceRoot)
 	}
 }
+
+func TestWorkspacesArrayAndPackagesObject(t *testing.T) {
+	// Ensure both array-style and object-with-packages-style workspaces are supported
+	tmpDir, err := os.MkdirTemp("", "monorepo-workspaces-formats-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Helper to write files
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{tmpDir}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Array style
+	arrayRoot := filepath.Join(tmpDir, "array-root")
+	if err := os.MkdirAll(arrayRoot, 0755); err != nil {
+		t.Fatalf("Failed to mkdir arrayRoot: %v", err)
+	}
+	writeFile(`{"name": "root-array", "workspaces": ["packages/*"]}`, "array-root", "package.json")
+	writeFile(`{"name": "@arr/pkg"}`, "array-root", "packages", "pkg", "package.json")
+
+	// Object-with-packages style
+	objRoot := filepath.Join(tmpDir, "obj-root")
+	if err := os.MkdirAll(objRoot, 0755); err != nil {
+		t.Fatalf("Failed to mkdir objRoot: %v", err)
+	}
+	writeFile(`{"name": "root-obj", "workspaces": {"packages": ["packages/*"]}}`, "obj-root", "package.json")
+	writeFile(`{"name": "@obj/pkg"}`, "obj-root", "packages", "pkg", "package.json")
+
+	// Detect and verify array-root
+	monorepoArray := DetectMonorepo(filepath.Join(arrayRoot, "packages", "pkg"))
+	if monorepoArray == nil {
+		t.Fatalf("Failed to detect monorepo for array-style workspaces")
+	}
+	if monorepoArray.WorkspaceRoot != NormalizePathForInternal(arrayRoot) {
+		t.Errorf("Expected workspace root %s, got %s", NormalizePathForInternal(arrayRoot), monorepoArray.WorkspaceRoot)
+	}
+	monorepoArray.FindWorkspacePackages(monorepoArray.WorkspaceRoot, []GlobMatcher{})
+	if _, ok := monorepoArray.PackageToPath["@arr/pkg"]; !ok {
+		t.Errorf("Expected to find @arr/pkg in array-style workspaces")
+	}
+
+	// Detect and verify obj-root
+	monorepoObj := DetectMonorepo(filepath.Join(objRoot, "packages", "pkg"))
+	if monorepoObj == nil {
+		t.Fatalf("Failed to detect monorepo for object-with-packages-style workspaces")
+	}
+	if monorepoObj.WorkspaceRoot != NormalizePathForInternal(objRoot) {
+		t.Errorf("Expected workspace root %s, got %s", NormalizePathForInternal(objRoot), monorepoObj.WorkspaceRoot)
+	}
+	monorepoObj.FindWorkspacePackages(monorepoObj.WorkspaceRoot, []GlobMatcher{})
+	if _, ok := monorepoObj.PackageToPath["@obj/pkg"]; !ok {
+		t.Errorf("Expected to find @obj/pkg in object-with-packages-style workspaces")
+	}
+}

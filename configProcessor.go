@@ -211,7 +211,7 @@ func processRuleChecks(
 			slices.Sort(sortedRuleFiles)
 
 			circularDeps := FindCircularDependencies(
-				fullTree, // Use full tree for circular dependency detection
+				ruleTree,
 				sortedRuleFiles,
 				rule.CircularImportsDetection.IgnoreTypeImports,
 			)

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -1101,7 +1103,426 @@ func TestParseConfig_RealWorldScenarios(t *testing.T) {
 	}
 }
 
-// Helper function to check if string contains substring
+func TestParseConfigWithComments(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		shouldError bool
+		expected    RevDepConfig
+	}{
+		{
+			name: "valid jsonc with line comments",
+			content: `{
+				// This is a comment
+				"configVersion": "1.0.0",
+				"rules": [
+					{
+						"path": "src/**/*",
+						"circularImportsDetection": {
+							"enabled": true // Enable circular import detection
+						}
+					}
+				]
+			}`,
+			shouldError: false,
+			expected: RevDepConfig{
+				ConfigVersion: "1.0.0",
+				Rules: []Rule{
+					{
+						Path: "src/**/*",
+						CircularImportsDetection: &CircularImportsOptions{
+							Enabled: true,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "valid jsonc with block comments",
+			content: `{
+				/* This is a block comment */
+				"configVersion": "1.0.0",
+				"rules": [
+					{
+						"path": "src/**/*",
+						"orphanFilesDetection": {
+							"enabled": true,
+							"validEntryPoints": [
+								"index.ts" /* main entry point */
+							]
+						}
+					}
+				]
+			}`,
+			shouldError: false,
+			expected: RevDepConfig{
+				ConfigVersion: "1.0.0",
+				Rules: []Rule{
+					{
+						Path: "src/**/*",
+						OrphanFilesDetection: &OrphanFilesOptions{
+							Enabled:          true,
+							ValidEntryPoints: []string{"index.ts"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "valid jsonc with mixed comments",
+			content: `{
+				// Configuration file
+				"configVersion": "1.0.0", /* version */
+				"conditionNames": ["production"], // environment
+				"rules": [
+					{
+						"path": "src/**/*",
+						"moduleBoundaries": [
+							{
+								"name": "ui", /* UI components */
+								"pattern": "src/ui/**/*",
+								"allow": ["src/ui/**/*"] // allow internal imports
+							}
+						]
+					}
+				]
+			}`,
+			shouldError: false,
+			expected: RevDepConfig{
+				ConfigVersion:  "1.0.0",
+				ConditionNames: []string{"production"},
+				Rules: []Rule{
+					{
+						Path: "src/**/*",
+						ModuleBoundaries: []BoundaryRule{
+							{
+								Name:    "ui",
+								Pattern: "src/ui/**/*",
+								Allow:   []string{"src/ui/**/*"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid jsonc syntax",
+			content: `{
+				"configVersion": "1.0.0",
+				"rules": [
+					{
+						"path": "src/**/*"
+						// Missing comma here makes it invalid JSON
+						"circularImportsDetection": {
+							"enabled": true
+						}
+					}
+				]
+			}`,
+			shouldError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configs, err := ParseConfig([]byte(tt.content))
+
+			if tt.shouldError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if len(configs) != 1 {
+				t.Errorf("Expected 1 config, got %d", len(configs))
+				return
+			}
+
+			config := configs[0]
+			if config.ConfigVersion != tt.expected.ConfigVersion {
+				t.Errorf("Expected configVersion %s, got %s", tt.expected.ConfigVersion, config.ConfigVersion)
+			}
+
+			if !equalStringSlices(config.ConditionNames, tt.expected.ConditionNames) {
+				t.Errorf("Expected conditionNames %v, got %v", tt.expected.ConditionNames, config.ConditionNames)
+			}
+
+			if len(config.Rules) != len(tt.expected.Rules) {
+				t.Errorf("Expected %d rules, got %d", len(tt.expected.Rules), len(config.Rules))
+				return
+			}
+
+			// Compare first rule
+			if len(config.Rules) > 0 {
+				expectedRule := tt.expected.Rules[0]
+				actualRule := config.Rules[0]
+
+				if actualRule.Path != expectedRule.Path {
+					t.Errorf("Expected rule path %s, got %s", expectedRule.Path, actualRule.Path)
+				}
+			}
+		})
+	}
+}
+
+// Helper function to compare string slices
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if b[i] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func TestFindConfigFile(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-config-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name         string
+		createFiles  map[string]string
+		expectedFile string
+		shouldError  bool
+	}{
+		{
+			name: "hidden config only",
+			createFiles: map[string]string{
+				".rev-dep.config.json": `{"configVersion": "1.0.0", "rules": []}`,
+			},
+			expectedFile: ".rev-dep.config.json",
+			shouldError:  false,
+		},
+		{
+			name: "regular config only",
+			createFiles: map[string]string{
+				"rev-dep.config.json": `{"configVersion": "1.0.0", "rules": []}`,
+			},
+			expectedFile: "rev-dep.config.json",
+			shouldError:  false,
+		},
+		{
+			name: "hidden jsonc config only",
+			createFiles: map[string]string{
+				".rev-dep.config.jsonc": `{"configVersion": "1.0.0", "rules": []}`,
+			},
+			expectedFile: ".rev-dep.config.jsonc",
+			shouldError:  false,
+		},
+		{
+			name: "regular jsonc config only",
+			createFiles: map[string]string{
+				"rev-dep.config.jsonc": `{"configVersion": "1.0.0", "rules": []}`,
+			},
+			expectedFile: "rev-dep.config.jsonc",
+			shouldError:  false,
+		},
+		{
+			name: "both configs present (should error)",
+			createFiles: map[string]string{
+				".rev-dep.config.json": `{"configVersion": "1.0.0", "rules": []}`,
+				"rev-dep.config.json":  `{"configVersion": "2.0.0", "rules": []}`,
+			},
+			expectedFile: "",
+			shouldError:  true,
+		},
+		{
+			name: "both jsonc configs present (should error)",
+			createFiles: map[string]string{
+				".rev-dep.config.jsonc": `{"configVersion": "1.0.0", "rules": []}`,
+				"rev-dep.config.jsonc":  `{"configVersion": "2.0.0", "rules": []}`,
+			},
+			expectedFile: "",
+			shouldError:  true,
+		},
+		{
+			name: "mixed json and jsonc configs present (should error)",
+			createFiles: map[string]string{
+				".rev-dep.config.json": `{"configVersion": "1.0.0", "rules": []}`,
+				"rev-dep.config.jsonc": `{"configVersion": "2.0.0", "rules": []}`,
+			},
+			expectedFile: "",
+			shouldError:  true,
+		},
+		{
+			name: "all four config variants present (should error)",
+			createFiles: map[string]string{
+				".rev-dep.config.json":  `{"configVersion": "1.0.0", "rules": []}`,
+				"rev-dep.config.json":   `{"configVersion": "2.0.0", "rules": []}`,
+				".rev-dep.config.jsonc": `{"configVersion": "3.0.0", "rules": []}`,
+				"rev-dep.config.jsonc":  `{"configVersion": "4.0.0", "rules": []}`,
+			},
+			expectedFile: "",
+			shouldError:  true,
+		},
+		{
+			name:         "no config files",
+			createFiles:  map[string]string{},
+			expectedFile: "",
+			shouldError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clean up any existing files first
+			for fileName := range tt.createFiles {
+				os.Remove(filepath.Join(tempDir, fileName))
+			}
+			// Also remove the other config files if they're not in this test
+			configFiles := []string{".rev-dep.config.json", "rev-dep.config.json", ".rev-dep.config.jsonc", "rev-dep.config.jsonc"}
+			for _, configFile := range configFiles {
+				if tt.createFiles[configFile] == "" {
+					os.Remove(filepath.Join(tempDir, configFile))
+				}
+			}
+
+			// Create test files
+			for fileName, content := range tt.createFiles {
+				filePath := filepath.Join(tempDir, fileName)
+				if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+					t.Fatalf("Failed to create file %s: %v", fileName, err)
+				}
+			}
+
+			// Test findConfigFile
+			foundPath, err := findConfigFile(tempDir)
+			if tt.shouldError {
+				if err == nil {
+					t.Errorf("Expected error for %s, got nil", tt.name)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error for %s, got %v", tt.name, err)
+				}
+				expectedPath := filepath.Join(tempDir, tt.expectedFile)
+				if foundPath != expectedPath {
+					t.Errorf("Expected path %s, got %s", expectedPath, foundPath)
+				}
+			}
+
+			// Clean up files after test
+			for fileName := range tt.createFiles {
+				os.Remove(filepath.Join(tempDir, fileName))
+			}
+		})
+	}
+}
+
+func TestValidateRulePath(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "valid relative path",
+			path:    "apps/web",
+			wantErr: false,
+		},
+		{
+			name:    "valid relative path with dot",
+			path:    "./apps/web",
+			wantErr: false,
+		},
+		{
+			name:    "valid root path",
+			path:    ".",
+			wantErr: false,
+		},
+		{
+			name:    "valid root path with dot slash",
+			path:    "./",
+			wantErr: false,
+		},
+		{
+			name:    "invalid path with parent directory",
+			path:    "../apps/web",
+			wantErr: true,
+			errMsg:  "contains '../'",
+		},
+		{
+			name:    "invalid empty path",
+			path:    "",
+			wantErr: true,
+			errMsg:  "cannot be empty",
+		},
+		{
+			name:    "invalid path with parent directory in middle",
+			path:    "apps/../web",
+			wantErr: true,
+			errMsg:  "contains '../'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRulePath(tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateRulePath() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err != nil {
+				if tt.errMsg != "" && !contains(err.Error(), tt.errMsg) {
+					t.Errorf("validateRulePath() error = %v, expected to contain %v", err.Error(), tt.errMsg)
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizeRulePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{
+			name:     "relative path without dot",
+			path:     "apps/web",
+			expected: "apps/web",
+		},
+		{
+			name:     "relative path with dot",
+			path:     "./apps/web",
+			expected: "apps/web",
+		},
+		{
+			name:     "root path",
+			path:     ".",
+			expected: ".",
+		},
+		{
+			name:     "root path with dot slash",
+			path:     "./",
+			expected: ".",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeRulePath(tt.path)
+			if result != tt.expected {
+				t.Errorf("normalizeRulePath() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > len(substr) && indexOf(s, substr) >= 0))

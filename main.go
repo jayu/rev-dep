@@ -339,7 +339,7 @@ func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPat
 	excludeFiles := []string{}
 
 	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
-	cycles := FindCircularDependencies(minimalTree, files)
+	cycles := FindCircularDependencies(minimalTree, files, ignoreType)
 
 	fmt.Fprint(os.Stderr, FormatCircularDependencies(cycles, cwd, minimalTree))
 
@@ -907,7 +907,7 @@ func init() {
 		"Directory to analyze")
 
 	// add commands
-	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, docsCmd, moduleBoundariesCmd)
+	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, docsCmd, moduleBoundariesCmd, runConfigCmd)
 }
 
 func main() {
@@ -916,7 +916,7 @@ func main() {
 	}
 }
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (MinimalDependencyTree, []string, map[string]bool) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (MinimalDependencyTree, []string, *ResolverManager) {
 	var files []string
 
 	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)
@@ -944,7 +944,5 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 
-	allNodeModules := resolverManager.CollectAllNodeModules()
-
-	return minimalTree, sortedFiles, allNodeModules
+	return minimalTree, sortedFiles, resolverManager
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/tidwall/jsonc"
 )
@@ -62,9 +63,50 @@ type RevDepConfig struct {
 }
 
 var configFileName = "rev-dep.config.json"
+var hiddenConfigFileName = ".rev-dep.config.json"
+var configFileNameJsonc = "rev-dep.config.jsonc"
+var hiddenConfigFileNameJsonc = ".rev-dep.config.jsonc"
+
+// findConfigFile looks for config files in the given directory
+// It checks for .rev-dep.config.jsonc, .rev-dep.config.json, rev-dep.config.jsonc, and rev-dep.config.json
+// Returns error if multiple files exist (ambiguous configuration)
+func findConfigFile(dir string) (string, error) {
+	hiddenConfigPathJsonc := filepath.Join(dir, hiddenConfigFileNameJsonc)
+	hiddenConfigPath := filepath.Join(dir, hiddenConfigFileName)
+	regularConfigPathJsonc := filepath.Join(dir, configFileNameJsonc)
+	regularConfigPath := filepath.Join(dir, configFileName)
+
+	var foundFiles []string
+
+	// Check for all config file variants
+	if _, err := os.Stat(hiddenConfigPathJsonc); err == nil {
+		foundFiles = append(foundFiles, hiddenConfigPathJsonc)
+	}
+	if _, err := os.Stat(hiddenConfigPath); err == nil {
+		foundFiles = append(foundFiles, hiddenConfigPath)
+	}
+	if _, err := os.Stat(regularConfigPathJsonc); err == nil {
+		foundFiles = append(foundFiles, regularConfigPathJsonc)
+	}
+	if _, err := os.Stat(regularConfigPath); err == nil {
+		foundFiles = append(foundFiles, regularConfigPath)
+	}
+
+	// Multiple files exist - ambiguous configuration
+	if len(foundFiles) > 1 {
+		return "", fmt.Errorf("multiple config files found in %s: %v - please use only one config file", dir, foundFiles)
+	}
+
+	// Return the one that exists
+	if len(foundFiles) == 1 {
+		return foundFiles[0], nil
+	}
+
+	return "", fmt.Errorf("no config file found in %s", dir)
+}
 
 // LoadConfig loads the rev-dep configuration from the specified path.
-// configPath can be a specific file path or a directory containing rev-dep.config.json.
+// configPath can be a specific file path or a directory containing rev-dep.config.json or rev-dep.config.jsonc.
 // Returns a single RevDepConfig object.
 func LoadConfig(configPath string) ([]RevDepConfig, error) {
 	content, err := readConfigFile(configPath)
@@ -76,18 +118,24 @@ func LoadConfig(configPath string) ([]RevDepConfig, error) {
 }
 
 // readConfigFile reads the config file content from the specified path.
+// configPath can be a specific file path or a directory containing config files.
 func readConfigFile(configPath string) ([]byte, error) {
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	actualPath := configPath
 	if fileInfo.IsDir() {
-		actualPath = filepath.Join(configPath, configFileName)
+		// Look for config files in the directory
+		configFile, err := findConfigFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+		return os.ReadFile(configFile)
 	}
 
-	return os.ReadFile(actualPath)
+	// Direct file path provided
+	return os.ReadFile(configPath)
 }
 
 // ParseConfig parses the config content and returns a validated RevDepConfig.
@@ -115,6 +163,37 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 	}
 
 	return []RevDepConfig{config}, nil
+}
+
+// validateRulePath validates that a rule path is acceptable
+func validateRulePath(path string) error {
+	// Reject paths that try to go outside the project
+	if strings.Contains(path, "../") {
+		return fmt.Errorf("rule path '%s' contains '../' which is not allowed. Rule paths must be within the project directory", path)
+	}
+
+	// Normalize path by removing leading "./" if present
+	normalizedPath := strings.TrimPrefix(path, "./")
+
+	// Empty path is not allowed, except for "." which represents root
+	if normalizedPath == "" && path != "./" && path != "." {
+		return fmt.Errorf("rule path cannot be empty")
+	}
+
+	return nil
+}
+
+// normalizeRulePath normalizes a rule path by removing leading "./"
+func normalizeRulePath(path string) string {
+	// Remove leading "./" prefix
+	normalized := strings.TrimPrefix(path, "./")
+
+	// If the result is empty and the original was "./" or ".", return "." for root
+	if normalized == "" && (path == "./" || path == ".") {
+		return "."
+	}
+
+	return normalized
 }
 
 // validateRawConfig validates field names and basic structure before typed parsing
@@ -178,8 +257,14 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 	if !exists {
 		return fmt.Errorf("rules[%d].path is required", index)
 	}
-	if _, ok := path.(string); !ok {
+	pathStr, ok := path.(string)
+	if !ok {
 		return fmt.Errorf("rules[%d].path must be a string, got %T", index, path)
+	}
+
+	// Validate the path
+	if err := validateRulePath(pathStr); err != nil {
+		return fmt.Errorf("rules[%d].path: %v", index, err)
 	}
 
 	// Validate module boundaries if present

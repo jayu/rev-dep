@@ -214,14 +214,6 @@ func (rm *ResolverManager) CollectAllNodeModules() map[string]bool {
 	return allNodeModules
 }
 
-func (rm *ResolverManager) GetNodeModulesForFile(filePath string) map[string]bool {
-	resolver := rm.GetResolverForFile(filePath)
-	if resolver != nil {
-		return resolver.nodeModules
-	}
-	return map[string]bool{}
-}
-
 func isValidTsAliasTargetPath(path string) bool {
 	return strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
 }
@@ -993,11 +985,11 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		tsConfigPath = filepath.Join(cwd, "tsconfig.json")
 	}
 
-	tsConfigDir := filepath.Dir(tsConfigPath)
-
 	if packageJson == "" {
 		pkgJsonPath = JoinWithCwd(cwd, "package.json")
 	}
+
+	pkjJsonDir := filepath.Dir(pkgJsonPath)
 
 	// Let ParseTsConfig read and resolve the tsconfig file. If user provided
 	// an explicit tsconfig path and parsing fails, exit with error to match
@@ -1044,7 +1036,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 				&discoveredFiles,
 				&fileImportsArr,
 				&sortedFiles,
-				tsConfigDir,
+				pkjJsonDir,
 				ignoreTypeImports,
 				skipResolveMissing,
 				idx,
@@ -1087,7 +1079,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	return filteredFileImportsArr, filteredFiles, resolverManager
 }
 
-func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, tsConfigDirOrCwd string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {
+func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, pkgJsonDir string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()

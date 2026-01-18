@@ -1026,6 +1026,71 @@ func TestShouldParseDynamicImportSourceWrappedWithBrackets(t *testing.T) {
 	}
 }
 
+func TestShouldNotProcessCommentedCodeAfterExportKeyword(t *testing.T) {
+	code := `export class MyClass {
+		// asd from 'error'
+	}
+  `
+	imports := ParseImportsForTests(code)
+
+	if len(imports) > 0 {
+		t.Errorf("Should not parse import: from '%v', got '%s' import", code, imports[0].Request)
+	}
+
+	code2 := `export class MyClass {
+		/*
+		 asd from 'error'
+		*/
+	}
+  `
+	imports2 := ParseImportsForTests(code2)
+
+	if len(imports2) > 0 {
+		t.Errorf("Should not parse import: from '%v', got '%s' import", code2, imports2[0].Request)
+	}
+
+	// Should parse `export * from "path"`
+	code3 := `export 
+		/*
+		 asd from 'error'
+		*/
+		* from "path"
+	
+  `
+	imports3 := ParseImportsForTests(code3)
+
+	if len(imports3) != 1 || imports3[0].Request != "path" {
+		t.Errorf("Should parse import: from '%v'", code3)
+	}
+}
+
+func TestShouldNotProcessCommentedCodeAfterImportKeyword(t *testing.T) {
+	// Test case for import vulnerability
+	code := `import {
+		something
+		// from 'error'
+	} from 'actual'`
+
+	imports := ParseImportsForTests(code)
+
+	if len(imports) != 1 || imports[0].Request != "actual" {
+		t.Errorf("Should only parse 'actual' import, got: %v", imports)
+	}
+
+	code2 := `import {
+		something
+		/*
+		 from 'error'
+		*/
+	} from 'actual2'`
+
+	imports2 := ParseImportsForTests(code2)
+
+	if len(imports2) != 1 || imports2[0].Request != "actual2" {
+		t.Errorf("Should only parse 'actual2' import, got: %v", imports2)
+	}
+}
+
 func BenchmarkParseImportsWithTypes(b *testing.B) {
 	fixtureContent, _ := os.ReadFile("./__fixtures__/parseImports.ts")
 	ignoreTypeImports := true

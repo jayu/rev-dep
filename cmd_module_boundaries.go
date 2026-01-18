@@ -22,6 +22,14 @@ type ValidationResult struct {
 	RuleName   string
 }
 
+// ModuleBoundaryViolation represents a module boundary violation
+type ModuleBoundaryViolation struct {
+	FilePath      string
+	ImportPath    string
+	RuleName      string
+	ViolationType string // "denied" or "not_allowed"
+}
+
 // moduleBoundariesCmdFn checks for module boundary violations.
 func moduleBoundariesCmdFn(cwd string, configPath string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) (string, bool, error) {
 	// 1. Load Config
@@ -68,60 +76,18 @@ func moduleBoundariesCmdFn(cwd string, configPath string, packageJsonPath, tscon
 			// Note: passing empty exclude patterns for now, could be enhanced to support per-config excludes if added to struct
 			minimalTree, files, _ := GetMinimalDepsTreeForCwd(targetCwd, false, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
-			// Compile matchers for all boundaries in this rule
-			type CompiledBoundary struct {
-				Rule            BoundaryRule
-				PatternMatchers []GlobMatcher
-				AllowMatchers   []GlobMatcher
-				DenyMatchers    []GlobMatcher
-			}
+			// 3. Check Violations using the pure function
+			violations := CheckModuleBoundariesFromTree(minimalTree, files, rule.ModuleBoundaries, targetCwd)
 
-			compiledBoundaries := make([]CompiledBoundary, 0, len(rule.ModuleBoundaries))
-			for _, boundary := range rule.ModuleBoundaries {
-				cb := CompiledBoundary{
-					Rule:            boundary,
-					PatternMatchers: CreateGlobMatchers([]string{boundary.Pattern}, targetCwd),
-					AllowMatchers:   CreateGlobMatchers(boundary.Allow, targetCwd),
-					DenyMatchers:    CreateGlobMatchers(boundary.Deny, targetCwd),
+			// 4. Format violations into report
+			for _, violation := range violations {
+				if violation.ViolationType == "denied" {
+					reportBuilder.WriteString(fmt.Sprintf("Violation [%s]: %s -> %s (Matched Deny Pattern)\n", violation.RuleName, violation.FilePath, violation.ImportPath))
+				} else {
+					reportBuilder.WriteString(fmt.Sprintf("Violation [%s]: %s -> %s (Not in Allow List)\n", violation.RuleName, violation.FilePath, violation.ImportPath))
 				}
-				compiledBoundaries = append(compiledBoundaries, cb)
-			}
-
-			// 3. Check Violations
-			for _, filePath := range files {
-				// Find which boundaries apply to this file
-				for _, boundary := range compiledBoundaries {
-					if MatchesAnyGlobMatcher(filePath, boundary.PatternMatchers, false) {
-						// Check dependencies
-						fileDeps, ok := minimalTree[filePath]
-						if !ok {
-							continue
-						}
-
-						for _, dep := range fileDeps {
-							if dep.ID != nil && (dep.ResolvedType == UserModule || dep.ResolvedType == MonorepoModule) {
-								resolvedPath := *dep.ID
-
-								// Check if denied
-								if len(boundary.DenyMatchers) > 0 && MatchesAnyGlobMatcher(resolvedPath, boundary.DenyMatchers, false) {
-									reportBuilder.WriteString(fmt.Sprintf("Violation [%s]: %s -> %s (Matched Deny Pattern)\n", boundary.Rule.Name, filePath, resolvedPath))
-									totalViolationsCount++
-									hasViolations = true
-									continue
-								}
-
-								// Check if allowed
-								if len(boundary.AllowMatchers) > 0 {
-									if !MatchesAnyGlobMatcher(resolvedPath, boundary.AllowMatchers, false) {
-										reportBuilder.WriteString(fmt.Sprintf("Violation [%s]: %s -> %s (Not in Allow List)\n", boundary.Rule.Name, filePath, resolvedPath))
-										totalViolationsCount++
-										hasViolations = true
-									}
-								}
-							}
-						}
-					}
-				}
+				totalViolationsCount++
+				hasViolations = true
 			}
 		} // Close the rule loop
 	} // Close the config loop
@@ -133,10 +99,84 @@ func moduleBoundariesCmdFn(cwd string, configPath string, packageJsonPath, tscon
 	return "", false, nil
 }
 
+// CheckModuleBoundariesFromTree checks for module boundary violations using a pre-built dependency tree
+func CheckModuleBoundariesFromTree(
+	minimalTree MinimalDependencyTree,
+	files []string,
+	boundaries []BoundaryRule,
+	cwd string,
+) []ModuleBoundaryViolation {
+	var violations []ModuleBoundaryViolation
+
+	// Compile matchers for all boundaries
+	type CompiledBoundary struct {
+		Rule            BoundaryRule
+		PatternMatchers []GlobMatcher
+		AllowMatchers   []GlobMatcher
+		DenyMatchers    []GlobMatcher
+	}
+
+	compiledBoundaries := make([]CompiledBoundary, 0, len(boundaries))
+	for _, boundary := range boundaries {
+		cb := CompiledBoundary{
+			Rule:            boundary,
+			PatternMatchers: CreateGlobMatchers([]string{boundary.Pattern}, cwd),
+			AllowMatchers:   CreateGlobMatchers(boundary.Allow, cwd),
+			DenyMatchers:    CreateGlobMatchers(boundary.Deny, cwd),
+		}
+		compiledBoundaries = append(compiledBoundaries, cb)
+	}
+
+	// Check violations
+	for _, filePath := range files {
+		// Find which boundaries apply to this file
+		for _, boundary := range compiledBoundaries {
+			if MatchesAnyGlobMatcher(filePath, boundary.PatternMatchers, false) {
+				// Check dependencies
+				fileDeps, ok := minimalTree[filePath]
+				if !ok {
+					continue
+				}
+
+				for _, dep := range fileDeps {
+					if dep.ID != nil && (dep.ResolvedType == UserModule || dep.ResolvedType == MonorepoModule) {
+						resolvedPath := *dep.ID
+
+						// Check if denied
+						if len(boundary.DenyMatchers) > 0 && MatchesAnyGlobMatcher(resolvedPath, boundary.DenyMatchers, false) {
+							violations = append(violations, ModuleBoundaryViolation{
+								FilePath:      filePath,
+								ImportPath:    resolvedPath,
+								RuleName:      boundary.Rule.Name,
+								ViolationType: "denied",
+							})
+							continue
+						}
+
+						// Check if allowed
+						if len(boundary.AllowMatchers) > 0 {
+							if !MatchesAnyGlobMatcher(resolvedPath, boundary.AllowMatchers, false) {
+								violations = append(violations, ModuleBoundaryViolation{
+									FilePath:      filePath,
+									ImportPath:    resolvedPath,
+									RuleName:      boundary.Rule.Name,
+									ViolationType: "not_allowed",
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return violations
+}
+
 var moduleBoundariesCmd = &cobra.Command{
 	Use:   "module-boundaries",
 	Short: "Enforce module boundaries and import rules",
-	Long:  `Check for import violations based on defined module boundaries in rev-dep.config.json.`,
+	Long:  `Check for import violations based on defined module boundaries in (.)rev-dep.config.json(c).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		report, hasViolations, err := moduleBoundariesCmdFn(
 			ResolveAbsoluteCwd(moduleBoundariesCwd),
@@ -164,5 +204,5 @@ var moduleBoundariesCmd = &cobra.Command{
 func init() {
 	addSharedFlags(moduleBoundariesCmd)
 	moduleBoundariesCmd.Flags().StringVarP(&moduleBoundariesCwd, "cwd", "c", currentDir, "Working directory")
-	moduleBoundariesCmd.Flags().StringVar(&moduleBoundariesConfigPath, "config", "", "Path to rev-dep.config.json or directory containing it")
+	moduleBoundariesCmd.Flags().StringVar(&moduleBoundariesConfigPath, "config", "", "Path to rev-dep.config.json, rev-dep.config.jsonc, or directory containing them")
 }

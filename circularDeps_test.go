@@ -10,7 +10,7 @@ func TestFindCircularDepsWithTypeImports(t *testing.T) {
 
 	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, false)
 
-	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles)
+	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
 	expectedCircularDeps := [][]string{
 		{cwd + "moduleSrc/fileA.tsx", cwd + "src/types.ts", cwd + "moduleSrc/fileA.tsx"},
@@ -28,7 +28,7 @@ func TestFindCircularDepsWithoutTypeImports(t *testing.T) {
 
 	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, true, []string{}, []string{}, "", "", []string{}, false)
 
-	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles)
+	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
 	expectedCircularDeps := [][]string{
 		{cwd + "moduleSrc/anotherFileForCycle.js", cwd + "moduleSrc/oneMoreFileForCycle.tsx", cwd + "moduleSrc/fileForCycle.ts", cwd + "moduleSrc/anotherFileForCycle.js"},
@@ -45,7 +45,7 @@ func TestFindMultipleCircularDepsFromSameNode(t *testing.T) {
 
 	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, false)
 
-	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles)
+	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
 	// This test case starts with _index.ts file to assert search order that discovers two cycles from fileA
 	expectedCircularDeps := [][]string{

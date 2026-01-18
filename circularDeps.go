@@ -6,7 +6,7 @@ import (
 )
 
 // findCircularDependencies detects circular dependencies in the dependency tree
-func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []string) [][]string {
+func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []string, ignoreTypeImports bool) [][]string {
 	var cycles [][]string
 	visited := make(map[string]bool)
 	recStack := make(map[string]bool)
@@ -26,6 +26,11 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 		if nodeDeps, exists := deps[node]; exists && nodeDeps != nil {
 			for _, dep := range nodeDeps {
 				if dep.ID == nil || *dep.ID == "" {
+					continue
+				}
+
+				// Skip type-only imports if ignoreTypeImports is enabled
+				if ignoreTypeImports && dep.ImportKind != nil && *dep.ImportKind == OnlyTypeImport {
 					continue
 				}
 
@@ -76,15 +81,21 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 }
 
 // formatCircularDependencies formats circular dependencies for display
-func FormatCircularDependencies(cycles [][]string, pathPrefix string, deps MinimalDependencyTree) string {
+func formatCircularDependencies(cycles [][]string, pathPrefix string, deps MinimalDependencyTree, includeHeader bool, baseIndentation int) string {
 	if len(cycles) == 0 {
-		return fmt.Sprintln("No circular dependencies found! ✅")
+		if includeHeader {
+			return fmt.Sprintln("No circular dependencies found! ")
+		}
+		return ""
 	}
 
-	result := fmt.Sprintf("Found %d circular dependencies:\n\n", len(cycles))
+	var result string
+	if includeHeader {
+		result = fmt.Sprintf("Found %d circular dependencies:\n\n", len(cycles))
+	}
 
 	for i, cycle := range cycles {
-		result += fmt.Sprintf("Circular Dependency %d:\n", i+1)
+		result += fmt.Sprintf("%sCircular Dependency %d:\n", strings.Repeat(" ", baseIndentation), i+1)
 		for j, file := range cycle {
 			// Clean the path
 			cleanPath := file
@@ -105,7 +116,7 @@ func FormatCircularDependencies(cycles [][]string, pathPrefix string, deps Minim
 				}
 			}
 
-			indent := strings.Repeat(" ", j)
+			indent := strings.Repeat(" ", baseIndentation+j)
 			if j == 0 {
 				result += fmt.Sprintf("%s ➞ %s (cycle start)\n", indent, cleanPath)
 			} else {
@@ -115,6 +126,16 @@ func FormatCircularDependencies(cycles [][]string, pathPrefix string, deps Minim
 		result += fmt.Sprintln()
 	}
 	return result
+}
+
+// FormatCircularDependencies formats circular dependencies with header (for backward compatibility)
+func FormatCircularDependencies(cycles [][]string, pathPrefix string, deps MinimalDependencyTree) string {
+	return formatCircularDependencies(cycles, pathPrefix, deps, true, 0)
+}
+
+// FormatCircularDependenciesWithoutHeader formats circular dependencies without header
+func FormatCircularDependenciesWithoutHeader(cycles [][]string, pathPrefix string, deps MinimalDependencyTree, baseIndentation int) string {
+	return formatCircularDependencies(cycles, pathPrefix, deps, false, baseIndentation)
 }
 
 // deduplicateStringArrays deduplicates cycles

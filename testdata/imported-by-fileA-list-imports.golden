@@ -1,0 +1,8 @@
+index.ts:
+  @/module/fileA
+
+src/importFileA.ts:
+  @/module/fileA
+
+src/types.ts:
+  @/module/fileA

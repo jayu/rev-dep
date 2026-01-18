@@ -50,19 +50,18 @@ func TestInitConfigFile(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Test basic init
-	err = initConfigFile(tempDir)
+	configPath, _, err := initConfigFileCore(tempDir)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
 	// Check that config file was created
-	configPath := filepath.Join(tempDir, "rev-dep.config.json")
 	if _, err := os.Stat(configPath); err != nil {
 		t.Errorf("Expected config file to exist at %s", configPath)
 	}
 
 	// Test that init fails when config already exists
-	err = initConfigFile(tempDir)
+	_, _, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when config already exists, got nil")
 	}
@@ -73,7 +72,7 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with .rev-dep.config.json
 	hiddenConfigPath := filepath.Join(tempDir, ".rev-dep.config.json")
 	os.WriteFile(hiddenConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	err = initConfigFile(tempDir)
+	_, _, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when hidden config exists, got nil")
 	}
@@ -82,7 +81,7 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with rev-dep.config.jsonc
 	jsoncConfigPath := filepath.Join(tempDir, "rev-dep.config.jsonc")
 	os.WriteFile(jsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	err = initConfigFile(tempDir)
+	_, _, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when jsonc config exists, got nil")
 	}
@@ -91,14 +90,14 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with .rev-dep.config.jsonc
 	hiddenJsoncConfigPath := filepath.Join(tempDir, ".rev-dep.config.jsonc")
 	os.WriteFile(hiddenJsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	err = initConfigFile(tempDir)
+	_, _, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when hidden jsonc config exists, got nil")
 	}
 	os.Remove(hiddenJsoncConfigPath)
 
 	// Now test that it works when no config files exist
-	err = initConfigFile(tempDir)
+	configPath, _, err = initConfigFileCore(tempDir)
 	if err != nil {
 		t.Errorf("Expected no error when no config files exist, got %v", err)
 	}

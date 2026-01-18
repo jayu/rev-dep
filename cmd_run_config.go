@@ -75,7 +75,12 @@ var configInitCmd = &cobra.Command{
 	Long:  `Create a new rev-dep.config.json configuration file in the current directory with default settings.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd := ResolveAbsoluteCwd(configCwd)
-		return initConfigFile(cwd)
+		configPath, rules, err := initConfigFileCore(cwd)
+		if err != nil {
+			return err
+		}
+		printInitConfigResults(configPath, rules)
+		return nil
 	},
 }
 
@@ -199,14 +204,14 @@ func init() {
 	configCmd.AddCommand(configRunCmd, configInitCmd)
 }
 
-// initConfigFile initializes a new rev-dep.config.json file with minimal structure
-func initConfigFile(cwd string) error {
+// initConfigFileCore creates the config file without printing results
+func initConfigFileCore(cwd string) (string, []Rule, error) {
 	currentConfigVersion := "1.0"
 
 	// Check if any config file already exists
 	existingConfig, err := findConfigFile(cwd)
 	if err == nil && existingConfig != "" {
-		return fmt.Errorf("config file already exists at %s", existingConfig)
+		return "", nil, fmt.Errorf("config file already exists at %s", existingConfig)
 	}
 
 	// Define the path for the new config file (always use the standard name)
@@ -319,14 +324,19 @@ func initConfigFile(cwd string) error {
 	// Marshal config to JSON with proper formatting
 	configJSON, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %v", err)
+		return "", nil, fmt.Errorf("failed to marshal config: %v", err)
 	}
 
 	// Write config file
 	if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %v", err)
+		return "", nil, fmt.Errorf("failed to write config file: %v", err)
 	}
 
+	return configPath, rules, nil
+}
+
+// printInitConfigResults prints the results of config initialization
+func printInitConfigResults(configPath string, rules []Rule) {
 	fmt.Printf("✅ Created .rev-dep.config.jsonc at %s\n", configPath)
 	if len(rules) > 1 {
 		fmt.Printf("📦 Discovered %d monorepo packages and created rules for each\n", len(rules)-1)
@@ -336,6 +346,14 @@ func initConfigFile(cwd string) error {
 
 	fmt.Println("Adjust rules to make them relevant to your project setup.\nGenerated module boundaries config is exemplary and does not make much sense.")
 	fmt.Println("Hint: feed LLM with config file JSON schema to get started.")
+}
 
+// initConfigFile initializes a new rev-dep.config.json file with minimal structure
+func initConfigFile(cwd string) error {
+	configPath, rules, err := initConfigFileCore(cwd)
+	if err != nil {
+		return err
+	}
+	printInitConfigResults(configPath, rules)
 	return nil
 }

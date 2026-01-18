@@ -1536,3 +1536,129 @@ func indexOf(s, substr string) int {
 	}
 	return -1
 }
+
+func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
+	// Test cases for single rules with consistent behavior
+	tests := []struct {
+		name     string
+		config   string
+		expected bool
+	}{
+		{
+			name: "followMonorepoPackages not set should default to true",
+			config: `{
+				"configVersion": "1.0.0",
+				"rules": [
+					{
+						"path": "./src"
+					}
+				]
+			}`,
+			expected: true,
+		},
+		{
+			name: "followMonorepoPackages explicitly set to true",
+			config: `{
+				"configVersion": "1.0.0",
+				"rules": [
+					{
+						"path": "./src",
+						"followMonorepoPackages": true
+					}
+				]
+			}`,
+			expected: true,
+		},
+		{
+			name: "followMonorepoPackages explicitly set to false",
+			config: `{
+				"configVersion": "1.0.0",
+				"rules": [
+					{
+						"path": "./src",
+						"followMonorepoPackages": false
+					}
+				]
+			}`,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configs, err := ParseConfig([]byte(tt.config))
+			if err != nil {
+				t.Errorf("Expected no error, got %v", err)
+				return
+			}
+
+			if len(configs) != 1 {
+				t.Errorf("Expected 1 config, got %d", len(configs))
+				return
+			}
+
+			config := configs[0]
+			if len(config.Rules) != 1 {
+				t.Errorf("Expected 1 rule, got %d", len(config.Rules))
+				return
+			}
+
+			actual := config.Rules[0].FollowMonorepoPackages
+			if actual != tt.expected {
+				t.Errorf("Expected FollowMonorepoPackages to be %v, got %v", tt.expected, actual)
+			}
+		})
+	}
+
+	// Separate test for multiple rules with different values
+	t.Run("multiple rules with different followMonorepoPackages values", func(t *testing.T) {
+		config := `{
+			"configVersion": "1.0.0",
+			"rules": [
+				{
+					"path": "./src",
+					"followMonorepoPackages": false
+				},
+				{
+					"path": "./lib"
+				},
+				{
+					"path": "./tests",
+					"followMonorepoPackages": true
+				}
+			]
+		}`
+
+		configs, err := ParseConfig([]byte(config))
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+			return
+		}
+
+		if len(configs) != 1 {
+			t.Errorf("Expected 1 config, got %d", len(configs))
+			return
+		}
+
+		parsedConfig := configs[0]
+		if len(parsedConfig.Rules) != 3 {
+			t.Errorf("Expected 3 rules, got %d", len(parsedConfig.Rules))
+			return
+		}
+
+		// First rule should be explicitly false
+		if parsedConfig.Rules[0].FollowMonorepoPackages != false {
+			t.Errorf("Expected first rule FollowMonorepoPackages to be false, got %v", parsedConfig.Rules[0].FollowMonorepoPackages)
+		}
+
+		// Second rule should default to true
+		if parsedConfig.Rules[1].FollowMonorepoPackages != true {
+			t.Errorf("Expected second rule FollowMonorepoPackages to be true (default), got %v", parsedConfig.Rules[1].FollowMonorepoPackages)
+		}
+
+		// Third rule should be explicitly true
+		if parsedConfig.Rules[2].FollowMonorepoPackages != true {
+			t.Errorf("Expected third rule FollowMonorepoPackages to be true, got %v", parsedConfig.Rules[2].FollowMonorepoPackages)
+		}
+	})
+}

@@ -47,7 +47,8 @@ type MissingNodeModulesOptions struct {
 }
 
 type Rule struct {
-	Path                        string                     `json:"path"` // Required
+	Path                        string                     `json:"path"`                   // Required
+	FollowMonorepoPackages      bool                       `json:"followMonorepoPackages"` // Default: true
 	ModuleBoundaries            []BoundaryRule             `json:"moduleBoundaries,omitempty"`
 	CircularImportsDetection    *CircularImportsOptions    `json:"circularImportsDetection,omitempty"`
 	OrphanFilesDetection        *OrphanFilesOptions        `json:"orphanFilesDetection,omitempty"`
@@ -162,6 +163,19 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 		return nil, err
 	}
 
+	// Set default values for optional fields
+	for i := range config.Rules {
+		// Default FollowMonorepoPackages to true if not explicitly set (zero value is false)
+		// We need to check if the field was explicitly set in the JSON
+		if rawRules, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRules) {
+			if ruleMap, ok := rawRules[i].(map[string]interface{}); ok {
+				if _, exists := ruleMap["followMonorepoPackages"]; !exists {
+					config.Rules[i].FollowMonorepoPackages = true
+				}
+			}
+		}
+	}
+
 	return []RevDepConfig{config}, nil
 }
 
@@ -239,6 +253,7 @@ func validateRawConfig(raw map[string]interface{}) error {
 func validateRawRule(rule map[string]interface{}, index int) error {
 	allowedRuleFields := map[string]bool{
 		"path":                        true,
+		"followMonorepoPackages":      true,
 		"moduleBoundaries":            true,
 		"circularImportsDetection":    true,
 		"orphanFilesDetection":        true,

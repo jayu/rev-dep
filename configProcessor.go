@@ -352,7 +352,7 @@ func ProcessConfig(
 			defer wg.Done()
 
 			// Step 3a: Filter files for this rule
-			ruleFiles, ruleTree := filterFilesForRule(fullTree, currentRule.Path, cwd, true)
+			ruleFiles, ruleTree := filterFilesForRule(fullTree, currentRule.Path, cwd, currentRule.FollowMonorepoPackages)
 
 			// Step 3b: Execute enabled checks in parallel
 			ruleResult := processRuleChecks(

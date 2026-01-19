@@ -225,6 +225,30 @@ func TestPnpmResolution(t *testing.T) {
 	}
 }
 
+func TestPnpmWorkspaceEmptyShouldNotDetectMonorepo(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-empty")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create an empty pnpm-workspace.yaml (no packages definition)
+	files := map[string]string{
+		"pnpm-workspace.yaml": "\n", // empty content
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx != nil {
+		t.Fatalf("Expected NOT to detect monorepo when pnpm-workspace.yaml contains no packages, but detected %v", monorepoCtx.WorkspaceRoot)
+	}
+}
+
 func TestFindWorkspacePackages(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "monorepo-test-*")
 	if err != nil {

@@ -75,11 +75,11 @@ var configInitCmd = &cobra.Command{
 	Long:  `Create a new rev-dep.config.json configuration file in the current directory with default settings.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd := ResolveAbsoluteCwd(configCwd)
-		configPath, rules, err := initConfigFileCore(cwd)
+		configPath, rules, createdForMonorepoSubPackage, err := initConfigFileCore(cwd)
 		if err != nil {
 			return err
 		}
-		printInitConfigResults(configPath, rules)
+		printInitConfigResults(configPath, rules, createdForMonorepoSubPackage)
 		return nil
 	},
 }
@@ -205,13 +205,13 @@ func init() {
 }
 
 // initConfigFileCore creates the config file without printing results
-func initConfigFileCore(cwd string) (string, []Rule, error) {
+func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 	currentConfigVersion := "1.0"
 
 	// Check if any config file already exists
 	existingConfig, err := findConfigFile(cwd)
 	if err == nil && existingConfig != "" {
-		return "", nil, fmt.Errorf("config file already exists at %s", existingConfig)
+		return "", nil, false, fmt.Errorf("config file already exists at %s", existingConfig)
 	}
 
 	// Define the path for the new config file (always use the standard name)
@@ -220,50 +220,14 @@ func initConfigFileCore(cwd string) (string, []Rule, error) {
 	// Discover monorepo packages
 	var rules []Rule
 	monorepoCtx := DetectMonorepo(cwd)
+	createdForMonorepoSubPackage := false
 
 	if monorepoCtx != nil {
-		// Monorepo: Root rule only has module boundaries
-		rootRule := Rule{
-			Path: ".",
-			ModuleBoundaries: []BoundaryRule{
-				{
-					Name:    "packages",
-					Pattern: "packages/**/*",
-					Allow:   []string{"packages/**/*"},
-				},
-			},
-		}
-		rules = append(rules, rootRule)
-
-		// Find workspace packages
-		excludePatterns := CreateGlobMatchers([]string{}, cwd)
-		monorepoCtx.FindWorkspacePackages(cwd, excludePatterns)
-
-		// Collect and sort package paths
-		var packagePaths []string
-		for _, packagePath := range monorepoCtx.PackageToPath {
-			// Convert absolute path to relative path from cwd
-			relPath, err := filepath.Rel(cwd, packagePath)
-			if err != nil {
-				continue // Skip if we can't get relative path
-			}
-			relPath = filepath.ToSlash(relPath)
-
-			// Skip root package (already covered)
-			if relPath == "." || relPath == "" {
-				continue
-			}
-
-			packagePaths = append(packagePaths, relPath)
-		}
-
-		// Sort package paths alphabetically
-		slices.Sort(packagePaths)
-
-		// Create a rule for each discovered package in sorted order
-		for _, relPath := range packagePaths {
+		// If invoked from inside a monorepo but not at the workspace root,
+		// create a config only for the current sub-package (single rule with Path '.')
+		if NormalizePathForInternal(cwd) != monorepoCtx.WorkspaceRoot {
 			packageRule := Rule{
-				Path: relPath,
+				Path: ".",
 				CircularImportsDetection: &CircularImportsOptions{
 					Enabled:           true,
 					IgnoreTypeImports: false,
@@ -279,6 +243,66 @@ func initConfigFileCore(cwd string) (string, []Rule, error) {
 				},
 			}
 			rules = append(rules, packageRule)
+			createdForMonorepoSubPackage = true
+		} else {
+			// Monorepo root: Root rule only has module boundaries
+			rootRule := Rule{
+				Path: ".",
+				ModuleBoundaries: []BoundaryRule{
+					{
+						Name:    "packages",
+						Pattern: "packages/**/*",
+						Allow:   []string{"packages/**/*"},
+					},
+				},
+			}
+			rules = append(rules, rootRule)
+
+			// Find workspace packages
+			excludePatterns := CreateGlobMatchers([]string{}, cwd)
+			monorepoCtx.FindWorkspacePackages(cwd, excludePatterns)
+
+			// Collect and sort package paths
+			var packagePaths []string
+			for _, packagePath := range monorepoCtx.PackageToPath {
+				// Convert absolute path to relative path from cwd
+				relPath, err := filepath.Rel(cwd, packagePath)
+				if err != nil {
+					continue // Skip if we can't get relative path
+				}
+				relPath = filepath.ToSlash(relPath)
+
+				// Skip root package (already covered)
+				if relPath == "." || relPath == "" {
+					continue
+				}
+
+				packagePaths = append(packagePaths, relPath)
+			}
+
+			// Sort package paths alphabetically
+			slices.Sort(packagePaths)
+
+			// Create a rule for each discovered package in sorted order
+			for _, relPath := range packagePaths {
+				packageRule := Rule{
+					Path: relPath,
+					CircularImportsDetection: &CircularImportsOptions{
+						Enabled:           true,
+						IgnoreTypeImports: false,
+					},
+					OrphanFilesDetection: &OrphanFilesOptions{
+						Enabled: false,
+					},
+					UnusedNodeModulesDetection: &UnusedNodeModulesOptions{
+						Enabled: false,
+					},
+					MissingNodeModulesDetection: &MissingNodeModulesOptions{
+						Enabled: false,
+					},
+				}
+				rules = append(rules, packageRule)
+			}
 		}
 	} else {
 		// Non-monorepo: Single rule with all checks including module boundaries
@@ -324,20 +348,23 @@ func initConfigFileCore(cwd string) (string, []Rule, error) {
 	// Marshal config to JSON with proper formatting
 	configJSON, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal config: %v", err)
+		return "", nil, false, fmt.Errorf("failed to marshal config: %v", err)
 	}
 
 	// Write config file
 	if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
-		return "", nil, fmt.Errorf("failed to write config file: %v", err)
+		return "", nil, false, fmt.Errorf("failed to write config file: %v", err)
 	}
 
-	return configPath, rules, nil
+	return configPath, rules, createdForMonorepoSubPackage, nil
 }
 
 // printInitConfigResults prints the results of config initialization
-func printInitConfigResults(configPath string, rules []Rule) {
+func printInitConfigResults(configPath string, rules []Rule, createdForMonorepoSubPackage bool) {
 	fmt.Printf("✅ Created .rev-dep.config.jsonc at %s\n", configPath)
+	if createdForMonorepoSubPackage {
+		fmt.Printf("⚠️  Created config for monorepo sub-package. This file targets the current package only.\n")
+	}
 	if len(rules) > 1 {
 		fmt.Printf("📦 Discovered %d monorepo packages and created rules for each\n", len(rules)-1)
 	} else {
@@ -350,10 +377,10 @@ func printInitConfigResults(configPath string, rules []Rule) {
 
 // initConfigFile initializes a new rev-dep.config.json file with minimal structure
 func initConfigFile(cwd string) error {
-	configPath, rules, err := initConfigFileCore(cwd)
+	configPath, rules, createdForMonorepoSubPackage, err := initConfigFileCore(cwd)
 	if err != nil {
 		return err
 	}
-	printInitConfigResults(configPath, rules)
+	printInitConfigResults(configPath, rules, createdForMonorepoSubPackage)
 	return nil
 }

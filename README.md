@@ -319,7 +319,10 @@ Initialize a configuration file in your project:
 rev-dep config init
 ```
 
-> For monorepo projects it will create a rule for each package.
+Behavior of `rev-dep config init`:
+
+- Monorepo root: Running `rev-dep config init` at the workspace root creates a root rule and a rule for each discovered workspace package.
+- Monorepo workspace package or regular projects: Running `rev-dep config init` inside a directory creates config with a single rule with `path: "."` for this directory.
 
 Run all configured checks:
 
@@ -538,7 +541,6 @@ Any other discrepancies between TypeScript module resolution and rev-dep should 
 
 Go allows for cross-compiling, so I'm happy to build and distribute binaries for other platforms as well.
 Feel free to open an issue if you need support for another platform.
-
 
 ## CLI reference 📖
 

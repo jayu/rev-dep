@@ -58,7 +58,18 @@ func DetectMonorepo(cwd string) *MonorepoContext {
 
 		pnpmWorkspacePath := filepath.Join(currentDir, "pnpm-workspace.yaml")
 		if _, err := os.Stat(pnpmWorkspacePath); err == nil {
-			return NewMonorepoContext(currentDir)
+			// Only treat as monorepo root if pnpm-workspace.yaml contains non-empty "packages"
+			content, err := os.ReadFile(pnpmWorkspacePath)
+			if err == nil {
+				var pnpmWorkspace struct {
+					Packages []string `yaml:"packages"`
+				}
+				if err := yaml.Unmarshal(content, &pnpmWorkspace); err == nil {
+					if len(pnpmWorkspace.Packages) > 0 {
+						return NewMonorepoContext(currentDir)
+					}
+				}
+			}
 		}
 
 		parent := filepath.Dir(currentDir)

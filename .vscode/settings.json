@@ -1,5 +1,10 @@
 {
     "gopls": {
-        "build.buildFlags": ["-tags=dev"]
+        "build.buildFlags": [
+            "-tags=dev"
+        ]
+    },
+    "chat.tools.terminal.autoApprove": {
+        "go": true
     }
 }

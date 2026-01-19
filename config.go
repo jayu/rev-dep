@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"slices"
 
 	"github.com/tidwall/jsonc"
 )
@@ -68,6 +69,19 @@ var configFileName = "rev-dep.config.json"
 var hiddenConfigFileName = ".rev-dep.config.json"
 var configFileNameJsonc = "rev-dep.config.jsonc"
 var hiddenConfigFileNameJsonc = ".rev-dep.config.jsonc"
+
+// supportedConfigVersions lists config versions supported by this CLI release.
+// Update this slice when adding or removing support for config versions.
+var supportedConfigVersions = []string{"1.0"}
+
+// validateConfigVersion returns an error when the provided config version
+// is not in the supportedConfigVersions list.
+func validateConfigVersion(version string) error {
+	if slices.Contains(supportedConfigVersions, version) {
+		return nil
+	}
+	return fmt.Errorf("unsupported configVersion '%s'. Supported versions: %v", version, supportedConfigVersions)
+}
 
 // findConfigFile looks for config files in the given directory
 // It checks for .rev-dep.config.jsonc, .rev-dep.config.json, rev-dep.config.jsonc, and rev-dep.config.json
@@ -161,6 +175,11 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 
 	// Validate config
 	if err := ValidateConfig(&config); err != nil {
+		return nil, err
+	}
+
+	// Validate config version against supported versions for this CLI
+	if err := validateConfigVersion(config.ConfigVersion); err != nil {
 		return nil, err
 	}
 

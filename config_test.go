@@ -50,7 +50,7 @@ func TestInitConfigFile(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Test basic init
-	configPath, _, err := initConfigFileCore(tempDir)
+	configPath, _, _, err := initConfigFileCore(tempDir)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -61,7 +61,7 @@ func TestInitConfigFile(t *testing.T) {
 	}
 
 	// Test that init fails when config already exists
-	_, _, err = initConfigFileCore(tempDir)
+	_, _, _, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when config already exists, got nil")
 	}
@@ -72,7 +72,7 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with .rev-dep.config.json
 	hiddenConfigPath := filepath.Join(tempDir, ".rev-dep.config.json")
 	os.WriteFile(hiddenConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, err = initConfigFileCore(tempDir)
+	_, _, _, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when hidden config exists, got nil")
 	}
@@ -81,7 +81,7 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with rev-dep.config.jsonc
 	jsoncConfigPath := filepath.Join(tempDir, "rev-dep.config.jsonc")
 	os.WriteFile(jsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, err = initConfigFileCore(tempDir)
+	_, _, _, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when jsonc config exists, got nil")
 	}
@@ -90,14 +90,14 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with .rev-dep.config.jsonc
 	hiddenJsoncConfigPath := filepath.Join(tempDir, ".rev-dep.config.jsonc")
 	os.WriteFile(hiddenJsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, err = initConfigFileCore(tempDir)
+	_, _, _, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when hidden jsonc config exists, got nil")
 	}
 	os.Remove(hiddenJsoncConfigPath)
 
 	// Now test that it works when no config files exist
-	configPath, _, err = initConfigFileCore(tempDir)
+	configPath, _, _, err = initConfigFileCore(tempDir)
 	if err != nil {
 		t.Errorf("Expected no error when no config files exist, got %v", err)
 	}
@@ -151,9 +151,87 @@ func TestInitConfigFile(t *testing.T) {
 	}
 }
 
+func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
+	// Create a temporary monorepo structure
+	tempDir, err := os.MkdirTemp("", "rev-dep-monorepo-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// workspace root package.json with workspaces
+	rootPkg := filepath.Join(tempDir, "package.json")
+	rootContent := `{"name":"root","workspaces":["packages/*"]}`
+	if err := os.WriteFile(rootPkg, []byte(rootContent), 0644); err != nil {
+		t.Fatalf("Failed to write root package.json: %v", err)
+	}
+
+	// create a package inside packages/pkg1
+	pkgDir := filepath.Join(tempDir, "packages", "pkg1")
+	if err := os.MkdirAll(pkgDir, 0755); err != nil {
+		t.Fatalf("Failed to create package dir: %v", err)
+	}
+	pkgJson := filepath.Join(pkgDir, "package.json")
+	pkgContent := `{"name":"@myorg/pkg1"}`
+	if err := os.WriteFile(pkgJson, []byte(pkgContent), 0644); err != nil {
+		t.Fatalf("Failed to write package.json for pkg1: %v", err)
+	}
+
+	// Run init in the sub-package directory
+	configPath, rules, createdForSubPackage, err := initConfigFileCore(pkgDir)
+	if err != nil {
+		t.Fatalf("initConfigFileCore failed: %v", err)
+	}
+	if !createdForSubPackage {
+		t.Fatalf("Expected createdForSubPackage to be true when running inside a workspace package")
+	}
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("Expected config file to exist at %s", configPath)
+	}
+
+	// Parse generated config and validate single rule
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("Failed to read generated config: %v", err)
+	}
+	configs, err := ParseConfig(content)
+	if err != nil {
+		t.Fatalf("Failed to parse generated config: %v", err)
+	}
+	if len(configs) != 1 {
+		t.Fatalf("Expected 1 config, got %d", len(configs))
+	}
+	cfg := configs[0]
+	if len(cfg.Rules) != 1 {
+		t.Fatalf("Expected 1 rule for sub-package config, got %d (rules: %v)", len(cfg.Rules), rules)
+	}
+	if cfg.Rules[0].Path != "." {
+		t.Fatalf("Expected rule path '.' for sub-package config, got '%s'", cfg.Rules[0].Path)
+	}
+
+	// Now run init at the workspace root and expect multiple rules
+	// Remove config created in package
+	os.Remove(configPath)
+
+	rootConfigPath, rootRules, createdForRoot, err := initConfigFileCore(tempDir)
+	if err != nil {
+		t.Fatalf("initConfigFileCore failed at root: %v", err)
+	}
+	if createdForRoot {
+		t.Fatalf("Expected createdForMonorepoSubPackage=false when running at monorepo root")
+	}
+	if _, err := os.Stat(rootConfigPath); err != nil {
+		t.Fatalf("Expected root config file to exist at %s", rootConfigPath)
+	}
+	// rootRules should contain at least the root + discovered package
+	if len(rootRules) < 2 {
+		t.Fatalf("Expected >=2 rules for monorepo root config, got %d", len(rootRules))
+	}
+}
+
 func TestParseConfig_ValidMinimalConfig(t *testing.T) {
 	configJSON := `{
-		"configVersion": "1.0.0",
+		"configVersion": "1.0",
 		"rules": [
 			{
 				"path": "./src"
@@ -171,8 +249,8 @@ func TestParseConfig_ValidMinimalConfig(t *testing.T) {
 	}
 
 	config := configs[0]
-	if config.ConfigVersion != "1.0.0" {
-		t.Errorf("Expected configVersion '1.0.0', got '%s'", config.ConfigVersion)
+	if config.ConfigVersion != "1.0" {
+		t.Errorf("Expected configVersion '1.0', got '%s'", config.ConfigVersion)
 	}
 
 	if len(config.Rules) != 1 {
@@ -186,7 +264,7 @@ func TestParseConfig_ValidMinimalConfig(t *testing.T) {
 
 func TestParseConfig_ValidCompleteConfig(t *testing.T) {
 	configJSON := `{
-		"configVersion": "1.0.0",
+		"configVersion": "1.0",
 		"conditionNames": ["node", "imports"],
 		"ignoreFiles": ["dist/**/*", "build/**/*"],
 		"rules": [
@@ -291,7 +369,7 @@ func TestParseConfig_RequiredFields(t *testing.T) {
 		{
 			name: "missing rule path",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{}]
 			}`,
 			expectedErr: "rules[0].path is required",
@@ -299,7 +377,7 @@ func TestParseConfig_RequiredFields(t *testing.T) {
 		{
 			name: "missing boundary name",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{"pattern": "src/**"}]
@@ -310,7 +388,7 @@ func TestParseConfig_RequiredFields(t *testing.T) {
 		{
 			name: "missing boundary pattern",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{"name": "Test"}]
@@ -321,7 +399,7 @@ func TestParseConfig_RequiredFields(t *testing.T) {
 		{
 			name: "missing enabled field in detection options",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"circularImportsDetection": {}
@@ -352,7 +430,7 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 		{
 			name: "unknown root field",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"unknownField": "value",
 				"rules": [{"path": "./src"}]
 			}`,
@@ -361,7 +439,7 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 		{
 			name: "unknown rule field",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"unknownField": "value"
@@ -372,7 +450,7 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 		{
 			name: "unknown boundary field",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -387,7 +465,7 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 		{
 			name: "unknown detection options field",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"circularImportsDetection": {
@@ -421,7 +499,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "rules not array",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": {}
 			}`,
 			expectedErr: "rules must be an array",
@@ -429,7 +507,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "rule not object",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": ["invalid"]
 			}`,
 			expectedErr: "rules[0] must be an object",
@@ -437,7 +515,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "rule path not string",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{"path": 123}]
 			}`,
 			expectedErr: "rules[0].path must be a string",
@@ -445,7 +523,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "rule path null",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{"path": null}]
 			}`,
 			expectedErr: "rules[0].path must be a string",
@@ -453,7 +531,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "moduleBoundaries not array",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": {}
@@ -464,7 +542,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "boundary not object",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": ["invalid"]
@@ -475,7 +553,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "boundary name not string",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -489,7 +567,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "boundary allow not array",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -504,7 +582,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "detection options not object",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"circularImportsDetection": "not-object"
@@ -515,7 +593,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 		{
 			name: "enabled field not boolean",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"circularImportsDetection": {
@@ -548,7 +626,7 @@ func TestParseConfig_InvalidPatterns(t *testing.T) {
 		{
 			name: "invalid boundary pattern",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -564,7 +642,7 @@ func TestParseConfig_InvalidPatterns(t *testing.T) {
 		{
 			name: "invalid allow pattern",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -580,7 +658,7 @@ func TestParseConfig_InvalidPatterns(t *testing.T) {
 		{
 			name: "invalid deny pattern",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -596,7 +674,7 @@ func TestParseConfig_InvalidPatterns(t *testing.T) {
 		{
 			name: "invalid graph exclude pattern",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"orphanFilesDetection": {
@@ -631,7 +709,7 @@ func TestParseConfig_OutputTypes(t *testing.T) {
 		{
 			name: "valid output types",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"unusedNodeModulesDetection": {
@@ -649,7 +727,7 @@ func TestParseConfig_OutputTypes(t *testing.T) {
 		{
 			name: "empty output type",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"unusedNodeModulesDetection": {
@@ -663,7 +741,7 @@ func TestParseConfig_OutputTypes(t *testing.T) {
 		{
 			name: "invalid output type",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"unusedNodeModulesDetection": {
@@ -705,7 +783,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 		{
 			name: "null boundary name",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -720,7 +798,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 		{
 			name: "null boundary pattern",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -735,7 +813,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 		{
 			name: "null enabled field",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"circularImportsDetection": {
@@ -749,7 +827,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 		{
 			name: "null optional fields allowed",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -790,7 +868,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 
 func TestParseConfig_DisabledOptions(t *testing.T) {
 	configJSON := `{
-		"configVersion": "1.0.0",
+		"configVersion": "1.0",
 		"rules": [{
 			"path": "./src",
 			"circularImportsDetection": {
@@ -851,7 +929,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 		{
 			name: "invalid JSON",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{
 						"path": "./src",
@@ -862,7 +940,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 		{
 			name: "multiple rules",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{"path": "./src"},
 					{"path": "./tests"}
@@ -874,7 +952,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 			name: "comment support",
 			configJSON: `{
 				// This is a comment
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{
 						"path": "./src" /* inline comment */
@@ -886,7 +964,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 		{
 			name: "empty rules array",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": []
 			}`,
 			shouldError: false,
@@ -894,7 +972,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 		{
 			name: "empty arrays in optional fields",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"conditionNames": [],
 				"ignoreFiles": [],
 				"rules": [{
@@ -917,7 +995,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 		{
 			name: "unicode characters",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -959,7 +1037,7 @@ func TestParseConfig_MultipleErrors(t *testing.T) {
 		{
 			name: "multiple unknown fields",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"unknownField1": "value1",
 				"unknownField2": "value2",
 				"rules": [{
@@ -977,7 +1055,7 @@ func TestParseConfig_MultipleErrors(t *testing.T) {
 		{
 			name: "mixed type and pattern errors",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": 123,
 					"moduleBoundaries": [{
@@ -993,7 +1071,7 @@ func TestParseConfig_MultipleErrors(t *testing.T) {
 		{
 			name: "multiple detection options errors",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"circularImportsDetection": {
@@ -1031,7 +1109,7 @@ func TestParseConfig_CommentEdgeCases(t *testing.T) {
 			configJSON: `{
 				/* This is a
 				   multiline comment */
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src"
 				}]
@@ -1042,7 +1120,7 @@ func TestParseConfig_CommentEdgeCases(t *testing.T) {
 			name: "comments with special characters",
 			configJSON: `{
 				// Comment with @#$%^&*() characters
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src" /* Comment with "quotes" and 'apostrophes' */
 				}]
@@ -1053,7 +1131,7 @@ func TestParseConfig_CommentEdgeCases(t *testing.T) {
 			name: "nested comments",
 			configJSON: `{
 				/* Outer comment */
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src"
 				}]
@@ -1063,7 +1141,7 @@ func TestParseConfig_CommentEdgeCases(t *testing.T) {
 		{
 			name: "trailing commas with comments",
 			configJSON: `{
-				"configVersion": "1.0.0", // Version comment
+				"configVersion": "1.0", // Version comment
 				"rules": [{
 					"path": "./src", // Path comment
 				},], // Rules array comment
@@ -1097,7 +1175,7 @@ func TestParseConfig_RealWorldScenarios(t *testing.T) {
 		{
 			name: "minimal production config",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [{
 					"path": "./src",
 					"moduleBoundaries": [{
@@ -1117,7 +1195,7 @@ func TestParseConfig_RealWorldScenarios(t *testing.T) {
 		{
 			name: "complex monorepo config",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"conditionNames": ["node", "imports", "default"],
 				"ignoreFiles": ["dist/**/*", "build/**/*", "*.min.js", "coverage/**/*"],
 				"rules": [
@@ -1182,7 +1260,7 @@ func TestParseConfig_RealWorldScenarios(t *testing.T) {
 		{
 			name: "all features enabled",
 			configJSON: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"conditionNames": ["node", "imports", "default", "browser", "worker"],
 				"ignoreFiles": ["dist/**/*", "build/**/*", "*.min.js", "coverage/**/*", "*.d.ts"],
 				"rules": [{
@@ -1259,7 +1337,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			name: "valid jsonc with line comments",
 			content: `{
 				// This is a comment
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{
 						"path": "src/**/*",
@@ -1271,7 +1349,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			}`,
 			shouldError: false,
 			expected: RevDepConfig{
-				ConfigVersion: "1.0.0",
+				ConfigVersion: "1.0",
 				Rules: []Rule{
 					{
 						Path: "src/**/*",
@@ -1286,7 +1364,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			name: "valid jsonc with block comments",
 			content: `{
 				/* This is a block comment */
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{
 						"path": "src/**/*",
@@ -1301,7 +1379,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			}`,
 			shouldError: false,
 			expected: RevDepConfig{
-				ConfigVersion: "1.0.0",
+				ConfigVersion: "1.0",
 				Rules: []Rule{
 					{
 						Path: "src/**/*",
@@ -1317,7 +1395,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			name: "valid jsonc with mixed comments",
 			content: `{
 				// Configuration file
-				"configVersion": "1.0.0", /* version */
+				"configVersion": "1.0", /* version */
 				"conditionNames": ["production"], // environment
 				"rules": [
 					{
@@ -1334,7 +1412,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			}`,
 			shouldError: false,
 			expected: RevDepConfig{
-				ConfigVersion:  "1.0.0",
+				ConfigVersion:  "1.0",
 				ConditionNames: []string{"production"},
 				Rules: []Rule{
 					{
@@ -1353,7 +1431,7 @@ func TestParseConfigWithComments(t *testing.T) {
 		{
 			name: "invalid jsonc syntax",
 			content: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{
 						"path": "src/**/*"
@@ -1446,7 +1524,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "hidden config only",
 			createFiles: map[string]string{
-				".rev-dep.config.json": `{"configVersion": "1.0.0", "rules": []}`,
+				".rev-dep.config.json": `{"configVersion": "1.0", "rules": []}`,
 			},
 			expectedFile: ".rev-dep.config.json",
 			shouldError:  false,
@@ -1454,7 +1532,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "regular config only",
 			createFiles: map[string]string{
-				"rev-dep.config.json": `{"configVersion": "1.0.0", "rules": []}`,
+				"rev-dep.config.json": `{"configVersion": "1.0", "rules": []}`,
 			},
 			expectedFile: "rev-dep.config.json",
 			shouldError:  false,
@@ -1462,7 +1540,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "hidden jsonc config only",
 			createFiles: map[string]string{
-				".rev-dep.config.jsonc": `{"configVersion": "1.0.0", "rules": []}`,
+				".rev-dep.config.jsonc": `{"configVersion": "1.0", "rules": []}`,
 			},
 			expectedFile: ".rev-dep.config.jsonc",
 			shouldError:  false,
@@ -1470,7 +1548,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "regular jsonc config only",
 			createFiles: map[string]string{
-				"rev-dep.config.jsonc": `{"configVersion": "1.0.0", "rules": []}`,
+				"rev-dep.config.jsonc": `{"configVersion": "1.0", "rules": []}`,
 			},
 			expectedFile: "rev-dep.config.jsonc",
 			shouldError:  false,
@@ -1478,7 +1556,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "both configs present (should error)",
 			createFiles: map[string]string{
-				".rev-dep.config.json": `{"configVersion": "1.0.0", "rules": []}`,
+				".rev-dep.config.json": `{"configVersion": "1.0", "rules": []}`,
 				"rev-dep.config.json":  `{"configVersion": "2.0.0", "rules": []}`,
 			},
 			expectedFile: "",
@@ -1487,7 +1565,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "both jsonc configs present (should error)",
 			createFiles: map[string]string{
-				".rev-dep.config.jsonc": `{"configVersion": "1.0.0", "rules": []}`,
+				".rev-dep.config.jsonc": `{"configVersion": "1.0", "rules": []}`,
 				"rev-dep.config.jsonc":  `{"configVersion": "2.0.0", "rules": []}`,
 			},
 			expectedFile: "",
@@ -1496,7 +1574,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "mixed json and jsonc configs present (should error)",
 			createFiles: map[string]string{
-				".rev-dep.config.json": `{"configVersion": "1.0.0", "rules": []}`,
+				".rev-dep.config.json": `{"configVersion": "1.0", "rules": []}`,
 				"rev-dep.config.jsonc": `{"configVersion": "2.0.0", "rules": []}`,
 			},
 			expectedFile: "",
@@ -1505,7 +1583,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "all four config variants present (should error)",
 			createFiles: map[string]string{
-				".rev-dep.config.json":  `{"configVersion": "1.0.0", "rules": []}`,
+				".rev-dep.config.json":  `{"configVersion": "1.0", "rules": []}`,
 				"rev-dep.config.json":   `{"configVersion": "2.0.0", "rules": []}`,
 				".rev-dep.config.jsonc": `{"configVersion": "3.0.0", "rules": []}`,
 				"rev-dep.config.jsonc":  `{"configVersion": "4.0.0", "rules": []}`,
@@ -1692,7 +1770,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 		{
 			name: "followMonorepoPackages not set should default to true",
 			config: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{
 						"path": "./src"
@@ -1704,7 +1782,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 		{
 			name: "followMonorepoPackages explicitly set to true",
 			config: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{
 						"path": "./src",
@@ -1717,7 +1795,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 		{
 			name: "followMonorepoPackages explicitly set to false",
 			config: `{
-				"configVersion": "1.0.0",
+				"configVersion": "1.0",
 				"rules": [
 					{
 						"path": "./src",
@@ -1758,7 +1836,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 	// Separate test for multiple rules with different values
 	t.Run("multiple rules with different followMonorepoPackages values", func(t *testing.T) {
 		config := `{
-			"configVersion": "1.0.0",
+			"configVersion": "1.0",
 			"rules": [
 				{
 					"path": "./src",

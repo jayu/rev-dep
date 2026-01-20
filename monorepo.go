@@ -43,6 +43,27 @@ func NewMonorepoContext(root string) *MonorepoContext {
 func DetectMonorepo(cwd string) *MonorepoContext {
 	currentDir := NormalizePathForInternal(filepath.Clean(cwd))
 	for {
+		// pnpm workspace files: prefer singular pnpm-workspace.yaml/.yml over package.json
+		pnpmFilenames := []string{"pnpm-workspace.yaml", "pnpm-workspace.yml"}
+		for _, fname := range pnpmFilenames {
+			pnpmWorkspacePath := filepath.Join(currentDir, fname)
+			if _, err := os.Stat(pnpmWorkspacePath); err == nil {
+				// Only treat as monorepo root if pnpm-workspace.* contains non-empty "packages"
+				content, err := os.ReadFile(pnpmWorkspacePath)
+				if err == nil {
+					var pnpmWorkspace struct {
+						Packages []string `yaml:"packages"`
+					}
+					if err := yaml.Unmarshal(content, &pnpmWorkspace); err == nil {
+						if len(pnpmWorkspace.Packages) > 0 {
+							return NewMonorepoContext(currentDir)
+						}
+					}
+				}
+			}
+		}
+
+		// Fallback: check package.json workspaces key
 		pkgJsonPath := filepath.Join(currentDir, "package.json")
 		if _, err := os.Stat(pkgJsonPath); err == nil {
 			content, err := os.ReadFile(pkgJsonPath)
@@ -50,22 +71,6 @@ func DetectMonorepo(cwd string) *MonorepoContext {
 				var pkgJson map[string]interface{}
 				if err := json.Unmarshal(jsonc.ToJSON(content), &pkgJson); err == nil {
 					if hasValidWorkspaces(pkgJson) {
-						return NewMonorepoContext(currentDir)
-					}
-				}
-			}
-		}
-
-		pnpmWorkspacePath := filepath.Join(currentDir, "pnpm-workspace.yaml")
-		if _, err := os.Stat(pnpmWorkspacePath); err == nil {
-			// Only treat as monorepo root if pnpm-workspace.yaml contains non-empty "packages"
-			content, err := os.ReadFile(pnpmWorkspacePath)
-			if err == nil {
-				var pnpmWorkspace struct {
-					Packages []string `yaml:"packages"`
-				}
-				if err := yaml.Unmarshal(content, &pnpmWorkspace); err == nil {
-					if len(pnpmWorkspace.Packages) > 0 {
 						return NewMonorepoContext(currentDir)
 					}
 				}
@@ -105,45 +110,48 @@ func hasValidWorkspaces(pkgJson map[string]interface{}) bool {
 }
 
 func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatterns []GlobMatcher) {
-	pkgJsonPath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), "package.json")
-	content, err := os.ReadFile(pkgJsonPath)
-	if err != nil {
-		return
-	}
-
-	var pkgJson struct {
-		Workspaces interface{} `json:"workspaces"` // can be []string or { packages: []string }
-	}
-
-	if err := json.Unmarshal(jsonc.ToJSON(content), &pkgJson); err != nil {
-		return
-	}
-
+	// Prefer pnpm workspace file (supports plural/singular and .yml/.yaml), fall back to package.json workspaces
 	var patterns []string
-	if list, ok := pkgJson.Workspaces.([]interface{}); ok {
-		for _, v := range list {
-			if s, ok := v.(string); ok {
-				patterns = append(patterns, s)
+	// support both .yaml and .yml; only singular filename is documented, prefer it
+	pnpmFilenames := []string{"pnpm-workspace.yaml", "pnpm-workspace.yml"}
+	for _, fname := range pnpmFilenames {
+		pnpmWorkspacePath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), fname)
+		if pnpmContent, err := os.ReadFile(pnpmWorkspacePath); err == nil {
+			var pnpmWorkspace struct {
+				Packages []string `yaml:"packages"`
 			}
-		}
-	} else if obj, ok := pkgJson.Workspaces.(map[string]interface{}); ok {
-		if packages, ok := obj["packages"].([]interface{}); ok {
-			for _, v := range packages {
-				if s, ok := v.(string); ok {
-					patterns = append(patterns, s)
+			if err := yaml.Unmarshal(pnpmContent, &pnpmWorkspace); err == nil {
+				if len(pnpmWorkspace.Packages) > 0 {
+					patterns = append(patterns, pnpmWorkspace.Packages...)
+					break
 				}
 			}
 		}
 	}
 
 	if len(patterns) == 0 {
-		pnpmWorkspacePath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), "pnpm-workspace.yaml")
-		if pnpmContent, err := os.ReadFile(pnpmWorkspacePath); err == nil {
-			var pnpmWorkspace struct {
-				Packages []string `yaml:"packages"`
+		pkgJsonPath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), "package.json")
+		content, err := os.ReadFile(pkgJsonPath)
+		if err == nil {
+			var pkgJson struct {
+				Workspaces interface{} `json:"workspaces"` // can be []string or { packages: []string }
 			}
-			if err := yaml.Unmarshal(pnpmContent, &pnpmWorkspace); err == nil {
-				patterns = append(patterns, pnpmWorkspace.Packages...)
+			if err := json.Unmarshal(jsonc.ToJSON(content), &pkgJson); err == nil {
+				if list, ok := pkgJson.Workspaces.([]interface{}); ok {
+					for _, v := range list {
+						if s, ok := v.(string); ok {
+							patterns = append(patterns, s)
+						}
+					}
+				} else if obj, ok := pkgJson.Workspaces.(map[string]interface{}); ok {
+					if packages, ok := obj["packages"].([]interface{}); ok {
+						for _, v := range packages {
+							if s, ok := v.(string); ok {
+								patterns = append(patterns, s)
+							}
+						}
+					}
+				}
 			}
 		}
 	}

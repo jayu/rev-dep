@@ -591,3 +591,50 @@ func TestWorkspacesArrayAndPackagesObject(t *testing.T) {
 		t.Errorf("Expected to find @obj/pkg in object-with-packages-style workspaces")
 	}
 }
+
+func TestPnpmTakesPrecedenceOverPackageJson(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-vs-packagejson")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"pnpm-workspace.yaml": `packages:
+  - 'packages/*'
+`,
+		"package.json": `{
+			"workspaces": ["other/*"]
+		}`,
+		"packages/pkg-a/package.json": `{ "name": "@pnpm/only", "version": "1.0.0" }`,
+		"other/pkg-b/package.json":    `{ "name": "@pkgjson/only", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	// Call DetectMonorepo from inside the nested package that itself contains a `workspaces` key.
+	// DetectMonorepo should prefer the root pnpm-workspace.yaml, not the nested package.json.
+	monorepoCtx := DetectMonorepo(filepath.Join(tmpDir, "packages", "pkg-a"))
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
+	}
+
+	// Ensure the detected workspace root is the repo root (where pnpm-workspace.yaml lives)
+	if monorepoCtx.WorkspaceRoot != NormalizePathForInternal(tmpDir) {
+		t.Fatalf("Expected monorepo root %s, got %s", NormalizePathForInternal(tmpDir), monorepoCtx.WorkspaceRoot)
+	}
+
+	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
+
+	// Since pnpm-workspace.yaml is present at repo root, it should take precedence and only packages/* should be used
+	if _, ok := monorepoCtx.PackageToPath["@pnpm/only"]; !ok {
+		t.Errorf("Expected to find @pnpm/only from pnpm-workspace.yaml, but didn't")
+	}
+	if _, ok := monorepoCtx.PackageToPath["@pkgjson/only"]; ok {
+		t.Errorf("Did not expect to find @pkgjson/only from package.json workspaces when pnpm-workspace.yaml is present")
+	}
+}

@@ -118,9 +118,14 @@ func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
 	return result
 }
 
+type SubpackageResolver struct {
+	PkgPath  string
+	Resolver *ModuleResolver
+}
+
 type ResolverManager struct {
 	monorepoContext        *MonorepoContext
-	subpackageResolvers    map[string]*ModuleResolver
+	subpackageResolvers    []SubpackageResolver
 	rootResolver           *ModuleResolver
 	followMonorepoPackages bool
 	conditionNames         []string
@@ -146,7 +151,7 @@ func NewResolverManager(followMonorepoPackages bool, conditionNames []string, ro
 
 	rm := &ResolverManager{
 		monorepoContext:        monorepoCtx,
-		subpackageResolvers:    make(map[string]*ModuleResolver),
+		subpackageResolvers:    []SubpackageResolver{},
 		rootResolver:           nil,
 		followMonorepoPackages: followMonorepoPackages,
 		conditionNames:         conditionNames,
@@ -162,8 +167,15 @@ func NewResolverManager(followMonorepoPackages bool, conditionNames []string, ro
 	if monorepoCtx != nil {
 		rm.rootResolver = createResolverForDir(monorepoCtx.WorkspaceRoot, rm)
 		for _, pkgPath := range monorepoCtx.PackageToPath {
-			rm.subpackageResolvers[pkgPath] = createResolverForDir(pkgPath, rm)
+			rm.subpackageResolvers = append(rm.subpackageResolvers, SubpackageResolver{
+				PkgPath:  pkgPath,
+				Resolver: createResolverForDir(pkgPath, rm),
+			})
 		}
+		// Sort by path length descending to ensure most specific paths are checked first
+		slices.SortFunc(rm.subpackageResolvers, func(a, b SubpackageResolver) int {
+			return len(b.PkgPath) - len(a.PkgPath)
+		})
 	} else {
 		rm.rootResolver = NewImportsResolver(rootParams.Cwd, rootParams.TsConfigContent, rootParams.PkgJsonContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
 	}
@@ -186,9 +198,9 @@ func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
 }
 
 func (rm *ResolverManager) GetResolverForFile(filePath string) *ModuleResolver {
-	for pkgPath, resolver := range rm.subpackageResolvers {
-		if strings.HasPrefix(filePath, pkgPath) {
-			return resolver
+	for _, subPkg := range rm.subpackageResolvers {
+		if strings.HasPrefix(filePath, subPkg.PkgPath) {
+			return subPkg.Resolver
 		}
 	}
 	return rm.rootResolver
@@ -205,8 +217,8 @@ func (rm *ResolverManager) CollectAllNodeModules() map[string]bool {
 	}
 
 	// Collect from subpackage resolvers
-	for _, resolver := range rm.subpackageResolvers {
-		for module := range resolver.nodeModules {
+	for _, subPkg := range rm.subpackageResolvers {
+		for module := range subPkg.Resolver.nodeModules {
 			allNodeModules[module] = true
 		}
 	}
@@ -758,7 +770,6 @@ func (f *ModuleResolver) validateWorkspaceDependency(consumerRoot, targetPkgName
 	if consumerRoot == f.manager.monorepoContext.WorkspaceRoot {
 		return true
 	}
-
 	consumerConfig, err := f.manager.monorepoContext.GetPackageConfig(consumerRoot)
 	if err != nil {
 		return false
@@ -767,6 +778,7 @@ func (f *ModuleResolver) validateWorkspaceDependency(consumerRoot, targetPkgName
 	// Check dependencies and devDependencies
 	_, hasDep := consumerConfig.Dependencies[targetPkgName]
 	_, hasDevDep := consumerConfig.DevDependencies[targetPkgName]
+
 	return hasDep || hasDevDep
 }
 
@@ -925,6 +937,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
 
 		p, e := f.manager.getModulePathWithExtension(modulePathInternal)
+
 		return p, UserModule, e
 	}
 
@@ -935,7 +948,6 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 			// Alias was matched, but path was not resolved
 			aliasMatchedButFileNotFound = resolvedPath
 		} else {
-
 			return resolvedPath, rtype, err
 		}
 	}

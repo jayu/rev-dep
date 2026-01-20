@@ -225,7 +225,7 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 	if monorepoCtx != nil {
 		// If invoked from inside a monorepo but not at the workspace root,
 		// create a config only for the current sub-package (single rule with Path '.')
-		if NormalizePathForInternal(cwd) != monorepoCtx.WorkspaceRoot {
+		if StandardiseDirPath(cwd) != StandardiseDirPath(monorepoCtx.WorkspaceRoot) {
 			packageRule := Rule{
 				Path: ".",
 				CircularImportsDetection: &CircularImportsOptions{

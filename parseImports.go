@@ -458,35 +458,3 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool) ([]FileIm
 	wg.Wait()
 	return results, errCount
 }
-
-func ImportKindToString(kind ImportKind) string {
-	switch kind {
-	case NotTypeOrMixedImport:
-		return "NotTypeOrMixedImport"
-	case OnlyTypeImport:
-		return "OnlyTypeImport"
-	default:
-		return "Unknown"
-	}
-}
-
-func ResolvedImportTypeToString(resolvedType ResolvedImportType) string {
-	switch resolvedType {
-	case UserModule:
-		return "UserModule"
-	case NodeModule:
-		return "NodeModule"
-	case BuiltInModule:
-		return "BuiltInModule"
-	case ExcludedByUser:
-		return "ExcludedByUser"
-	case NotResolvedModule:
-		return "NotResolvedModule"
-	case AssetModule:
-		return "AssetModule"
-	case MonorepoModule:
-		return "MonorepoModule"
-	default:
-		return "Unknown"
-	}
-}

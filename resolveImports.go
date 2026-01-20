@@ -255,7 +255,9 @@ func isValidTsAliasTargetPath(path string) bool {
 	return true
 }
 
-func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
+// ParseTsConfigContent extracts and processes TypeScript configuration from raw tsconfig content
+// Returns a TsConfigParsed struct containing aliases, regex patterns, and wildcard patterns
+func ParseTsConfigContent(tsconfigContent []byte) *TsConfigParsed {
 	debug := false
 	tsconfigContent = jsonc.ToJSON(tsconfigContent)
 
@@ -395,9 +397,28 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		})
 	}
 
+	// Sort regexps as they are matched starting from longest matching prefix
+	slices.SortFunc(tsConfigParsed.aliasesRegexps, func(itemA RegExpArrItem, itemB RegExpArrItem) int {
+		keyAMatchingPrefix := strings.Replace(itemA.aliasKey, "*", "", 1)
+		keyBMatchingPrefix := strings.Replace(itemB.aliasKey, "*", "", 1)
+
+		return len(keyBMatchingPrefix) - len(keyAMatchingPrefix)
+	})
+
+	// Sort wildcard patterns by key length descending for specificity
+	slices.SortFunc(tsConfigParsed.wildcardPatterns, func(patternA, patternB WildcardPattern) int {
+		return len(patternB.key) - len(patternA.key)
+	})
+
 	if debug {
 		fmt.Printf("tsConfigParsed: %v\n", tsConfigParsed)
 	}
+
+	return tsConfigParsed
+}
+
+func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
+	tsConfigParsed := ParseTsConfigContent(tsconfigContent)
 
 	packageJsonImports := &PackageJsonImports{
 		imports:             map[string]interface{}{},
@@ -497,10 +518,6 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		manager:            manager,
 		resolverRoot:       dirPath,
 		nodeModules:        GetNodeModulesFromPkgJson(packageJsonContent),
-	}
-
-	if debug {
-		fmt.Printf("Resolver: %v\n", stringifyModuleResolver(factory, ""))
 	}
 
 	return factory

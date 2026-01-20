@@ -130,6 +130,61 @@ var debugGetTreeCmd = &cobra.Command{
 	},
 }
 
+// ---------------- debug-tsconfig ----------------
+var (
+	debugTsconfigPath string
+)
+
+var debugTsconfigCmd = &cobra.Command{
+	Use:   "debug-parse-tsconfig",
+	Short: "Debug: Show parsed TypeScript configuration aliases",
+	Long:  `Development tool to inspect how TypeScript configuration is parsed and what aliases are extracted.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Resolve the tsconfig file using the existing tsconfig.go functionality
+		tsconfigContent, err := ParseTsConfig(debugTsconfigPath)
+		if err != nil {
+			return fmt.Errorf("failed to parse tsconfig: %w", err)
+		}
+
+		// Use the extracted ParseTsConfigContent function to get aliases
+		tsConfigParsed := ParseTsConfigContent(tsconfigContent)
+
+		// Create a human-readable output
+		output := map[string]interface{}{
+			"aliases":          tsConfigParsed.aliases,
+			"wildcardPatterns": []map[string]interface{}{},
+		}
+
+		// Convert wildcard patterns to a more readable format
+		for _, pattern := range tsConfigParsed.wildcardPatterns {
+			output["wildcardPatterns"] = append(output["wildcardPatterns"].([]map[string]interface{}), map[string]interface{}{
+				"key":    pattern.key,
+				"prefix": pattern.prefix,
+				"suffix": pattern.suffix,
+			})
+		}
+
+		// Also include regex patterns for advanced debugging
+		regexPatterns := []map[string]interface{}{}
+		for _, regexItem := range tsConfigParsed.aliasesRegexps {
+			regexPatterns = append(regexPatterns, map[string]interface{}{
+				"aliasKey": regexItem.aliasKey,
+				"pattern":  regexItem.regExp.String(),
+			})
+		}
+		output["regexPatterns"] = regexPatterns
+
+		// Marshal and print the result
+		jsonOutput, err := json.MarshalIndent(output, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal output: %w", err)
+		}
+
+		fmt.Println(string(jsonOutput))
+		return nil
+	},
+}
+
 func init() {
 	// browser flags
 	addSharedFlags(browserCmd)
@@ -149,5 +204,9 @@ func init() {
 	debugGetTreeCmd.Flags().StringVar(&debugTreeCwd, "cwd", currentDir, "Working directory for the command")
 	debugGetTreeCmd.Flags().BoolVarP(&debugTreeIgnoreType, "ignore-type-imports", "t", false, "Exclude type imports from the analysis")
 
-	rootCmd.AddCommand(browserCmd, debugParseFileCmd, debugGetTreeCmd)
+	// debug-tsconfig flags
+	debugTsconfigCmd.Flags().StringVar(&debugTsconfigPath, "tsconfig", "", "Path to TypeScript configuration file")
+	debugTsconfigCmd.MarkFlagRequired("tsconfig")
+
+	rootCmd.AddCommand(browserCmd, debugParseFileCmd, debugGetTreeCmd, debugTsconfigCmd)
 }

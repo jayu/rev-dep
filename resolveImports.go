@@ -227,7 +227,32 @@ func (rm *ResolverManager) CollectAllNodeModules() map[string]bool {
 }
 
 func isValidTsAliasTargetPath(path string) bool {
-	return strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
+	// Reject absolute paths (starting with /)
+	if strings.HasPrefix(path, "/") {
+		return false
+	}
+
+	// Reject URLs
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return false
+	}
+
+	// Reject node_modules paths
+	if strings.HasPrefix(path, "node_modules/") {
+		return false
+	}
+
+	// Reject paths that look like other aliases (starting with @)
+	if strings.HasPrefix(path, "@") {
+		return false
+	}
+
+	// Allow everything else - this includes:
+	// - Relative paths: "./src/*", "../lib/*"
+	// - Directory-relative paths: "src/*", "lib/*"
+	// - Direct file paths: "index.ts", "lib.js"
+	// - Bare module names: "lodash", "react"
+	return true
 }
 
 func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
@@ -238,47 +263,79 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		fmt.Println("tsconfigContent", string(tsconfigContent))
 	}
 
-	var rawConfigForPaths map[string]map[string]map[string][]string
+	var paths map[string][]string
+	var baseUrl string
+	var hasBaseUrl bool
 
-	err := json.Unmarshal(tsconfigContent, &rawConfigForPaths)
+	// Only attempt to parse if tsconfig content is not empty
+	if len(tsconfigContent) > 0 && string(tsconfigContent) != "" && string(tsconfigContent) != "{}" {
+		var rawConfigForPaths map[string]interface{}
 
-	if err != nil && debug {
-		fmt.Printf("Failed to parse tsConfig paths : %s\n", err)
-	}
+		err := json.Unmarshal(tsconfigContent, &rawConfigForPaths)
 
-	paths, ok := rawConfigForPaths["compilerOptions"]["paths"]
+		if err != nil && debug {
+			fmt.Printf("Failed to parse tsConfig paths : %s\n", err)
+		}
 
-	if !ok && debug {
-		fmt.Printf("Paths not found in tsConfig from\n")
-	}
+		if compilerOptions, ok := rawConfigForPaths["compilerOptions"].(map[string]interface{}); ok {
+			if pathsRaw, ok := compilerOptions["paths"].(map[string]interface{}); ok {
+				paths = make(map[string][]string)
+				for key, value := range pathsRaw {
+					if valueArray, ok := value.([]interface{}); ok {
+						pathArray := make([]string, len(valueArray))
+						for i, v := range valueArray {
+							if str, ok := v.(string); ok {
+								pathArray[i] = str
+							}
+						}
+						paths[key] = pathArray
+					}
+				}
+			}
+		}
 
-	if debug {
-		fmt.Printf("Paths: %v\n", paths)
-	}
+		if paths == nil && debug {
+			fmt.Printf("Paths not found in tsConfig from\n")
+		}
 
-	var rawConfigForBaseUrl map[string]map[string]string
+		if debug {
+			fmt.Printf("Paths: %v\n", paths)
+		}
 
-	// TODO figure out if we can use just one unmarshaling
-	err = json.Unmarshal(tsconfigContent, &rawConfigForBaseUrl)
+		var rawConfigForBaseUrl map[string]interface{}
 
-	if err != nil && debug {
-		fmt.Printf("Failed to parse tsConfig baseUrl from %s\n", err)
-	}
+		// TODO figure out if we can use just one unmarshaling
+		err = json.Unmarshal(tsconfigContent, &rawConfigForBaseUrl)
 
-	baseUrl, hasBaseUrl := rawConfigForBaseUrl["compilerOptions"]["baseUrl"]
+		if err != nil && debug {
+			fmt.Printf("Failed to parse tsConfig baseUrl from %s\n", err)
+		}
 
-	if !hasBaseUrl && debug {
-		fmt.Printf("BaseUrl not found in tsConfig from \n")
+		if compilerOptions, ok := rawConfigForBaseUrl["compilerOptions"].(map[string]interface{}); ok {
+			if baseUrlRaw, ok := compilerOptions["baseUrl"]; ok {
+				if baseUrlStr, ok := baseUrlRaw.(string); ok {
+					baseUrl = baseUrlStr
+					hasBaseUrl = true
+				}
+				// Handle cases where baseUrl might be a boolean or other type
+				// We only process it if it's a string
+			}
+		}
+
+		if !hasBaseUrl && debug {
+			fmt.Printf("BaseUrl not found in tsConfig from \n")
+		}
+	} else {
+		if debug {
+			fmt.Printf("Empty tsconfig content, skipping parsing\n")
+		}
+		paths = make(map[string][]string)
 	}
 
 	tsConfigParsed := &TsConfigParsed{
 		aliases:          map[string]string{},
 		aliasesRegexps:   []RegExpArrItem{},
 		wildcardPatterns: []WildcardPattern{},
-	}
-
-	if debug {
-		fmt.Printf("tsConfigParsed: %v\n", tsConfigParsed)
 	}
 
 	for aliasKey, aliasValues := range paths {
@@ -336,6 +393,10 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 			regExp:   regExp,
 			aliasKey: baseUrlAliasKey,
 		})
+	}
+
+	if debug {
+		fmt.Printf("tsConfigParsed: %v\n", tsConfigParsed)
 	}
 
 	packageJsonImports := &PackageJsonImports{
@@ -437,6 +498,11 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		resolverRoot:       dirPath,
 		nodeModules:        GetNodeModulesFromPkgJson(packageJsonContent),
 	}
+
+	if debug {
+		fmt.Printf("Resolver: %v\n", stringifyModuleResolver(factory, ""))
+	}
+
 	return factory
 }
 

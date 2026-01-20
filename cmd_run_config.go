@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -161,7 +160,12 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
 						for j, path := range missing.ImportedFrom {
 							relativeImportedFrom[j] = getRelativePath(path)
 						}
-						fmt.Printf("    - %s (imported from: %s)\n", missing.ModuleName, strings.Join(relativeImportedFrom, ", "))
+
+						if len(relativeImportedFrom) == 1 {
+							fmt.Printf("    - %s (imported from: %s)\n", missing.ModuleName, relativeImportedFrom[0])
+						} else if len(relativeImportedFrom) > 1 {
+							fmt.Printf("    - %s (imported from: %s and %d more files)\n", missing.ModuleName, relativeImportedFrom[0], len(relativeImportedFrom)-1)
+						}
 					}
 				} else {
 					fmt.Printf("  ✅ Missing Node Modules\n")

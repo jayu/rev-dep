@@ -579,6 +579,67 @@ rev-dep circular --ignore-types-imports
 ```
 
 
+### rev-dep config
+
+Create and execute rev-dep configuration files
+
+#### Synopsis
+
+Commands for creating and executing rev-dep configuration files.
+
+#### Options
+
+```
+  -c, --cwd string   Working directory (default "$PWD")
+  -h, --help         help for config
+```
+
+
+### rev-dep config run
+
+Execute all checks defined in (.)rev-dep.config.json(c)
+
+#### Synopsis
+
+Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, node modules) per rule.
+
+```
+rev-dep config run [flags]
+```
+
+#### Options
+
+```
+      --condition-names strings    List of conditions for package.json imports resolution (e.g. node, imports, default)
+  -c, --cwd string                 Working directory (default "$PWD")
+      --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
+  -h, --help                       help for run
+      --package-json string        Path to package.json (default: ./package.json)
+      --tsconfig-json string       Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                    Show warnings and verbose output
+```
+
+
+### rev-dep config init
+
+Initialize a new rev-dep.config.json file
+
+#### Synopsis
+
+Create a new rev-dep.config.json configuration file in the current directory with default settings.
+
+```
+rev-dep config init [flags]
+```
+
+#### Options
+
+```
+  -c, --cwd string   Working directory (default "$PWD")
+  -h, --help         help for init
+```
+
+
 ### rev-dep entry-points
 
 Discover and list all entry points in the project
@@ -646,6 +707,41 @@ rev-dep files --entry-point src/index.ts
       --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
   -h, --help                       help for files
   -t, --ignore-type-imports        Exclude type imports from the analysis
+      --package-json string        Path to package.json (default: ./package.json)
+      --tsconfig-json string       Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                    Show warnings and verbose output
+```
+
+
+### rev-dep imported-by
+
+List all files that directly import the specified file
+
+#### Synopsis
+
+Finds and lists all files in the project that directly import the specified file.
+This is useful for understanding the impact of changes to a particular file.
+
+```
+rev-dep imported-by [flags]
+```
+
+#### Examples
+
+```
+rev-dep imported-by --file src/utils/helpers.ts
+```
+
+#### Options
+
+```
+      --condition-names strings    List of conditions for package.json imports resolution (e.g. node, imports, default)
+  -n, --count                      Only display the count of importing files
+  -c, --cwd string                 Working directory for the command (default "$PWD")
+  -f, --file string                Target file to find importers for (required)
+      --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
+  -h, --help                       help for imported-by
+      --list-imports               List the import identifiers used by each file
       --package-json string        Path to package.json (default: ./package.json)
       --tsconfig-json string       Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                    Show warnings and verbose output

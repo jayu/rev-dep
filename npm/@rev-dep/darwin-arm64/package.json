@@ -1,6 +1,6 @@
 {
   "name": "@rev-dep/darwin-arm64",
-  "version": "2.4.0-beta.2",
+  "version": "2.4.0",
   "description": "The MacOS 64-bit arm binary for rev-dep",
   "repository": {
     "type": "git",

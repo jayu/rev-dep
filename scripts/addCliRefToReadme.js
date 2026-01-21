@@ -5,8 +5,16 @@ const path = require('path');
 const settings = {
   commands: [
     { name: "circular" },
+    {
+      name: "config",
+      subcommands: [
+        "run",
+        "init"
+      ]
+    },
     { name: "entry-points" },
     { name: "files" },
+    { name: "imported-by" },
     { name: "lines-of-code" },
     { name: "list-cwd-files" },
     {

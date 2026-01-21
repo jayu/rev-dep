@@ -49,7 +49,7 @@ Built in Go for speed. Even on large codebases, rev-dep responds almost instantl
 
 You get **exact file paths**, **import chains**, and **clear dependency relationships** — the kind of information you can fix or clean up right away.
 
-### ✅ **Designed for real-world JS/TS**
+### ✅ **Designed for real-world JS/TS with first class monorepo support**
 
 Works with mixed JS/TS projects, path aliases and thousands of files without configuration hassles.
 
@@ -91,7 +91,8 @@ For large project with 500k+ lines of code and 6k+ source code files get checks 
 * 📏 **Count actual lines of code (excluding comments and blanks)**
 * 💽 **Node modules disk usage & size analysis**
 * 💡 **Works with both JavaScript and TypeScript**
-* ⚡ **Built for large codebases**
+* ⚡ **Built for large codebases and monorepos**
+* 🏗️ **Supports TypeScript path aliases and package.json imports and exports map**
 
 # **Installation 📦**
 
@@ -215,6 +216,245 @@ rev-dep node-modules missing
 ```
 rev-dep node-modules dirs-size
 ```
+
+## Working with Monorepo
+
+Rev-dep provides first-class support for monorepo projects, enabling accurate dependency analysis across workspace packages.
+
+### followMonorepoPackages Flag
+
+The `--follow-monorepo-packages` flag enables resolution of imports from monorepo workspace packages. By default, this flag is set to `false` to maintain compatibility with single-package projects.
+
+```bash
+# Enable monorepo package resolution
+rev-dep circular --follow-monorepo-packages
+rev-dep resolve --file src/utils.ts --follow-monorepo-packages
+rev-dep entry-points --follow-monorepo-packages
+```
+
+When enabled, rev-dep will:
+
+- **Detect workspace packages** automatically by scanning for monorepo configuration
+- **Resolve imports between packages** within the workspace
+- **Follow package.json exports** for proper module resolution
+
+### Exports Map Support
+
+Rev-dep fully supports the `exports` field in package.json files, which is the standard way to define package entry points in modern Node.js projects.
+
+The exports map support includes:
+
+- **Conditional exports** using conditions like `node`, `import`, `default`, and custom conditions
+- **Wildcard patterns** for flexible subpath mapping
+- **Sugar syntax** for simple main export definitions
+- **Nested conditions** for complex resolution scenarios
+
+### Condition Names Flag
+
+To control which conditional exports are resolved, use the `--condition-names` flag. This allows you to specify the priority of conditions when resolving package exports:
+
+```bash
+# Resolve exports for different environments
+rev-dep circular --condition-names=node,import,default
+rev-dep resolve --file src/utils.ts --condition-names=import,node
+rev-dep entry-points --condition-names=default,node,import
+```
+
+The conditions are processed in the order specified, with the first matching condition being used. Common conditions include:
+- `node` - Node.js environment
+- `import` - ES modules
+- `require` - CommonJS
+- `default` - Fallback condition
+- Custom conditions specific to your project or build tools
+
+Example package.json with exports:
+
+```json
+{
+  "name": "@myorg/utils",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./helpers": "./dist/helpers.js",
+    "./types/*": "./dist/types/*.d.ts"
+  }
+}
+```
+
+### How It Works
+
+1. **Monorepo Detection**: When `followMonorepoPackages` is enabled, rev-dep scans for workspace configuration (pnpm-workspace.yaml, package.json workspaces, etc.)
+
+2. **Package Resolution**: Imports to workspace packages are resolved using the package's exports configuration, falling back to main/module fields when exports are not defined
+
+3. **Dependency Validation**: The tool validates that cross-package imports are only allowed when the target package is listed in the consumer's dependencies or devDependencies
+
+4. **Path Resolution**: All paths are resolved relative to their respective package roots, ensuring accurate dependency tracking across the entire monorepo
+
+This makes rev-dep particularly effective for large-scale monorepo projects where understanding cross-package dependencies is crucial for maintaining code quality and architecture.
+
+## Config-Based Checks
+
+Rev-dep provides a configuration system for orchestrating project checks. The config approach is **designed for speed** and is the **preferred way** of implementing project checks because it can execute all checks in a single pass, significantly faster than multiple running individual commands separately.
+
+Available checks are:
+
+- **module boundaries** - check if imports respect module boundaries
+- **circular imports** - check if there are circular imports
+- **orphan files** - check if there are orphan/dead files
+- **unused node modules** - check against unused node modules
+- **missing node modules** - check against missing node modules
+
+Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
+
+### Getting Started
+
+Initialize a configuration file in your project:
+
+```bash
+# Create a default configuration file
+rev-dep config init
+```
+
+Behavior of `rev-dep config init`:
+
+- Monorepo root: Running `rev-dep config init` at the workspace root creates a root rule and a rule for each discovered workspace package.
+- Monorepo workspace package or regular projects: Running `rev-dep config init` inside a directory creates config with a single rule with `path: "."` for this directory.
+
+Run all configured checks:
+
+```bash
+# Execute all rules and checks defined in the config
+rev-dep config run
+```
+
+### Configuration Structure
+
+The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) allows you to define multiple rules, each targeting different parts of your codebase with specific checks enabled.
+
+Here's a comprehensive example showing all available properties:
+
+```jsonc
+{
+  "configVersion": "1.0",
+  "$schema": "https://github.com/jayu/rev-dep/blob/module-boundaries/config-schema/1.0.schema.json?raw=true", // enables json autocompletion
+  "conditionNames": ["import", "default"],
+  "ignoreFiles": ["**/*.test.*"],
+  "rules": [
+    {
+      "path": ".",
+      "followMonorepoPackages": true,
+      "moduleBoundaries": [
+        {
+          "name": "ui-components",
+          "pattern": "src/components/**/*",
+          "allow": ["src/utils/**/*", "src/types/**/*"],
+          "deny": ["src/api/**/*"]
+        },
+        {
+          "name": "api-layer",
+          "pattern": "src/api/**/*",
+          "allow": ["src/utils/**/*", "src/types/**/*"],
+          "deny": ["src/components/**/*"]
+        }
+      ],
+      "circularImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "validEntryPoints": ["src/index.ts", "src/app.ts"],
+        "ignoreTypeImports": true,
+        "graphExclude": ["**/*.test.*", "**/stories/**/*"]
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["@myorg/**"],
+        "excludeModules": ["@types/**"],
+        "pkgJsonFieldsWithBinaries": ["scripts", "bin"],
+        "filesWithBinaries": ["scripts/check-something.sh"],
+        "filesWithModules": [".storybook/main.ts"],
+        "outputType": "groupByModule"
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["lodash", "axios"],
+        "excludeModules": ["@types/**"],
+        "outputType": "groupByFile"
+      }
+    }
+  ]
+}
+```
+
+### Available Properties
+
+#### Root Level Properties
+- **`configVersion`** (required): Configuration version string
+- **`$schema`** (optional): JSON schema reference for validation
+- **`conditionNames`** (optional): Array of condition names for exports resolution
+- **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
+- **`rules`** (required): Array of rule objects
+
+#### Rule Properties
+Each rule can contain the following properties:
+
+- **`path`** (required): Target directory path for this rule (either `.` or path starting with sub directory name)
+- **`followMonorepoPackages`** (optional): Enable monorepo package resolution (default: true)
+- **`moduleBoundaries`** (optional): Array of module boundary rules
+- **`circularImportsDetection`** (optional): Circular import detection configuration
+- **`orphanFilesDetection`** (optional): Orphan files detection configuration  
+- **`unusedNodeModulesDetection`** (optional): Unused node modules detection configuration
+- **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration
+
+#### Module Boundary Properties
+- **`name`** (required): Name of the boundary
+- **`pattern`** (required): Glob pattern for files in this boundary
+- **`allow`** (optional): Array of allowed import patterns
+- **`deny`** (optional): Array of denied import patterns (overrides allow)
+
+#### Detection Options Properties
+
+**CircularImportsDetection:**
+- **`enabled`** (required): Enable/disable circular import detection
+- **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
+
+**OrphanFilesDetection:**
+- **`enabled`** (required): Enable/disable orphan files detection
+- **`validEntryPoints`** (optional): Array of valid entry point patterns (eg. ["src/index.ts", "src/main.ts"])
+- **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
+- **`graphExclude`** (optional): File patterns to exclude from graph analysis
+
+**UnusedNodeModulesDetection:**
+- **`enabled`** (required): Enable/disable unused modules detection
+- **`includeModules`** (optional): Module patterns to include in analysis
+- **`excludeModules`** (optional): Module patterns to exclude from analysis
+- **`pkgJsonFieldsWithBinaries`** (optional): Package.json fields containing binary references (eg. lint-staged). Performs plain-text lookup
+- **`filesWithBinaries`** (optional): File patterns to search for binary usage. Performs plain-text lookup
+- **`filesWithModules`** (optional): Non JS/TS file patterns to search for module imports (eg. shell scripts). Performs plain-text lookup
+- **`outputType`** (optional): Output format - "list", "groupByModule", "groupByFile"
+
+**MissingNodeModulesDetection:**
+- **`enabled`** (required): Enable/disable missing modules detection
+- **`includeModules`** (optional): Module patterns to include in analysis
+- **`excludeModules`** (optional): Module patterns to exclude from analysis
+- **`outputType`** (optional): Output format - "list", "groupByModule", "groupByFile"
+
+### Performance Benefits
+
+The configuration approach provides significant performance advantages:
+
+- **Single Dependency Tree Build**: Builds one comprehensive dependency tree for all rules
+- **Parallel Rule Execution**: Processes multiple rules simultaneously
+- **Parallel Check Execution**: Runs all enabled checks within each rule in parallel
+- **Optimized File Discovery**: Discovers files once and reuses across all checks
+
+This makes config-based checks faster than running individual commands sequentially, especially for large codebases with multiple sub packages.
+
 
 
 ## Reimplemented to achieve 7x-37x speedup

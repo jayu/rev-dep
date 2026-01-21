@@ -122,14 +122,29 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 		os.Exit(1)
 	}
 
-	depsGraphs := make([]BuildDepsGraphResult, 0, len(absolutePathToEntryPoints))
+	type RootAndResolutionPaths struct {
+		Root                 *SerializableNode `json:"root"`
+		ResolutionPaths      [][]string        `json:"resolutionPaths,omitempty"`
+		FileOrNodeModuleNode *SerializableNode `json:"fileOrNodeModuleNode"`
+	}
+
+	depsGraphs := make([]RootAndResolutionPaths, 0, len(absolutePathToEntryPoints))
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	ch := make(chan string)
 
-	buildGraph := func(absolutePathToEntryPoint string, depsGraphs *[]BuildDepsGraphResult, wg *sync.WaitGroup, mu *sync.Mutex) {
-		depsGraph := buildDepsGraph(minimalTree, absolutePathToEntryPoint, &absolutePathToFilePath, resolveAll)
+	buildGraph := func(absolutePathToEntryPoint string, depsGraphs *[]RootAndResolutionPaths, wg *sync.WaitGroup, mu *sync.Mutex) {
+		// We cannot use multiple entry points here as it will break the reverse resolution.
+		// Reverse resolution which only looks for the first possible path, must have only one entry point
+		// Otherwise it may follow wrong path and not find the result
+		depsGraphsTemp := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, &absolutePathToFilePath, resolveAll)
+		depsGraph := RootAndResolutionPaths{
+			Root:                 depsGraphsTemp.Roots[absolutePathToEntryPoint],
+			ResolutionPaths:      depsGraphsTemp.ResolutionPaths[absolutePathToEntryPoint],
+			FileOrNodeModuleNode: depsGraphsTemp.FileOrNodeModuleNode,
+		}
+
 		mu.Lock()
 		*depsGraphs = append(*depsGraphs, depsGraph)
 		mu.Unlock()
@@ -155,7 +170,7 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 	wg.Wait()
 	close(ch)
 
-	slices.SortFunc(depsGraphs, func(a BuildDepsGraphResult, b BuildDepsGraphResult) int {
+	slices.SortFunc(depsGraphs, func(a RootAndResolutionPaths, b RootAndResolutionPaths) int {
 		rootA := a.Root.Path
 		rootB := b.Root.Path
 		if rootA < rootB {
@@ -255,29 +270,36 @@ func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDepen
 		return nil
 	}
 
-	depsCountMeta := make(map[string]int, len(notReferencedFiles))
 	maxFilePathLen := 0
-	var mu sync.Mutex
-	var wg sync.WaitGroup
 
-	for _, filePath := range notReferencedFiles {
+	multiGraph := buildDepsGraphForMultiple(minimalTree, notReferencedFiles, nil, false)
+
+	depsCountMeta := make(map[string]int, len(notReferencedFiles))
+
+	// Parallel BST processing for each entry point
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for entryPoint, root := range multiGraph.Roots {
 		wg.Add(1)
-		go func() {
-			graph := buildDepsGraph(minimalTree, filePath, nil, false)
+		go func(ep string, r *SerializableNode) {
+			vertices := bst(r, multiGraph.Vertices)
+
 			mu.Lock()
-			depsCountMeta[filePath] = len(graph.Vertices)
-			if len(filePath) > maxFilePathLen {
-				maxFilePathLen = len(filePath)
+			if len(ep) > maxFilePathLen {
+				maxFilePathLen = len(ep)
 			}
+			depsCountMeta[ep] = len(vertices)
 			mu.Unlock()
 			wg.Done()
-		}()
+		}(entryPoint, root)
 	}
 
 	wg.Wait()
 
 	for _, filePath := range notReferencedFiles {
 		printPath := strings.TrimPrefix(filePath, cwd)
+
 		fmt.Println(PadRight(printPath, ' ', maxFilePathLen), depsCountMeta[filePath])
 	}
 
@@ -317,7 +339,7 @@ func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPat
 	excludeFiles := []string{}
 
 	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
-	cycles := FindCircularDependencies(minimalTree, files)
+	cycles := FindCircularDependencies(minimalTree, files, ignoreType)
 
 	fmt.Fprint(os.Stderr, FormatCircularDependencies(cycles, cwd, minimalTree))
 
@@ -629,7 +651,7 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJson
 
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
-	depsGraph := buildDepsGraph(minimalTree, absolutePathToEntryPoint, nil, false)
+	depsGraph := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false)
 
 	if filesCount {
 		fmt.Println(len(depsGraph.Vertices))
@@ -671,6 +693,14 @@ by the specified entry point.`,
 
 var (
 	locCwd string
+)
+
+// ---------------- imported-by ----------------
+var (
+	importedByCwd         string
+	importedByFile        string
+	importedByCount       bool
+	importedByListImports bool
 )
 
 func linesOfCodeCmdFn(cwd string) error {
@@ -752,12 +782,127 @@ func linesOfCodeCmdFn(cwd string) error {
 	return nil
 }
 
+func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+	excludeFiles := []string{}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+
+	absolutePathToFilePath := NormalizePathForInternal(JoinWithCwd(cwd, filePath))
+
+	// Check if the target file exists in the dependency tree
+	if _, found := minimalTree[absolutePathToFilePath]; !found {
+		fmt.Printf("Error: Target file '%s' ('%s') not found in dependency tree.\n", filePath, absolutePathToFilePath)
+		fmt.Println("Available files:")
+		count := 0
+		for path := range minimalTree {
+			if count < 10 {
+				cleanPath := strings.TrimPrefix(path, cwd)
+				fmt.Printf("  %s\n", cleanPath)
+				count++
+			}
+		}
+		if len(minimalTree) > 10 {
+			fmt.Printf("  ... and %d more files\n", len(minimalTree)-10)
+		}
+		os.Exit(1)
+	}
+
+	// Find all files that import the target file
+	type ImportInfo struct {
+		FilePath string
+		Request  string
+	}
+
+	var importingFiles []string
+	var importDetails []ImportInfo
+
+	for filePath, dependencies := range minimalTree {
+		for _, dependency := range dependencies {
+			if dependency.ID != nil && *dependency.ID == absolutePathToFilePath {
+				// Convert to relative path for output
+				relativePath := strings.TrimPrefix(filePath, cwd)
+				if relativePath != filePath { // Only trim if cwd was actually found
+					if strings.HasPrefix(relativePath, "/") {
+						relativePath = relativePath[1:]
+					}
+				}
+				importingFiles = append(importingFiles, relativePath)
+
+				if listImports {
+					importDetails = append(importDetails, ImportInfo{
+						FilePath: relativePath,
+						Request:  dependency.Request,
+					})
+				}
+			}
+		}
+	}
+
+	// Sort the results
+	slices.Sort(importingFiles)
+	slices.SortFunc(importDetails, func(a, b ImportInfo) int {
+		if a.FilePath < b.FilePath {
+			return -1
+		} else if a.FilePath > b.FilePath {
+			return 1
+		}
+		return 0
+	})
+
+	if count {
+		fmt.Println(len(importingFiles))
+		return nil
+	}
+
+	if listImports {
+		// Group by file and show import details
+		currentFile := ""
+		for _, detail := range importDetails {
+			if detail.FilePath != currentFile {
+				if currentFile != "" {
+					fmt.Println()
+				}
+				fmt.Printf("%s:\n", detail.FilePath)
+				currentFile = detail.FilePath
+			}
+			fmt.Printf("  %s\n", detail.Request)
+		}
+	} else {
+		// Just list the files
+		for _, filePath := range importingFiles {
+			fmt.Println(filePath)
+		}
+	}
+
+	return nil
+}
+
 var linesOfCodeCmd = &cobra.Command{
 	Use:     "lines-of-code",
 	Short:   "Count actual lines of code in the project excluding comments and blank lines",
 	Example: "rev-dep lines-of-code",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return linesOfCodeCmdFn(ResolveAbsoluteCwd(locCwd))
+	},
+}
+
+var importedByCmd = &cobra.Command{
+	Use:   "imported-by",
+	Short: "List all files that directly import the specified file",
+	Long: `Finds and lists all files in the project that directly import the specified file.
+This is useful for understanding the impact of changes to a particular file.`,
+	Example: "rev-dep imported-by --file src/utils/helpers.ts",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return importedByCmdFn(
+			ResolveAbsoluteCwd(importedByCwd),
+			importedByFile,
+			importedByCount,
+			importedByListImports,
+			packageJsonPath,
+			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
+		)
 	},
 }
 
@@ -884,8 +1029,20 @@ func init() {
 	linesOfCodeCmd.Flags().StringVarP(&locCwd, "cwd", "c", currentDir,
 		"Directory to analyze")
 
+	// imported-by flags
+	addSharedFlags(importedByCmd)
+	importedByCmd.Flags().StringVarP(&importedByCwd, "cwd", "c", currentDir,
+		"Working directory for the command")
+	importedByCmd.Flags().StringVarP(&importedByFile, "file", "f", "",
+		"Target file to find importers for (required)")
+	importedByCmd.Flags().BoolVarP(&importedByCount, "count", "n", false,
+		"Only display the count of importing files")
+	importedByCmd.Flags().BoolVar(&importedByListImports, "list-imports", false,
+		"List the import identifiers used by each file")
+	importedByCmd.MarkFlagRequired("file")
+
 	// add commands
-	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, docsCmd)
+	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, docsCmd, configCmd)
 }
 
 func main() {
@@ -894,7 +1051,7 @@ func main() {
 	}
 }
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (MinimalDependencyTree, []string, map[string]bool) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (MinimalDependencyTree, []string, *ResolverManager) {
 	var files []string
 
 	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)
@@ -922,7 +1079,5 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 
-	allNodeModules := resolverManager.CollectAllNodeModules()
-
-	return minimalTree, sortedFiles, allNodeModules
+	return minimalTree, sortedFiles, resolverManager
 }

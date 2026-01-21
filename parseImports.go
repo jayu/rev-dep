@@ -283,6 +283,15 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 					}
 
 					for i < n && !bytes.HasPrefix(code[i:], []byte("from")) {
+						// Skip comments while looking for 'from'
+						if i+1 < len(code) && code[i] == '/' && code[i+1] == '/' {
+							i = skipLineComment(code, i)
+							continue
+						}
+						if i+1 < len(code) && code[i] == '/' && code[i+1] == '*' {
+							i = skipBlockComment(code, i)
+							continue
+						}
 						i++
 					}
 					if i < n {
@@ -352,6 +361,16 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 				shouldDropLookingForFrom := false
 				// find from keyword
 				for i < n && !bytes.HasPrefix(code[i:], []byte("from")) && !shouldDropLookingForFrom {
+					// Skip comments while looking for 'from'
+					if i+1 < len(code) && code[i] == '/' && code[i+1] == '/' {
+						i = skipLineComment(code, i)
+						continue
+					}
+					if i+1 < len(code) && code[i] == '/' && code[i+1] == '*' {
+						i = skipBlockComment(code, i)
+						continue
+					}
+
 					if kind != OnlyTypeImport {
 						// skip processing current export if one of the keywords are found
 						if bytes.HasPrefix(code[i:], []byte("import")) && !isByteIdentifierChar(code[i+len("import")]) {
@@ -438,36 +457,4 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool) ([]FileIm
 
 	wg.Wait()
 	return results, errCount
-}
-
-func ImportKindToString(kind ImportKind) string {
-	switch kind {
-	case NotTypeOrMixedImport:
-		return "NotTypeOrMixedImport"
-	case OnlyTypeImport:
-		return "OnlyTypeImport"
-	default:
-		return "Unknown"
-	}
-}
-
-func ResolvedImportTypeToString(resolvedType ResolvedImportType) string {
-	switch resolvedType {
-	case UserModule:
-		return "UserModule"
-	case NodeModule:
-		return "NodeModule"
-	case BuiltInModule:
-		return "BuiltInModule"
-	case ExcludedByUser:
-		return "ExcludedByUser"
-	case NotResolvedModule:
-		return "NotResolvedModule"
-	case AssetModule:
-		return "AssetModule"
-	case MonorepoModule:
-		return "MonorepoModule"
-	default:
-		return "Unknown"
-	}
 }

@@ -118,9 +118,14 @@ func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
 	return result
 }
 
+type SubpackageResolver struct {
+	PkgPath  string
+	Resolver *ModuleResolver
+}
+
 type ResolverManager struct {
 	monorepoContext        *MonorepoContext
-	subpackageResolvers    map[string]*ModuleResolver
+	subpackageResolvers    []SubpackageResolver
 	rootResolver           *ModuleResolver
 	followMonorepoPackages bool
 	conditionNames         []string
@@ -146,7 +151,7 @@ func NewResolverManager(followMonorepoPackages bool, conditionNames []string, ro
 
 	rm := &ResolverManager{
 		monorepoContext:        monorepoCtx,
-		subpackageResolvers:    make(map[string]*ModuleResolver),
+		subpackageResolvers:    []SubpackageResolver{},
 		rootResolver:           nil,
 		followMonorepoPackages: followMonorepoPackages,
 		conditionNames:         conditionNames,
@@ -162,8 +167,15 @@ func NewResolverManager(followMonorepoPackages bool, conditionNames []string, ro
 	if monorepoCtx != nil {
 		rm.rootResolver = createResolverForDir(monorepoCtx.WorkspaceRoot, rm)
 		for _, pkgPath := range monorepoCtx.PackageToPath {
-			rm.subpackageResolvers[pkgPath] = createResolverForDir(pkgPath, rm)
+			rm.subpackageResolvers = append(rm.subpackageResolvers, SubpackageResolver{
+				PkgPath:  pkgPath,
+				Resolver: createResolverForDir(pkgPath, rm),
+			})
 		}
+		// Sort by path length descending to ensure most specific paths are checked first
+		slices.SortFunc(rm.subpackageResolvers, func(a, b SubpackageResolver) int {
+			return len(b.PkgPath) - len(a.PkgPath)
+		})
 	} else {
 		rm.rootResolver = NewImportsResolver(rootParams.Cwd, rootParams.TsConfigContent, rootParams.PkgJsonContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
 	}
@@ -186,9 +198,9 @@ func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
 }
 
 func (rm *ResolverManager) GetResolverForFile(filePath string) *ModuleResolver {
-	for pkgPath, resolver := range rm.subpackageResolvers {
-		if strings.HasPrefix(filePath, pkgPath) {
-			return resolver
+	for _, subPkg := range rm.subpackageResolvers {
+		if strings.HasPrefix(filePath, subPkg.PkgPath) {
+			return subPkg.Resolver
 		}
 	}
 	return rm.rootResolver
@@ -205,8 +217,8 @@ func (rm *ResolverManager) CollectAllNodeModules() map[string]bool {
 	}
 
 	// Collect from subpackage resolvers
-	for _, resolver := range rm.subpackageResolvers {
-		for module := range resolver.nodeModules {
+	for _, subPkg := range rm.subpackageResolvers {
+		for module := range subPkg.Resolver.nodeModules {
 			allNodeModules[module] = true
 		}
 	}
@@ -214,19 +226,38 @@ func (rm *ResolverManager) CollectAllNodeModules() map[string]bool {
 	return allNodeModules
 }
 
-func (rm *ResolverManager) GetNodeModulesForFile(filePath string) map[string]bool {
-	resolver := rm.GetResolverForFile(filePath)
-	if resolver != nil {
-		return resolver.nodeModules
-	}
-	return map[string]bool{}
-}
-
 func isValidTsAliasTargetPath(path string) bool {
-	return strings.HasPrefix(path, "./") || strings.HasPrefix(path, "../")
+	// Reject absolute paths (starting with /)
+	if strings.HasPrefix(path, "/") {
+		return false
+	}
+
+	// Reject URLs
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return false
+	}
+
+	// Reject node_modules paths
+	if strings.HasPrefix(path, "node_modules/") {
+		return false
+	}
+
+	// Reject paths that look like other aliases (starting with @)
+	if strings.HasPrefix(path, "@") {
+		return false
+	}
+
+	// Allow everything else - this includes:
+	// - Relative paths: "./src/*", "../lib/*"
+	// - Directory-relative paths: "src/*", "lib/*"
+	// - Direct file paths: "index.ts", "lib.js"
+	// - Bare module names: "lodash", "react"
+	return true
 }
 
-func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
+// ParseTsConfigContent extracts and processes TypeScript configuration from raw tsconfig content
+// Returns a TsConfigParsed struct containing aliases, regex patterns, and wildcard patterns
+func ParseTsConfigContent(tsconfigContent []byte) *TsConfigParsed {
 	debug := false
 	tsconfigContent = jsonc.ToJSON(tsconfigContent)
 
@@ -234,47 +265,79 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		fmt.Println("tsconfigContent", string(tsconfigContent))
 	}
 
-	var rawConfigForPaths map[string]map[string]map[string][]string
+	var paths map[string][]string
+	var baseUrl string
+	var hasBaseUrl bool
 
-	err := json.Unmarshal(tsconfigContent, &rawConfigForPaths)
+	// Only attempt to parse if tsconfig content is not empty
+	if len(tsconfigContent) > 0 && string(tsconfigContent) != "" && string(tsconfigContent) != "{}" {
+		var rawConfigForPaths map[string]interface{}
 
-	if err != nil && debug {
-		fmt.Printf("Failed to parse tsConfig paths : %s\n", err)
-	}
+		err := json.Unmarshal(tsconfigContent, &rawConfigForPaths)
 
-	paths, ok := rawConfigForPaths["compilerOptions"]["paths"]
+		if err != nil && debug {
+			fmt.Printf("Failed to parse tsConfig paths : %s\n", err)
+		}
 
-	if !ok && debug {
-		fmt.Printf("Paths not found in tsConfig from\n")
-	}
+		if compilerOptions, ok := rawConfigForPaths["compilerOptions"].(map[string]interface{}); ok {
+			if pathsRaw, ok := compilerOptions["paths"].(map[string]interface{}); ok {
+				paths = make(map[string][]string)
+				for key, value := range pathsRaw {
+					if valueArray, ok := value.([]interface{}); ok {
+						pathArray := make([]string, len(valueArray))
+						for i, v := range valueArray {
+							if str, ok := v.(string); ok {
+								pathArray[i] = str
+							}
+						}
+						paths[key] = pathArray
+					}
+				}
+			}
+		}
 
-	if debug {
-		fmt.Printf("Paths: %v\n", paths)
-	}
+		if paths == nil && debug {
+			fmt.Printf("Paths not found in tsConfig from\n")
+		}
 
-	var rawConfigForBaseUrl map[string]map[string]string
+		if debug {
+			fmt.Printf("Paths: %v\n", paths)
+		}
 
-	// TODO figure out if we can use just one unmarshaling
-	err = json.Unmarshal(tsconfigContent, &rawConfigForBaseUrl)
+		var rawConfigForBaseUrl map[string]interface{}
 
-	if err != nil && debug {
-		fmt.Printf("Failed to parse tsConfig baseUrl from %s\n", err)
-	}
+		// TODO figure out if we can use just one unmarshaling
+		err = json.Unmarshal(tsconfigContent, &rawConfigForBaseUrl)
 
-	baseUrl, hasBaseUrl := rawConfigForBaseUrl["compilerOptions"]["baseUrl"]
+		if err != nil && debug {
+			fmt.Printf("Failed to parse tsConfig baseUrl from %s\n", err)
+		}
 
-	if !hasBaseUrl && debug {
-		fmt.Printf("BaseUrl not found in tsConfig from \n")
+		if compilerOptions, ok := rawConfigForBaseUrl["compilerOptions"].(map[string]interface{}); ok {
+			if baseUrlRaw, ok := compilerOptions["baseUrl"]; ok {
+				if baseUrlStr, ok := baseUrlRaw.(string); ok {
+					baseUrl = baseUrlStr
+					hasBaseUrl = true
+				}
+				// Handle cases where baseUrl might be a boolean or other type
+				// We only process it if it's a string
+			}
+		}
+
+		if !hasBaseUrl && debug {
+			fmt.Printf("BaseUrl not found in tsConfig from \n")
+		}
+	} else {
+		if debug {
+			fmt.Printf("Empty tsconfig content, skipping parsing\n")
+		}
+		paths = make(map[string][]string)
 	}
 
 	tsConfigParsed := &TsConfigParsed{
 		aliases:          map[string]string{},
 		aliasesRegexps:   []RegExpArrItem{},
 		wildcardPatterns: []WildcardPattern{},
-	}
-
-	if debug {
-		fmt.Printf("tsConfigParsed: %v\n", tsConfigParsed)
 	}
 
 	for aliasKey, aliasValues := range paths {
@@ -333,6 +396,29 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 			aliasKey: baseUrlAliasKey,
 		})
 	}
+
+	// Sort regexps as they are matched starting from longest matching prefix
+	slices.SortFunc(tsConfigParsed.aliasesRegexps, func(itemA RegExpArrItem, itemB RegExpArrItem) int {
+		keyAMatchingPrefix := strings.Replace(itemA.aliasKey, "*", "", 1)
+		keyBMatchingPrefix := strings.Replace(itemB.aliasKey, "*", "", 1)
+
+		return len(keyBMatchingPrefix) - len(keyAMatchingPrefix)
+	})
+
+	// Sort wildcard patterns by key length descending for specificity
+	slices.SortFunc(tsConfigParsed.wildcardPatterns, func(patternA, patternB WildcardPattern) int {
+		return len(patternB.key) - len(patternA.key)
+	})
+
+	if debug {
+		fmt.Printf("tsConfigParsed: %v\n", tsConfigParsed)
+	}
+
+	return tsConfigParsed
+}
+
+func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
+	tsConfigParsed := ParseTsConfigContent(tsconfigContent)
 
 	packageJsonImports := &PackageJsonImports{
 		imports:             map[string]interface{}{},
@@ -433,6 +519,7 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		resolverRoot:       dirPath,
 		nodeModules:        GetNodeModulesFromPkgJson(packageJsonContent),
 	}
+
 	return factory
 }
 
@@ -766,7 +853,6 @@ func (f *ModuleResolver) validateWorkspaceDependency(consumerRoot, targetPkgName
 	if consumerRoot == f.manager.monorepoContext.WorkspaceRoot {
 		return true
 	}
-
 	consumerConfig, err := f.manager.monorepoContext.GetPackageConfig(consumerRoot)
 	if err != nil {
 		return false
@@ -775,6 +861,7 @@ func (f *ModuleResolver) validateWorkspaceDependency(consumerRoot, targetPkgName
 	// Check dependencies and devDependencies
 	_, hasDep := consumerConfig.Dependencies[targetPkgName]
 	_, hasDevDep := consumerConfig.DevDependencies[targetPkgName]
+
 	return hasDep || hasDevDep
 }
 
@@ -933,6 +1020,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
 
 		p, e := f.manager.getModulePathWithExtension(modulePathInternal)
+
 		return p, UserModule, e
 	}
 
@@ -943,7 +1031,6 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 			// Alias was matched, but path was not resolved
 			aliasMatchedButFileNotFound = resolvedPath
 		} else {
-
 			return resolvedPath, rtype, err
 		}
 	}
@@ -993,11 +1080,11 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		tsConfigPath = filepath.Join(cwd, "tsconfig.json")
 	}
 
-	tsConfigDir := filepath.Dir(tsConfigPath)
-
 	if packageJson == "" {
 		pkgJsonPath = JoinWithCwd(cwd, "package.json")
 	}
+
+	pkjJsonDir := filepath.Dir(pkgJsonPath)
 
 	// Let ParseTsConfig read and resolve the tsconfig file. If user provided
 	// an explicit tsconfig path and parsing fails, exit with error to match
@@ -1044,7 +1131,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 				&discoveredFiles,
 				&fileImportsArr,
 				&sortedFiles,
-				tsConfigDir,
+				pkjJsonDir,
 				ignoreTypeImports,
 				skipResolveMissing,
 				idx,
@@ -1087,7 +1174,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	return filteredFileImportsArr, filteredFiles, resolverManager
 }
 
-func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, tsConfigDirOrCwd string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {
+func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, pkgJsonDir string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()

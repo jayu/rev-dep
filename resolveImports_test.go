@@ -196,7 +196,6 @@ func TestParsingTsConfig(t *testing.T) {
 				  "@/valid/*": ["./src/*"],
 				  "@/another-valid": ["../lib/*"],
 				  "@/invalid": ["node_modules/package"],
-				  "@root": ["root"],
 				  "@/also-invalid": ["/absolute/path"]
 				}
 			}
@@ -229,10 +228,6 @@ func TestParsingTsConfig(t *testing.T) {
 		// Check that invalid aliases are filtered out
 		if _, hasInvalid := resolver.tsConfigParsed.aliases["@/invalid"]; hasInvalid {
 			t.Errorf("@/invalid alias should be filtered out")
-		}
-
-		if _, hasRoot := resolver.tsConfigParsed.aliases["@root"]; hasRoot {
-			t.Errorf("@root alias should be filtered out")
 		}
 
 		if _, hasAlsoInvalid := resolver.tsConfigParsed.aliases["@/also-invalid"]; hasAlsoInvalid {

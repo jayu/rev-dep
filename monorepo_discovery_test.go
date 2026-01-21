@@ -225,6 +225,30 @@ func TestPnpmResolution(t *testing.T) {
 	}
 }
 
+func TestPnpmWorkspaceEmptyShouldNotDetectMonorepo(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-empty")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create an empty pnpm-workspace.yaml (no packages definition)
+	files := map[string]string{
+		"pnpm-workspace.yaml": "\n", // empty content
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx != nil {
+		t.Fatalf("Expected NOT to detect monorepo when pnpm-workspace.yaml contains no packages, but detected %v", monorepoCtx.WorkspaceRoot)
+	}
+}
+
 func TestFindWorkspacePackages(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "monorepo-test-*")
 	if err != nil {
@@ -399,5 +423,218 @@ func TestWorkspaceRootExclusion(t *testing.T) {
 	// Assert workspace package IS in the map
 	if _, ok := ctx.PackageToPath["@pkg/a"]; !ok {
 		t.Errorf("Workspace package '@pkg/a' should be discovered")
+	}
+}
+
+func TestDetectMonorepoFalsePositiveWithWorkspacesKey(t *testing.T) {
+	// Test case: non-root package with "workspaces" key should NOT be detected as monorepo root
+	tempDir, err := os.MkdirTemp("", "monorepo-false-positive-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	root := tempDir
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Root monorepo with proper workspaces configuration
+	writeFile(`{"name": "root", "workspaces": ["packages/*"]}`, "package.json")
+
+	// Package inside monorepo that also has a "workspaces" key (but it's not the root)
+	writeFile(`{"name": "@internal/nested", "workspaces": []}`, "packages", "nested", "package.json")
+
+	// Try to detect from the nested package
+	nestedPath := filepath.Join(root, "packages", "nested")
+	monorepoCtx := DetectMonorepo(nestedPath)
+
+	// Should find the root monorepo, not treat nested package as root
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo from nested package path")
+	}
+
+	if monorepoCtx.WorkspaceRoot != NormalizePathForInternal(root) {
+		t.Errorf("Expected monorepo root at %s, got %s", NormalizePathForInternal(root), monorepoCtx.WorkspaceRoot)
+	}
+}
+
+func TestDetectMonorepoIgnoresEmptyWorkspaces(t *testing.T) {
+	// Test case: package with empty workspaces array/object should NOT be detected as monorepo root
+	tempDir, err := os.MkdirTemp("", "monorepo-empty-ws-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	root := tempDir
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Package with empty workspaces
+	writeFile(`{"name": "@pkg/empty-ws", "workspaces": []}`, "package.json")
+
+	monorepoCtx := DetectMonorepo(root)
+
+	// Should NOT detect as monorepo because workspaces is empty
+	if monorepoCtx != nil {
+		t.Errorf("Package with empty workspaces should not be detected as monorepo root")
+	}
+}
+
+func TestDetectMonorepoWithValidWorkspacesArray(t *testing.T) {
+	// Test case: package with non-empty workspaces array SHOULD be detected as monorepo root
+	tempDir, err := os.MkdirTemp("", "monorepo-valid-ws-array-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	root := tempDir
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{root}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Package with valid workspaces array
+	writeFile(`{"name": "root", "workspaces": ["packages/*"]}`, "package.json")
+	writeFile(`{"name": "@pkg/a"}`, "packages", "a", "package.json")
+
+	monorepoCtx := DetectMonorepo(root)
+
+	// Should detect as monorepo
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo with valid workspaces array")
+	}
+
+	if monorepoCtx.WorkspaceRoot != NormalizePathForInternal(root) {
+		t.Errorf("Expected monorepo root at %s, got %s", NormalizePathForInternal(root), monorepoCtx.WorkspaceRoot)
+	}
+}
+
+func TestWorkspacesArrayAndPackagesObject(t *testing.T) {
+	// Ensure both array-style and object-with-packages-style workspaces are supported
+	tmpDir, err := os.MkdirTemp("", "monorepo-workspaces-formats-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Helper to write files
+	writeFile := func(content string, p ...string) {
+		path := filepath.Join(append([]string{tmpDir}, p...)...)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatalf("Failed to mkdir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	// Array style
+	arrayRoot := filepath.Join(tmpDir, "array-root")
+	if err := os.MkdirAll(arrayRoot, 0755); err != nil {
+		t.Fatalf("Failed to mkdir arrayRoot: %v", err)
+	}
+	writeFile(`{"name": "root-array", "workspaces": ["packages/*"]}`, "array-root", "package.json")
+	writeFile(`{"name": "@arr/pkg"}`, "array-root", "packages", "pkg", "package.json")
+
+	// Object-with-packages style
+	objRoot := filepath.Join(tmpDir, "obj-root")
+	if err := os.MkdirAll(objRoot, 0755); err != nil {
+		t.Fatalf("Failed to mkdir objRoot: %v", err)
+	}
+	writeFile(`{"name": "root-obj", "workspaces": {"packages": ["packages/*"]}}`, "obj-root", "package.json")
+	writeFile(`{"name": "@obj/pkg"}`, "obj-root", "packages", "pkg", "package.json")
+
+	// Detect and verify array-root
+	monorepoArray := DetectMonorepo(filepath.Join(arrayRoot, "packages", "pkg"))
+	if monorepoArray == nil {
+		t.Fatalf("Failed to detect monorepo for array-style workspaces")
+	}
+	if monorepoArray.WorkspaceRoot != NormalizePathForInternal(arrayRoot) {
+		t.Errorf("Expected workspace root %s, got %s", NormalizePathForInternal(arrayRoot), monorepoArray.WorkspaceRoot)
+	}
+	monorepoArray.FindWorkspacePackages(monorepoArray.WorkspaceRoot, []GlobMatcher{})
+	if _, ok := monorepoArray.PackageToPath["@arr/pkg"]; !ok {
+		t.Errorf("Expected to find @arr/pkg in array-style workspaces")
+	}
+
+	// Detect and verify obj-root
+	monorepoObj := DetectMonorepo(filepath.Join(objRoot, "packages", "pkg"))
+	if monorepoObj == nil {
+		t.Fatalf("Failed to detect monorepo for object-with-packages-style workspaces")
+	}
+	if monorepoObj.WorkspaceRoot != NormalizePathForInternal(objRoot) {
+		t.Errorf("Expected workspace root %s, got %s", NormalizePathForInternal(objRoot), monorepoObj.WorkspaceRoot)
+	}
+	monorepoObj.FindWorkspacePackages(monorepoObj.WorkspaceRoot, []GlobMatcher{})
+	if _, ok := monorepoObj.PackageToPath["@obj/pkg"]; !ok {
+		t.Errorf("Expected to find @obj/pkg in object-with-packages-style workspaces")
+	}
+}
+
+func TestPnpmTakesPrecedenceOverPackageJson(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-vs-packagejson")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"pnpm-workspace.yaml": `packages:
+  - 'packages/*'
+`,
+		"package.json": `{
+			"workspaces": ["other/*"]
+		}`,
+		"packages/pkg-a/package.json": `{ "name": "@pnpm/only", "version": "1.0.0" }`,
+		"other/pkg-b/package.json":    `{ "name": "@pkgjson/only", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	// Call DetectMonorepo from inside the nested package that itself contains a `workspaces` key.
+	// DetectMonorepo should prefer the root pnpm-workspace.yaml, not the nested package.json.
+	monorepoCtx := DetectMonorepo(filepath.Join(tmpDir, "packages", "pkg-a"))
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
+	}
+
+	// Ensure the detected workspace root is the repo root (where pnpm-workspace.yaml lives)
+	if monorepoCtx.WorkspaceRoot != NormalizePathForInternal(tmpDir) {
+		t.Fatalf("Expected monorepo root %s, got %s", NormalizePathForInternal(tmpDir), monorepoCtx.WorkspaceRoot)
+	}
+
+	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
+
+	// Since pnpm-workspace.yaml is present at repo root, it should take precedence and only packages/* should be used
+	if _, ok := monorepoCtx.PackageToPath["@pnpm/only"]; !ok {
+		t.Errorf("Expected to find @pnpm/only from pnpm-workspace.yaml, but didn't")
+	}
+	if _, ok := monorepoCtx.PackageToPath["@pkgjson/only"]; ok {
+		t.Errorf("Did not expect to find @pkgjson/only from package.json workspaces when pnpm-workspace.yaml is present")
 	}
 }

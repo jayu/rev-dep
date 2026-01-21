@@ -859,6 +859,166 @@ func TestIncludeExclude(t *testing.T) {
 	})
 }
 
+func TestWildcardIncludeExclude(t *testing.T) {
+	currentDir, _ := os.Getwd()
+	nodeModulesCwd := filepath.Join(currentDir, "__fixtures__/nodeModulesCmd")
+	nodeModulesIgnoreType := false
+	nodeModulesEntryPoints := []string{}
+	nodeModulesCountFlag := false
+	nodeModulesListUnused := false
+	nodeModulesListMissing := false
+	nodeModulesGroupByModule := false
+	nodeModulesGroupByFile := false
+	nodeModulesPkgJsonFieldsWithBinaries := []string{}
+	nodeModulesFilesWithBinaries := []string{}
+	nodeModulesFilesWithModules := []string{}
+
+	t.Run("should support wildcard prefix matching (suffix wildcard)", func(t *testing.T) {
+		nodeModulesIncludeModules := []string{"*types-2", "dep*"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			[]string{},
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should support wildcard suffix matching (prefix wildcard)", func(t *testing.T) {
+		nodeModulesIncludeModules := []string{"@types/*", "*4"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			[]string{},
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-1\n@types/dep-types-2\ndep4\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should support wildcard contains matching (both prefix and suffix)", func(t *testing.T) {
+		nodeModulesIncludeModules := []string{"*dep*"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			[]string{},
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should support wildcard exclusion", func(t *testing.T) {
+		nodeModulesExcludeModules := []string{"@types/*", "dep*"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			[]string{},
+			nodeModulesExcludeModules,
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should support mixed wildcard and exact patterns", func(t *testing.T) {
+		nodeModulesIncludeModules := []string{"@types/dep-types-1", "*dep*"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			[]string{},
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+}
+
 func TestSortPathsToNodeModulesByNestingLevel(t *testing.T) {
 	t.Run("Different nesting level", func(t *testing.T) {
 		input := []string{"node_modules/inherits/package.json", "node_modules/google-gax/node_modules/@grpc/proto-loader/node_modules/protobufjs/cli/node_modules/inherits/package.json", "node_modules/protobufjs/cli/node_modules/inherits/package.json"}

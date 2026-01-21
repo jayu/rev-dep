@@ -316,6 +316,63 @@ func TestLinesOfCodeCmd(t *testing.T) {
 	golden.Assert(t, output, "lines-of-code.golden")
 }
 
+func TestImportedByCmd(t *testing.T) {
+	t.Run("imported-by --file src/types.ts", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return importedByCmdFn(mockProjectPath, "src/types.ts", false, false, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "imported-by-types.golden")
+	})
+
+	t.Run("imported-by --file src/types.ts --count", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return importedByCmdFn(mockProjectPath, "src/types.ts", true, false, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "imported-by-types-count.golden")
+	})
+
+	t.Run("imported-by --file src/types.ts --list-imports", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return importedByCmdFn(mockProjectPath, "src/types.ts", false, true, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "imported-by-types-list-imports.golden")
+	})
+
+	t.Run("imported-by --file moduleSrc/fileA.tsx", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return importedByCmdFn(mockProjectPath, "moduleSrc/fileA.tsx", false, false, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "imported-by-fileA.golden")
+	})
+
+	t.Run("imported-by --file moduleSrc/fileA.tsx --list-imports", func(t *testing.T) {
+		mockProjectPath := filepath.Join("__fixtures__", "mockProject")
+
+		output, err := captureOutput(func() error {
+			return importedByCmdFn(mockProjectPath, "moduleSrc/fileA.tsx", false, true, "", "", []string{}, false)
+		})
+
+		assert.NilError(t, err)
+		golden.Assert(t, output, "imported-by-fileA-list-imports.golden")
+	})
+}
+
 func TestResolveCmd(t *testing.T) {
 	t.Run("resolve --file src/types.ts", func(t *testing.T) {
 		mockProjectPath := filepath.Join("__fixtures__", "mockProject")

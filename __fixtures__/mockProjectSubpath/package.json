@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "lodash": "0.0.0"
+  },
+  "imports": {
+    "#my-util-submodule": "lodash/files/utils",
+    "#my-util-submodule/*": "lodash/files/utils/*"
+  }
+}

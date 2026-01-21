@@ -42,9 +42,11 @@ var docsCmd = &cobra.Command{
 // ---------------- shared flags ----------------
 
 var (
-	packageJsonPath  string
-	tsconfigJsonPath string
-	verboseFlag      bool
+	packageJsonPath        string
+	tsconfigJsonPath       string
+	verboseFlag            bool
+	conditionNames         []string
+	followMonorepoPackages bool
 )
 
 func addSharedFlags(command *cobra.Command) {
@@ -54,6 +56,10 @@ func addSharedFlags(command *cobra.Command) {
 		"Path to tsconfig.json (default: ./tsconfig.json)")
 	command.Flags().BoolVarP(&verboseFlag, "verbose", "v", false,
 		"Show warnings and verbose output")
+	command.Flags().StringSliceVar(&conditionNames, "condition-names", []string{},
+		"List of conditions for package.json imports resolution (e.g. node, imports, default)")
+	command.Flags().BoolVar(&followMonorepoPackages, "follow-monorepo-packages", false,
+		"Enable resolution of imports from monorepo workspace packages")
 }
 
 func logWarning(format string, a ...interface{}) {
@@ -73,6 +79,145 @@ var (
 	resolveCompactSummary bool
 )
 
+func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+	var absolutePathToEntryPoints []string
+
+	if len(entryPoints) > 0 {
+		absolutePathToEntryPoints = make([]string, 0, len(entryPoints))
+		for _, entryPoint := range entryPoints {
+			absolutePathToEntryPoints = append(absolutePathToEntryPoints, JoinWithCwd(cwd, entryPoint))
+		}
+	}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, absolutePathToEntryPoints, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+
+	if len(absolutePathToEntryPoints) == 0 {
+		absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
+	}
+
+	absolutePathToFilePath := NormalizePathForInternal(JoinWithCwd(cwd, filePath))
+
+	notFoundCount := 0
+	for _, absolutePathToEntryPoint := range absolutePathToEntryPoints {
+		if _, found := minimalTree[absolutePathToEntryPoint]; !found {
+			notFoundCount++
+			//return fmt.Errorf("could not find entry point '%s' in dependency tree", absolutePathToEntryPoints[idx])
+		}
+	}
+
+	if _, found := minimalTree[absolutePathToFilePath]; !found {
+		fmt.Printf("Error: Target file '%s' ('%s') not found in dependency tree.\n", filePath, absolutePathToFilePath)
+		fmt.Println("Available files:")
+		count := 0
+		for path := range minimalTree {
+			if count < 10 {
+				cleanPath := strings.TrimPrefix(path, cwd)
+				fmt.Printf("  %s\n", cleanPath)
+				count++
+			}
+		}
+		if len(minimalTree) > 10 {
+			fmt.Printf("  ... and %d more files\n", len(minimalTree)-10)
+		}
+		os.Exit(1)
+	}
+
+	type RootAndResolutionPaths struct {
+		Root                 *SerializableNode `json:"root"`
+		ResolutionPaths      [][]string        `json:"resolutionPaths,omitempty"`
+		FileOrNodeModuleNode *SerializableNode `json:"fileOrNodeModuleNode"`
+	}
+
+	depsGraphs := make([]RootAndResolutionPaths, 0, len(absolutePathToEntryPoints))
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	ch := make(chan string)
+
+	buildGraph := func(absolutePathToEntryPoint string, depsGraphs *[]RootAndResolutionPaths, wg *sync.WaitGroup, mu *sync.Mutex) {
+		// We cannot use multiple entry points here as it will break the reverse resolution.
+		// Reverse resolution which only looks for the first possible path, must have only one entry point
+		// Otherwise it may follow wrong path and not find the result
+		depsGraphsTemp := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, &absolutePathToFilePath, resolveAll)
+		depsGraph := RootAndResolutionPaths{
+			Root:                 depsGraphsTemp.Roots[absolutePathToEntryPoint],
+			ResolutionPaths:      depsGraphsTemp.ResolutionPaths[absolutePathToEntryPoint],
+			FileOrNodeModuleNode: depsGraphsTemp.FileOrNodeModuleNode,
+		}
+
+		mu.Lock()
+		*depsGraphs = append(*depsGraphs, depsGraph)
+		mu.Unlock()
+
+		// Print this warning only if user provided entry points list
+		if depsGraph.FileOrNodeModuleNode == nil && len(entryPoints) > 0 {
+			logWarning("Error: Could not find target file '%s' in dependency graph.\n", filePath)
+		}
+		wg.Done()
+	}
+
+	go func() {
+		for absolutePathToEntryPoint := range ch {
+			go buildGraph(absolutePathToEntryPoint, &depsGraphs, &wg, &mu)
+		}
+	}()
+
+	for _, absolutePathToEntryPoint := range absolutePathToEntryPoints {
+		wg.Add(1)
+		ch <- absolutePathToEntryPoint
+	}
+
+	wg.Wait()
+	close(ch)
+
+	slices.SortFunc(depsGraphs, func(a RootAndResolutionPaths, b RootAndResolutionPaths) int {
+		rootA := a.Root.Path
+		rootB := b.Root.Path
+		if rootA < rootB {
+			return -1
+		} else if rootA > rootB {
+			return 1
+		} else {
+			return 0
+		}
+	})
+
+	totalCount := 0
+
+	fmt.Printf("\nDependency paths from entry points to '%s':\n\n", filePath)
+
+	maxPathLen := 0
+
+	for _, depsGraph := range depsGraphs {
+		if len(depsGraph.ResolutionPaths) > 0 {
+			length := len(strings.TrimPrefix(depsGraph.Root.Path, cwd))
+			if length > maxPathLen {
+				maxPathLen = length
+			}
+		}
+	}
+
+	for _, depsGraph := range depsGraphs {
+		if len(depsGraph.ResolutionPaths) > 0 {
+			resolvePathsCount := len(depsGraph.ResolutionPaths)
+			totalCount += resolvePathsCount
+			if resolveCompactSummary {
+				p := PadRight(strings.TrimPrefix(depsGraph.Root.Path, cwd), ' ', maxPathLen)
+				fmt.Println(p, ":", resolvePathsCount)
+			} else {
+				FormatPaths(depsGraph.ResolutionPaths, cwd)
+			}
+		}
+	}
+	if resolveCompactSummary {
+		fmt.Println()
+	}
+
+	fmt.Printf("Total: %d\n", totalCount)
+
+	return nil
+}
+
 var resolveCmd = &cobra.Command{
 	Use:   "resolve",
 	Short: "Trace and display the dependency path between files in your project",
@@ -80,129 +225,19 @@ var resolveCmd = &cobra.Command{
 Helps understand how different parts of your codebase are connected.`,
 	Example: "rev-dep resolve -p src/index.ts -f src/utils/helpers.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cwd := ResolveAbsoluteCwd(resolveCwd)
-		filePath := resolveFile
-		var absolutePathToEntryPoints []string
-
-		if len(resolveEntryPoints) > 0 {
-			absolutePathToEntryPoints = make([]string, 0, len(resolveEntryPoints))
-			for _, entryPoint := range resolveEntryPoints {
-				absolutePathToEntryPoints = append(absolutePathToEntryPoints, filepath.Join(cwd, entryPoint))
-			}
-		}
-
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, resolveIgnoreType, resolveGraphExclude, absolutePathToEntryPoints, packageJsonPath, tsconfigJsonPath)
-
-		if len(absolutePathToEntryPoints) == 0 {
-			absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
-		}
-
-		absolutePathToFilePath := NormalizePathForInternal(filepath.Join(cwd, filePath))
-
-		notFoundCount := 0
-		for _, absolutePathToEntryPoint := range absolutePathToEntryPoints {
-			if _, found := minimalTree[absolutePathToEntryPoint]; !found {
-				notFoundCount++
-				//return fmt.Errorf("could not find entry point '%s' in dependency tree", absolutePathToEntryPoints[idx])
-			}
-		}
-
-		if _, found := minimalTree[absolutePathToFilePath]; !found {
-			fmt.Printf("Error: Target file '%s' not found in dependency tree.\n", filePath)
-			fmt.Println("Available files:")
-			count := 0
-			for path := range minimalTree {
-				if count < 10 {
-					cleanPath := strings.TrimPrefix(path, cwd)
-					fmt.Printf("  %s\n", cleanPath)
-					count++
-				}
-			}
-			if len(minimalTree) > 10 {
-				fmt.Printf("  ... and %d more files\n", len(minimalTree)-10)
-			}
-			os.Exit(1)
-		}
-
-		depsGraphs := make([]BuildDepsGraphResult, 0, len(absolutePathToEntryPoints))
-
-		var wg sync.WaitGroup
-		var mu sync.Mutex
-		ch := make(chan string)
-
-		buildGraph := func(absolutePathToEntryPoint string, depsGraphs *[]BuildDepsGraphResult, wg *sync.WaitGroup, mu *sync.Mutex) {
-			depsGraph := buildDepsGraph(minimalTree, absolutePathToEntryPoint, &absolutePathToFilePath, resolveAll)
-			mu.Lock()
-			*depsGraphs = append(*depsGraphs, depsGraph)
-			mu.Unlock()
-
-			// Print this warning only if user provided entry points list
-			if depsGraph.FileOrNodeModuleNode == nil && len(resolveEntryPoints) > 0 {
-				logWarning("Error: Could not find target file '%s' in dependency graph.\n", filePath)
-			}
-			wg.Done()
-		}
-
-		go func() {
-			for absolutePathToEntryPoint := range ch {
-				go buildGraph(absolutePathToEntryPoint, &depsGraphs, &wg, &mu)
-			}
-		}()
-
-		for _, absolutePathToEntryPoint := range absolutePathToEntryPoints {
-			wg.Add(1)
-			ch <- absolutePathToEntryPoint
-		}
-
-		wg.Wait()
-		close(ch)
-
-		slices.SortFunc(depsGraphs, func(a BuildDepsGraphResult, b BuildDepsGraphResult) int {
-			rootA := a.Root.Path
-			rootB := b.Root.Path
-			if rootA < rootB {
-				return -1
-			} else if rootA > rootB {
-				return 1
-			} else {
-				return 0
-			}
-		})
-
-		totalCount := 0
-
-		fmt.Printf("\nDependency paths from entry points to '%s':\n\n", filePath)
-
-		maxPathLen := 0
-
-		for _, depsGraph := range depsGraphs {
-			if len(depsGraph.ResolutionPaths) > 0 {
-				length := len(strings.TrimPrefix(depsGraph.Root.Path, cwd))
-				if length > maxPathLen {
-					maxPathLen = length
-				}
-			}
-		}
-
-		for _, depsGraph := range depsGraphs {
-			if len(depsGraph.ResolutionPaths) > 0 {
-				resolvePathsCount := len(depsGraph.ResolutionPaths)
-				totalCount += resolvePathsCount
-				if resolveCompactSummary {
-					p := PadRight(strings.TrimPrefix(depsGraph.Root.Path, cwd), ' ', maxPathLen)
-					fmt.Println(p, ":", resolvePathsCount)
-				} else {
-					FormatPaths(depsGraph.ResolutionPaths, cwd)
-				}
-			}
-		}
-		if resolveCompactSummary {
-			fmt.Println()
-		}
-
-		fmt.Printf("Total: %d\n", totalCount)
-
-		return nil
+		return resolveCmdFn(
+			ResolveAbsoluteCwd(resolveCwd),
+			resolveFile,
+			resolveEntryPoints,
+			resolveGraphExclude,
+			resolveIgnoreType,
+			resolveAll,
+			resolveCompactSummary,
+			packageJsonPath,
+			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
+		)
 	},
 }
 
@@ -217,6 +252,60 @@ var (
 	entryPointsResultInclude     []string
 )
 
+func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+
+	notReferencedFiles := GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
+
+	if entryPointsCount {
+		fmt.Println(len(notReferencedFiles))
+		return nil
+	}
+
+	if !entryPointsDependenciesCount {
+		for _, filePath := range notReferencedFiles {
+			printPath := strings.TrimPrefix(filePath, cwd)
+			fmt.Println(printPath)
+		}
+		return nil
+	}
+
+	maxFilePathLen := 0
+
+	multiGraph := buildDepsGraphForMultiple(minimalTree, notReferencedFiles, nil, false)
+
+	depsCountMeta := make(map[string]int, len(notReferencedFiles))
+
+	// Parallel BST processing for each entry point
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for entryPoint, root := range multiGraph.Roots {
+		wg.Add(1)
+		go func(ep string, r *SerializableNode) {
+			vertices := bst(r, multiGraph.Vertices)
+
+			mu.Lock()
+			if len(ep) > maxFilePathLen {
+				maxFilePathLen = len(ep)
+			}
+			depsCountMeta[ep] = len(vertices)
+			mu.Unlock()
+			wg.Done()
+		}(entryPoint, root)
+	}
+
+	wg.Wait()
+
+	for _, filePath := range notReferencedFiles {
+		printPath := strings.TrimPrefix(filePath, cwd)
+
+		fmt.Println(PadRight(printPath, ' ', maxFilePathLen), depsCountMeta[filePath])
+	}
+
+	return nil
+}
+
 var entryPointsCmd = &cobra.Command{
 	Use:   "entry-points",
 	Short: "Discover and list all entry points in the project",
@@ -224,51 +313,19 @@ var entryPointsCmd = &cobra.Command{
 Useful for understanding your application's architecture and dependencies.`,
 	Example: "rev-dep entry-points --print-deps-count",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cwd := ResolveAbsoluteCwd(entryPointsCwd)
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, entryPointsIgnoreType, entryPointsGraphExclude, []string{}, packageJsonPath, tsconfigJsonPath)
-
-		notReferencedFiles := GetEntryPoints(minimalTree, entryPointsResultExclude, entryPointsResultInclude, cwd)
-
-		if entryPointsCount {
-			fmt.Println(len(notReferencedFiles))
-			return nil
-		}
-
-		if !entryPointsDependenciesCount {
-			for _, filePath := range notReferencedFiles {
-				printPath := strings.TrimPrefix(filePath, cwd)
-				fmt.Println(printPath)
-			}
-			return nil
-		}
-
-		depsCountMeta := make(map[string]int, len(notReferencedFiles))
-		maxFilePathLen := 0
-		var mu sync.Mutex
-		var wg sync.WaitGroup
-
-		for _, filePath := range notReferencedFiles {
-			wg.Add(1)
-			go func() {
-				graph := buildDepsGraph(minimalTree, filePath, nil, false)
-				mu.Lock()
-				depsCountMeta[filePath] = len(graph.Vertices)
-				if len(filePath) > maxFilePathLen {
-					maxFilePathLen = len(filePath)
-				}
-				mu.Unlock()
-				wg.Done()
-			}()
-		}
-
-		wg.Wait()
-
-		for _, filePath := range notReferencedFiles {
-			printPath := strings.TrimPrefix(filePath, cwd)
-			fmt.Println(PadRight(printPath, ' ', maxFilePathLen), depsCountMeta[filePath])
-		}
-
-		return nil
+		return entryPointsCmdFn(
+			ResolveAbsoluteCwd(entryPointsCwd),
+			entryPointsIgnoreType,
+			entryPointsCount,
+			entryPointsDependenciesCount,
+			entryPointsGraphExclude,
+			entryPointsResultExclude,
+			entryPointsResultInclude,
+			packageJsonPath,
+			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
+		)
 	},
 }
 
@@ -278,6 +335,17 @@ var (
 	circularIgnoreType bool
 )
 
+func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) (int, error) {
+	excludeFiles := []string{}
+
+	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+	cycles := FindCircularDependencies(minimalTree, files, ignoreType)
+
+	fmt.Fprint(os.Stderr, FormatCircularDependencies(cycles, cwd, minimalTree))
+
+	return len(cycles), nil
+}
+
 var circularCmd = &cobra.Command{
 	Use:   "circular",
 	Short: "Detect circular dependencies in your project",
@@ -285,16 +353,19 @@ var circularCmd = &cobra.Command{
 Circular dependencies can cause hard-to-debug issues and should generally be avoided.`,
 	Example: "rev-dep circular --ignore-types-imports",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cwd := ResolveAbsoluteCwd(circularCwd)
-		excludeFiles := []string{}
-
-		minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, circularIgnoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath)
-		cycles := FindCircularDependencies(minimalTree, files)
-
-		fmt.Fprint(os.Stderr, FormatCircularDependencies(cycles, cwd, minimalTree))
-
-		if len(cycles) > 0 {
-			os.Exit(len(cycles))
+		count, err := circularCmdFn(
+			ResolveAbsoluteCwd(circularCwd),
+			circularIgnoreType,
+			packageJsonPath,
+			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
+		)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			os.Exit(count)
 		}
 		return nil
 	},
@@ -353,6 +424,8 @@ Helps keep track of your project's runtime dependencies.`,
 			nodeModulesExcludeModules,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 
 		fmt.Print(result)
@@ -384,6 +457,8 @@ to identify potentially unused packages.`,
 			nodeModulesExcludeModules,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 
 		fmt.Print(result)
@@ -419,6 +494,8 @@ in your package.json dependencies.`,
 			nodeModulesExcludeModules,
 			packageJsonPath,
 			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
 		)
 
 		fmt.Print(result)
@@ -513,6 +590,37 @@ var (
 	listFilesCount   bool
 )
 
+func listCwdFilesCmdFn(cwd string, include, exclude []string, listFilesCount bool) error {
+	files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
+
+	includeGlobs := CreateGlobMatchers(include, cwd)
+	excludeGlobs := CreateGlobMatchers(exclude, cwd)
+	count := 0
+
+	for _, filePath := range files {
+		if len(includeGlobs) == 0 || MatchesAnyGlobMatcher(filePath, includeGlobs, false) {
+			isExcluded := MatchesAnyGlobMatcher(filePath, excludeGlobs, false)
+
+			if !isExcluded {
+				if listFilesCount {
+					count++
+				} else {
+					// filePath is internal-normalized; convert to OS-native and compute relative path for printing
+					filePathOs := DenormalizePathForOS(filePath)
+					rel, _ := filepath.Rel(cwd, filePathOs)
+					fmt.Println(rel)
+				}
+			}
+		}
+	}
+
+	if listFilesCount {
+		fmt.Println(count)
+	}
+
+	return nil
+}
+
 var listCwdFilesCmd = &cobra.Command{
 	Use:   "list-cwd-files",
 	Short: "List all files in the current working directory",
@@ -520,35 +628,12 @@ var listCwdFilesCmd = &cobra.Command{
 with options to filter results.`,
 	Example: "rev-dep list-cwd-files --include='*.ts' --exclude='*.test.ts'",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cwd := ResolveAbsoluteCwd(listFilesCwd)
-		files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
-
-		includeGlobs := CreateGlobMatchers(listFilesInclude, cwd)
-		excludeGlobs := CreateGlobMatchers(listFilesExclude, cwd)
-		count := 0
-
-		for _, filePath := range files {
-			if len(includeGlobs) == 0 || MatchesAnyGlobMatcher(filePath, includeGlobs, false) {
-				isExcluded := MatchesAnyGlobMatcher(filePath, excludeGlobs, false)
-
-				if !isExcluded {
-					if listFilesCount {
-						count++
-					} else {
-						// filePath is internal-normalized; convert to OS-native and compute relative path for printing
-						filePathOs := DenormalizePathForOS(filePath)
-						rel, _ := filepath.Rel(cwd, filePathOs)
-						fmt.Println(rel)
-					}
-				}
-			}
-		}
-
-		if listFilesCount {
-			fmt.Println(count)
-		}
-
-		return nil
+		return listCwdFilesCmdFn(
+			ResolveAbsoluteCwd(listFilesCwd),
+			listFilesInclude,
+			listFilesExclude,
+			listFilesCount,
+		)
 	},
 }
 
@@ -560,6 +645,32 @@ var (
 	filesCount      bool
 )
 
+func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+	absolutePathToEntryPoint := JoinWithCwd(cwd, entryPoint)
+	excludeFiles := []string{}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+
+	depsGraph := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false)
+
+	if filesCount {
+		fmt.Println(len(depsGraph.Vertices))
+	} else {
+		filePaths := make([]string, 0, len(depsGraph.Vertices))
+		for _, node := range depsGraph.Vertices {
+			// node.Path is internal-normalized; convert to OS path before computing relative path
+			nodePathOs := DenormalizePathForOS(node.Path)
+			relative, _ := filepath.Rel(cwd, nodePathOs)
+			filePaths = append(filePaths, relative)
+		}
+		slices.Sort(filePaths)
+		for _, filePath := range filePaths {
+			fmt.Println(filePath)
+		}
+	}
+	return nil
+}
+
 var filesCmd = &cobra.Command{
 	Use:   "files",
 	Short: "List all files in the dependency tree of an entry point",
@@ -567,30 +678,16 @@ var filesCmd = &cobra.Command{
 by the specified entry point.`,
 	Example: "rev-dep files --entry-point src/index.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cwd := ResolveAbsoluteCwd(filesCwd)
-		absolutePathToEntryPoint := filepath.Join(cwd, filesEntryPoint)
-		excludeFiles := []string{}
-
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, filesIgnoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath)
-
-		depsGraph := buildDepsGraph(minimalTree, absolutePathToEntryPoint, nil, false)
-
-		if filesCount {
-			fmt.Println(len(depsGraph.Vertices))
-		} else {
-			filePaths := make([]string, 0, len(depsGraph.Vertices))
-			for _, node := range depsGraph.Vertices {
-				// node.Path is internal-normalized; convert to OS path before computing relative path
-				nodePathOs := DenormalizePathForOS(node.Path)
-				relative, _ := filepath.Rel(cwd, nodePathOs)
-				filePaths = append(filePaths, relative)
-			}
-			slices.Sort(filePaths)
-			for _, filePath := range filePaths {
-				fmt.Println(filePath)
-			}
-		}
-		return nil
+		return filesCmdFn(
+			ResolveAbsoluteCwd(filesCwd),
+			filesEntryPoint,
+			filesIgnoreType,
+			filesCount,
+			packageJsonPath,
+			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
+		)
 	},
 }
 
@@ -598,89 +695,214 @@ var (
 	locCwd string
 )
 
+// ---------------- imported-by ----------------
+var (
+	importedByCwd         string
+	importedByFile        string
+	importedByCount       bool
+	importedByListImports bool
+)
+
+func linesOfCodeCmdFn(cwd string) error {
+	files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
+	ch := make(chan [3]int) // [lines, linesWithoutComments, linesWithoutTemplates]
+	var wg sync.WaitGroup
+
+	for _, filePath := range files {
+		wg.Add(1)
+		go func(filePath string, ch chan [3]int, wg *sync.WaitGroup) {
+			// filePath is internal-normalized; convert back to OS-native for IO
+			fileContent, err := os.ReadFile(DenormalizePathForOS(filePath))
+			if err == nil {
+
+				lines := bytes.Count(
+					bytes.ReplaceAll(fileContent, []byte{'\n', '\n'}, []byte{'\n'}),
+					[]byte{'\n'},
+				)
+
+				// Count lines without comments
+				linesWithoutComments := bytes.Count(
+					bytes.ReplaceAll(RemoveCommentsFromCode(fileContent), []byte{'\n', '\n'}, []byte{'\n'}),
+					[]byte{'\n'},
+				)
+
+				// Count lines without template literals (and comments)
+				linesWithoutTemplates := bytes.Count(
+					bytes.ReplaceAll(RemoveTaggedTemplateLiterals(fileContent), []byte{'\n', '\n'}, []byte{'\n'}),
+					[]byte{'\n'},
+				)
+
+				ch <- [3]int{lines, linesWithoutComments, linesWithoutTemplates}
+			} else {
+				ch <- [3]int{0, 0, 0}
+			}
+			wg.Done()
+		}(filePath, ch, &wg)
+	}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	totalLines := 0
+	totalLinesWithoutComments := 0
+	totalLinesWithoutTemplates := 0
+
+	for counts := range ch {
+		totalLines += counts[0]
+		totalLinesWithoutComments += counts[1]
+		totalLinesWithoutTemplates += counts[2]
+	}
+
+	// formatNumber formats an integer with underscores as thousand separators
+	formatNumber := func(n int) string {
+		s := fmt.Sprintf("%d", n)
+		var b strings.Builder
+		for i, r := range s {
+			if i > 0 && (len(s)-i)%3 == 0 {
+				b.WriteRune('_')
+			}
+			b.WriteRune(r)
+		}
+		return b.String()
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "Metric\tLines\tPercentage")
+	fmt.Fprintln(w, "------\t-----\t----------")
+	fmt.Fprintf(w, "Total lines\t%v\t100.00%%\n", formatNumber(totalLines))
+	fmt.Fprintf(w, "Without comments\t%v\t%.2f%%\n",
+		formatNumber(totalLinesWithoutComments),
+		float64(totalLinesWithoutComments)/float64(totalLines)*100)
+	fmt.Fprintf(w, "Without comments and template strings\t%v\t%.2f%%\n",
+		formatNumber(totalLinesWithoutTemplates),
+		float64(totalLinesWithoutTemplates)/float64(totalLines)*100)
+	w.Flush()
+	return nil
+}
+
+func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+	excludeFiles := []string{}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+
+	absolutePathToFilePath := NormalizePathForInternal(JoinWithCwd(cwd, filePath))
+
+	// Check if the target file exists in the dependency tree
+	if _, found := minimalTree[absolutePathToFilePath]; !found {
+		fmt.Printf("Error: Target file '%s' ('%s') not found in dependency tree.\n", filePath, absolutePathToFilePath)
+		fmt.Println("Available files:")
+		count := 0
+		for path := range minimalTree {
+			if count < 10 {
+				cleanPath := strings.TrimPrefix(path, cwd)
+				fmt.Printf("  %s\n", cleanPath)
+				count++
+			}
+		}
+		if len(minimalTree) > 10 {
+			fmt.Printf("  ... and %d more files\n", len(minimalTree)-10)
+		}
+		os.Exit(1)
+	}
+
+	// Find all files that import the target file
+	type ImportInfo struct {
+		FilePath string
+		Request  string
+	}
+
+	var importingFiles []string
+	var importDetails []ImportInfo
+
+	for filePath, dependencies := range minimalTree {
+		for _, dependency := range dependencies {
+			if dependency.ID != nil && *dependency.ID == absolutePathToFilePath {
+				// Convert to relative path for output
+				relativePath := strings.TrimPrefix(filePath, cwd)
+				if relativePath != filePath { // Only trim if cwd was actually found
+					if strings.HasPrefix(relativePath, "/") {
+						relativePath = relativePath[1:]
+					}
+				}
+				importingFiles = append(importingFiles, relativePath)
+
+				if listImports {
+					importDetails = append(importDetails, ImportInfo{
+						FilePath: relativePath,
+						Request:  dependency.Request,
+					})
+				}
+			}
+		}
+	}
+
+	// Sort the results
+	slices.Sort(importingFiles)
+	slices.SortFunc(importDetails, func(a, b ImportInfo) int {
+		if a.FilePath < b.FilePath {
+			return -1
+		} else if a.FilePath > b.FilePath {
+			return 1
+		}
+		return 0
+	})
+
+	if count {
+		fmt.Println(len(importingFiles))
+		return nil
+	}
+
+	if listImports {
+		// Group by file and show import details
+		currentFile := ""
+		for _, detail := range importDetails {
+			if detail.FilePath != currentFile {
+				if currentFile != "" {
+					fmt.Println()
+				}
+				fmt.Printf("%s:\n", detail.FilePath)
+				currentFile = detail.FilePath
+			}
+			fmt.Printf("  %s\n", detail.Request)
+		}
+	} else {
+		// Just list the files
+		for _, filePath := range importingFiles {
+			fmt.Println(filePath)
+		}
+	}
+
+	return nil
+}
+
 var linesOfCodeCmd = &cobra.Command{
 	Use:     "lines-of-code",
 	Short:   "Count actual lines of code in the project excluding comments and blank lines",
 	Example: "rev-dep lines-of-code",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cwd := ResolveAbsoluteCwd(locCwd)
+		return linesOfCodeCmdFn(ResolveAbsoluteCwd(locCwd))
+	},
+}
 
-		files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
-		ch := make(chan [3]int) // [lines, linesWithoutComments, linesWithoutTemplates]
-		var wg sync.WaitGroup
-
-		for _, filePath := range files {
-			wg.Add(1)
-			go func(filePath string, ch chan [3]int, wg *sync.WaitGroup) {
-				// filePath is internal-normalized; convert back to OS-native for IO
-				fileContent, err := os.ReadFile(DenormalizePathForOS(filePath))
-				if err == nil {
-
-					lines := bytes.Count(
-						bytes.ReplaceAll(fileContent, []byte{'\n', '\n'}, []byte{'\n'}),
-						[]byte{'\n'},
-					)
-
-					// Count lines without comments
-					linesWithoutComments := bytes.Count(
-						bytes.ReplaceAll(RemoveCommentsFromCode(fileContent), []byte{'\n', '\n'}, []byte{'\n'}),
-						[]byte{'\n'},
-					)
-
-					// Count lines without template literals (and comments)
-					linesWithoutTemplates := bytes.Count(
-						bytes.ReplaceAll(RemoveTaggedTemplateLiterals(fileContent), []byte{'\n', '\n'}, []byte{'\n'}),
-						[]byte{'\n'},
-					)
-
-					ch <- [3]int{lines, linesWithoutComments, linesWithoutTemplates}
-				} else {
-					ch <- [3]int{0, 0, 0}
-				}
-				wg.Done()
-			}(filePath, ch, &wg)
-		}
-
-		go func() {
-			wg.Wait()
-			close(ch)
-		}()
-
-		totalLines := 0
-		totalLinesWithoutComments := 0
-		totalLinesWithoutTemplates := 0
-
-		for counts := range ch {
-			totalLines += counts[0]
-			totalLinesWithoutComments += counts[1]
-			totalLinesWithoutTemplates += counts[2]
-		}
-
-		// formatNumber formats an integer with underscores as thousand separators
-		formatNumber := func(n int) string {
-			s := fmt.Sprintf("%d", n)
-			var b strings.Builder
-			for i, r := range s {
-				if i > 0 && (len(s)-i)%3 == 0 {
-					b.WriteRune('_')
-				}
-				b.WriteRune(r)
-			}
-			return b.String()
-		}
-
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "Metric\tLines\tPercentage")
-		fmt.Fprintln(w, "------\t-----\t----------")
-		fmt.Fprintf(w, "Total lines\t%v\t100.00%%\n", formatNumber(totalLines))
-		fmt.Fprintf(w, "Without comments\t%v\t%.2f%%\n",
-			formatNumber(totalLinesWithoutComments),
-			float64(totalLinesWithoutComments)/float64(totalLines)*100)
-		fmt.Fprintf(w, "Without comments and template strings\t%v\t%.2f%%\n",
-			formatNumber(totalLinesWithoutTemplates),
-			float64(totalLinesWithoutTemplates)/float64(totalLines)*100)
-		w.Flush()
-		return nil
+var importedByCmd = &cobra.Command{
+	Use:   "imported-by",
+	Short: "List all files that directly import the specified file",
+	Long: `Finds and lists all files in the project that directly import the specified file.
+This is useful for understanding the impact of changes to a particular file.`,
+	Example: "rev-dep imported-by --file src/utils/helpers.ts",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return importedByCmdFn(
+			ResolveAbsoluteCwd(importedByCwd),
+			importedByFile,
+			importedByCount,
+			importedByListImports,
+			packageJsonPath,
+			tsconfigJsonPath,
+			conditionNames,
+			followMonorepoPackages,
+		)
 	},
 }
 
@@ -807,8 +1029,20 @@ func init() {
 	linesOfCodeCmd.Flags().StringVarP(&locCwd, "cwd", "c", currentDir,
 		"Directory to analyze")
 
+	// imported-by flags
+	addSharedFlags(importedByCmd)
+	importedByCmd.Flags().StringVarP(&importedByCwd, "cwd", "c", currentDir,
+		"Working directory for the command")
+	importedByCmd.Flags().StringVarP(&importedByFile, "file", "f", "",
+		"Target file to find importers for (required)")
+	importedByCmd.Flags().BoolVarP(&importedByCount, "count", "n", false,
+		"Only display the count of importing files")
+	importedByCmd.Flags().BoolVar(&importedByListImports, "list-imports", false,
+		"List the import identifiers used by each file")
+	importedByCmd.MarkFlagRequired("file")
+
 	// add commands
-	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, docsCmd)
+	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, docsCmd, configCmd)
 }
 
 func main() {
@@ -817,7 +1051,7 @@ func main() {
 	}
 }
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string) (MinimalDependencyTree, []string, map[string]bool) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (MinimalDependencyTree, []string, *ResolverManager) {
 	var files []string
 
 	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)
@@ -841,9 +1075,9 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, nodeModules := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 
-	return minimalTree, sortedFiles, nodeModules
+	return minimalTree, sortedFiles, resolverManager
 }

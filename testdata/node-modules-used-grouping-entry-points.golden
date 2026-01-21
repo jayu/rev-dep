@@ -1,0 +1,20 @@
+
+ @types/dep-types-1
+    ➞ tsconfig.json
+
+
+ @types/dep-types-2
+    ➞ index.ts
+
+
+ dep2
+    ➞ index.ts
+
+
+ dep4
+    ➞ file.ts
+
+
+ dep5
+    ➞ file.ts
+

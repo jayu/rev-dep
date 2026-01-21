@@ -1,0 +1,3 @@
+content
+content dep-bin-3 content
+content

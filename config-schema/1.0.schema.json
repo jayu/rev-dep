@@ -1,0 +1,313 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.0.schema.json",
+  "title": "Rev-Dep Configuration",
+  "description": "Configuration file for rev-dep dependency analysis tool",
+  "type": "object",
+  "required": [
+    "configVersion",
+    "rules"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema"
+    },
+    "configVersion": {
+      "type": "string",
+      "description": "Configuration version",
+      "examples": [
+        "1.0",
+        "1.0.0"
+      ]
+    },
+    "conditionNames": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of condition names",
+      "examples": [
+        [
+          "imports",
+          "node"
+        ]
+      ]
+    },
+    "ignoreFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Glob patterns for files to ignore",
+      "examples": [
+        [
+          "**/*.test.ts",
+          "**/*.spec.ts"
+        ]
+      ]
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Rule"
+      },
+      "description": "Configuration rules"
+    }
+  },
+  "definitions": {
+    "Rule": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path for this rule (required)",
+          "minLength": 1,
+          "pattern": "^(?!.*\\.{2}[\\\\/]).+",
+          "examples": [
+            ".",
+            "./",
+            "packages",
+            "src"
+          ]
+        },
+        "followMonorepoPackages": {
+          "type": "boolean",
+          "description": "Whether to follow monorepo packages",
+          "default": true
+        },
+        "moduleBoundaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BoundaryRule"
+          },
+          "description": "Module boundary rules"
+        },
+        "circularImportsDetection": {
+          "$ref": "#/definitions/CircularImportsOptions"
+        },
+        "orphanFilesDetection": {
+          "$ref": "#/definitions/OrphanFilesOptions"
+        },
+        "unusedNodeModulesDetection": {
+          "$ref": "#/definitions/UnusedNodeModulesOptions"
+        },
+        "missingNodeModulesDetection": {
+          "$ref": "#/definitions/MissingNodeModulesOptions"
+        }
+      }
+    },
+    "BoundaryRule": {
+      "type": "object",
+      "required": [
+        "name",
+        "pattern"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the boundary",
+          "examples": [
+            "Client Boundary",
+            "API Boundary"
+          ]
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Glob pattern for files in this boundary",
+          "pattern": "^(?!\\.{1,2}[\\\\/]).+",
+          "examples": [
+            "packages/client/**",
+            "src/api/**"
+          ]
+        },
+        "allow": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+          },
+          "description": "Glob patterns for allowed imports",
+          "examples": [
+            [
+              "packages/client/**",
+              "packages/utils/**"
+            ]
+          ]
+        },
+        "deny": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+          },
+          "description": "Glob patterns for denied imports (overrides allow)",
+          "examples": [
+            [
+              "packages/api/forbidden**"
+            ]
+          ]
+        }
+      }
+    },
+    "CircularImportsOptions": {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable circular imports detection"
+        },
+        "ignoreTypeImports": {
+          "type": "boolean",
+          "description": "Ignore type-only imports",
+          "default": false
+        }
+      }
+    },
+    "OrphanFilesOptions": {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable orphan files detection"
+        },
+        "validEntryPoints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Valid entry point patterns",
+          "examples": [
+            [
+              "index.ts",
+              "*.config.*"
+            ]
+          ]
+        },
+        "ignoreTypeImports": {
+          "type": "boolean",
+          "description": "Ignore type-only imports",
+          "default": false
+        },
+        "graphExclude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+          },
+          "description": "Patterns to exclude from graph analysis"
+        }
+      }
+    },
+    "UnusedNodeModulesOptions": {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable unused node modules detection"
+        },
+        "includeModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Modules to include in analysis"
+        },
+        "excludeModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Modules to exclude from analysis"
+        },
+        "pkgJsonFieldsWithBinaries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Package.json fields that contain binaries"
+        },
+        "filesWithBinaries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Files that contain binaries"
+        },
+        "filesWithModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Files that contain modules"
+        },
+        "outputType": {
+          "type": "string",
+          "enum": [
+            "list",
+            "groupByModule",
+            "groupByFile"
+          ],
+          "description": "Output format type",
+          "default": "list"
+        }
+      }
+    },
+    "MissingNodeModulesOptions": {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable missing node modules detection"
+        },
+        "includeModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Modules to include in analysis"
+        },
+        "excludeModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Modules to exclude from analysis"
+        },
+        "outputType": {
+          "type": "string",
+          "enum": [
+            "list",
+            "groupByModule",
+            "groupByFile"
+          ],
+          "description": "Output format type",
+          "default": "list"
+        }
+      }
+    }
+  }
+}

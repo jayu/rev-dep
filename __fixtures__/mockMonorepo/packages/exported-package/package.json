@@ -1,0 +1,49 @@
+{
+  "name": "exported-package",
+  "version": "1.0.0",
+  "exports": {
+    ".": {
+      "development": "./src/main.ts",
+      "production": "./dist/main.js",
+      "default": "./src/main.ts"
+    },
+    "./features/feature-a": {
+      "development": "./src/features/feature-a.ts",
+      "production": "./dist/features/feature-a.js",
+      "default": "./src/features/feature-a.ts"
+    },
+    "./features/feature-b": {
+      "development": "./src/features/feature-b.ts",
+      "production": "./dist/features/feature-b.js",
+      "default": "./src/features/feature-b.ts"
+    },
+    "./features/*": "./dist/features/*.js",
+    "./utils/helper": {
+      "development": "./src/utils/helper.ts",
+      "production": "./dist/utils/helper.js",
+      "default": "./src/utils/helper.ts"
+    },
+    "./utils/*": "./dist/utils/*.js",
+    "./config/*": "./src/config/*.js",
+    "./wildcard/*.js": "./src/*.ts",
+    "./root/*": "./src/*",
+    "./some/*/file.js": "./some/files/*.js",
+    "./invalid/*/to/*/file.js": "./invalid/*/to/*/file.js",
+    "./deep": {
+      "development": {
+        "node": "./src/deep/node.ts",
+        "default": "./src/deep/dev-default.ts"
+      },
+      "production": {
+        "browser": "./dist/deep/browser.js",
+        "default": "./dist/deep/prod-default.js"
+      },
+      "default": "./src/deep/fallback.ts"
+    },
+    "./deep/*": "./src/deep/*.ts",
+    "./deep/blocked": null,
+    "./features/private-internal-utils": null,
+    "./blocked/something": "./src/blocked/something.ts",
+    "./blocked/*": null
+  }
+}

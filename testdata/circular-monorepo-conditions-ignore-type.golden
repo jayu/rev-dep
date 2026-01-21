@@ -1,0 +1,7 @@
+Found 1 circular dependencies:
+
+Circular Dependency 1:
+ ➞ /packages/pkg-a/index.ts (cycle start)
+  ➞ /packages/pkg-b/node.ts ('@monorepo/pkg-b')
+   ➞ /packages/pkg-a/index.ts ('@monorepo/pkg-a')
+

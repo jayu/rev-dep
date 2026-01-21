@@ -1,0 +1,24 @@
+
+@types/dep-types-1@1.0.0 /node_modules/@types/dep-types-1/package.json
+@types/dep-types-1@1.0.0 /node_modules/@types/dep-types-2/package.json
+
+
+dep1@1.0.0 /node_modules/dep1/node_modules/dep1/package.json
+dep1@1.0.0 /node_modules/dep1/package.json
+
+
+dep2@1.0.0 /node_modules/dep2/package.json
+
+
+dep3@1.0.0 /node_modules/dep3/package.json
+
+
+dep4@1.0.0 /node_modules/dep4/package.json
+
+
+dep5@1.0.0 /node_modules/dep5/package.json
+
+
+nested-dep@1.0.0 /subproject/node_modules/nested-dep/package.json
+
+Total count:  9

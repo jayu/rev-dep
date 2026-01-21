@@ -30,8 +30,29 @@
 
 `node scripts/addCliRefToReadme.js`
 
-`git add . && git commit`
+`git add . && git commit -m "chore: release`
 
 `npm login`
 
 `scripts/publish.sh` 
+
+`git push origin HEAD` 
+
+## Resolution steps contribution to overall performance
+
+Performance measurements for GetMinimalDepsTreeForCwd:
+Task                                          Duration      %
+----                                          --------      ---
+CreateGlobMatchers                            1.541µs       0.00%
+FindAndProcessGitIgnoreFilesUpToRepoRoot      157.625µs     0.03%
+GetFiles                                      98.988709ms   21.22%
+ParseImportsFromFiles                         117.011542ms  25.08%
+slices.Sort                                   271.708µs     0.06%
+ResolveImports                                247.694292ms  53.09%
+TransformToMinimalDependencyTreeCustomParser  2.335667ms    0.50%
+resolverManager.CollectAllNodeModules         47.875µs      0.01%
+Sum of measurements: 466.508959ms
+Overall execution time: 466.513917ms
+
+Build graph for all entry points 176.21725ms (that additional, not included in percetages above)
+Optimized Build graph for all entry points ~ 60ms

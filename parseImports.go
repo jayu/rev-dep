@@ -22,6 +22,7 @@ const (
 	ExcludedByUser
 	NotResolvedModule
 	AssetModule
+	MonorepoModule
 )
 
 type Import struct {
@@ -165,6 +166,43 @@ func areAllImportsInBracesTypes(code []byte, i int) bool {
 	return false
 }
 
+// skipToStringEnd skips to the end of a string literal
+func skipToStringEnd(code []byte, start int, quote byte) int {
+	i := start + 1
+	for i < len(code) {
+		if code[i] == quote {
+			return i
+		}
+		if code[i] == '\\' && i+1 < len(code) {
+			i += 2
+		} else {
+			i++
+		}
+	}
+	return i
+}
+
+// skipLineComment skips to the end of a line comment
+func skipLineComment(code []byte, start int) int {
+	i := start + 2
+	for i < len(code) && code[i] != '\n' {
+		i++
+	}
+	return i
+}
+
+// skipBlockComment skips to the end of a block comment
+func skipBlockComment(code []byte, start int) int {
+	i := start + 2
+	for i+1 < len(code) && !(code[i] == '*' && code[i+1] == '/') {
+		i++
+	}
+	if i+1 < len(code) {
+		i += 2
+	}
+	return i
+}
+
 // ParseImportsByte parses JS/TS code and extracts all imports/exports
 func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 	imports := make([]Import, 0, 32)
@@ -178,36 +216,22 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 		}
 
 		// skip string context
-		if bytes.HasPrefix(code[i:], []byte("'")) {
-			i++
-			endOfString := bytes.Index(code[i:], []byte("'"))
-			i += endOfString
-		}
-		if bytes.HasPrefix(code[i:], []byte("\"")) {
-			i++
-			endOfString := bytes.Index(code[i:], []byte("\""))
-			i += endOfString
-		}
-		if bytes.HasPrefix(code[i:], []byte("`")) {
-			i++
-			endOfString := bytes.Index(code[i:], []byte("`"))
-			i += endOfString
+		if code[i] == '\'' {
+			i = skipToStringEnd(code, i, '\'')
+		} else if code[i] == '"' {
+			i = skipToStringEnd(code, i, '"')
+		} else if code[i] == '`' {
+			i = skipToStringEnd(code, i, '`')
 		}
 
 		// skip line comment
-		if bytes.HasPrefix(code[i:], []byte("//")) {
-			i += 2
-			endOfLineIndex := bytes.Index(code[i:], []byte("\n"))
-
-			i += endOfLineIndex
+		if i+1 < len(code) && code[i] == '/' && code[i+1] == '/' {
+			i = skipLineComment(code, i)
 		}
 
 		// skip multi-line comment
-		if bytes.HasPrefix(code[i:], []byte("/*")) {
-			i += 2
-			endOfCommentIndex := bytes.Index(code[i:], []byte("*/"))
-
-			i += endOfCommentIndex
+		if i+1 < len(code) && code[i] == '/' && code[i+1] == '*' {
+			i = skipBlockComment(code, i)
 		}
 
 		// Detect keywords
@@ -259,6 +283,15 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 					}
 
 					for i < n && !bytes.HasPrefix(code[i:], []byte("from")) {
+						// Skip comments while looking for 'from'
+						if i+1 < len(code) && code[i] == '/' && code[i+1] == '/' {
+							i = skipLineComment(code, i)
+							continue
+						}
+						if i+1 < len(code) && code[i] == '/' && code[i+1] == '*' {
+							i = skipBlockComment(code, i)
+							continue
+						}
 						i++
 					}
 					if i < n {
@@ -328,6 +361,16 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 				shouldDropLookingForFrom := false
 				// find from keyword
 				for i < n && !bytes.HasPrefix(code[i:], []byte("from")) && !shouldDropLookingForFrom {
+					// Skip comments while looking for 'from'
+					if i+1 < len(code) && code[i] == '/' && code[i+1] == '/' {
+						i = skipLineComment(code, i)
+						continue
+					}
+					if i+1 < len(code) && code[i] == '/' && code[i+1] == '*' {
+						i = skipBlockComment(code, i)
+						continue
+					}
+
 					if kind != OnlyTypeImport {
 						// skip processing current export if one of the keywords are found
 						if bytes.HasPrefix(code[i:], []byte("import")) && !isByteIdentifierChar(code[i+len("import")]) {
@@ -415,66 +458,3 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool) ([]FileIm
 	wg.Wait()
 	return results, errCount
 }
-
-func ImportKindToString(kind ImportKind) string {
-	switch kind {
-	case NotTypeOrMixedImport:
-		return "NotTypeOrMixedImport"
-	case OnlyTypeImport:
-		return "OnlyTypeImport"
-	default:
-		return "Unknown"
-	}
-}
-
-func ResolvedImportTypeToString(resolvedType ResolvedImportType) string {
-	switch resolvedType {
-	case UserModule:
-		return "UserModule"
-	case NodeModule:
-		return "NodeModule"
-	case BuiltInModule:
-		return "BuiltInModule"
-	case ExcludedByUser:
-		return "ExcludedByUser"
-	case NotResolvedModule:
-		return "NotResolvedModule"
-	case AssetModule:
-		return "AssetModule"
-	default:
-		return "Unknown"
-	}
-}
-
-/*
-All export from examples
-
-export * from "module-name";
-export * as name1 from "module-name";
-export { name1,  nameN } from "module-name";
-export { import1 as name1, import2 as name2,  nameN } from "module-name";
-export { default } from "module-name";
-export { default as name1 } from "module-name";
-export { type MyType } from "./types";
-export type { MyType } from "./types";
-export { default, type MyType2 } from "./types";
-
-All import examples
-
-import defaultExport from "module-name";
-import * as name from "module-name";
-import { export1 } from "module-name";
-import { export1 as alias1 } from "module-name";
-import { default as alias } from "module-name";
-import { export1, export2 } from "module-name";
-import { export1, export2 as alias2 } from "module-name";
-import { "string name" as alias } from "module-name";
-import defaultExport, { export1 } from "module-name";
-import defaultExport, * as name from "module-name";
-import "module-name";
-import { type MyType2 } from "./types";
-import type {  MyType2 } from "./types";
-import fnA, { type MyType3 } from "./types";
-import fnA, { type MyType3, MyVal } from "./types";
-
-*/

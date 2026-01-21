@@ -1,0 +1,34 @@
+
+  {
+    "configVersion": "1.0.0",
+    "rules": [
+      {
+        "path": "./",
+        "moduleBoundaries": [
+          {
+            "name": "Client Boundary",
+            "pattern": "packages/client/**",
+            "allow": [
+              "packages/client/**",
+              "packages/api/**",
+              "packages/utils/**"
+            ],
+            "deny": [
+              "packages/api/forbidden**"
+            ]
+          },
+          {
+            "name": "API Boundary",
+            "pattern": "packages/api/**",
+            "allow": [
+              "packages/api/**",
+              "packages/utils/**"
+            ],
+            "deny": [
+              "packages/client/**"
+            ]
+          }
+        ]
+      }
+    ]
+  }

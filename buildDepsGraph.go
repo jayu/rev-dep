@@ -5,41 +5,51 @@ import (
 	"os"
 )
 
-// buildDepsGraph builds a dependency graph from the minimal dependency tree
-func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNodeModuleName *string, allPaths bool) BuildDepsGraphResult {
-	vertices := make(map[string]*Node)
-	var fileOrNodeModuleNode *Node
+func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string, filePathOrNodeModuleName *string, allPaths bool) BuildDepsGraphResultMultiple {
+	vertices := make(map[string]*SerializableNode)
+	roots := make(map[string]*SerializableNode)
+	resolutionPaths := make(map[string][][]string)
+	var fileOrNodeModuleNode *SerializableNode
+	sharedVisited := make(map[string]bool)
 
-	var inner func(path string, visited map[string]bool, depth int, parent *Node) *Node
-	inner = func(path string, visited map[string]bool, depth int, parent *Node) *Node {
+	var inner func(path string, visited map[string]bool, depth int, parent *SerializableNode) *SerializableNode
+	inner = func(path string, visited map[string]bool, depth int, parent *SerializableNode) *SerializableNode {
 		// Check if vertex already exists
 		if vertex, exists := vertices[path]; exists {
 			// Add parent to existing vertex
 			if parent != nil {
-				vertex.Parents = append(vertex.Parents, parent)
+				vertex.Parents = append(vertex.Parents, parent.Path)
 			}
 			return vertex
 		}
 
-		// Create local visited set to track circular dependencies
-		localVisited := make(map[string]bool)
-		for k, v := range visited {
-			localVisited[k] = v
-		}
+		// Check for circular dependency - use shared visited set without copying
+		if visited[path] {
+			// For circular dependencies, we still create the node and link it to maintain the actual cycle
+			// but we don't recurse further to prevent infinite loops
+			if vertex, exists := vertices[path]; exists {
+				// Node already exists, just add parent relationship
+				if parent != nil {
+					vertex.Parents = append(vertex.Parents, parent.Path)
+				}
+				return vertex
+			}
 
-		// Check for circular dependency
-		if localVisited[path] {
-			circularNode := &Node{
-				Path:     "CIRCULAR",
-				Children: []*Node{},
+			// Create the circular node to maintain the cycle
+			circularNode := &SerializableNode{
+				Path:     path,
+				Children: []string{},
+				Parents:  []string{},
 			}
 			if parent != nil {
-				circularNode.Parents = []*Node{parent}
+				circularNode.Parents = []string{parent.Path}
 			}
+			vertices[path] = circularNode
 			return circularNode
 		}
 
-		localVisited[path] = true
+		// Add to visited set
+		visited[path] = true
 
 		// Get dependencies for this path
 		dep, exists := deps[path]
@@ -54,22 +64,25 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 		}
 
 		// Create new node
-		node := &Node{
+		node := &SerializableNode{
 			Path:     path,
-			Children: []*Node{},
+			Children: []string{},
 		}
 
 		if parent != nil {
-			node.Parents = []*Node{parent}
+			node.Parents = []string{parent.Path}
 		}
 
 		for _, d := range dep {
-			// Do not follow other modules than user modules
-			if d.ID != nil && *d.ID != "" && d.ResolvedType == UserModule {
-				childNode := inner(*d.ID, localVisited, depth+1, node)
-				node.Children = append(node.Children, childNode)
+			// Do not follow other modules than user modules and monorepo modules
+			if d.ID != nil && *d.ID != "" && (d.ResolvedType == UserModule || d.ResolvedType == MonorepoModule) {
+				childNode := inner(*d.ID, visited, depth+1, node)
+				node.Children = append(node.Children, childNode.Path)
 			}
 		}
+
+		// Remove from visited set when backtracking to allow revisiting in other branches
+		delete(visited, path)
 
 		// Store vertex
 		vertices[path] = node
@@ -82,99 +95,36 @@ func buildDepsGraph(deps MinimalDependencyTree, entryPoint string, filePathOrNod
 		return node
 	}
 
-	root := inner(entryPoint, make(map[string]bool), 1, nil)
+	// Build graph for each entry point using shared visited set
+	for _, entryPoint := range entryPoints {
+		root := inner(entryPoint, sharedVisited, 1, nil)
+		roots[entryPoint] = root
 
-	// Convert to serializable format
-	serializableVertices := make(map[string]*SerializableNode)
-	for path, node := range vertices {
-		serializableNode := &SerializableNode{
-			Path:     node.Path,
-			Parents:  make([]string, 0, len(node.Parents)),
-			Children: make([]string, 0, len(node.Children)),
-		}
-
-		for _, parent := range node.Parents {
-			if parent != nil {
-				serializableNode.Parents = append(serializableNode.Parents, parent.Path)
-			}
-		}
-
-		for _, child := range node.Children {
-			if child != nil {
-				serializableNode.Children = append(serializableNode.Children, child.Path)
-			}
-		}
-
-		serializableVertices[path] = serializableNode
-	}
-
-	// Convert root to serializable format
-	var serializableRoot *SerializableNode
-	if root != nil {
-		serializableRoot = &SerializableNode{
-			Path:     root.Path,
-			Parents:  make([]string, 0, len(root.Parents)),
-			Children: make([]string, 0, len(root.Children)),
-		}
-
-		for _, parent := range root.Parents {
-			if parent != nil {
-				serializableRoot.Parents = append(serializableRoot.Parents, parent.Path)
-			}
-		}
-
-		for _, child := range root.Children {
-			if child != nil {
-				serializableRoot.Children = append(serializableRoot.Children, child.Path)
-			}
+		// Compute resolution paths if a specific file was found for this entry point
+		if fileOrNodeModuleNode != nil {
+			// Initialize with empty path array for the resolvePathsToRoot function
+			initialPaths := [][]string{{}}
+			resolutionPaths[entryPoint] = ResolvePathsToRoot(fileOrNodeModuleNode, vertices, allPaths, initialPaths, 0)
 		}
 	}
 
-	// Convert fileOrNodeModuleNode to serializable format
-	var serializableFileOrNodeModuleNode *SerializableNode
-	if fileOrNodeModuleNode != nil {
-		serializableFileOrNodeModuleNode = &SerializableNode{
-			Path:     fileOrNodeModuleNode.Path,
-			Parents:  make([]string, 0, len(fileOrNodeModuleNode.Parents)),
-			Children: make([]string, 0, len(fileOrNodeModuleNode.Children)),
-		}
-
-		for _, parent := range fileOrNodeModuleNode.Parents {
-			if parent != nil {
-				serializableFileOrNodeModuleNode.Parents = append(serializableFileOrNodeModuleNode.Parents, parent.Path)
-			}
-		}
-
-		for _, child := range fileOrNodeModuleNode.Children {
-			if child != nil {
-				serializableFileOrNodeModuleNode.Children = append(serializableFileOrNodeModuleNode.Children, child.Path)
-			}
-		}
-	}
-
-	// Compute resolution paths if a specific file was found
-	var resolutionPaths [][]string
-	if fileOrNodeModuleNode != nil {
-		// Initialize with empty path array for the resolvePathsToRoot function
-		initialPaths := [][]string{{}}
-		resolutionPaths = ResolvePathsToRoot(fileOrNodeModuleNode, allPaths, initialPaths, 0)
-	}
-
-	return BuildDepsGraphResult{
-		Root:                 serializableRoot,
-		FileOrNodeModuleNode: serializableFileOrNodeModuleNode,
+	return BuildDepsGraphResultMultiple{
+		Roots:                roots,
+		FileOrNodeModuleNode: fileOrNodeModuleNode,
 		ResolutionPaths:      resolutionPaths,
-		Vertices:             serializableVertices,
+		Vertices:             vertices,
 	}
 }
 
 // ResolvePathsToRoot resolves all paths from a node to the root(s)
-func ResolvePathsToRoot(node *Node, all bool, resolvedPaths [][]string, depth int) [][]string {
+func ResolvePathsToRoot(node *SerializableNode, vertices map[string]*SerializableNode, all bool, resolvedPaths [][]string, depth int) [][]string {
 
 	// Create new paths by prepending current node path to each resolved path
+	// Optimize by preallocating and copying in place
 	newPaths := make([][]string, len(resolvedPaths))
 	for i, resolvedPath := range resolvedPaths {
-		newPath := make([]string, len(resolvedPath)+1)
+		// Preallocate with exact size to avoid multiple allocations
+		newPath := make([]string, 1+len(resolvedPath))
 		newPath[0] = node.Path
 		copy(newPath[1:], resolvedPath)
 		newPaths[i] = newPath
@@ -193,9 +143,13 @@ func ResolvePathsToRoot(node *Node, all bool, resolvedPaths [][]string, depth in
 	if all {
 		// Collect paths from all parents
 		var allPaths [][]string
-		for _, parent := range node.Parents {
+		for _, parentPath := range node.Parents {
+			parent, exists := vertices[parentPath]
+			if !exists {
+				continue
+			}
 			// fmt.Println("check parent", parent.Path, depth)
-			parentPaths := ResolvePathsToRoot(parent, all, newPaths, depth+1)
+			parentPaths := ResolvePathsToRoot(parent, vertices, all, newPaths, depth+1)
 			allPaths = append(allPaths, parentPaths...)
 			if len(allPaths) > 1000 {
 				fmt.Println("Resolving all paths hard stop on 1000 paths")
@@ -206,14 +160,12 @@ func ResolvePathsToRoot(node *Node, all bool, resolvedPaths [][]string, depth in
 	}
 
 	// Only follow the first parent
-	return ResolvePathsToRoot(node.Parents[0], false, newPaths, depth)
-}
-
-// Node represents a node in the dependency graph
-type Node struct {
-	Path     string  `json:"path"`
-	Parents  []*Node `json:"parents,omitempty"`
-	Children []*Node `json:"children,omitempty"`
+	if len(node.Parents) > 0 {
+		if parent, exists := vertices[node.Parents[0]]; exists {
+			return ResolvePathsToRoot(parent, vertices, false, newPaths, depth)
+		}
+	}
+	return newPaths
 }
 
 // SerializableNode represents a node that can be safely JSON marshaled
@@ -223,10 +175,45 @@ type SerializableNode struct {
 	Children []string `json:"children,omitempty"`
 }
 
-// BuildDepsGraphResult represents the result of building the dependency graph
-type BuildDepsGraphResult struct {
-	Root                 *SerializableNode            `json:"root"`
+// bst collects a list of all vertices starting from the root SerializableNode
+func bst(root *SerializableNode, vertices map[string]*SerializableNode) []string {
+	if root == nil {
+		return []string{}
+	}
+
+	visited := make(map[string]bool)
+	queue := []*SerializableNode{root}
+	var result []string
+
+	for len(queue) > 0 {
+		// Dequeue the first node
+		current := queue[0]
+		queue = queue[1:]
+
+		// Skip if already visited (prevents infinite loops in circular dependencies)
+		if visited[current.Path] {
+			continue
+		}
+
+		// Mark as visited and add to result
+		visited[current.Path] = true
+		result = append(result, current.Path)
+
+		// Add all children to the queue
+		for _, childPath := range current.Children {
+			if child, exists := vertices[childPath]; exists && !visited[childPath] {
+				queue = append(queue, child)
+			}
+		}
+	}
+
+	return result
+}
+
+// BuildDepsGraphResultMultiple represents the result of building dependency graphs for multiple entry points
+type BuildDepsGraphResultMultiple struct {
+	Roots                map[string]*SerializableNode `json:"roots"`
 	FileOrNodeModuleNode *SerializableNode            `json:"fileOrNodeModuleNode"`
-	ResolutionPaths      [][]string                   `json:"resolutionPaths,omitempty"`
+	ResolutionPaths      map[string][][]string        `json:"resolutionPaths,omitempty"`
 	Vertices             map[string]*SerializableNode `json:"vertices"`
 }

@@ -1,0 +1,15 @@
+
+Dependency paths from entry points to 'src/types.ts':
+
+/index.ts (2):
+
+Path 1:
+ ➞ /index.ts
+  ➞ /moduleSrc/fileA.tsx
+   ➞ /src/types.ts
+
+Path 2:
+ ➞ /index.ts
+  ➞ /src/types.ts
+
+Total: 2

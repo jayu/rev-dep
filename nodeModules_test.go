@@ -85,9 +85,10 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
-		// TODO command should return also dep5 - used by not defined in pkg json
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
 
 		if result != expected {
@@ -115,6 +116,8 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "6\n"
@@ -143,6 +146,8 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n file.ts\n    ➞ dep4\n    ➞ dep5\n\n\n index.ts\n    ➞ @types/dep-types-2\n    ➞ dep2\n\n\n package.json\n    ➞ dep1\n\n\n tsconfig.json\n    ➞ @types/dep-types-1\n\n"
@@ -171,6 +176,8 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n @types/dep-types-1\n    ➞ tsconfig.json\n\n\n @types/dep-types-2\n    ➞ index.ts\n\n\n dep1\n    ➞ package.json\n\n\n dep2\n    ➞ index.ts\n\n\n dep4\n    ➞ file.ts\n\n\n dep5\n    ➞ file.ts\n\n"
@@ -183,7 +190,7 @@ func TestUsedNodeModules(t *testing.T) {
 }
 
 func TestUnusedNodeModules(t *testing.T) {
-	currentDir, _ = os.Getwd()
+	currentDir, _ := os.Getwd()
 	nodeModulesCwd := filepath.Join(currentDir, "__fixtures__/nodeModulesCmd")
 	nodeModulesIgnoreType := false
 	nodeModulesEntryPoints := []string{}
@@ -214,6 +221,8 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "dep3\n"
@@ -241,6 +250,8 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "1\n"
@@ -253,7 +264,7 @@ func TestUnusedNodeModules(t *testing.T) {
 }
 
 func TestMissingNodeModules(t *testing.T) {
-	currentDir, _ = os.Getwd()
+	currentDir, _ := os.Getwd()
 	nodeModulesCwd := filepath.Join(currentDir, "__fixtures__/nodeModulesCmd")
 	nodeModulesIgnoreType := false
 	nodeModulesEntryPoints := []string{}
@@ -285,6 +296,8 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "dep5\n"
@@ -313,6 +326,8 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "1\n"
@@ -341,6 +356,8 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n file.ts\n    ➞ dep5\n\n"
@@ -369,6 +386,8 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n dep5\n    ➞ file.ts\n\n"
@@ -381,7 +400,7 @@ func TestMissingNodeModules(t *testing.T) {
 }
 
 func TestUnusedAdditionalFlags(t *testing.T) {
-	currentDir, _ = os.Getwd()
+	currentDir, _ := os.Getwd()
 	nodeModulesCwd := filepath.Join(currentDir, "__fixtures__/nodeModulesCmd")
 	nodeModulesIgnoreType := false
 	nodeModulesEntryPoints := []string{}
@@ -413,6 +432,8 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n"
@@ -440,6 +461,8 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n"
@@ -467,6 +490,8 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n"
@@ -494,6 +519,8 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n"
@@ -506,7 +533,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 }
 
 func TestUsedAdditionalFlags(t *testing.T) {
-	currentDir, _ = os.Getwd()
+	currentDir, _ := os.Getwd()
 	nodeModulesCwd := filepath.Join(currentDir, "__fixtures__/nodeModulesCmd")
 	nodeModulesIgnoreType := false
 	nodeModulesEntryPoints := []string{}
@@ -538,6 +565,8 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -565,6 +594,8 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -592,6 +623,8 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -619,6 +652,8 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -631,7 +666,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 }
 
 func TestIncludeExclude(t *testing.T) {
-	currentDir, _ = os.Getwd()
+	currentDir, _ := os.Getwd()
 	nodeModulesCwd := filepath.Join(currentDir, "__fixtures__/nodeModulesCmd")
 	nodeModulesIgnoreType := false
 	nodeModulesEntryPoints := []string{}
@@ -663,6 +698,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "@types/dep-types-2\ndep4\n"
@@ -690,6 +727,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "@types/dep-types-1\ndep1\ndep2\ndep5\n"
@@ -718,6 +757,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "dep3\n"
@@ -746,6 +787,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n"
@@ -774,6 +817,8 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "dep5\n"
@@ -802,9 +847,171 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesExcludeModules,
 			"",
 			"",
+			[]string{},
+			false,
 		)
 
 		expected := "\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+}
+
+func TestWildcardIncludeExclude(t *testing.T) {
+	currentDir, _ := os.Getwd()
+	nodeModulesCwd := filepath.Join(currentDir, "__fixtures__/nodeModulesCmd")
+	nodeModulesIgnoreType := false
+	nodeModulesEntryPoints := []string{}
+	nodeModulesCountFlag := false
+	nodeModulesListUnused := false
+	nodeModulesListMissing := false
+	nodeModulesGroupByModule := false
+	nodeModulesGroupByFile := false
+	nodeModulesPkgJsonFieldsWithBinaries := []string{}
+	nodeModulesFilesWithBinaries := []string{}
+	nodeModulesFilesWithModules := []string{}
+
+	t.Run("should support wildcard prefix matching (suffix wildcard)", func(t *testing.T) {
+		nodeModulesIncludeModules := []string{"*types-2", "dep*"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			[]string{},
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should support wildcard suffix matching (prefix wildcard)", func(t *testing.T) {
+		nodeModulesIncludeModules := []string{"@types/*", "*4"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			[]string{},
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-1\n@types/dep-types-2\ndep4\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should support wildcard contains matching (both prefix and suffix)", func(t *testing.T) {
+		nodeModulesIncludeModules := []string{"*dep*"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			[]string{},
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should support wildcard exclusion", func(t *testing.T) {
+		nodeModulesExcludeModules := []string{"@types/*", "dep*"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			[]string{},
+			nodeModulesExcludeModules,
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should support mixed wildcard and exact patterns", func(t *testing.T) {
+		nodeModulesIncludeModules := []string{"@types/dep-types-1", "*dep*"}
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			nodeModulesGroupByModule,
+			nodeModulesGroupByFile,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			[]string{},
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
 
 		if result != expected {
 			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
@@ -843,6 +1050,42 @@ func TestSortPathsToNodeModulesByNestingLevel(t *testing.T) {
 
 		if !reflect.DeepEqual(input, expected) {
 			t.Errorf("Array not sorted correctly \n'%s'. \nExpected \n'%s'", input, expected)
+		}
+	})
+}
+func TestTsConfigTypesComplexRealWorld(t *testing.T) {
+	currentDir, _ := os.Getwd()
+	tsconfigTypesComplexCwd := filepath.Join(currentDir, "__fixtures__/tsconfigTypesComplex")
+
+	t.Run("should handle complex tsconfig with mixed types", func(t *testing.T) {
+		result, _ := NodeModulesCmd(
+			tsconfigTypesComplexCwd,
+			false,      // ignoreType
+			[]string{}, // entryPoints
+			false,      // countFlag
+			true,       // listUnused
+			false,      // listMissing
+			false,      // groupByModule
+			false,      // groupByFile
+			[]string{}, // pkgJsonFieldsWithBinaries
+			[]string{}, // filesWithBinaries
+			[]string{}, // filesWithModules
+			[]string{}, // modulesToInclude
+			[]string{}, // modulesToExclude
+			"",         // packageJson
+			"",         // tsconfigJson
+			[]string{}, // conditionNames
+			false,      // followMonorepoPackages
+		)
+
+		// This test reproduces the original bug scenario:
+		// - Complex tsconfig with mixed types (booleans, strings, arrays, objects)
+		// - @types/google.maps and @types/node are referenced in tsconfig.json, so they should NOT be in the unused list
+		// - @types/unused-types is NOT referenced anywhere, so it SHOULD be in the unused list
+		expected := "@types/unused-types\n"
+
+		if result != expected {
+			t.Errorf("Incorrect unused modules list '%s'. Expected '%s'", result, expected)
 		}
 	})
 }

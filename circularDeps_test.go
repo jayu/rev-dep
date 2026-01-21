@@ -8,9 +8,9 @@ import (
 func TestFindCircularDepsWithTypeImports(t *testing.T) {
 	cwd := "__fixtures__/mockProject/"
 
-	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "")
+	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, false)
 
-	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles)
+	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
 	expectedCircularDeps := [][]string{
 		{cwd + "moduleSrc/fileA.tsx", cwd + "src/types.ts", cwd + "moduleSrc/fileA.tsx"},
@@ -26,9 +26,9 @@ func TestFindCircularDepsWithTypeImports(t *testing.T) {
 func TestFindCircularDepsWithoutTypeImports(t *testing.T) {
 	cwd := "__fixtures__/mockProject/"
 
-	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, true, []string{}, []string{}, "", "")
+	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, true, []string{}, []string{}, "", "", []string{}, false)
 
-	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles)
+	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
 	expectedCircularDeps := [][]string{
 		{cwd + "moduleSrc/anotherFileForCycle.js", cwd + "moduleSrc/oneMoreFileForCycle.tsx", cwd + "moduleSrc/fileForCycle.ts", cwd + "moduleSrc/anotherFileForCycle.js"},
@@ -43,9 +43,9 @@ func TestFindCircularDepsWithoutTypeImports(t *testing.T) {
 func TestFindMultipleCircularDepsFromSameNode(t *testing.T) {
 	cwd := "__fixtures__/multipleCyclesFromSameNode/"
 
-	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "")
+	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, false)
 
-	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles)
+	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
 	// This test case starts with _index.ts file to assert search order that discovers two cycles from fileA
 	expectedCircularDeps := [][]string{

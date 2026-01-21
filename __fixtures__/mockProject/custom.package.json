@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "react": "0.0.0",
+    "node": "0.0.0",
+    "lodash": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "0.0.0",
+    "@types/node": "0.0.0"
+  },
+  "imports": {
+    "#utils-lib": "lodash"
+  }
+}

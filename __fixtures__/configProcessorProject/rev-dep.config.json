@@ -1,0 +1,58 @@
+{
+  "configVersion": "1.0",
+  "conditionNames": [
+    "node",
+    "imports"
+  ],
+  "ignoreFiles": [
+    "**/*.test.ts"
+  ],
+  "rules": [
+    {
+      "path": ".",
+      "circularImportsDetection": {
+        "enabled": true
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "validEntryPoints": [
+          "*.config.*"
+        ]
+      },
+      "moduleBoundaries": [
+        {
+          "name": "public-boundary",
+          "pattern": "src/boundary/public.ts",
+          "deny": [
+            "src/boundary/private.ts"
+          ]
+        }
+      ],
+      "unusedNodeModulesDetection": {
+        "enabled": true
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true
+      }
+    },
+    {
+      "path": "packages",
+      "circularImportsDetection": {
+        "enabled": false
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "validEntryPoints": [
+          "index.ts"
+        ]
+      },
+      "moduleBoundaries": [],
+      "unusedNodeModulesDetection": {
+        "enabled": false
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}

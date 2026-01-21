@@ -1,0 +1,10 @@
+
+Dependency paths from entry points to 'src/types.ts':
+
+/index.ts (1):
+
+Path 1:
+ ➞ /index.ts
+  ➞ /src/types.ts
+
+Total: 1

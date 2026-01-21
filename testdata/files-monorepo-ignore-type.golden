@@ -1,0 +1,11 @@
+packages/consumer-package/index.ts
+packages/exported-package/dist/features/feature-from-dist.js
+packages/exported-package/some/files/xyz.js
+packages/exported-package/src/blocked/something.ts
+packages/exported-package/src/config/setup.config.js
+packages/exported-package/src/deep/fallback.ts
+packages/exported-package/src/features/feature-a.ts
+packages/exported-package/src/features/feature-b.ts
+packages/exported-package/src/main.ts
+packages/exported-package/src/something.ts
+packages/exported-package/src/utils/helper.ts

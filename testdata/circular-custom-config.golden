@@ -1,0 +1,12 @@
+Found 2 circular dependencies:
+
+Circular Dependency 1:
+ ➞ /src/standard/a.ts (cycle start)
+  ➞ /src/standard/b.ts ('./b')
+   ➞ /src/standard/a.ts ('./a')
+
+Circular Dependency 2:
+ ➞ /src/types/type-a.ts (cycle start)
+  ➞ /src/types/type-b.ts ('./type-b')
+   ➞ /src/types/type-a.ts ('./type-a')
+

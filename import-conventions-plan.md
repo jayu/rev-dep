@@ -90,7 +90,7 @@ This project is optimized for speed. The implementation must:
 ### Phase 1: Configuration Schema & Parsing
 
 #### Step 1.1: Define Configuration Types
-- [ ] Add new types in `config.go`
+- [x] Add new types in `config.go`
 
 ```go
 // ImportConventionDomain represents a single domain definition
@@ -112,7 +112,7 @@ type ParsedImportConventionRule struct {
 }
 ```
 
-- [ ] Extend `Rule` struct to include import conventions:
+- [x] Extend `Rule` struct to include import conventions:
 ```go
 type Rule struct {
     Path                        string                     `json:"path"`
@@ -127,36 +127,36 @@ type Rule struct {
 ```
 
 #### Step 1.2: Implement Configuration Validation Tests
-- [ ] Create test file `config_import_conventions_test.go`
-- [ ] Test: Valid simplified mode config parses correctly
+- [x] Create test file `config_import_conventions_test.go`
+- [x] Test: Valid simplified mode config parses correctly
 ```go
 func TestParseConfig_ImportConventions_SimplifiedMode(t *testing.T)
 ```
-- [ ] Test: Valid advanced mode config parses correctly
+- [x] Test: Valid advanced mode config parses correctly
 ```go
 func TestParseConfig_ImportConventions_AdvancedMode(t *testing.T)
 ```
-- [ ] Test: Invalid rule name is rejected
+- [x] Test: Invalid rule name is rejected
 ```go
 func TestParseConfig_ImportConventions_InvalidRuleName(t *testing.T)
 ```
-- [ ] Test: Mixed domains array (strings and objects) is rejected
+- [x] Test: Mixed domains array (strings and objects) is rejected
 ```go
 func TestParseConfig_ImportConventions_MixedDomainsRejected(t *testing.T)
 ```
-- [ ] Test: Empty domains array is rejected
+- [x] Test: Empty domains array is rejected
 ```go
 func TestParseConfig_ImportConventions_EmptyDomainsRejected(t *testing.T)
 ```
-- [ ] Test: Domain with missing path in advanced mode is rejected
+- [x] Test: Domain with missing path in advanced mode is rejected
 ```go
 func TestParseConfig_ImportConventions_MissingPathRejected(t *testing.T)
 ```
-- [ ] Test: Domain with missing alias in advanced mode is rejected
+- [x] Test: Domain with missing alias in advanced mode is rejected
 ```go
 func TestParseConfig_ImportConventions_MissingAliasRejected(t *testing.T)
 ```
-- [ ] Test: Nested/overlapping domains within a rule are rejected
+- [x] Test: Nested/overlapping domains within a rule are rejected
 ```go
 func TestParseConfig_ImportConventions_NestedDomainsRejected(t *testing.T)
 // e.g., domains: ["src/auth", "src/auth/utils"] should fail
@@ -164,20 +164,20 @@ func TestParseConfig_ImportConventions_NestedDomainsRejected(t *testing.T)
 ```
 
 #### Step 1.3: Implement Configuration Validation
-- [ ] Add `importConventions` to `allowedRuleFields` in `validateRawRule()`
-- [ ] Implement validation function:
+- [x] Add `importConventions` to `allowedRuleFields` in `validateRawRule()`
+- [x] Implement validation function:
 ```go
 func validateRawImportConventions(conventions interface{}, ruleIndex int) error
 ```
-- [ ] Implement rule-specific validation:
+- [x] Implement rule-specific validation:
 ```go
 func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, ruleIndex int, convIndex int) error
 ```
-- [ ] Implement domain parsing function:
+- [x] Implement domain parsing function:
 ```go
 func parseImportConventionDomains(domains interface{}) ([]ImportConventionDomain, error)
 ```
-- [ ] Implement nested domain validation:
+- [x] Implement nested domain validation:
 ```go
 // Returns error if any domain path is a prefix of another domain path
 // e.g., "src/auth" and "src/auth/utils" are nested (not allowed)
@@ -186,33 +186,33 @@ func validateNoNestedDomains(domains []ImportConventionDomain) error
 ```
 
 #### Step 1.4: Run Step 1 Tests
-- [ ] Verify all configuration tests pass
+- [x] Verify all configuration tests pass
 
 ---
 
 ### Phase 2: Domain Resolution Logic
 
 #### Step 2.1: Create Domain Resolution Tests
-- [ ] Create test file `import_conventions_test.go`
-- [ ] Test: File correctly identified as belonging to a domain (prefix match)
+- [x] Create test file `import_conventions_test.go`
+- [x] Test: File correctly identified as belonging to a domain (prefix match)
 ```go
 func TestResolveDomainForFile(t *testing.T)
 ```
-- [ ] Test: File not belonging to any domain returns nil
-- [ ] Test: Simplified mode glob `src/*` correctly expands to `src/auth`, `src/users` directories
-- [ ] Test: Nested files belong to their parent domain (`src/auth/utils/helper.ts` → `src/auth` domain)
-- [ ] Test: Advanced mode path is used directly without glob expansion
-- [ ] Test: File can only belong to exactly one domain (no overlap by design)
+- [x] Test: File not belonging to any domain returns nil
+- [x] Test: Simplified mode glob `src/*` correctly expands to `src/auth`, `src/users` directories
+- [x] Test: Nested files belong to their parent domain (`src/auth/utils/helper.ts` → `src/auth` domain)
+- [x] Test: Advanced mode path is used directly without glob expansion
+- [x] Test: File can only belong to exactly one domain (no overlap by design)
 
 #### Step 2.2: Implement Domain Resolution
-- [ ] Create file `import_conventions.go`
-- [ ] Implement domain expansion for **simplified mode** (glob → concrete paths):
+- [x] Create file `import_conventions.go`
+- [x] Implement domain expansion for **simplified mode** (glob → concrete paths):
 ```go
 // Called once at config time, NOT at runtime
 // "src/*" → ["src/auth", "src/users", "src/shared"]
 func ExpandDomainGlobs(patterns []string, cwd string) ([]string, error)
 ```
-- [ ] Implement `CompiledDomain` struct (simple, no glob matching needed at runtime):
+- [x] Implement `CompiledDomain` struct (simple, no glob matching needed at runtime):
 ```go
 type CompiledDomain struct {
     Path         string  // Original path from config (e.g., "src/auth")
@@ -222,7 +222,7 @@ type CompiledDomain struct {
 
 func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDomain, error)
 ```
-- [ ] Implement file-to-domain resolution using **path prefix matching**:
+- [x] Implement file-to-domain resolution using **path prefix matching**:
 ```go
 // Simple prefix check - O(n) where n = number of domains
 // Since domains cannot overlap (validated at config time), first match wins
@@ -241,17 +241,17 @@ The alias inference should consider both:
 1. **TSConfig paths** - e.g., `"@domain/*": ["src/domain/*"]`
 2. **Package.json imports** - e.g., `"#domain/*": "./src/domain/*"` (subpath imports)
 
-- [ ] Test: Alias correctly inferred for path when matching tsconfig paths entry
+- [x] Test: Alias correctly inferred for path when matching tsconfig paths entry
 ```go
 func TestInferAliasFromTSConfig(t *testing.T)
 ```
-- [ ] Test: Alias correctly inferred for path when matching package.json imports entry
+- [x] Test: Alias correctly inferred for path when matching package.json imports entry
 ```go
 func TestInferAliasFromPackageJsonImports(t *testing.T)
 ```
-- [ ] Test: TSConfig paths take precedence over package.json imports (or define clear order)
-- [ ] Test: No alias inferred when no matching entry in either source
-- [ ] Implement alias inference:
+- [x] Test: TSConfig paths take precedence over package.json imports (or define clear order)
+- [x] Test: No alias inferred when no matching entry in either source
+- [x] Implement alias inference:
 ```go
 func InferAliasForDomain(
     domainPath string,
@@ -261,7 +261,7 @@ func InferAliasForDomain(
 ```
 
 #### Step 2.4: Run Step 2 Tests
-- [ ] Verify all domain resolution tests pass
+- [x] Verify all domain resolution tests pass
 
 ---
 

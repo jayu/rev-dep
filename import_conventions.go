@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/tidwall/jsonc"
@@ -15,6 +16,7 @@ type ImportConventionViolation struct {
 	FilePath        string // Path to the file with the violation
 	ImportRequest   string // The original import string (e.g., "@auth/utils")
 	ImportResolved  string // The resolved import path
+	ImportIndex     int    // Index of this import in the source file (0-based)
 	ViolationType   string // "should-be-relative" | "should-be-aliased" | "wrong-alias"
 	SourceDomain    string // Domain of the source file
 	TargetDomain    string // Domain of the target import
@@ -381,6 +383,16 @@ func CheckImportConventionsFromTree(
 		}
 	}
 
+	// Sort violations by file path, then by import order within each file
+	sort.Slice(violations, func(i, j int) bool {
+		// First sort by file path
+		if violations[i].FilePath != violations[j].FilePath {
+			return violations[i].FilePath < violations[j].FilePath
+		}
+		// If same file, sort by import index (maintains source file order)
+		return violations[i].ImportIndex < violations[j].ImportIndex
+	})
+
 	return violations
 }
 
@@ -394,7 +406,7 @@ func checkFileImportConventions(
 ) []ImportConventionViolation {
 	violations := []ImportConventionViolation{}
 
-	for _, dep := range imports {
+	for importIndex, dep := range imports {
 		// Pre-filter: Only check UserModule and MonorepoModule imports
 		if dep.ResolvedType != UserModule && dep.ResolvedType != MonorepoModule {
 			continue // Skip NodeModule, BuiltInModule, etc.
@@ -420,7 +432,7 @@ func checkFileImportConventions(
 		}
 
 		// Check for violations based on the rule
-		violation := checkImportForViolation(filePath, dep, fileDomain, targetDomain)
+		violation := checkImportForViolation(filePath, dep, fileDomain, targetDomain, importIndex)
 		if violation != nil {
 			violations = append(violations, *violation)
 		}
@@ -435,6 +447,7 @@ func checkImportForViolation(
 	dep MinimalDependency,
 	sourceDomain *CompiledDomain,
 	targetDomain *CompiledDomain,
+	importIndex int,
 ) *ImportConventionViolation {
 	isRelative := IsRelativeImport(dep.Request)
 
@@ -445,6 +458,7 @@ func checkImportForViolation(
 			return &ImportConventionViolation{
 				FilePath:        filePath,
 				ImportRequest:   dep.Request,
+				ImportIndex:     importIndex,
 				ViolationType:   "should-be-relative",
 				SourceDomain:    sourceDomain.Path,
 				TargetDomain:    targetDomain.Path,
@@ -461,6 +475,7 @@ func checkImportForViolation(
 		return &ImportConventionViolation{
 			FilePath:        filePath,
 			ImportRequest:   dep.Request,
+			ImportIndex:     importIndex,
 			ViolationType:   "should-be-aliased",
 			SourceDomain:    sourceDomain.Path,
 			TargetDomain:    targetDomain.Path,
@@ -474,6 +489,7 @@ func checkImportForViolation(
 		return &ImportConventionViolation{
 			FilePath:        filePath,
 			ImportRequest:   dep.Request,
+			ImportIndex:     importIndex,
 			ViolationType:   "wrong-alias",
 			SourceDomain:    sourceDomain.Path,
 			TargetDomain:    targetDomain.Path,

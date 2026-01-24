@@ -1,5 +1,6 @@
 main
 main-linux
+rev-dep
 rev-dep-go
 rev-dep-go-dev
 rev-dep-go-linux

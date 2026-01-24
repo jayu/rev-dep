@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,17 +146,61 @@ func ExpandDomainGlobs(patterns []string, cwd string) ([]string, error) {
 func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDomain, error) {
 	var compiled []CompiledDomain
 
-	for _, domain := range domains {
-		absPath := filepath.Join(cwd, domain.Path)
+	// Separate simple paths from glob patterns
+	var simplePaths []string
+	var globPatterns []string
+	var domainMap = make(map[string]ImportConventionDomain)
 
-		// Normalize the path
+	for _, domain := range domains {
+		domainMap[domain.Path] = domain
+		if strings.Contains(domain.Path, "*") {
+			globPatterns = append(globPatterns, domain.Path)
+		} else {
+			simplePaths = append(simplePaths, domain.Path)
+		}
+	}
+
+	// Process simple paths directly
+	for _, path := range simplePaths {
+		absPath := filepath.Join(cwd, path)
 		absPath = filepath.Clean(absPath)
+		domain := domainMap[path]
 
 		compiled = append(compiled, CompiledDomain{
-			Path:         domain.Path,
+			Path:         path,
 			Alias:        domain.Alias,
 			AbsolutePath: absPath,
 		})
+	}
+
+	// Process glob patterns
+	if len(globPatterns) > 0 {
+		expandedPaths, err := ExpandDomainGlobs(globPatterns, cwd)
+		if err != nil {
+			return nil, fmt.Errorf("failed to expand domain globs: %w", err)
+		}
+
+		// Create compiled domains for each expanded path
+		for _, expandedPath := range expandedPaths {
+			// Check if expandedPath is already absolute
+			var absPath string
+			if filepath.IsAbs(expandedPath) {
+				// Path is already absolute, use as-is
+				absPath = filepath.Clean(expandedPath)
+			} else {
+				// Path is relative, join with cwd
+				absPath = filepath.Join(cwd, expandedPath)
+				absPath = filepath.Clean(absPath)
+			}
+
+			// For expanded paths, we don't have aliases from the original config
+			// since they came from glob expansion
+			compiled = append(compiled, CompiledDomain{
+				Path:         expandedPath,
+				Alias:        "", // Glob-expanded paths don't inherit aliases
+				AbsolutePath: absPath,
+			})
+		}
 	}
 
 	return compiled, nil

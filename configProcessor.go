@@ -379,21 +379,13 @@ func processRuleChecks(
 				}
 			}
 
-			// Use the actual working directory for domain compilation
-			actualCwd := cwd
-			if cwd == "." {
-				if actual, err := os.Getwd(); err == nil {
-					actualCwd = actual
-				}
-			}
-
 			violations := CheckImportConventionsFromTree(
 				ruleTree,
 				ruleFiles,
 				parsedRules,
 				tsconfigParsed,
 				packageJsonImports,
-				actualCwd,
+				fullRulePath, // Use rule path instead of current working directory
 			)
 
 			mu.Lock()

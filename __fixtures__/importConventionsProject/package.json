@@ -1,0 +1,7 @@
+{
+  "name": "import-conventions-test",
+  "version": "1.0.0",
+  "imports": {
+    "#ui/*": "./src/shared/ui/*"
+  }
+}

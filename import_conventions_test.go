@@ -322,3 +322,438 @@ func TestInferAliasForDomain(t *testing.T) {
 		})
 	}
 }
+
+func TestIsRelativeImport(t *testing.T) {
+	tests := []struct {
+		name     string
+		request  string
+		expected bool
+	}{
+		{
+			name:     "Relative import with dot slash",
+			request:  "./utils",
+			expected: true,
+		},
+		{
+			name:     "Relative import with parent directory",
+			request:  "../auth/service",
+			expected: true,
+		},
+		{
+			name:     "Relative import with current directory",
+			request:  ".",
+			expected: true,
+		},
+		{
+			name:     "Relative import with parent directory only",
+			request:  "..",
+			expected: true,
+		},
+		{
+			name:     "Absolute import with alias",
+			request:  "@auth/utils",
+			expected: false,
+		},
+		{
+			name:     "Absolute import with package.json import",
+			request:  "#utils/helper",
+			expected: false,
+		},
+		{
+			name:     "Node module import",
+			request:  "lodash",
+			expected: false,
+		},
+		{
+			name:     "Node module import with path",
+			request:  "lodash/fp",
+			expected: false,
+		},
+		{
+			name:     "Absolute path",
+			request:  "/src/utils",
+			expected: false,
+		},
+		{
+			name:     "Windows-style absolute path",
+			request:  "C:\\src\\utils",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsRelativeImport(tt.request)
+			if result != tt.expected {
+				t.Errorf("IsRelativeImport(%q) = %v, want %v", tt.request, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestImportTargetsDomain(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-target-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test directory structure
+	os.MkdirAll(filepath.Join(tempDir, "src", "auth"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "src", "users"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "src", "shared", "ui"), 0755)
+
+	// Create compiled domains
+	compiledDomains := []CompiledDomain{
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth")},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users")},
+		{Path: "src/shared/ui", AbsolutePath: filepath.Join(tempDir, "src", "shared", "ui")},
+	}
+
+	tests := []struct {
+		name           string
+		importPath     string
+		expectedDomain *string
+	}{
+		{
+			name:           "Import path in auth domain",
+			importPath:     filepath.Join(tempDir, "src", "auth", "service.ts"),
+			expectedDomain: stringPtr("src/auth"),
+		},
+		{
+			name:           "Import path in users domain",
+			importPath:     filepath.Join(tempDir, "src", "users", "controller.ts"),
+			expectedDomain: stringPtr("src/users"),
+		},
+		{
+			name:           "Import path in shared/ui domain",
+			importPath:     filepath.Join(tempDir, "src", "shared", "ui", "Button.ts"),
+			expectedDomain: stringPtr("src/shared/ui"),
+		},
+		{
+			name:           "Import path not in any domain",
+			importPath:     filepath.Join(tempDir, "node_modules", "lodash", "index.js"),
+			expectedDomain: nil,
+		},
+		{
+			name:           "Import path in parent directory",
+			importPath:     filepath.Join(tempDir, "index.ts"),
+			expectedDomain: nil,
+		},
+		{
+			name:           "Nested file in domain",
+			importPath:     filepath.Join(tempDir, "src", "auth", "utils", "helper.ts"),
+			expectedDomain: stringPtr("src/auth"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			domain := ResolveImportTargetDomain(tt.importPath, compiledDomains)
+
+			if tt.expectedDomain == nil {
+				if domain != nil {
+					t.Errorf("Expected no domain, got %s", domain.Path)
+				}
+			} else {
+				if domain == nil {
+					t.Errorf("Expected domain %s, got nil", *tt.expectedDomain)
+				} else if domain.Path != *tt.expectedDomain {
+					t.Errorf("Expected domain %s, got %s", *tt.expectedDomain, domain.Path)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateImportUsesCorrectAlias(t *testing.T) {
+	tests := []struct {
+		name         string
+		request      string
+		targetDomain *CompiledDomain
+		expected     bool
+	}{
+		{
+			name:         "Correct alias for domain",
+			request:      "@auth/utils",
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			expected:     true,
+		},
+		{
+			name:         "Wrong alias for domain",
+			request:      "@users/utils",
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			expected:     false,
+		},
+		{
+			name:         "Package.json import alias",
+			request:      "#utils/helper",
+			targetDomain: &CompiledDomain{Path: "src/utils", Alias: "#utils"},
+			expected:     true,
+		},
+		{
+			name:         "Relative import should not match alias",
+			request:      "./utils",
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			expected:     false,
+		},
+		{
+			name:         "Node module import should not match alias",
+			request:      "lodash",
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			expected:     false,
+		},
+		{
+			name:         "Domain with no alias",
+			request:      "something",
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: ""},
+			expected:     false,
+		},
+		{
+			name:         "Alias with path suffix",
+			request:      "@auth/utils/helper",
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			expected:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ValidateImportUsesCorrectAlias(tt.request, tt.targetDomain)
+			if result != tt.expected {
+				t.Errorf("ValidateImportUsesCorrectAlias(%q, domain with alias %q) = %v, want %v",
+					tt.request, tt.targetDomain.Alias, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCheckImportConventions_IntraDomainAlias(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-violation-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test directory structure
+	os.MkdirAll(filepath.Join(tempDir, "src", "auth"), 0755)
+
+	// Create compiled domains
+	compiledDomains := []CompiledDomain{
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
+	}
+
+	// Create test imports - intra-domain import using alias (should be relative)
+	imports := []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "utils.ts")),
+			Request:      "@auth/utils",
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations := checkFileImportConventions(
+		filepath.Join(tempDir, "src", "auth", "service.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[0],
+		tempDir,
+	)
+
+	if len(violations) != 1 {
+		t.Fatalf("Expected 1 violation, got %d", len(violations))
+	}
+
+	violation := violations[0]
+	if violation.ViolationType != "should-be-relative" {
+		t.Errorf("Expected violation type 'should-be-relative', got %s", violation.ViolationType)
+	}
+	if violation.SourceDomain != "src/auth" {
+		t.Errorf("Expected source domain 'src/auth', got %s", violation.SourceDomain)
+	}
+	if violation.TargetDomain != "src/auth" {
+		t.Errorf("Expected target domain 'src/auth', got %s", violation.TargetDomain)
+	}
+}
+
+func TestCheckImportConventions_InterDomainRelative(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-violation-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test directory structure
+	os.MkdirAll(filepath.Join(tempDir, "src", "auth"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "src", "users"), 0755)
+
+	// Create compiled domains
+	compiledDomains := []CompiledDomain{
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users"},
+	}
+
+	// Create test imports - inter-domain import using relative path (should be aliased)
+	imports := []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
+			Request:      "../auth/service",
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations := checkFileImportConventions(
+		filepath.Join(tempDir, "src", "users", "controller.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[1], // users domain
+		tempDir,
+	)
+
+	if len(violations) != 1 {
+		t.Fatalf("Expected 1 violation, got %d", len(violations))
+	}
+
+	violation := violations[0]
+	if violation.ViolationType != "should-be-aliased" {
+		t.Errorf("Expected violation type 'should-be-aliased', got %s", violation.ViolationType)
+	}
+	if violation.SourceDomain != "src/users" {
+		t.Errorf("Expected source domain 'src/users', got %s", violation.SourceDomain)
+	}
+	if violation.TargetDomain != "src/auth" {
+		t.Errorf("Expected target domain 'src/auth', got %s", violation.TargetDomain)
+	}
+}
+
+func TestCheckImportConventions_WrongAlias(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-violation-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test directory structure
+	os.MkdirAll(filepath.Join(tempDir, "src", "auth"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "src", "users"), 0755)
+
+	// Create compiled domains
+	compiledDomains := []CompiledDomain{
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users"},
+	}
+
+	// Create test imports - inter-domain import using wrong alias
+	imports := []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
+			Request:      "@users/service", // Wrong alias - should be @auth
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations := checkFileImportConventions(
+		filepath.Join(tempDir, "src", "users", "controller.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[1], // users domain
+		tempDir,
+	)
+
+	if len(violations) != 1 {
+		t.Fatalf("Expected 1 violation, got %d", len(violations))
+	}
+
+	violation := violations[0]
+	if violation.ViolationType != "wrong-alias" {
+		t.Errorf("Expected violation type 'wrong-alias', got %s", violation.ViolationType)
+	}
+	if violation.SourceDomain != "src/users" {
+		t.Errorf("Expected source domain 'src/users', got %s", violation.SourceDomain)
+	}
+	if violation.TargetDomain != "src/auth" {
+		t.Errorf("Expected target domain 'src/auth', got %s", violation.TargetDomain)
+	}
+}
+
+func TestCheckImportConventions_ValidIntraDomain(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-violation-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test directory structure
+	os.MkdirAll(filepath.Join(tempDir, "src", "auth"), 0755)
+
+	// Create compiled domains
+	compiledDomains := []CompiledDomain{
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
+	}
+
+	// Create test imports - valid intra-domain relative import
+	imports := []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "utils.ts")),
+			Request:      "./utils",
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations := checkFileImportConventions(
+		filepath.Join(tempDir, "src", "auth", "service.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[0],
+		tempDir,
+	)
+
+	if len(violations) != 0 {
+		t.Errorf("Expected no violations, got %d", len(violations))
+	}
+}
+
+func TestCheckImportConventions_ValidInterDomain(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-violation-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test directory structure
+	os.MkdirAll(filepath.Join(tempDir, "src", "auth"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "src", "users"), 0755)
+
+	// Create compiled domains
+	compiledDomains := []CompiledDomain{
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users"},
+	}
+
+	// Create test imports - valid inter-domain aliased import
+	imports := []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
+			Request:      "@auth/service",
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations := checkFileImportConventions(
+		filepath.Join(tempDir, "src", "users", "controller.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[1], // users domain
+		tempDir,
+	)
+
+	if len(violations) != 0 {
+		t.Errorf("Expected no violations, got %d", len(violations))
+	}
+}

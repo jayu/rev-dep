@@ -1,0 +1,27 @@
+{
+  "configVersion": "1.0",
+  "rules": [
+    {
+      "path": ".",
+      "importConventions": [
+        {
+          "rule": "relative-internal-absolute-external",
+          "domains": [
+            {
+              "path": "src/features/auth",
+              "alias": "@auth"
+            },
+            {
+              "path": "src/features/users",
+              "alias": "@users"
+            },
+            {
+              "path": "src/shared/ui",
+              "alias": "@ui"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

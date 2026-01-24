@@ -32,16 +32,17 @@ func validateRulePathPackageJson(rulePath, cwd string) bool {
 
 // RuleResult contains the results for a single rule in the config
 type RuleResult struct {
-	RulePath                 string
-	FileCount                int
-	EnabledChecks            []string
-	DependencyTree           MinimalDependencyTree
-	ModuleBoundaryViolations []ModuleBoundaryViolation
-	CircularDependencies     [][]string
-	OrphanFiles              []string
-	UnusedNodeModules        []string
-	MissingNodeModules       []MissingNodeModuleResult
-	MissingPackageJson       bool
+	RulePath                   string
+	FileCount                  int
+	EnabledChecks              []string
+	DependencyTree             MinimalDependencyTree
+	ModuleBoundaryViolations   []ModuleBoundaryViolation
+	CircularDependencies       [][]string
+	OrphanFiles                []string
+	UnusedNodeModules          []string
+	MissingNodeModules         []MissingNodeModuleResult
+	ImportConventionViolations []ImportConventionViolation
+	MissingPackageJson         bool
 }
 
 // ConfigProcessingResult contains the results for processing an entire config
@@ -117,14 +118,49 @@ func filterFilesForRule(
 	cwd string,
 	followMonorepoPackages bool,
 ) ([]string, MinimalDependencyTree) {
-	normalizedRulePath := normalizeRulePath(filepath.Join(cwd, rulePath))
+	// Get the actual working directory if cwd is "."
+	actualCwd := cwd
+	if cwd == "." {
+		if actual, err := os.Getwd(); err == nil {
+			actualCwd = actual
+		}
+	}
+
+	// Convert rule path to absolute path for consistent comparison
+	var absoluteRulePath string
+	if rulePath == "." {
+		absoluteRulePath = filepath.Clean(actualCwd)
+	} else {
+		absoluteRulePath = filepath.Clean(filepath.Join(actualCwd, rulePath))
+	}
 
 	filesWithinCwd := []string{}
 	subTree := MinimalDependencyTree{}
 
 	for file := range fullTree {
-		if strings.HasPrefix(file, normalizedRulePath) {
-			filesWithinCwd = append(filesWithinCwd, file)
+		// Convert file path to absolute path for comparison
+		var absoluteFilePath string
+		if filepath.IsAbs(file) {
+			// File is already absolute, use it as-is
+			absoluteFilePath = filepath.Clean(file)
+		} else {
+			// File is relative, join with actual working directory
+			absoluteFilePath = filepath.Clean(filepath.Join(actualCwd, file))
+		}
+
+		// Check if absolute file path is within the absolute rule path
+		if strings.HasPrefix(absoluteFilePath, absoluteRulePath) {
+			// Additional check to ensure we're not matching partial directory names
+			// e.g., "/src/auth" should not match "/src/authentication"
+			if len(absoluteFilePath) == len(absoluteRulePath) {
+				filesWithinCwd = append(filesWithinCwd, file)
+			} else {
+				remainingPath := absoluteFilePath[len(absoluteRulePath):]
+				separator := string(filepath.Separator)
+				if strings.HasPrefix(remainingPath, separator) {
+					filesWithinCwd = append(filesWithinCwd, file)
+				}
+			}
 		}
 	}
 
@@ -178,6 +214,9 @@ func processRuleChecks(
 	}
 	if rule.MissingNodeModulesDetection != nil && rule.MissingNodeModulesDetection.Enabled {
 		enabledChecks = append(enabledChecks, "missing-node-modules")
+	}
+	if len(rule.ImportConventions) > 0 {
+		enabledChecks = append(enabledChecks, "import-conventions")
 	}
 
 	ruleResult := RuleResult{
@@ -302,6 +341,67 @@ func processRuleChecks(
 		}()
 	}
 
+	// Import Conventions
+	if len(rule.ImportConventions) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Parse tsconfig and package.json for alias inference
+			var tsconfigParsed *TsConfigParsed
+			var packageJsonImports *PackageJsonImports
+
+			if tsconfigJson != "" {
+				tsconfigBytes, err := ParseTsConfig(tsconfigJson)
+				if err == nil {
+					tsconfigParsed = ParseTsConfigContent(tsconfigBytes)
+				}
+			}
+
+			if packageJson != "" {
+				packageJsonImports, _ = ParsePackageJsonImports(packageJson)
+			}
+
+			// Convert import conventions to parsed rules
+			parsedRules := make([]ParsedImportConventionRule, len(rule.ImportConventions))
+			for i, conv := range rule.ImportConventions {
+				// Convert domains from interface{} to []ImportConventionDomain
+				// This should now be correctly parsed by the config parsing
+				domains, ok := conv.Domains.([]ImportConventionDomain)
+				if !ok {
+					// This should not happen if config parsing worked correctly
+					continue
+				}
+
+				parsedRules[i] = ParsedImportConventionRule{
+					Rule:    conv.Rule,
+					Domains: domains,
+				}
+			}
+
+			// Use the actual working directory for domain compilation
+			actualCwd := cwd
+			if cwd == "." {
+				if actual, err := os.Getwd(); err == nil {
+					actualCwd = actual
+				}
+			}
+
+			violations := CheckImportConventionsFromTree(
+				ruleTree,
+				ruleFiles,
+				parsedRules,
+				tsconfigParsed,
+				packageJsonImports,
+				actualCwd,
+			)
+
+			mu.Lock()
+			ruleResult.ImportConventionViolations = violations
+			mu.Unlock()
+		}()
+	}
+
 	wg.Wait()
 	return ruleResult
 }
@@ -374,7 +474,8 @@ func ProcessConfig(
 				len(ruleResult.OrphanFiles) > 0 ||
 				len(ruleResult.ModuleBoundaryViolations) > 0 ||
 				len(ruleResult.UnusedNodeModules) > 0 ||
-				len(ruleResult.MissingNodeModules) > 0
+				len(ruleResult.MissingNodeModules) > 0 ||
+				len(ruleResult.ImportConventionViolations) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

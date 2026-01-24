@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@auth/*": [
+        "src/features/auth/*"
+      ],
+      "@users/*": [
+        "src/features/users/*"
+      ],
+      "@ui/*": [
+        "src/shared/ui/*"
+      ]
+    }
+  }
+}

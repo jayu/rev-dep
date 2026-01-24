@@ -9,6 +9,18 @@ import (
 	"github.com/tidwall/jsonc"
 )
 
+// ImportConventionViolation represents a violation of import conventions
+type ImportConventionViolation struct {
+	FilePath        string // Path to the file with the violation
+	ImportRequest   string // The original import string (e.g., "@auth/utils")
+	ImportResolved  string // The resolved import path
+	ViolationType   string // "should-be-relative" | "should-be-aliased" | "wrong-alias"
+	SourceDomain    string // Domain of the source file
+	TargetDomain    string // Domain of the target import
+	ExpectedPattern string // Expected import pattern
+	ActualPattern   string // Actual import pattern
+}
+
 // CompiledDomain represents a processed domain with absolute path for fast matching
 type CompiledDomain struct {
 	Path         string // Original path from config (e.g., "src/auth")
@@ -220,4 +232,210 @@ func InferAliasForDomain(
 
 	// No matching alias found
 	return ""
+}
+
+// IsRelativeImport checks if import uses relative path using string prefix matching
+// Uses strings.HasPrefix - O(1) operation
+func IsRelativeImport(request string) bool {
+	return strings.HasPrefix(request, "./") ||
+		strings.HasPrefix(request, "../") ||
+		request == "." ||
+		request == ".."
+}
+
+// ResolveImportTargetDomain finds target domain of resolved import using prefix matching
+func ResolveImportTargetDomain(resolvedPath string, compiledDomains []CompiledDomain) *CompiledDomain {
+	// Normalize the path for consistent comparison
+	normalizedPath := filepath.Clean(resolvedPath)
+
+	for i := range compiledDomains {
+		if strings.HasPrefix(normalizedPath, compiledDomains[i].AbsolutePath) {
+			// Additional check to ensure we're not matching partial directory names
+			// e.g., "/src/auth" should not match "/src/authentication"
+			if len(normalizedPath) == len(compiledDomains[i].AbsolutePath) {
+				return &compiledDomains[i]
+			}
+			// Check if the next character is a path separator
+			if strings.HasPrefix(normalizedPath[len(compiledDomains[i].AbsolutePath):], string(filepath.Separator)) {
+				return &compiledDomains[i]
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateImportUsesCorrectAlias checks if import uses the correct alias for the target domain
+func ValidateImportUsesCorrectAlias(request string, targetDomain *CompiledDomain) bool {
+	if targetDomain == nil || targetDomain.Alias == "" {
+		return false
+	}
+
+	// Check if the import starts with the domain's alias
+	return strings.HasPrefix(request, targetDomain.Alias)
+}
+
+// CheckImportConventionsFromTree checks import conventions from dependency tree with early filtering
+// Pre-filter: Only check files that belong to a domain
+// Pre-filter: Only check UserModule and MonorepoModule imports
+func CheckImportConventionsFromTree(
+	minimalTree MinimalDependencyTree,
+	files []string,
+	parsedRules []ParsedImportConventionRule,
+	tsconfigParsed *TsConfigParsed,
+	packageJsonImports *PackageJsonImports,
+	cwd string,
+) []ImportConventionViolation {
+	var violations []ImportConventionViolation
+
+	// Compile domains for each rule
+	for _, rule := range parsedRules {
+		// Compile domains for this rule
+		compiledDomains, err := CompileDomains(rule.Domains, cwd)
+		if err != nil {
+			continue
+		}
+
+		// Optimization: Build file-to-domain lookup map once before iterating
+		fileToDomain := make(map[string]*CompiledDomain)
+		for _, file := range files {
+			// Check if file path is already absolute or relative
+			var absoluteFilePath string
+			if filepath.IsAbs(file) {
+				// File is already absolute, use as-is
+				absoluteFilePath = filepath.Clean(file)
+			} else {
+				// File is relative, convert to absolute for domain resolution
+				absoluteFilePath = filepath.Clean(filepath.Join(cwd, file))
+			}
+			domain := ResolveDomainForFile(absoluteFilePath, compiledDomains)
+			fileToDomain[file] = domain
+		}
+
+		// Check each file
+		for _, file := range files {
+			sourceDomain := fileToDomain[file]
+			if sourceDomain == nil {
+				continue // File not in any domain, skip
+			}
+
+			// Get imports for this file
+			imports, exists := minimalTree[file]
+			if !exists {
+				continue
+			}
+
+			// Check file import conventions
+			fileViolations := checkFileImportConventions(
+				file,
+				imports,
+				compiledDomains,
+				sourceDomain,
+				cwd,
+			)
+			violations = append(violations, fileViolations...)
+		}
+	}
+
+	return violations
+}
+
+// checkFileImportConventions checks import conventions for a single file
+func checkFileImportConventions(
+	filePath string,
+	imports []MinimalDependency,
+	compiledDomains []CompiledDomain,
+	fileDomain *CompiledDomain,
+	cwd string,
+) []ImportConventionViolation {
+	violations := []ImportConventionViolation{}
+
+	for _, dep := range imports {
+		// Pre-filter: Only check UserModule and MonorepoModule imports
+		if dep.ResolvedType != UserModule && dep.ResolvedType != MonorepoModule {
+			continue // Skip NodeModule, BuiltInModule, etc.
+		}
+
+		// Check if import targets a domain using the resolved path (ID field)
+		var targetDomain *CompiledDomain
+		if dep.ID != nil {
+			// Check if the path is already absolute or relative
+			var resolvedPath string
+			if filepath.IsAbs(*dep.ID) {
+				// Path is already absolute, use as-is
+				resolvedPath = filepath.Clean(*dep.ID)
+			} else {
+				// Path is relative, convert to absolute for domain resolution
+				resolvedPath = filepath.Clean(filepath.Join(cwd, *dep.ID))
+			}
+			targetDomain = ResolveImportTargetDomain(resolvedPath, compiledDomains)
+		}
+
+		if targetDomain == nil {
+			continue // Import doesn't target a domain, skip
+		}
+
+		// Check for violations based on the rule
+		violation := checkImportForViolation(filePath, dep, fileDomain, targetDomain)
+		if violation != nil {
+			violations = append(violations, *violation)
+		}
+	}
+
+	return violations
+}
+
+// checkImportForViolation checks a single import for violations
+func checkImportForViolation(
+	filePath string,
+	dep MinimalDependency,
+	sourceDomain *CompiledDomain,
+	targetDomain *CompiledDomain,
+) *ImportConventionViolation {
+	isRelative := IsRelativeImport(dep.Request)
+
+	// Intra-domain import (same domain)
+	if sourceDomain.Path == targetDomain.Path {
+		if !isRelative {
+			// Intra-domain import should be relative
+			return &ImportConventionViolation{
+				FilePath:        filePath,
+				ImportRequest:   dep.Request,
+				ViolationType:   "should-be-relative",
+				SourceDomain:    sourceDomain.Path,
+				TargetDomain:    targetDomain.Path,
+				ExpectedPattern: "relative path (e.g., ./utils)",
+				ActualPattern:   dep.Request,
+			}
+		}
+		return nil // Valid intra-domain relative import
+	}
+
+	// Inter-domain import (different domains)
+	if isRelative {
+		// Inter-domain import should be aliased
+		return &ImportConventionViolation{
+			FilePath:        filePath,
+			ImportRequest:   dep.Request,
+			ViolationType:   "should-be-aliased",
+			SourceDomain:    sourceDomain.Path,
+			TargetDomain:    targetDomain.Path,
+			ExpectedPattern: "alias path (e.g., @domain/utils)",
+			ActualPattern:   dep.Request,
+		}
+	}
+
+	// Check if using correct alias
+	if !ValidateImportUsesCorrectAlias(dep.Request, targetDomain) {
+		return &ImportConventionViolation{
+			FilePath:        filePath,
+			ImportRequest:   dep.Request,
+			ViolationType:   "wrong-alias",
+			SourceDomain:    sourceDomain.Path,
+			TargetDomain:    targetDomain.Path,
+			ExpectedPattern: targetDomain.Alias + "/*",
+			ActualPattern:   dep.Request,
+		}
+	}
+
+	return nil // Valid inter-domain aliased import
 }

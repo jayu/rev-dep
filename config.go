@@ -202,7 +202,7 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 		return nil, err
 	}
 
-	// Set default values for optional fields
+	// Set default values for optional fields and process import conventions
 	for i := range config.Rules {
 		// Default FollowMonorepoPackages to true if not explicitly set (zero value is false)
 		// We need to check if the field was explicitly set in the JSON
@@ -210,6 +210,25 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 			if ruleMap, ok := rawRules[i].(map[string]interface{}); ok {
 				if _, exists := ruleMap["followMonorepoPackages"]; !exists {
 					config.Rules[i].FollowMonorepoPackages = true
+				}
+			}
+		}
+
+		// Process import conventions to convert domains from interface{} to []ImportConventionDomain
+		for j := range config.Rules[i].ImportConventions {
+			if rawRules, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRules) {
+				if ruleMap, ok := rawRules[i].(map[string]interface{}); ok {
+					if conventions, ok := ruleMap["importConventions"].([]interface{}); ok && j < len(conventions) {
+						if conventionMap, ok := conventions[j].(map[string]interface{}); ok {
+							if domainsInterface, ok := conventionMap["domains"]; ok {
+								parsedDomains, err := parseImportConventionDomains(domainsInterface)
+								if err != nil {
+									return nil, fmt.Errorf("failed to parse import convention domains for rules[%d].importConventions[%d]: %w", i, j, err)
+								}
+								config.Rules[i].ImportConventions[j].Domains = parsedDomains
+							}
+						}
+					}
 				}
 			}
 		}
@@ -906,6 +925,61 @@ func validateNoNestedDomains(domains []ImportConventionDomain, ruleIndex int, co
 		}
 	}
 	return nil
+}
+
+// parseImportConventionDomains converts domains from interface{} to []ImportConventionDomain
+func parseImportConventionDomains(domains interface{}) ([]ImportConventionDomain, error) {
+	domainsArray, ok := domains.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("domains must be an array, got %T", domains)
+	}
+
+	var parsedDomains []ImportConventionDomain
+	for i, domain := range domainsArray {
+		switch v := domain.(type) {
+		case string:
+			if v == "" {
+				return nil, fmt.Errorf("domains[%d] cannot be empty string", i)
+			}
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: v})
+		case map[string]interface{}:
+			domainMap := v
+
+			// Check for required path field
+			path, exists := domainMap["path"]
+			if !exists {
+				return nil, fmt.Errorf("domains[%d].path is required", i)
+			}
+
+			pathStr, ok := path.(string)
+			if !ok {
+				return nil, fmt.Errorf("domains[%d].path must be a string, got %T", i, path)
+			}
+
+			if pathStr == "" {
+				return nil, fmt.Errorf("domains[%d].path cannot be empty", i)
+			}
+
+			// Check for optional alias field
+			var alias string
+			if aliasField, exists := domainMap["alias"]; exists {
+				aliasStr, ok := aliasField.(string)
+				if !ok {
+					return nil, fmt.Errorf("domains[%d].alias must be a string, got %T", i, aliasField)
+				}
+				if aliasStr == "" {
+					return nil, fmt.Errorf("domains[%d].alias cannot be empty", i)
+				}
+				alias = aliasStr
+			}
+
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: pathStr, Alias: alias})
+		default:
+			return nil, fmt.Errorf("domains[%d] must be a string or object, got %T", i, domain)
+		}
+	}
+
+	return parsedDomains, nil
 }
 
 func validatePattern(pattern string) error {

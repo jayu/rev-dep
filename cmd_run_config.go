@@ -170,6 +170,20 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
 				} else {
 					fmt.Printf("  ✅ Missing Node Modules\n")
 				}
+			case "import-conventions":
+				if len(ruleResult.ImportConventionViolations) > 0 {
+					fmt.Printf("  ❌ Import Convention Violations (%d):\n", len(ruleResult.ImportConventionViolations))
+					for _, violation := range ruleResult.ImportConventionViolations {
+						fmt.Printf("    - [%s] %s\n",
+							violation.ViolationType,
+							getRelativePath(violation.FilePath))
+						fmt.Printf("      Import: %s → %s\n", violation.ImportRequest, getRelativePath(violation.ImportResolved))
+						fmt.Printf("      Expected: %s\n", violation.ExpectedPattern)
+						fmt.Printf("      Source: %s → Target: %s\n", violation.SourceDomain, violation.TargetDomain)
+					}
+				} else {
+					fmt.Printf("  ✅ Import Conventions\n")
+				}
 			}
 		}
 

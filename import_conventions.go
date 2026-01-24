@@ -195,11 +195,45 @@ func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDom
 				absPath = filepath.Clean(absPath)
 			}
 
-			// For expanded paths, we don't have aliases from the original config
-			// since they came from glob expansion
+			// For expanded paths, try to infer alias from the original glob pattern
+			// or use empty string if no alias can be inferred
+			var alias string
+			originalPattern := ""
+			for _, pattern := range globPatterns {
+				// Find which glob pattern this expanded path came from
+				if strings.HasPrefix(expandedPath, strings.TrimSuffix(pattern, "*")) {
+					originalPattern = pattern
+					break
+				}
+			}
+
+			if originalPattern != "" {
+				originalDomain := domainMap[originalPattern]
+				if originalDomain.Alias != "" {
+					// Use the alias from the original pattern
+					alias = originalDomain.Alias
+				} else {
+					// Try to infer alias from the expanded path
+					// Convert absolute path back to relative for inference
+					relPath, err := filepath.Rel(cwd, expandedPath)
+					if err == nil {
+						// Try to infer alias from tsconfig/package.json (not available here)
+						// For now, generate a reasonable alias from the path
+						pathParts := strings.Split(relPath, string(filepath.Separator))
+						if len(pathParts) >= 2 {
+							// Use the last two parts as alias (e.g., "app/auth" -> "@app/auth")
+							alias = "@" + strings.Join(pathParts[len(pathParts)-2:], "/")
+						} else if len(pathParts) == 1 {
+							// Use the single part as alias (e.g., "auth" -> "@auth")
+							alias = "@" + pathParts[0]
+						}
+					}
+				}
+			}
+
 			compiled = append(compiled, CompiledDomain{
 				Path:         expandedPath,
-				Alias:        "", // Glob-expanded paths don't inherit aliases
+				Alias:        alias,
 				AbsolutePath: absPath,
 			})
 		}
@@ -414,9 +448,9 @@ func checkFileImportConventions(
 
 		// Check if import targets a domain using the resolved path (ID field)
 		var targetDomain *CompiledDomain
+		var resolvedPath string
 		if dep.ID != nil {
 			// Check if the path is already absolute or relative
-			var resolvedPath string
 			if filepath.IsAbs(*dep.ID) {
 				// Path is already absolute, use as-is
 				resolvedPath = filepath.Clean(*dep.ID)
@@ -427,12 +461,8 @@ func checkFileImportConventions(
 			targetDomain = ResolveImportTargetDomain(resolvedPath, compiledDomains)
 		}
 
-		if targetDomain == nil {
-			continue // Import doesn't target a domain, skip
-		}
-
 		// Check for violations based on the rule
-		violation := checkImportForViolation(filePath, dep, fileDomain, targetDomain, importIndex)
+		violation := checkImportForViolation(filePath, dep, fileDomain, targetDomain, resolvedPath, importIndex)
 		if violation != nil {
 			violations = append(violations, *violation)
 		}
@@ -447,12 +477,24 @@ func checkImportForViolation(
 	dep MinimalDependency,
 	sourceDomain *CompiledDomain,
 	targetDomain *CompiledDomain,
+	resolvedPath string,
 	importIndex int,
 ) *ImportConventionViolation {
 	isRelative := IsRelativeImport(dep.Request)
 
+	// Check if import is within the source domain
+	isIntraDomain := false
+	if targetDomain != nil && sourceDomain.Path == targetDomain.Path {
+		isIntraDomain = true
+	} else if resolvedPath != "" {
+		// Check if resolved path is within the source domain by path prefix
+		if strings.HasPrefix(resolvedPath, sourceDomain.AbsolutePath) {
+			isIntraDomain = true
+		}
+	}
+
 	// Intra-domain import (same domain)
-	if sourceDomain.Path == targetDomain.Path {
+	if isIntraDomain {
 		if !isRelative {
 			// Intra-domain import should be relative
 			return &ImportConventionViolation{
@@ -461,7 +503,7 @@ func checkImportForViolation(
 				ImportIndex:     importIndex,
 				ViolationType:   "should-be-relative",
 				SourceDomain:    sourceDomain.Path,
-				TargetDomain:    targetDomain.Path,
+				TargetDomain:    getTargetPath(targetDomain, resolvedPath),
 				ExpectedPattern: "relative path (e.g., ./utils)",
 				ActualPattern:   dep.Request,
 			}
@@ -469,34 +511,64 @@ func checkImportForViolation(
 		return nil // Valid intra-domain relative import
 	}
 
-	// Inter-domain import (different domains)
+	// Inter-domain import (outside the source domain)
 	if isRelative {
 		// Inter-domain import should be aliased
+		expectedPattern := "alias path (e.g., @domain/utils)"
+		if targetDomain != nil && targetDomain.Alias != "" {
+			expectedPattern = targetDomain.Alias + "/*"
+		} else {
+			expectedPattern = "alias path (target domain not configured)"
+		}
+
 		return &ImportConventionViolation{
 			FilePath:        filePath,
 			ImportRequest:   dep.Request,
 			ImportIndex:     importIndex,
 			ViolationType:   "should-be-aliased",
 			SourceDomain:    sourceDomain.Path,
-			TargetDomain:    targetDomain.Path,
-			ExpectedPattern: "alias path (e.g., @domain/utils)",
+			TargetDomain:    getTargetPath(targetDomain, resolvedPath),
+			ExpectedPattern: expectedPattern,
 			ActualPattern:   dep.Request,
 		}
 	}
 
-	// Check if using correct alias
-	if !ValidateImportUsesCorrectAlias(dep.Request, targetDomain) {
-		return &ImportConventionViolation{
-			FilePath:        filePath,
-			ImportRequest:   dep.Request,
-			ImportIndex:     importIndex,
-			ViolationType:   "wrong-alias",
-			SourceDomain:    sourceDomain.Path,
-			TargetDomain:    targetDomain.Path,
-			ExpectedPattern: targetDomain.Alias + "/*",
-			ActualPattern:   dep.Request,
+	// Check if using correct alias (only if we have a target domain with alias)
+	if targetDomain != nil && targetDomain.Alias != "" {
+		if !ValidateImportUsesCorrectAlias(dep.Request, targetDomain) {
+			return &ImportConventionViolation{
+				FilePath:        filePath,
+				ImportRequest:   dep.Request,
+				ImportIndex:     importIndex,
+				ViolationType:   "wrong-alias",
+				SourceDomain:    sourceDomain.Path,
+				TargetDomain:    targetDomain.Path,
+				ExpectedPattern: targetDomain.Alias + "/*",
+				ActualPattern:   dep.Request,
+			}
 		}
 	}
 
-	return nil // Valid inter-domain aliased import
+	return nil // Valid import
 }
+
+// getTargetPath returns the target domain path or resolved path as fallback
+func getTargetPath(targetDomain *CompiledDomain, resolvedPath string) string {
+	if targetDomain != nil {
+		return targetDomain.Path
+	}
+	if resolvedPath != "" {
+		// Convert absolute path to relative for display
+		if strings.HasPrefix(resolvedPath, "/") {
+			parts := strings.Split(strings.TrimPrefix(resolvedPath, "/"), "/")
+			if len(parts) >= 2 {
+				return strings.Join(parts[:2], "/")
+			}
+			return parts[0]
+		}
+		return resolvedPath
+	}
+	return "unknown"
+}
+
+// ... (rest of the code remains the same)

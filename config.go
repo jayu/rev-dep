@@ -92,7 +92,7 @@ var hiddenConfigFileNameJsonc = ".rev-dep.config.jsonc"
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0"}
+var supportedConfigVersions = []string{"1.0", "1.1"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.

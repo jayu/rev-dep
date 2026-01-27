@@ -23,7 +23,8 @@ var configCmd = &cobra.Command{
 
 // ---------------- config run ----------------
 var (
-	runConfigCwd string
+	runConfigCwd     string
+	runConfigListAll bool
 )
 
 var configRunCmd = &cobra.Command{
@@ -52,7 +53,7 @@ var configRunCmd = &cobra.Command{
 			}
 
 			// Format and print results
-			formatAndPrintConfigResults(result, cwd)
+			formatAndPrintConfigResults(result, cwd, runConfigListAll)
 
 			if result.HasFailures {
 				os.Exit(1)
@@ -84,7 +85,7 @@ var configInitCmd = &cobra.Command{
 }
 
 // formatAndPrintConfigResults formats and prints the config processing results
-func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
+func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, listAll bool) {
 	// Helper function to convert absolute paths to relative paths
 	getRelativePath := func(absolutePath string) string {
 		if absolutePath == "" {
@@ -99,6 +100,39 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
 		return filepath.ToSlash(relPath)
 	}
 
+	// Helper function to limit slice items for display
+	limitItems := func(items interface{}, max int) (interface{}, int) {
+		switch v := items.(type) {
+		case []string:
+			if len(v) <= max {
+				return v, 0
+			}
+			return v[:max], len(v) - max
+		case []ModuleBoundaryViolation:
+			if len(v) <= max {
+				return v, 0
+			}
+			return v[:max], len(v) - max
+		case [][]string:
+			if len(v) <= max {
+				return v, 0
+			}
+			return v[:max], len(v) - max
+		case []MissingNodeModuleResult:
+			if len(v) <= max {
+				return v, 0
+			}
+			return v[:max], len(v) - max
+		case []ImportConventionViolation:
+			if len(v) <= max {
+				return v, 0
+			}
+			return v[:max], len(v) - max
+		default:
+			return items, 0
+		}
+	}
+
 	for _, ruleResult := range result.RuleResults {
 		if ruleResult.RulePath != "" {
 			fmt.Printf("\n📁 Rule: %s (%d files)\n", ruleResult.RulePath, ruleResult.FileCount)
@@ -109,26 +143,69 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
 			switch check {
 			case "circular-imports":
 				if len(ruleResult.CircularDependencies) > 0 {
-					fmt.Printf("  ❌ Circular Dependencies (%d):\n\n", len(ruleResult.CircularDependencies))
+					fmt.Printf("  ❌ Circular Dependencies Issues (%d):\n\n", len(ruleResult.CircularDependencies))
 
-					formattedOutput := FormatCircularDependenciesWithoutHeader(ruleResult.CircularDependencies, cwd, ruleResult.DependencyTree, 2)
+					var circularDepsToDisplay [][]string
+					var remaining int
+					if listAll {
+						circularDepsToDisplay = ruleResult.CircularDependencies
+						remaining = 0
+					} else {
+						limited, remainingCount := limitItems(ruleResult.CircularDependencies, 5)
+						circularDepsToDisplay = limited.([][]string)
+						remaining = remainingCount
+					}
+
+					formattedOutput := FormatCircularDependenciesWithoutHeader(circularDepsToDisplay, cwd, ruleResult.DependencyTree, 2)
 					fmt.Printf("%s", formattedOutput)
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more circular dependency issues\n", remaining)
+					}
 				} else {
 					fmt.Printf("  ✅ Circular Dependencies\n")
 				}
 			case "orphan-files":
 				if len(ruleResult.OrphanFiles) > 0 {
-					fmt.Printf("  ❌  Orphan Files (%d):\n", len(ruleResult.OrphanFiles))
-					for _, file := range ruleResult.OrphanFiles {
+					fmt.Printf("  ❌  Orphan Files Issues (%d):\n", len(ruleResult.OrphanFiles))
+
+					var orphanFilesToDisplay []string
+					var remaining int
+					if listAll {
+						orphanFilesToDisplay = ruleResult.OrphanFiles
+						remaining = 0
+					} else {
+						limited, remainingCount := limitItems(ruleResult.OrphanFiles, 5)
+						orphanFilesToDisplay = limited.([]string)
+						remaining = remainingCount
+					}
+
+					for _, file := range orphanFilesToDisplay {
 						fmt.Printf("    - %s\n", getRelativePath(file))
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more orphan file issues\n", remaining)
 					}
 				} else {
 					fmt.Printf("  ✅ Orphan Files\n")
 				}
 			case "module-boundaries":
 				if len(ruleResult.ModuleBoundaryViolations) > 0 {
-					fmt.Printf("  ❌ Module Boundary Violations (%d):\n", len(ruleResult.ModuleBoundaryViolations))
-					for _, violation := range ruleResult.ModuleBoundaryViolations {
+					fmt.Printf("  ❌ Module Boundary Issues (%d):\n", len(ruleResult.ModuleBoundaryViolations))
+
+					var violationsToDisplay []ModuleBoundaryViolation
+					var remaining int
+					if listAll {
+						violationsToDisplay = ruleResult.ModuleBoundaryViolations
+						remaining = 0
+					} else {
+						limited, remainingCount := limitItems(ruleResult.ModuleBoundaryViolations, 5)
+						violationsToDisplay = limited.([]ModuleBoundaryViolation)
+						remaining = remainingCount
+					}
+
+					for _, violation := range violationsToDisplay {
 						violationType := "NOT ALLOWED"
 						if violation.ViolationType == "denied" {
 							violationType = "DENIED"
@@ -139,22 +216,54 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
 							getRelativePath(violation.ImportPath),
 							violationType)
 					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more module boundary issues\n", remaining)
+					}
 				} else {
 					fmt.Printf("  ✅ Module Boundaries\n")
 				}
 			case "unused-node-modules":
 				if len(ruleResult.UnusedNodeModules) > 0 {
-					fmt.Printf("  ❌ Unused Node Modules (%d):\n", len(ruleResult.UnusedNodeModules))
-					for _, module := range ruleResult.UnusedNodeModules {
+					fmt.Printf("  ❌ Unused Node Modules Issues (%d):\n", len(ruleResult.UnusedNodeModules))
+
+					var modulesToDisplay []string
+					var remaining int
+					if listAll {
+						modulesToDisplay = ruleResult.UnusedNodeModules
+						remaining = 0
+					} else {
+						limited, remainingCount := limitItems(ruleResult.UnusedNodeModules, 5)
+						modulesToDisplay = limited.([]string)
+						remaining = remainingCount
+					}
+
+					for _, module := range modulesToDisplay {
 						fmt.Printf("    - %s\n", module)
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more unused node module issues\n", remaining)
 					}
 				} else {
 					fmt.Printf("  ✅ Unused Node Modules\n")
 				}
 			case "missing-node-modules":
 				if len(ruleResult.MissingNodeModules) > 0 {
-					fmt.Printf("  ❌ Missing Node Modules (%d):\n", len(ruleResult.MissingNodeModules))
-					for _, missing := range ruleResult.MissingNodeModules {
+					fmt.Printf("  ❌ Missing Node Modules Issues (%d):\n", len(ruleResult.MissingNodeModules))
+
+					var missingToDisplay []MissingNodeModuleResult
+					var remaining int
+					if listAll {
+						missingToDisplay = ruleResult.MissingNodeModules
+						remaining = 0
+					} else {
+						limited, remainingCount := limitItems(ruleResult.MissingNodeModules, 5)
+						missingToDisplay = limited.([]MissingNodeModuleResult)
+						remaining = remainingCount
+					}
+
+					for _, missing := range missingToDisplay {
 						// Convert imported from paths to relative paths
 						relativeImportedFrom := make([]string, len(missing.ImportedFrom))
 						for j, path := range missing.ImportedFrom {
@@ -167,19 +276,39 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string) {
 							fmt.Printf("    - %s (imported from: %s and %d more files)\n", missing.ModuleName, relativeImportedFrom[0], len(relativeImportedFrom)-1)
 						}
 					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more missing node module issues\n", remaining)
+					}
 				} else {
 					fmt.Printf("  ✅ Missing Node Modules\n")
 				}
 			case "import-conventions":
 				if len(ruleResult.ImportConventionViolations) > 0 {
-					fmt.Printf("  ❌ Import Convention Violations (%d):\n", len(ruleResult.ImportConventionViolations))
-					for _, violation := range ruleResult.ImportConventionViolations {
+					fmt.Printf("  ❌ Import Convention Issues (%d):\n", len(ruleResult.ImportConventionViolations))
+
+					var violationsToDisplay []ImportConventionViolation
+					var remaining int
+					if listAll {
+						violationsToDisplay = ruleResult.ImportConventionViolations
+						remaining = 0
+					} else {
+						limited, remainingCount := limitItems(ruleResult.ImportConventionViolations, 5)
+						violationsToDisplay = limited.([]ImportConventionViolation)
+						remaining = remainingCount
+					}
+
+					for _, violation := range violationsToDisplay {
 						fmt.Printf("    - [%s] %s\n",
 							violation.ViolationType,
 							getRelativePath(violation.FilePath))
 						fmt.Printf("      Import: %s → %s\n", violation.ImportRequest, getRelativePath(violation.ImportResolved))
 						fmt.Printf("      Expected: %s\n", violation.ExpectedPattern)
 						fmt.Printf("      Source: %s → Target: %s\n", violation.SourceDomain, violation.TargetDomain)
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more import convention issues\n", remaining)
 					}
 				} else {
 					fmt.Printf("  ✅ Import Conventions\n")
@@ -214,6 +343,7 @@ func init() {
 	// config run command
 	addSharedFlags(configRunCmd)
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
+	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")

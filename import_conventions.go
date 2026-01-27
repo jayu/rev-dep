@@ -29,6 +29,7 @@ type CompiledDomain struct {
 	Path         string // Original path from config (e.g., "src/auth")
 	Alias        string // e.g., "@auth" (inferred or explicit)
 	AbsolutePath string // Full absolute path for prefix matching
+	Enabled      bool   // Whether checks should be performed for this domain
 }
 
 // ParsePackageJsonImports parses package.json imports from a file
@@ -172,6 +173,7 @@ func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDom
 			Path:         path,
 			Alias:        domain.Alias,
 			AbsolutePath: absPath,
+			Enabled:      domain.Enabled,
 		})
 	}
 
@@ -231,10 +233,21 @@ func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDom
 				}
 			}
 
+			// Get the original domain to access its Enabled field
+			var enabled bool
+			if originalPattern != "" {
+				originalDomain := domainMap[originalPattern]
+				enabled = originalDomain.Enabled
+			} else {
+				// Default to true if we can't find the original pattern
+				enabled = true
+			}
+
 			compiled = append(compiled, CompiledDomain{
 				Path:         expandedPath,
 				Alias:        alias,
 				AbsolutePath: absPath,
+				Enabled:      enabled,
 			})
 		}
 	}
@@ -399,6 +412,11 @@ func CheckImportConventionsFromTree(
 				continue // File not in any domain, skip
 			}
 
+			// Skip if the source domain is disabled
+			if !sourceDomain.Enabled {
+				continue
+			}
+
 			// Get imports for this file
 			imports, exists := minimalTree[file]
 			if !exists {
@@ -481,6 +499,12 @@ func checkImportForViolation(
 	importIndex int,
 ) *ImportConventionViolation {
 	isRelative := IsRelativeImport(dep.Request)
+
+	// Skip checking if target domain exists but is disabled
+	// This allows defining aliases for domains without enabling checks on them
+	if targetDomain != nil && !targetDomain.Enabled {
+		return nil
+	}
 
 	// Check if import is within the source domain
 	isIntraDomain := false

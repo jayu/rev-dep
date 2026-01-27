@@ -542,7 +542,7 @@ func TestCheckImportConventions_IntraDomainAlias(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
 	}
 
 	// Create test imports - intra-domain import using alias (should be relative)
@@ -592,8 +592,8 @@ func TestCheckImportConventions_InterDomainRelative(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
-		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users"},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true},
 	}
 
 	// Create test imports - inter-domain import using relative path (should be aliased)
@@ -643,8 +643,8 @@ func TestCheckImportConventions_WrongAlias(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
-		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users"},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true},
 	}
 
 	// Create test imports - inter-domain import using wrong alias
@@ -693,7 +693,7 @@ func TestCheckImportConventions_ValidIntraDomain(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
 	}
 
 	// Create test imports - valid intra-domain relative import
@@ -732,8 +732,8 @@ func TestCheckImportConventions_ValidInterDomain(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth"},
-		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users"},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true},
 	}
 
 	// Create test imports - valid inter-domain aliased import
@@ -755,5 +755,94 @@ func TestCheckImportConventions_ValidInterDomain(t *testing.T) {
 
 	if len(violations) != 0 {
 		t.Errorf("Expected no violations, got %d", len(violations))
+	}
+}
+
+func TestCheckImportConventions_EnabledField(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "rev-dep-enabled-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create test directory structure
+	os.MkdirAll(filepath.Join(tempDir, "src", "auth"), 0755)
+	os.MkdirAll(filepath.Join(tempDir, "src", "users"), 0755)
+
+	// Create compiled domains with different enabled states
+	compiledDomains := []CompiledDomain{
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: false},   // Disabled
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true}, // Enabled
+	}
+
+	// Test 1: Import from disabled domain should not be checked
+	imports := []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
+			Request:      "../auth/service", // This would normally be a violation (should be aliased)
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations := checkFileImportConventions(
+		filepath.Join(tempDir, "src", "users", "controller.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[1], // users domain (enabled)
+		tempDir,
+	)
+
+	// Should have no violations because target domain (auth) is disabled
+	if len(violations) != 0 {
+		t.Errorf("Expected no violations when target domain is disabled, got %d", len(violations))
+	}
+
+	// Test 2: Import to enabled domain should still be checked
+	imports = []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "users", "service.ts")),
+			Request:      "@users/service", // This is a violation (should be relative within same domain)
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations = checkFileImportConventions(
+		filepath.Join(tempDir, "src", "users", "controller.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[1], // users domain (enabled)
+		tempDir,
+	)
+
+	// Should have a violation because it's intra-domain with alias instead of relative
+	if len(violations) != 1 {
+		t.Errorf("Expected 1 violation for intra-domain alias import, got %d", len(violations))
+	} else {
+		if violations[0].ViolationType != "should-be-relative" {
+			t.Errorf("Expected violation type 'should-be-relative', got '%s'", violations[0].ViolationType)
+		}
+	}
+
+	// Test 3: Files in disabled domains should not be checked
+	imports = []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "users", "service.ts")),
+			Request:      "@users/service", // This would normally be a violation (should be relative)
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations = checkFileImportConventions(
+		filepath.Join(tempDir, "src", "auth", "controller.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[0], // auth domain (disabled)
+		tempDir,
+	)
+
+	// Should have no violations because source domain is disabled
+	if len(violations) != 0 {
+		t.Errorf("Expected no violations when source domain is disabled, got %d", len(violations))
 	}
 }

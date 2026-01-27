@@ -49,8 +49,9 @@ type MissingNodeModulesOptions struct {
 
 // ImportConventionDomain represents a single domain definition
 type ImportConventionDomain struct {
-	Path  string `json:"path,omitempty"`
-	Alias string `json:"alias,omitempty"`
+	Path    string `json:"path,omitempty"`
+	Alias   string `json:"alias,omitempty"`
+	Enabled bool   `json:"enabled,omitempty"`
 }
 
 // ImportConventionRule represents an import convention rule
@@ -888,7 +889,17 @@ func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, r
 				alias = aliasStr
 			}
 
-			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: pathStr, Alias: alias})
+			// Check for optional enabled field, default to true
+			enabled := true
+			if enabledField, exists := domainMap["enabled"]; exists {
+				enabledBool, ok := enabledField.(bool)
+				if !ok {
+					return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].enabled must be a boolean, got %T", ruleIndex, convIndex, i, enabledField)
+				}
+				enabled = enabledBool
+			}
+
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: pathStr, Alias: alias, Enabled: enabled})
 		default:
 			return fmt.Errorf("rules[%d].importConventions[%d].domains[%d] must be a string or object, got %T", ruleIndex, convIndex, i, domain)
 		}
@@ -973,7 +984,17 @@ func parseImportConventionDomains(domains interface{}) ([]ImportConventionDomain
 				alias = aliasStr
 			}
 
-			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: pathStr, Alias: alias})
+			// Check for optional enabled field, default to true
+			enabled := true
+			if enabledField, exists := domainMap["enabled"]; exists {
+				enabledBool, ok := enabledField.(bool)
+				if !ok {
+					return nil, fmt.Errorf("domains[%d].enabled must be a boolean, got %T", i, enabledField)
+				}
+				enabled = enabledBool
+			}
+
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: pathStr, Alias: alias, Enabled: enabled})
 		default:
 			return nil, fmt.Errorf("domains[%d] must be a string or object, got %T", i, domain)
 		}

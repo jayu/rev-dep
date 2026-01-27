@@ -395,3 +395,144 @@ func TestParseConfig_ImportConventions_EmptyImportConventions(t *testing.T) {
 		t.Errorf("Expected error to contain '%s', got '%s'", expectedError, err.Error())
 	}
 }
+
+func TestParseConfig_ImportConventions_EnabledField(t *testing.T) {
+	// Test with enabled field set to false
+	configJSON := `{
+		"configVersion": "1.0",
+		"rules": [
+			{
+				"path": ".",
+				"importConventions": [
+					{
+						"rule": "relative-internal-absolute-external",
+						"domains": [
+							{ "path": "src/auth", "alias": "@auth", "enabled": false },
+							{ "path": "src/users", "alias": "@users", "enabled": true }
+						]
+					}
+				]
+			}
+		]
+	}`
+
+	configs, err := ParseConfig([]byte(configJSON))
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if len(configs) != 1 {
+		t.Errorf("Expected 1 config, got %d", len(configs))
+	}
+
+	config := configs[0]
+	rule := config.Rules[0]
+	convention := rule.ImportConventions[0]
+
+	// After parsing, domains should be converted to []ImportConventionDomain
+	parsedDomains, ok := convention.Domains.([]ImportConventionDomain)
+	if !ok {
+		t.Error("Expected domains to be parsed as []ImportConventionDomain")
+	}
+
+	if len(parsedDomains) != 2 {
+		t.Errorf("Expected 2 parsed domains, got %d", len(parsedDomains))
+	}
+
+	// Check first domain (disabled)
+	authDomain := parsedDomains[0]
+	if authDomain.Enabled != false {
+		t.Errorf("Expected authDomain.Enabled to be false, got %v", authDomain.Enabled)
+	}
+	if authDomain.Path != "src/auth" {
+		t.Errorf("Expected authDomain.Path to be 'src/auth', got '%s'", authDomain.Path)
+	}
+	if authDomain.Alias != "@auth" {
+		t.Errorf("Expected authDomain.Alias to be '@auth', got '%s'", authDomain.Alias)
+	}
+
+	// Check second domain (enabled)
+	usersDomain := parsedDomains[1]
+	if usersDomain.Enabled != true {
+		t.Errorf("Expected usersDomain.Enabled to be true, got %v", usersDomain.Enabled)
+	}
+	if usersDomain.Path != "src/users" {
+		t.Errorf("Expected usersDomain.Path to be 'src/users', got '%s'", usersDomain.Path)
+	}
+	if usersDomain.Alias != "@users" {
+		t.Errorf("Expected usersDomain.Alias to be '@users', got '%s'", usersDomain.Alias)
+	}
+}
+
+func TestParseConfig_ImportConventions_EnabledFieldDefault(t *testing.T) {
+	// Test without enabled field (should default to true)
+	configJSON := `{
+		"configVersion": "1.0",
+		"rules": [
+			{
+				"path": ".",
+				"importConventions": [
+					{
+						"rule": "relative-internal-absolute-external",
+						"domains": [
+							{ "path": "src/auth", "alias": "@auth" }
+						]
+					}
+				]
+			}
+		]
+	}`
+
+	configs, err := ParseConfig([]byte(configJSON))
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	config := configs[0]
+	rule := config.Rules[0]
+	convention := rule.ImportConventions[0]
+
+	parsedDomains, ok := convention.Domains.([]ImportConventionDomain)
+	if !ok {
+		t.Error("Expected domains to be parsed as []ImportConventionDomain")
+	}
+
+	if len(parsedDomains) != 1 {
+		t.Errorf("Expected 1 parsed domain, got %d", len(parsedDomains))
+	}
+
+	domain := parsedDomains[0]
+	if domain.Enabled != true {
+		t.Errorf("Expected domain.Enabled to default to true, got %v", domain.Enabled)
+	}
+}
+
+func TestParseConfig_ImportConventions_EnabledFieldInvalidType(t *testing.T) {
+	// Test with invalid enabled field type
+	configJSON := `{
+		"configVersion": "1.0",
+		"rules": [
+			{
+				"path": ".",
+				"importConventions": [
+					{
+						"rule": "relative-internal-absolute-external",
+						"domains": [
+							{ "path": "src/auth", "alias": "@auth", "enabled": "false" }
+						]
+					}
+				]
+			}
+		]
+	}`
+
+	_, err := ParseConfig([]byte(configJSON))
+	if err == nil {
+		t.Error("Expected error for invalid enabled field type, got nil")
+	}
+
+	expectedError := "enabled must be a boolean"
+	if !contains(err.Error(), expectedError) {
+		t.Errorf("Expected error to contain '%s', got '%s'", expectedError, err.Error())
+	}
+}

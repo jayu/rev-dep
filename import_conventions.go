@@ -239,8 +239,8 @@ func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDom
 				originalDomain := domainMap[originalPattern]
 				enabled = originalDomain.Enabled
 			} else {
-				// Default to true if we can't find the original pattern
-				enabled = true
+				// Default to false if we can't find the original pattern (opt-in behavior)
+				enabled = false
 			}
 
 			compiled = append(compiled, CompiledDomain{

@@ -9,15 +9,18 @@
           "domains": [
             {
               "path": "src/features/auth",
-              "alias": "@auth"
+              "alias": "@auth",
+              "enabled": true
             },
             {
               "path": "src/features/users",
-              "alias": "@users"
+              "alias": "@users",
+              "enabled": true
             },
             {
               "path": "src/shared/ui",
-              "alias": "@ui"
+              "alias": "@ui",
+              "enabled": true
             }
           ]
         }

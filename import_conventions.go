@@ -26,10 +26,11 @@ type ImportConventionViolation struct {
 
 // CompiledDomain represents a processed domain with absolute path for fast matching
 type CompiledDomain struct {
-	Path         string // Original path from config (e.g., "src/auth")
-	Alias        string // e.g., "@auth" (inferred or explicit)
-	AbsolutePath string // Full absolute path for prefix matching
-	Enabled      bool   // Whether checks should be performed for this domain
+	Path          string // Original path from config (e.g., "src/auth")
+	Alias         string // e.g., "@auth" (inferred or explicit)
+	AbsolutePath  string // Full absolute path for prefix matching
+	Enabled       bool   // Whether checks should be performed for this domain
+	AliasExplicit bool   // Whether the alias was explicitly provided in config
 }
 
 // ParsePackageJsonImports parses package.json imports from a file
@@ -146,7 +147,12 @@ func ExpandDomainGlobs(patterns []string, cwd string) ([]string, error) {
 }
 
 // CompileDomains converts domain definitions to compiled domains with absolute paths
-func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDomain, error) {
+func CompileDomains(
+	domains []ImportConventionDomain,
+	cwd string,
+	tsconfigParsed *TsConfigParsed,
+	packageJsonImports *PackageJsonImports,
+) ([]CompiledDomain, error) {
 	var compiled []CompiledDomain
 
 	// Separate simple paths from glob patterns
@@ -169,11 +175,17 @@ func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDom
 		absPath = filepath.Clean(absPath)
 		domain := domainMap[path]
 
+		alias := domain.Alias
+		if alias == "" {
+			alias = InferAliasForDomain(path, tsconfigParsed, packageJsonImports)
+		}
+
 		compiled = append(compiled, CompiledDomain{
-			Path:         path,
-			Alias:        domain.Alias,
-			AbsolutePath: absPath,
-			Enabled:      domain.Enabled,
+			Path:          path,
+			Alias:         alias,
+			AbsolutePath:  absPath,
+			Enabled:       domain.Enabled,
+			AliasExplicit: domain.Alias != "",
 		})
 	}
 
@@ -197,18 +209,23 @@ func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDom
 				absPath = filepath.Clean(absPath)
 			}
 
+			relPath, err := filepath.Rel(cwd, absPath)
+			if err != nil {
+				relPath = expandedPath // Fallback
+			}
+
 			// For expanded paths, try to infer alias from the original glob pattern
 			// or use empty string if no alias can be inferred
 			var alias string
 			originalPattern := ""
 			for _, pattern := range globPatterns {
 				// Find which glob pattern this expanded path came from
-				if strings.HasPrefix(expandedPath, strings.TrimSuffix(pattern, "*")) {
+				absPatternBase := filepath.Join(cwd, strings.TrimSuffix(pattern, "*"))
+				if strings.HasPrefix(absPath, absPatternBase) {
 					originalPattern = pattern
 					break
 				}
 			}
-
 			if originalPattern != "" {
 				originalDomain := domainMap[originalPattern]
 				if originalDomain.Alias != "" {
@@ -216,11 +233,10 @@ func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDom
 					alias = originalDomain.Alias
 				} else {
 					// Try to infer alias from the expanded path
-					// Convert absolute path back to relative for inference
-					relPath, err := filepath.Rel(cwd, expandedPath)
-					if err == nil {
-						// Try to infer alias from tsconfig/package.json (not available here)
-						// For now, generate a reasonable alias from the path
+					alias = InferAliasForDomain(relPath, tsconfigParsed, packageJsonImports)
+
+					if alias == "" {
+						// Fallback: generate a reasonable alias from the path
 						pathParts := strings.Split(relPath, string(filepath.Separator))
 						if len(pathParts) >= 2 {
 							// Use the last two parts as alias (e.g., "app/auth" -> "@app/auth")
@@ -232,22 +248,24 @@ func CompileDomains(domains []ImportConventionDomain, cwd string) ([]CompiledDom
 					}
 				}
 			}
-
 			// Get the original domain to access its Enabled field
 			var enabled bool
+			var aliasExplicit bool
 			if originalPattern != "" {
 				originalDomain := domainMap[originalPattern]
 				enabled = originalDomain.Enabled
+				aliasExplicit = originalDomain.Alias != ""
 			} else {
 				// Default to false if we can't find the original pattern (opt-in behavior)
 				enabled = false
 			}
 
 			compiled = append(compiled, CompiledDomain{
-				Path:         expandedPath,
-				Alias:        alias,
-				AbsolutePath: absPath,
-				Enabled:      enabled,
+				Path:          relPath,
+				Alias:         alias,
+				AbsolutePath:  absPath,
+				Enabled:       enabled,
+				AliasExplicit: aliasExplicit,
 			})
 		}
 	}
@@ -384,7 +402,7 @@ func CheckImportConventionsFromTree(
 	// Compile domains for each rule
 	for _, rule := range parsedRules {
 		// Compile domains for this rule
-		compiledDomains, err := CompileDomains(rule.Domains, cwd)
+		compiledDomains, err := CompileDomains(rule.Domains, cwd, tsconfigParsed, packageJsonImports)
 		if err != nil {
 			continue
 		}
@@ -557,8 +575,8 @@ func checkImportForViolation(
 		}
 	}
 
-	// Check if using correct alias (only if we have a target domain with alias)
-	if targetDomain != nil && targetDomain.Alias != "" {
+	// Check if using correct alias (only if we have an explicit alias definition in config)
+	if targetDomain != nil && targetDomain.Alias != "" && targetDomain.AliasExplicit {
 		if !ValidateImportUsesCorrectAlias(dep.Request, targetDomain) {
 			return &ImportConventionViolation{
 				FilePath:        filePath,

@@ -1,0 +1,16 @@
+{
+  "configVersion": "1.0",
+  "rules": [
+    {
+      "path": ".",
+      "importConventions": [
+        {
+          "rule": "relative-internal-absolute-external",
+          "domains": [
+            "src/features/*"
+          ]
+        }
+      ]
+    }
+  ]
+}

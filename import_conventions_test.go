@@ -200,15 +200,15 @@ func TestCompileDomains(t *testing.T) {
 				{Path: "src/users", Alias: "@users"},
 			},
 			expectedCompiled: []CompiledDomain{
-				{Path: "src/auth", Alias: "@auth", AbsolutePath: filepath.Join(tempDir, "src", "auth")},
-				{Path: "src/users", Alias: "@users", AbsolutePath: filepath.Join(tempDir, "src", "users")},
+				{Path: "src/auth", Alias: "@auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), AliasExplicit: true},
+				{Path: "src/users", Alias: "@users", AbsolutePath: filepath.Join(tempDir, "src", "users"), AliasExplicit: true},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := CompileDomains(tt.domains, tempDir)
+			result, err := CompileDomains(tt.domains, tempDir, nil, nil)
 			if err != nil {
 				t.Fatalf("CompileDomains failed: %v", err)
 			}
@@ -477,43 +477,43 @@ func TestValidateImportUsesCorrectAlias(t *testing.T) {
 		{
 			name:         "Correct alias for domain",
 			request:      "@auth/utils",
-			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth", AliasExplicit: true},
 			expected:     true,
 		},
 		{
 			name:         "Wrong alias for domain",
 			request:      "@users/utils",
-			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth", AliasExplicit: true},
 			expected:     false,
 		},
 		{
 			name:         "Package.json import alias",
 			request:      "#utils/helper",
-			targetDomain: &CompiledDomain{Path: "src/utils", Alias: "#utils"},
+			targetDomain: &CompiledDomain{Path: "src/utils", Alias: "#utils", AliasExplicit: true},
 			expected:     true,
 		},
 		{
 			name:         "Relative import should not match alias",
 			request:      "./utils",
-			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth", AliasExplicit: true},
 			expected:     false,
 		},
 		{
 			name:         "Node module import should not match alias",
 			request:      "lodash",
-			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth", AliasExplicit: true},
 			expected:     false,
 		},
 		{
 			name:         "Domain with no alias",
 			request:      "something",
-			targetDomain: &CompiledDomain{Path: "src/auth", Alias: ""},
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "", AliasExplicit: false},
 			expected:     false,
 		},
 		{
 			name:         "Alias with path suffix",
 			request:      "@auth/utils/helper",
-			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth"},
+			targetDomain: &CompiledDomain{Path: "src/auth", Alias: "@auth", AliasExplicit: true},
 			expected:     true,
 		},
 	}
@@ -542,7 +542,7 @@ func TestCheckImportConventions_IntraDomainAlias(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true, AliasExplicit: true},
 	}
 
 	// Create test imports - intra-domain import using alias (should be relative)
@@ -592,8 +592,8 @@ func TestCheckImportConventions_InterDomainRelative(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
-		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true, AliasExplicit: true},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true, AliasExplicit: true},
 	}
 
 	// Create test imports - inter-domain import using relative path (should be aliased)
@@ -643,8 +643,8 @@ func TestCheckImportConventions_WrongAlias(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
-		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true, AliasExplicit: true},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true, AliasExplicit: true},
 	}
 
 	// Create test imports - inter-domain import using wrong alias
@@ -732,8 +732,8 @@ func TestCheckImportConventions_ValidInterDomain(t *testing.T) {
 
 	// Create compiled domains
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true},
-		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true},
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: true, AliasExplicit: true},
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true, AliasExplicit: true},
 	}
 
 	// Create test imports - valid inter-domain aliased import
@@ -772,8 +772,8 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 
 	// Create compiled domains with different enabled states
 	compiledDomains := []CompiledDomain{
-		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: false},   // Disabled
-		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true}, // Enabled
+		{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@auth", Enabled: false, AliasExplicit: true},   // Disabled
+		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true, AliasExplicit: true}, // Enabled
 	}
 
 	// Test 1: Import from disabled domain should not be checked

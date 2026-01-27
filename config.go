@@ -856,7 +856,7 @@ func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, r
 			if v == "" {
 				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d] cannot be empty string", ruleIndex, convIndex, i)
 			}
-			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: v})
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: v, Enabled: true})
 		case map[string]interface{}:
 			hasObjects = true
 			domainMap := v
@@ -952,7 +952,7 @@ func parseImportConventionDomains(domains interface{}) ([]ImportConventionDomain
 			if v == "" {
 				return nil, fmt.Errorf("domains[%d] cannot be empty string", i)
 			}
-			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: v})
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: v, Enabled: true})
 		case map[string]interface{}:
 			domainMap := v
 

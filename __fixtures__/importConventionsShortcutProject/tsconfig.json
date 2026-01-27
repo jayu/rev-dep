@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@retail": [
+        "src/features/retail/index.ts"
+      ],
+      "@retail/*": [
+        "src/features/retail/*"
+      ],
+      "@my-retail": [
+        "src/features/retail/index.ts"
+      ],
+      "@my-retail/*": [
+        "src/features/retail/*"
+      ],
+      "@shared": [
+        "src/features/shared/index.ts"
+      ],
+      "@shared/*": [
+        "src/features/shared/*"
+      ],
+      "@my-shared": [
+        "src/features/shared/index.ts"
+      ],
+      "@my-shared/*": [
+        "src/features/shared/*"
+      ]
+    }
+  }
+}

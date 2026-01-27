@@ -298,13 +298,26 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 						remaining = remainingCount
 					}
 
+					// Group violations by file path
+					violationsByFile := make(map[string][]ImportConventionViolation)
 					for _, violation := range violationsToDisplay {
-						fmt.Printf("    - [%s] %s\n",
-							violation.ViolationType,
-							getRelativePath(violation.FilePath))
-						fmt.Printf("      Import: %s → %s\n", violation.ImportRequest, getRelativePath(violation.ImportResolved))
-						fmt.Printf("      Expected: %s\n", violation.ExpectedPattern)
-						fmt.Printf("      Source: %s → Target: %s\n", violation.SourceDomain, violation.TargetDomain)
+						violationsByFile[violation.FilePath] = append(violationsByFile[violation.FilePath], violation)
+					}
+
+					// Sort file paths for consistent output
+					var sortedFilePaths []string
+					for filePath := range violationsByFile {
+						sortedFilePaths = append(sortedFilePaths, filePath)
+					}
+					slices.Sort(sortedFilePaths)
+
+					for _, filePath := range sortedFilePaths {
+						fmt.Printf("    %s\n", getRelativePath(filePath))
+						fileViolations := violationsByFile[filePath]
+						for _, violation := range fileViolations {
+							fmt.Printf("     - [%s] : \"%s\"\n", violation.ViolationType, violation.ImportRequest)
+						}
+						fmt.Printf("\n")
 					}
 
 					if remaining > 0 {

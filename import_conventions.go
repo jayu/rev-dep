@@ -476,6 +476,11 @@ func checkFileImportConventions(
 ) []ImportConventionViolation {
 	violations := []ImportConventionViolation{}
 
+	// Skip if the source domain is disabled
+	if fileDomain != nil && !fileDomain.Enabled {
+		return violations
+	}
+
 	for importIndex, dep := range imports {
 		// Pre-filter: Only check UserModule and MonorepoModule imports
 		if dep.ResolvedType != UserModule && dep.ResolvedType != MonorepoModule {
@@ -517,12 +522,6 @@ func checkImportForViolation(
 	importIndex int,
 ) *ImportConventionViolation {
 	isRelative := IsRelativeImport(dep.Request)
-
-	// Skip checking if target domain exists but is disabled
-	// This allows defining aliases for domains without enabling checks on them
-	if targetDomain != nil && !targetDomain.Enabled {
-		return nil
-	}
 
 	// Check if import is within the source domain
 	isIntraDomain := false

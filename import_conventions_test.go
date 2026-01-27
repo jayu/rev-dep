@@ -776,7 +776,8 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@users", Enabled: true, AliasExplicit: true}, // Enabled
 	}
 
-	// Test 1: Import from disabled domain should not be checked
+	// Test 1: Import FROM enabled domain TO disabled domain should still be checked for alias
+	// This ensures aliases work even if domain checks are disabled for the domain itself
 	imports := []MinimalDependency{
 		{
 			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
@@ -793,9 +794,11 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		tempDir,
 	)
 
-	// Should have no violations because target domain (auth) is disabled
-	if len(violations) != 0 {
-		t.Errorf("Expected no violations when target domain is disabled, got %d", len(violations))
+	// Should have a violation because it targets a domain that has an alias, even if targets own checks are disabled
+	if len(violations) != 1 {
+		t.Errorf("Expected 1 violation when target domain is disabled but has alias, got %d", len(violations))
+	} else if violations[0].ViolationType != "should-be-aliased" {
+		t.Errorf("Expected violation type 'should-be-aliased', got '%s'", violations[0].ViolationType)
 	}
 
 	// Test 2: Import to enabled domain should still be checked
@@ -844,5 +847,29 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 	// Should have no violations because source domain is disabled
 	if len(violations) != 0 {
 		t.Errorf("Expected no violations when source domain is disabled, got %d", len(violations))
+	}
+
+	// Test 4: Import FROM enabled domain TO disabled domain using WRONG alias should be caught
+	imports = []MinimalDependency{
+		{
+			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
+			Request:      "@wrong-alias/service", // Wrong alias for auth domain
+			ResolvedType: UserModule,
+		},
+	}
+
+	violations = checkFileImportConventions(
+		filepath.Join(tempDir, "src", "users", "controller.ts"),
+		imports,
+		compiledDomains,
+		&compiledDomains[1], // users domain (enabled)
+		tempDir,
+	)
+
+	// Should have a violation because it uses the wrong explicit alias for the target domain
+	if len(violations) != 1 {
+		t.Errorf("Expected 1 violation for wrong-alias targeting disabled domain, got %d", len(violations))
+	} else if violations[0].ViolationType != "wrong-alias" {
+		t.Errorf("Expected violation type 'wrong-alias', got '%s'", violations[0].ViolationType)
 	}
 }

@@ -84,6 +84,8 @@ var configInitCmd = &cobra.Command{
 	},
 }
 
+const maxIssuesToList = 5
+
 // formatAndPrintConfigResults formats and prints the config processing results
 func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, listAll bool) {
 	// Helper function to convert absolute paths to relative paths
@@ -100,39 +102,6 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 		return filepath.ToSlash(relPath)
 	}
 
-	// Helper function to limit slice items for display
-	limitItems := func(items interface{}, max int) (interface{}, int) {
-		switch v := items.(type) {
-		case []string:
-			if len(v) <= max {
-				return v, 0
-			}
-			return v[:max], len(v) - max
-		case []ModuleBoundaryViolation:
-			if len(v) <= max {
-				return v, 0
-			}
-			return v[:max], len(v) - max
-		case [][]string:
-			if len(v) <= max {
-				return v, 0
-			}
-			return v[:max], len(v) - max
-		case []MissingNodeModuleResult:
-			if len(v) <= max {
-				return v, 0
-			}
-			return v[:max], len(v) - max
-		case []ImportConventionViolation:
-			if len(v) <= max {
-				return v, 0
-			}
-			return v[:max], len(v) - max
-		default:
-			return items, 0
-		}
-	}
-
 	for _, ruleResult := range result.RuleResults {
 		if ruleResult.RulePath != "" {
 			fmt.Printf("\n📁 Rule: %s (%d files)\n", ruleResult.RulePath, ruleResult.FileCount)
@@ -145,15 +114,11 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				if len(ruleResult.CircularDependencies) > 0 {
 					fmt.Printf("  ❌ Circular Dependencies Issues (%d):\n\n", len(ruleResult.CircularDependencies))
 
-					var circularDepsToDisplay [][]string
-					var remaining int
-					if listAll {
-						circularDepsToDisplay = ruleResult.CircularDependencies
-						remaining = 0
-					} else {
-						limited, remainingCount := limitItems(ruleResult.CircularDependencies, 5)
-						circularDepsToDisplay = limited.([][]string)
-						remaining = remainingCount
+					circularDepsToDisplay := ruleResult.CircularDependencies
+					remaining := 0
+					if !listAll && len(circularDepsToDisplay) > maxIssuesToList {
+						remaining = len(circularDepsToDisplay) - maxIssuesToList
+						circularDepsToDisplay = circularDepsToDisplay[:maxIssuesToList]
 					}
 
 					formattedOutput := FormatCircularDependenciesWithoutHeader(circularDepsToDisplay, cwd, ruleResult.DependencyTree, 2)
@@ -169,15 +134,11 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				if len(ruleResult.OrphanFiles) > 0 {
 					fmt.Printf("  ❌  Orphan Files Issues (%d):\n", len(ruleResult.OrphanFiles))
 
-					var orphanFilesToDisplay []string
-					var remaining int
-					if listAll {
-						orphanFilesToDisplay = ruleResult.OrphanFiles
-						remaining = 0
-					} else {
-						limited, remainingCount := limitItems(ruleResult.OrphanFiles, 5)
-						orphanFilesToDisplay = limited.([]string)
-						remaining = remainingCount
+					orphanFilesToDisplay := ruleResult.OrphanFiles
+					remaining := 0
+					if !listAll && len(orphanFilesToDisplay) > maxIssuesToList {
+						remaining = len(orphanFilesToDisplay) - maxIssuesToList
+						orphanFilesToDisplay = orphanFilesToDisplay[:maxIssuesToList]
 					}
 
 					for _, file := range orphanFilesToDisplay {
@@ -194,15 +155,11 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				if len(ruleResult.ModuleBoundaryViolations) > 0 {
 					fmt.Printf("  ❌ Module Boundary Issues (%d):\n", len(ruleResult.ModuleBoundaryViolations))
 
-					var violationsToDisplay []ModuleBoundaryViolation
-					var remaining int
-					if listAll {
-						violationsToDisplay = ruleResult.ModuleBoundaryViolations
-						remaining = 0
-					} else {
-						limited, remainingCount := limitItems(ruleResult.ModuleBoundaryViolations, 5)
-						violationsToDisplay = limited.([]ModuleBoundaryViolation)
-						remaining = remainingCount
+					violationsToDisplay := ruleResult.ModuleBoundaryViolations
+					remaining := 0
+					if !listAll && len(violationsToDisplay) > maxIssuesToList {
+						remaining = len(violationsToDisplay) - maxIssuesToList
+						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
 					}
 
 					for _, violation := range violationsToDisplay {
@@ -227,15 +184,11 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				if len(ruleResult.UnusedNodeModules) > 0 {
 					fmt.Printf("  ❌ Unused Node Modules Issues (%d):\n", len(ruleResult.UnusedNodeModules))
 
-					var modulesToDisplay []string
-					var remaining int
-					if listAll {
-						modulesToDisplay = ruleResult.UnusedNodeModules
-						remaining = 0
-					} else {
-						limited, remainingCount := limitItems(ruleResult.UnusedNodeModules, 5)
-						modulesToDisplay = limited.([]string)
-						remaining = remainingCount
+					modulesToDisplay := ruleResult.UnusedNodeModules
+					remaining := 0
+					if !listAll && len(modulesToDisplay) > maxIssuesToList {
+						remaining = len(modulesToDisplay) - maxIssuesToList
+						modulesToDisplay = modulesToDisplay[:maxIssuesToList]
 					}
 
 					for _, module := range modulesToDisplay {
@@ -252,15 +205,11 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				if len(ruleResult.MissingNodeModules) > 0 {
 					fmt.Printf("  ❌ Missing Node Modules Issues (%d):\n", len(ruleResult.MissingNodeModules))
 
-					var missingToDisplay []MissingNodeModuleResult
-					var remaining int
-					if listAll {
-						missingToDisplay = ruleResult.MissingNodeModules
-						remaining = 0
-					} else {
-						limited, remainingCount := limitItems(ruleResult.MissingNodeModules, 5)
-						missingToDisplay = limited.([]MissingNodeModuleResult)
-						remaining = remainingCount
+					missingToDisplay := ruleResult.MissingNodeModules
+					remaining := 0
+					if !listAll && len(missingToDisplay) > maxIssuesToList {
+						remaining = len(missingToDisplay) - maxIssuesToList
+						missingToDisplay = missingToDisplay[:maxIssuesToList]
 					}
 
 					for _, missing := range missingToDisplay {
@@ -287,15 +236,11 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				if len(ruleResult.ImportConventionViolations) > 0 {
 					fmt.Printf("  ❌ Import Convention Issues (%d):\n", len(ruleResult.ImportConventionViolations))
 
-					var violationsToDisplay []ImportConventionViolation
-					var remaining int
-					if listAll {
-						violationsToDisplay = ruleResult.ImportConventionViolations
-						remaining = 0
-					} else {
-						limited, remainingCount := limitItems(ruleResult.ImportConventionViolations, 5)
-						violationsToDisplay = limited.([]ImportConventionViolation)
-						remaining = remainingCount
+					violationsToDisplay := ruleResult.ImportConventionViolations
+					remaining := 0
+					if !listAll && len(violationsToDisplay) > maxIssuesToList {
+						remaining = len(violationsToDisplay) - maxIssuesToList
+						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
 					}
 
 					// Group violations by file path

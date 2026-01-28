@@ -1,5 +1,10 @@
 package main
 
+import (
+	"slices"
+	"strings"
+)
+
 // ModuleBoundaryViolation represents a module boundary violation
 type ModuleBoundaryViolation struct {
 	FilePath      string
@@ -78,6 +83,14 @@ func CheckModuleBoundariesFromTree(
 			}
 		}
 	}
+
+	// Sort violations for consistent output
+	slices.SortFunc(violations, func(a, b ModuleBoundaryViolation) int {
+		if a.FilePath != b.FilePath {
+			return strings.Compare(a.FilePath, b.FilePath)
+		}
+		return strings.Compare(a.ImportPath, b.ImportPath)
+	})
 
 	return violations
 }

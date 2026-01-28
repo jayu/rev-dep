@@ -248,7 +248,8 @@ func TestInferAliasForDomain(t *testing.T) {
 	tsconfigContent := `{
 		"compilerOptions": {
 			"paths": {
-				"@auth/*": ["src/auth/*"],
+				"@auth/*": ["src/features/auth/*"],
+				"@features/*": ["src/features/*"],
 				"@users/*": ["src/users/*"],
 				"@shared/*": ["src/shared/*"]
 			}
@@ -296,8 +297,18 @@ func TestInferAliasForDomain(t *testing.T) {
 	}{
 		{
 			name:          "Domain matching tsconfig path",
-			domainPath:    "src/auth",
+			domainPath:    "src/features/auth",
 			expectedAlias: "@auth",
+		},
+		{
+			name:          "Overlapping aliases - most specific first",
+			domainPath:    "src/features/auth",
+			expectedAlias: "@auth", // Should pick @auth from src/features/auth/* over @features from src/features/*
+		},
+		{
+			name:          "Overlapping aliases - generic fallback",
+			domainPath:    "src/features/other",
+			expectedAlias: "@features", // Should pick @features from src/features/*
 		},
 		{
 			name:          "Domain matching tsconfig path with different pattern",

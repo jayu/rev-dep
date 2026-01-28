@@ -240,38 +240,60 @@ func InferAliasForDomain(
 ) string {
 	// First try to infer from tsconfig paths using aliases map
 	if tsconfigParsed != nil {
+		type aliasPair struct {
+			alias string
+			path  string
+		}
+		var pairs []aliasPair
 		for alias, path := range tsconfigParsed.aliases {
+			pairs = append(pairs, aliasPair{alias, path})
+		}
+
+		// Sort by path length descending - most specific (longest path) first
+		sort.Slice(pairs, func(i, j int) bool {
+			return len(pairs[i].path) > len(pairs[j].path)
+		})
+
+		for _, p := range pairs {
 			// Remove wildcards from path for comparison
-			cleanPath := strings.TrimSuffix(path, "/*")
+			cleanPath := strings.TrimSuffix(p.path, "/*")
 			cleanPath = strings.TrimSuffix(cleanPath, "/**")
 
 			// Check if the domain path matches this path
 			if strings.HasPrefix(domainPath, cleanPath) {
 				// Return the alias without wildcards
-				cleanAlias := strings.TrimSuffix(alias, "/*")
+				cleanAlias := strings.TrimSuffix(p.alias, "/*")
 				cleanAlias = strings.TrimSuffix(cleanAlias, "/**")
 				return cleanAlias
 			}
 		}
-
-		// Also check wildcard patterns (for more complex cases)
-		// For tsconfig, we need to match domain path with the pattern's target
-		// The pattern.prefix contains the alias prefix, but we need to match with the actual path
-		// This is more complex and would require reverse mapping, which we'll skip for now
-		_ = tsconfigParsed.wildcardPatterns // avoid unused warning
 	}
 
 	// Then try to infer from package.json imports using simple targets
 	if packageJsonImports != nil {
+		type aliasPair struct {
+			alias string
+			path  string
+		}
+		var pairs []aliasPair
 		for alias, path := range packageJsonImports.simpleImportTargetsByKey {
+			pairs = append(pairs, aliasPair{alias, path})
+		}
+
+		// Sort by path length descending - most specific (longest path) first
+		sort.Slice(pairs, func(i, j int) bool {
+			return len(pairs[i].path) > len(pairs[j].path)
+		})
+
+		for _, p := range pairs {
 			// Remove wildcards from path for comparison
-			cleanPath := strings.TrimSuffix(path, "/*")
+			cleanPath := strings.TrimSuffix(p.path, "/*")
 			cleanPath = strings.TrimSuffix(cleanPath, "/**")
 
 			// Check if the domain path matches this path
 			if strings.HasPrefix(domainPath, cleanPath) {
 				// Return the alias without wildcards
-				cleanAlias := strings.TrimSuffix(alias, "/*")
+				cleanAlias := strings.TrimSuffix(p.alias, "/*")
 				cleanAlias = strings.TrimSuffix(cleanAlias, "/**")
 				return cleanAlias
 			}

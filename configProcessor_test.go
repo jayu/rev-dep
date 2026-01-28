@@ -247,10 +247,6 @@ func TestConfigProcessor_MissingNodeModules(t *testing.T) {
 		t.Errorf("Expected to find non-existent-pkg as missing node module, but got: %v", result.RuleResults)
 	}
 
-	// This test should not fail if no missing modules are found
-	if err != nil {
-		t.Errorf("Config processing should not fail: %v", err)
-	}
 }
 
 func TestConfigProcessor_MultipleRules(t *testing.T) {

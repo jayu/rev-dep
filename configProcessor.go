@@ -32,16 +32,17 @@ func validateRulePathPackageJson(rulePath, cwd string) bool {
 
 // RuleResult contains the results for a single rule in the config
 type RuleResult struct {
-	RulePath                 string
-	FileCount                int
-	EnabledChecks            []string
-	DependencyTree           MinimalDependencyTree
-	ModuleBoundaryViolations []ModuleBoundaryViolation
-	CircularDependencies     [][]string
-	OrphanFiles              []string
-	UnusedNodeModules        []string
-	MissingNodeModules       []MissingNodeModuleResult
-	MissingPackageJson       bool
+	RulePath                   string
+	FileCount                  int
+	EnabledChecks              []string
+	DependencyTree             MinimalDependencyTree
+	ModuleBoundaryViolations   []ModuleBoundaryViolation
+	CircularDependencies       [][]string
+	OrphanFiles                []string
+	UnusedNodeModules          []string
+	MissingNodeModules         []MissingNodeModuleResult
+	ImportConventionViolations []ImportConventionViolation
+	MissingPackageJson         bool
 }
 
 // ConfigProcessingResult contains the results for processing an entire config
@@ -157,8 +158,6 @@ func processRuleChecks(
 	fullTree MinimalDependencyTree,
 	resolverManager *ResolverManager,
 	cwd string,
-	packageJson string,
-	tsconfigJson string,
 ) RuleResult {
 	// Track enabled checks
 	enabledChecks := []string{}
@@ -178,6 +177,9 @@ func processRuleChecks(
 	}
 	if rule.MissingNodeModulesDetection != nil && rule.MissingNodeModulesDetection.Enabled {
 		enabledChecks = append(enabledChecks, "missing-node-modules")
+	}
+	if len(rule.ImportConventions) > 0 {
+		enabledChecks = append(enabledChecks, "import-conventions")
 	}
 
 	ruleResult := RuleResult{
@@ -302,6 +304,26 @@ func processRuleChecks(
 		}()
 	}
 
+	// Import Conventions
+	if len(rule.ImportConventions) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			violations := CheckImportConventionsFromTree(
+				ruleTree,
+				ruleFiles,
+				rule.ImportConventions,
+				rulePathResolver,
+				fullRulePath, // Use rule path instead of current working directory
+			)
+
+			mu.Lock()
+			ruleResult.ImportConventionViolations = violations
+			mu.Unlock()
+		}()
+	}
+
 	wg.Wait()
 	return ruleResult
 }
@@ -362,8 +384,6 @@ func ProcessConfig(
 				fullTree,
 				resolverManager,
 				cwd,
-				packageJson,
-				tsconfigJson,
 			)
 
 			// Set the missing package.json flag
@@ -374,7 +394,8 @@ func ProcessConfig(
 				len(ruleResult.OrphanFiles) > 0 ||
 				len(ruleResult.ModuleBoundaryViolations) > 0 ||
 				len(ruleResult.UnusedNodeModules) > 0 ||
-				len(ruleResult.MissingNodeModules) > 0
+				len(ruleResult.MissingNodeModules) > 0 ||
+				len(ruleResult.ImportConventionViolations) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

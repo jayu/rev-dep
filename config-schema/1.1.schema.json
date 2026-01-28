@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.0.schema.json",
+  "$id": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.1.schema.json",
   "title": "Rev-Dep Configuration",
   "description": "Configuration file for rev-dep dependency analysis tool",
   "type": "object",
@@ -18,7 +18,8 @@
       "type": "string",
       "description": "Configuration version",
       "examples": [
-        "1.0"
+        "1.0",
+        "1.1"
       ]
     },
     "conditionNames": {
@@ -98,6 +99,13 @@
         },
         "missingNodeModulesDetection": {
           "$ref": "#/definitions/MissingNodeModulesOptions"
+        },
+        "importConventions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ImportConventionRule"
+          },
+          "description": "Import convention rules for enforcing relative vs absolute import patterns"
         }
       }
     },
@@ -305,6 +313,84 @@
           ],
           "description": "Output format type",
           "default": "list"
+        }
+      }
+    },
+    "ImportConventionRule": {
+      "type": "object",
+      "required": [
+        "rule",
+        "domains"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "rule": {
+          "type": "string",
+          "description": "Import convention rule type",
+          "enum": [
+            "relative-internal-absolute-external"
+          ],
+          "examples": [
+            "relative-internal-absolute-external"
+          ]
+        },
+        "domains": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "Domain path (simplified mode)",
+                "examples": [
+                  "src/*",
+                  "packages/*"
+                ]
+              },
+              {
+                "$ref": "#/definitions/ImportConventionDomain"
+              }
+            ]
+          },
+          "description": "Domain definitions for import conventions"
+        }
+      }
+    },
+    "ImportConventionDomain": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Domain path",
+          "minLength": 1,
+          "examples": [
+            "src/auth",
+            "packages/users",
+            "src/shared/ui"
+          ]
+        },
+        "alias": {
+          "type": "string",
+          "description": "Domain alias for absolute imports",
+          "minLength": 1,
+          "examples": [
+            "@auth",
+            "@users",
+            "@ui"
+          ]
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether to perform import convention checks for this domain",
+          "default": true,
+          "examples": [
+            true,
+            false
+          ]
         }
       }
     }

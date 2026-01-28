@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"slices"
+	"strings"
 
 	"github.com/tidwall/jsonc"
 )
@@ -47,14 +47,28 @@ type MissingNodeModulesOptions struct {
 	OutputType     string   `json:"outputType,omitempty"` // "list", "groupByModule", "groupByFile"
 }
 
+// ImportConventionDomain represents a single domain definition
+type ImportConventionDomain struct {
+	Path    string `json:"path,omitempty"`
+	Alias   string `json:"alias,omitempty"`
+	Enabled bool   `json:"enabled,omitempty"`
+}
+
+// ParsedImportConventionRule is the normalized form after parsing
+type ParsedImportConventionRule struct {
+	Rule    string
+	Domains []ImportConventionDomain
+}
+
 type Rule struct {
-	Path                        string                     `json:"path"`                             // Required
-	FollowMonorepoPackages      bool                       `json:"followMonorepoPackages,omitempty"` // Default: true
-	ModuleBoundaries            []BoundaryRule             `json:"moduleBoundaries,omitempty"`
-	CircularImportsDetection    *CircularImportsOptions    `json:"circularImportsDetection,omitempty"`
-	OrphanFilesDetection        *OrphanFilesOptions        `json:"orphanFilesDetection,omitempty"`
-	UnusedNodeModulesDetection  *UnusedNodeModulesOptions  `json:"unusedNodeModulesDetection,omitempty"`
-	MissingNodeModulesDetection *MissingNodeModulesOptions `json:"missingNodeModulesDetection,omitempty"`
+	Path                        string                       `json:"path"`                             // Required
+	FollowMonorepoPackages      bool                         `json:"followMonorepoPackages,omitempty"` // Default: true
+	ModuleBoundaries            []BoundaryRule               `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetection    *CircularImportsOptions      `json:"circularImportsDetection,omitempty"`
+	OrphanFilesDetection        *OrphanFilesOptions          `json:"orphanFilesDetection,omitempty"`
+	UnusedNodeModulesDetection  *UnusedNodeModulesOptions    `json:"unusedNodeModulesDetection,omitempty"`
+	MissingNodeModulesDetection *MissingNodeModulesOptions   `json:"missingNodeModulesDetection,omitempty"`
+	ImportConventions           []ParsedImportConventionRule `json:"-"`
 }
 
 type RevDepConfig struct {
@@ -72,7 +86,7 @@ var hiddenConfigFileNameJsonc = ".rev-dep.config.jsonc"
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0"}
+var supportedConfigVersions = []string{"1.0", "1.1"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -167,10 +181,26 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 		return nil, err
 	}
 
-	// Parse into typed struct
+	// Use a temporary struct to unmarshal with generic types for normalization
+	// We use this to capture the non-standard "domains" field (string or object)
+	type rawImportConventionRule struct {
+		Rule    string      `json:"rule"`
+		Domains interface{} `json:"domains"`
+	}
+	type rawRuleItems struct {
+		ImportConventions []rawImportConventionRule `json:"importConventions"`
+	}
+	var rawRules struct {
+		Rules []rawRuleItems `json:"rules"`
+	}
+	if err := json.Unmarshal(jsonc.ToJSON(content), &rawRules); err != nil {
+		return nil, fmt.Errorf("failed to parse config for normalization: %w", err)
+	}
+
+	// Parse into final typed struct
 	var config RevDepConfig
 	if err := json.Unmarshal(jsonc.ToJSON(content), &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
+		return nil, fmt.Errorf("failed to parse config into final structure: %w", err)
 	}
 
 	// Validate config
@@ -183,14 +213,28 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 		return nil, err
 	}
 
-	// Set default values for optional fields
+	// Set default values for optional fields and process import conventions
 	for i := range config.Rules {
 		// Default FollowMonorepoPackages to true if not explicitly set (zero value is false)
-		// We need to check if the field was explicitly set in the JSON
 		if rawRules, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRules) {
 			if ruleMap, ok := rawRules[i].(map[string]interface{}); ok {
 				if _, exists := ruleMap["followMonorepoPackages"]; !exists {
 					config.Rules[i].FollowMonorepoPackages = true
+				}
+			}
+		}
+
+		// Process and normalize import conventions
+		if i < len(rawRules.Rules) {
+			config.Rules[i].ImportConventions = make([]ParsedImportConventionRule, len(rawRules.Rules[i].ImportConventions))
+			for j, rawConv := range rawRules.Rules[i].ImportConventions {
+				parsedDomains, err := parseImportConventionDomains(rawConv.Domains)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse import convention domains for rules[%d].importConventions[%d]: %w", i, j, err)
+				}
+				config.Rules[i].ImportConventions[j] = ParsedImportConventionRule{
+					Rule:    rawConv.Rule,
+					Domains: parsedDomains,
 				}
 			}
 		}
@@ -280,6 +324,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		"orphanFilesDetection":        true,
 		"unusedNodeModulesDetection":  true,
 		"missingNodeModulesDetection": true,
+		"importConventions":           true,
 	}
 
 	for field := range rule {
@@ -331,6 +376,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 
 	if missing, exists := rule["missingNodeModulesDetection"]; exists {
 		if err := validateRawMissingNodeModulesDetection(missing, index); err != nil {
+			return err
+		}
+	}
+
+	if conventions, exists := rule["importConventions"]; exists {
+		if err := validateRawImportConventions(conventions, index); err != nil {
 			return err
 		}
 	}
@@ -637,6 +688,12 @@ func ValidateConfig(config *RevDepConfig) error {
 				return err
 			}
 		}
+
+		// Validate import conventions
+		if len(rule.ImportConventions) > 0 {
+			// Additional validation can be added here if needed
+			// The main validation is already done in validateRawImportConventions
+		}
 	}
 
 	return nil
@@ -721,6 +778,234 @@ func validateMissingNodeModulesOptions(opts *MissingNodeModulesOptions, prefix s
 	}
 
 	return nil
+}
+
+// validateRawImportConventions validates import conventions structure
+func validateRawImportConventions(conventions interface{}, ruleIndex int) error {
+	conventionsArray, ok := conventions.([]interface{})
+	if !ok {
+		return fmt.Errorf("rules[%d].importConventions must be an array, got %T", ruleIndex, conventions)
+	}
+
+	if len(conventionsArray) == 0 {
+		return fmt.Errorf("rules[%d].importConventions cannot be empty", ruleIndex)
+	}
+
+	for i, convention := range conventionsArray {
+		conventionMap, ok := convention.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("rules[%d].importConventions[%d] must be an object, got %T", ruleIndex, i, convention)
+		}
+
+		allowedConventionFields := map[string]bool{
+			"rule":    true,
+			"domains": true,
+		}
+
+		for field := range conventionMap {
+			if !allowedConventionFields[field] {
+				return fmt.Errorf("rules[%d].importConventions[%d]: unknown field '%s'", ruleIndex, i, field)
+			}
+		}
+
+		// Check required fields
+		if _, exists := conventionMap["rule"]; !exists {
+			return fmt.Errorf("rules[%d].importConventions[%d].rule is required", ruleIndex, i)
+		}
+		if _, exists := conventionMap["domains"]; !exists {
+			return fmt.Errorf("rules[%d].importConventions[%d].domains is required", ruleIndex, i)
+		}
+
+		// Validate rule field
+		rule, ok := conventionMap["rule"].(string)
+		if !ok {
+			return fmt.Errorf("rules[%d].importConventions[%d].rule must be a string, got %T", ruleIndex, i, conventionMap["rule"])
+		}
+
+		if rule != "relative-internal-absolute-external" {
+			return fmt.Errorf("rules[%d].importConventions[%d].rule: unknown rule '%s'. Only 'relative-internal-absolute-external' is supported", ruleIndex, i, rule)
+		}
+
+		// Validate domains field
+		if err := validateRelativeInternalAbsoluteExternalRule(conventionMap, ruleIndex, i); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateRelativeInternalAbsoluteExternalRule validates the specific rule
+func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, ruleIndex int, convIndex int) error {
+	domains := rule["domains"]
+
+	// Check if domains is an array
+	domainsArray, ok := domains.([]interface{})
+	if !ok {
+		return fmt.Errorf("rules[%d].importConventions[%d].domains must be an array, got %T", ruleIndex, convIndex, domains)
+	}
+
+	if len(domainsArray) == 0 {
+		return fmt.Errorf("rules[%d].importConventions[%d].domains cannot be empty", ruleIndex, convIndex)
+	}
+
+	// Check if all elements are strings or all are objects
+	var hasStrings bool
+	var hasObjects bool
+	var parsedDomains []ImportConventionDomain
+
+	for i, domain := range domainsArray {
+		switch v := domain.(type) {
+		case string:
+			hasStrings = true
+			if v == "" {
+				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d] cannot be empty string", ruleIndex, convIndex, i)
+			}
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: v, Enabled: true})
+		case map[string]interface{}:
+			hasObjects = true
+			domainMap := v
+
+			// Check for required path field
+			path, exists := domainMap["path"]
+			if !exists {
+				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].path is required", ruleIndex, convIndex, i)
+			}
+
+			pathStr, ok := path.(string)
+			if !ok {
+				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].path must be a string, got %T", ruleIndex, convIndex, i, path)
+			}
+
+			if pathStr == "" {
+				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].path cannot be empty", ruleIndex, convIndex, i)
+			}
+
+			// Check for optional alias field
+			var alias string
+			if aliasField, exists := domainMap["alias"]; exists {
+				aliasStr, ok := aliasField.(string)
+				if !ok {
+					return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].alias must be a string, got %T", ruleIndex, convIndex, i, aliasField)
+				}
+				if aliasStr == "" {
+					return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].alias cannot be empty", ruleIndex, convIndex, i)
+				}
+				alias = aliasStr
+			}
+
+			// Check for optional enabled field, default to true
+			enabled := true
+			if enabledField, exists := domainMap["enabled"]; exists {
+				enabledBool, ok := enabledField.(bool)
+				if !ok {
+					return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].enabled must be a boolean, got %T", ruleIndex, convIndex, i, enabledField)
+				}
+				enabled = enabledBool
+			}
+
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: pathStr, Alias: alias, Enabled: enabled})
+		default:
+			return fmt.Errorf("rules[%d].importConventions[%d].domains[%d] must be a string or object, got %T", ruleIndex, convIndex, i, domain)
+		}
+	}
+
+	// Mixed types are not allowed
+	if hasStrings && hasObjects {
+		return fmt.Errorf("rules[%d].importConventions[%d].domains cannot mix strings and objects", ruleIndex, convIndex)
+	}
+
+	// Validate no nested domains
+	if err := validateNoNestedDomains(parsedDomains, ruleIndex, convIndex); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateNoNestedDomains checks that no domain path is a prefix of another
+func validateNoNestedDomains(domains []ImportConventionDomain, ruleIndex int, convIndex int) error {
+	for i := 0; i < len(domains); i++ {
+		for j := i + 1; j < len(domains); j++ {
+			// Normalize paths for comparison
+			path1 := filepath.Clean(domains[i].Path)
+			path2 := filepath.Clean(domains[j].Path)
+
+			// Check if one path is a prefix of the other
+			if strings.HasPrefix(path1, path2) && (path1 == path2 || strings.HasPrefix(path1[len(path2):], string(filepath.Separator))) {
+				return fmt.Errorf("rules[%d].importConventions[%d]: nested domains not allowed: '%s' and '%s'", ruleIndex, convIndex, domains[i].Path, domains[j].Path)
+			}
+			if strings.HasPrefix(path2, path1) && (path2 == path1 || strings.HasPrefix(path2[len(path1):], string(filepath.Separator))) {
+				return fmt.Errorf("rules[%d].importConventions[%d]: nested domains not allowed: '%s' and '%s'", ruleIndex, convIndex, domains[i].Path, domains[j].Path)
+			}
+		}
+	}
+	return nil
+}
+
+// parseImportConventionDomains converts domains from interface{} to []ImportConventionDomain
+func parseImportConventionDomains(domains interface{}) ([]ImportConventionDomain, error) {
+	domainsArray, ok := domains.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("domains must be an array, got %T", domains)
+	}
+
+	var parsedDomains []ImportConventionDomain
+	for i, domain := range domainsArray {
+		switch v := domain.(type) {
+		case string:
+			if v == "" {
+				return nil, fmt.Errorf("domains[%d] cannot be empty string", i)
+			}
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: v, Enabled: true})
+		case map[string]interface{}:
+			domainMap := v
+
+			// Check for required path field
+			path, exists := domainMap["path"]
+			if !exists {
+				return nil, fmt.Errorf("domains[%d].path is required", i)
+			}
+
+			pathStr, ok := path.(string)
+			if !ok {
+				return nil, fmt.Errorf("domains[%d].path must be a string, got %T", i, path)
+			}
+
+			if pathStr == "" {
+				return nil, fmt.Errorf("domains[%d].path cannot be empty", i)
+			}
+
+			// Check for optional alias field
+			var alias string
+			if aliasField, exists := domainMap["alias"]; exists {
+				aliasStr, ok := aliasField.(string)
+				if !ok {
+					return nil, fmt.Errorf("domains[%d].alias must be a string, got %T", i, aliasField)
+				}
+				if aliasStr == "" {
+					return nil, fmt.Errorf("domains[%d].alias cannot be empty", i)
+				}
+				alias = aliasStr
+			}
+
+			// Check for optional enabled field, default to true
+			enabled := true
+			if enabledField, exists := domainMap["enabled"]; exists {
+				enabledBool, ok := enabledField.(bool)
+				if !ok {
+					return nil, fmt.Errorf("domains[%d].enabled must be a boolean, got %T", i, enabledField)
+				}
+				enabled = enabledBool
+			}
+
+			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: pathStr, Alias: alias, Enabled: enabled})
+		default:
+			return nil, fmt.Errorf("domains[%d] must be a string or object, got %T", i, domain)
+		}
+	}
+
+	return parsedDomains, nil
 }
 
 func validatePattern(pattern string) error {

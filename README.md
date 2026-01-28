@@ -303,6 +303,7 @@ Rev-dep provides a configuration system for orchestrating project checks. The co
 Available checks are:
 
 - **module boundaries** - check if imports respect module boundaries
+- **import conventions** - enforce syntactic consistency for imports
 - **circular imports** - check if there are circular imports
 - **orphan files** - check if there are orphan/dead files
 - **unused node modules** - check against unused node modules
@@ -339,8 +340,8 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.0",
-  "$schema": "https://github.com/jayu/rev-dep/blob/module-boundaries/config-schema/1.0.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.1",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.1.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -359,6 +360,23 @@ Here's a comprehensive example showing all available properties:
           "pattern": "src/api/**/*",
           "allow": ["src/utils/**/*", "src/types/**/*"],
           "deny": ["src/components/**/*"]
+        }
+      ],
+      "importConventions": [
+        {
+          "rule": "relative-internal-absolute-external",
+          "domains": [
+            {
+              "path": "src/features/auth",
+              "alias": "@auth",
+              "enabled": true
+            },
+            {
+              "path": "src/shared/ui",
+              "alias": "@ui-kit",
+              "enabled": false // checks disabled for this domain, but alias is still used for absolute imports from other domains
+            }
+          ]
         }
       ],
       "circularImportsDetection": {
@@ -410,12 +428,20 @@ Each rule can contain the following properties:
 - **`orphanFilesDetection`** (optional): Orphan files detection configuration  
 - **`unusedNodeModulesDetection`** (optional): Unused node modules detection configuration
 - **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration
+- **`importConventions`** (optional): Array of import convention rules
 
 #### Module Boundary Properties
 - **`name`** (required): Name of the boundary
 - **`pattern`** (required): Glob pattern for files in this boundary
 - **`allow`** (optional): Array of allowed import patterns
 - **`deny`** (optional): Array of denied import patterns (overrides allow)
+
+#### Import Convention Properties
+- **`rule`** (required): Type of the rule, currently only `relative-internal-absolute-external`
+- **`domains`** (required): Array of domain definitions. Can be a string (glob pattern) or an object with:
+  - **`path`** (required): Directory with the domain files
+  - **`alias`** (optional): Alias to be used for absolute imports of code from this domain
+  - **`enabled`** (optional): Set to `false` to skip checks for this domain (default: true)
 
 #### Detection Options Properties
 

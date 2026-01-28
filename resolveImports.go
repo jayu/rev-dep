@@ -421,11 +421,12 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 	tsConfigParsed := ParseTsConfigContent(tsconfigContent)
 
 	packageJsonImports := &PackageJsonImports{
-		imports:             map[string]interface{}{},
-		importsRegexps:      []RegExpArrItem{},
-		wildcardPatterns:    []WildcardPattern{},
-		conditionNames:      conditionNames,
-		parsedImportTargets: map[string]*ImportTargetTreeNode{},
+		imports:                  map[string]interface{}{},
+		simpleImportTargetsByKey: map[string]string{},
+		importsRegexps:           []RegExpArrItem{},
+		wildcardPatterns:         []WildcardPattern{},
+		conditionNames:           conditionNames,
+		parsedImportTargets:      map[string]*ImportTargetTreeNode{},
 	}
 
 	var rawPackageJson map[string]interface{}
@@ -437,6 +438,12 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 			for key, target := range importsMap {
 				if strings.Count(key, "*") > 1 {
 					continue
+				}
+
+				// For simple string targets, store them directly (used by import conventions)
+				if targetStr, ok := target.(string); ok && !strings.Contains(targetStr, "#") {
+					cleanTarget := strings.TrimPrefix(targetStr, "./")
+					packageJsonImports.simpleImportTargetsByKey[key] = cleanTarget
 				}
 
 				// Parse the target into tree structure

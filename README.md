@@ -640,6 +640,7 @@ rev-dep config run [flags]
   -c, --cwd string                 Working directory (default "$PWD")
       --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
   -h, --help                       help for run
+      --list-all-issues            List all issues instead of limiting output
       --package-json string        Path to package.json (default: ./package.json)
       --tsconfig-json string       Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                    Show warnings and verbose output

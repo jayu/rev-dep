@@ -189,8 +189,8 @@ func TestCompileDomains(t *testing.T) {
 				{Path: "src/users"},
 			},
 			expectedCompiled: []CompiledDomain{
-				{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth")},
-				{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users")},
+				{Path: "src/auth", AbsolutePath: filepath.Join(tempDir, "src", "auth"), Alias: "@src/auth"},
+				{Path: "src/users", AbsolutePath: filepath.Join(tempDir, "src", "users"), Alias: "@src/users"},
 			},
 		},
 		{
@@ -323,7 +323,7 @@ func TestInferAliasForDomain(t *testing.T) {
 		{
 			name:          "Domain with no matching alias",
 			domainPath:    "src/unknown",
-			expectedAlias: "",
+			expectedAlias: "@src/unknown",
 		},
 	}
 
@@ -464,7 +464,7 @@ func TestImportTargetsDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			domain := ResolveImportTargetDomain(tt.importPath, compiledDomains)
+			domain := ResolveDomainForFile(tt.importPath, compiledDomains)
 
 			if tt.expectedDomain == nil {
 				if domain != nil {
@@ -573,7 +573,6 @@ func TestCheckImportConventions_IntraDomainAlias(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[0],
-		tempDir,
 	)
 
 	if len(violations) != 1 {
@@ -624,7 +623,6 @@ func TestCheckImportConventions_InterDomainRelative(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain
-		tempDir,
 	)
 
 	if len(violations) != 1 {
@@ -675,7 +673,6 @@ func TestCheckImportConventions_WrongAlias(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain
-		tempDir,
 	)
 
 	if len(violations) != 1 {
@@ -724,7 +721,6 @@ func TestCheckImportConventions_ValidIntraDomain(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[0],
-		tempDir,
 	)
 
 	if len(violations) != 0 {
@@ -764,7 +760,6 @@ func TestCheckImportConventions_ValidInterDomain(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain
-		tempDir,
 	)
 
 	if len(violations) != 0 {
@@ -805,7 +800,6 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain (enabled)
-		tempDir,
 	)
 
 	// Should have a violation because it targets a domain that has an alias, even if targets own checks are disabled
@@ -829,7 +823,6 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain (enabled)
-		tempDir,
 	)
 
 	// Should have a violation because it's intra-domain with alias instead of relative
@@ -855,7 +848,6 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[0], // auth domain (disabled)
-		tempDir,
 	)
 
 	// Should have no violations because source domain is disabled
@@ -877,7 +869,6 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain (enabled)
-		tempDir,
 	)
 
 	// Should have a violation because it uses the wrong explicit alias for the target domain

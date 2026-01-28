@@ -158,8 +158,6 @@ func processRuleChecks(
 	fullTree MinimalDependencyTree,
 	resolverManager *ResolverManager,
 	cwd string,
-	packageJson string,
-	tsconfigJson string,
 ) RuleResult {
 	// Track enabled checks
 	enabledChecks := []string{}
@@ -312,27 +310,10 @@ func processRuleChecks(
 		go func() {
 			defer wg.Done()
 
-			// Convert import conventions to parsed rules
-			parsedRules := make([]ParsedImportConventionRule, len(rule.ImportConventions))
-			for i, conv := range rule.ImportConventions {
-				// Convert domains from interface{} to []ImportConventionDomain
-				// This should now be correctly parsed by the config parsing
-				domains, ok := conv.Domains.([]ImportConventionDomain)
-				if !ok {
-					// This should not happen if config parsing worked correctly
-					continue
-				}
-
-				parsedRules[i] = ParsedImportConventionRule{
-					Rule:    conv.Rule,
-					Domains: domains,
-				}
-			}
-
 			violations := CheckImportConventionsFromTree(
 				ruleTree,
 				ruleFiles,
-				parsedRules,
+				rule.ImportConventions,
 				rulePathResolver,
 				fullRulePath, // Use rule path instead of current working directory
 			)
@@ -403,8 +384,6 @@ func ProcessConfig(
 				fullTree,
 				resolverManager,
 				cwd,
-				packageJson,
-				tsconfigJson,
 			)
 
 			// Set the missing package.json flag

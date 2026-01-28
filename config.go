@@ -54,12 +54,6 @@ type ImportConventionDomain struct {
 	Enabled bool   `json:"enabled,omitempty"`
 }
 
-// ImportConventionRule represents an import convention rule
-type ImportConventionRule struct {
-	Rule    string      `json:"rule"`    // e.g., "relative-internal-absolute-external"
-	Domains interface{} `json:"domains"` // Can be []string or []ImportConventionDomain
-}
-
 // ParsedImportConventionRule is the normalized form after parsing
 type ParsedImportConventionRule struct {
 	Rule    string
@@ -67,14 +61,14 @@ type ParsedImportConventionRule struct {
 }
 
 type Rule struct {
-	Path                        string                     `json:"path"`                             // Required
-	FollowMonorepoPackages      bool                       `json:"followMonorepoPackages,omitempty"` // Default: true
-	ModuleBoundaries            []BoundaryRule             `json:"moduleBoundaries,omitempty"`
-	CircularImportsDetection    *CircularImportsOptions    `json:"circularImportsDetection,omitempty"`
-	OrphanFilesDetection        *OrphanFilesOptions        `json:"orphanFilesDetection,omitempty"`
-	UnusedNodeModulesDetection  *UnusedNodeModulesOptions  `json:"unusedNodeModulesDetection,omitempty"`
-	MissingNodeModulesDetection *MissingNodeModulesOptions `json:"missingNodeModulesDetection,omitempty"`
-	ImportConventions           []ImportConventionRule     `json:"importConventions,omitempty"` // NEW
+	Path                        string                       `json:"path"`                             // Required
+	FollowMonorepoPackages      bool                         `json:"followMonorepoPackages,omitempty"` // Default: true
+	ModuleBoundaries            []BoundaryRule               `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetection    *CircularImportsOptions      `json:"circularImportsDetection,omitempty"`
+	OrphanFilesDetection        *OrphanFilesOptions          `json:"orphanFilesDetection,omitempty"`
+	UnusedNodeModulesDetection  *UnusedNodeModulesOptions    `json:"unusedNodeModulesDetection,omitempty"`
+	MissingNodeModulesDetection *MissingNodeModulesOptions   `json:"missingNodeModulesDetection,omitempty"`
+	ImportConventions           []ParsedImportConventionRule `json:"-"`
 }
 
 type RevDepConfig struct {
@@ -187,10 +181,26 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 		return nil, err
 	}
 
-	// Parse into typed struct
+	// Use a temporary struct to unmarshal with generic types for normalization
+	// We use this to capture the non-standard "domains" field (string or object)
+	type rawImportConventionRule struct {
+		Rule    string      `json:"rule"`
+		Domains interface{} `json:"domains"`
+	}
+	type rawRuleItems struct {
+		ImportConventions []rawImportConventionRule `json:"importConventions"`
+	}
+	var rawRules struct {
+		Rules []rawRuleItems `json:"rules"`
+	}
+	if err := json.Unmarshal(jsonc.ToJSON(content), &rawRules); err != nil {
+		return nil, fmt.Errorf("failed to parse config for normalization: %w", err)
+	}
+
+	// Parse into final typed struct
 	var config RevDepConfig
 	if err := json.Unmarshal(jsonc.ToJSON(content), &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
+		return nil, fmt.Errorf("failed to parse config into final structure: %w", err)
 	}
 
 	// Validate config
@@ -206,7 +216,6 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 	// Set default values for optional fields and process import conventions
 	for i := range config.Rules {
 		// Default FollowMonorepoPackages to true if not explicitly set (zero value is false)
-		// We need to check if the field was explicitly set in the JSON
 		if rawRules, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRules) {
 			if ruleMap, ok := rawRules[i].(map[string]interface{}); ok {
 				if _, exists := ruleMap["followMonorepoPackages"]; !exists {
@@ -215,21 +224,17 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 			}
 		}
 
-		// Process import conventions to convert domains from interface{} to []ImportConventionDomain
-		for j := range config.Rules[i].ImportConventions {
-			if rawRules, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRules) {
-				if ruleMap, ok := rawRules[i].(map[string]interface{}); ok {
-					if conventions, ok := ruleMap["importConventions"].([]interface{}); ok && j < len(conventions) {
-						if conventionMap, ok := conventions[j].(map[string]interface{}); ok {
-							if domainsInterface, ok := conventionMap["domains"]; ok {
-								parsedDomains, err := parseImportConventionDomains(domainsInterface)
-								if err != nil {
-									return nil, fmt.Errorf("failed to parse import convention domains for rules[%d].importConventions[%d]: %w", i, j, err)
-								}
-								config.Rules[i].ImportConventions[j].Domains = parsedDomains
-							}
-						}
-					}
+		// Process and normalize import conventions
+		if i < len(rawRules.Rules) {
+			config.Rules[i].ImportConventions = make([]ParsedImportConventionRule, len(rawRules.Rules[i].ImportConventions))
+			for j, rawConv := range rawRules.Rules[i].ImportConventions {
+				parsedDomains, err := parseImportConventionDomains(rawConv.Domains)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse import convention domains for rules[%d].importConventions[%d]: %w", i, j, err)
+				}
+				config.Rules[i].ImportConventions[j] = ParsedImportConventionRule{
+					Rule:    rawConv.Rule,
+					Domains: parsedDomains,
 				}
 			}
 		}

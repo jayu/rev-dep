@@ -44,9 +44,9 @@ func TestParseConfig_ImportConventions_SimplifiedMode(t *testing.T) {
 		t.Errorf("Expected rule 'relative-internal-absolute-external', got '%s'", convention.Rule)
 	}
 
-	// Check that domains is interface{} and can be processed
-	if convention.Domains == nil {
-		t.Error("Expected domains to be set, got nil")
+	// After parsing, domains should be converted to []ImportConventionDomain
+	if len(convention.Domains) == 0 {
+		t.Error("Expected domains to be set, got empty")
 	}
 }
 
@@ -93,9 +93,9 @@ func TestParseConfig_ImportConventions_AdvancedMode(t *testing.T) {
 		t.Errorf("Expected rule 'relative-internal-absolute-external', got '%s'", convention.Rule)
 	}
 
-	// Check that domains is interface{} and can be processed
-	if convention.Domains == nil {
-		t.Error("Expected domains to be set, got nil")
+	// After parsing, domains should be converted to []ImportConventionDomain
+	if len(convention.Domains) == 0 {
+		t.Error("Expected domains to be set, got empty")
 	}
 }
 
@@ -430,10 +430,7 @@ func TestParseConfig_ImportConventions_EnabledField(t *testing.T) {
 	convention := rule.ImportConventions[0]
 
 	// After parsing, domains should be converted to []ImportConventionDomain
-	parsedDomains, ok := convention.Domains.([]ImportConventionDomain)
-	if !ok {
-		t.Error("Expected domains to be parsed as []ImportConventionDomain")
-	}
+	parsedDomains := convention.Domains
 
 	if len(parsedDomains) != 2 {
 		t.Errorf("Expected 2 parsed domains, got %d", len(parsedDomains))
@@ -492,10 +489,7 @@ func TestParseConfig_ImportConventions_EnabledFieldDefault(t *testing.T) {
 	rule := config.Rules[0]
 	convention := rule.ImportConventions[0]
 
-	parsedDomains, ok := convention.Domains.([]ImportConventionDomain)
-	if !ok {
-		t.Error("Expected domains to be parsed as []ImportConventionDomain")
-	}
+	parsedDomains := convention.Domains
 
 	if len(parsedDomains) != 1 {
 		t.Errorf("Expected 1 parsed domain, got %d", len(parsedDomains))

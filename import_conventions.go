@@ -38,39 +38,25 @@ func ExpandDomainGlobs(patterns []string, cwd string) ([]string, error) {
 	seen := make(map[string]bool)
 
 	for _, pattern := range patterns {
-		// If pattern contains wildcards, expand it
-		if strings.Contains(pattern, "*") {
-			// Simple glob expansion for common patterns like "src/*"
-			if strings.HasSuffix(pattern, "/*") {
-				baseDir := strings.TrimSuffix(pattern, "/*")
-				fullBaseDir := filepath.Join(cwd, baseDir)
+		if strings.HasSuffix(pattern, "/*") {
+			baseDir := strings.TrimSuffix(pattern, "/*")
+			fullBaseDir := filepath.Join(cwd, baseDir)
 
-				entries, err := os.ReadDir(fullBaseDir)
-				if err != nil {
-					// Directory doesn't exist, skip
-					continue
-				}
+			entries, err := os.ReadDir(fullBaseDir)
+			if err != nil {
+				continue
+			}
 
-				for _, entry := range entries {
-					if entry.IsDir() {
-						fullPath := filepath.Join(fullBaseDir, entry.Name())
-						if !seen[fullPath] {
-							seen[fullPath] = true
-							result = append(result, fullPath)
-						}
+			for _, entry := range entries {
+				if entry.IsDir() {
+					fullPath := filepath.Join(fullBaseDir, entry.Name())
+					if !seen[fullPath] {
+						seen[fullPath] = true
+						result = append(result, fullPath)
 					}
-				}
-			} else {
-				// For more complex patterns, we'll need a more sophisticated approach
-				// For now, treat as literal path
-				absPath := filepath.Join(cwd, pattern)
-				if !seen[absPath] {
-					seen[absPath] = true
-					result = append(result, absPath)
 				}
 			}
 		} else {
-			// No wildcards, use the path as-is
 			absPath := filepath.Join(cwd, pattern)
 			if !seen[absPath] {
 				seen[absPath] = true
@@ -90,120 +76,46 @@ func CompileDomains(
 	packageJsonImports *PackageJsonImports,
 ) ([]CompiledDomain, error) {
 	var compiled []CompiledDomain
+	domainMap := make(map[string]ImportConventionDomain)
+	var patterns []string
 
-	// Separate simple paths from glob patterns
-	var simplePaths []string
-	var globPatterns []string
-	var domainMap = make(map[string]ImportConventionDomain)
-
-	for _, domain := range domains {
-		domainMap[domain.Path] = domain
-		if strings.Contains(domain.Path, "*") {
-			globPatterns = append(globPatterns, domain.Path)
-		} else {
-			simplePaths = append(simplePaths, domain.Path)
-		}
+	for _, d := range domains {
+		domainMap[d.Path] = d
+		patterns = append(patterns, d.Path)
 	}
 
-	// Process simple paths directly
-	for _, path := range simplePaths {
-		absPath := filepath.Join(cwd, path)
-		absPath = filepath.Clean(absPath)
-		domain := domainMap[path]
+	expandedPaths, err := ExpandDomainGlobs(patterns, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to expand domain globs: %w", err)
+	}
 
+	for _, absPath := range expandedPaths {
+		absPath = filepath.Clean(absPath)
+		relPath, _ := filepath.Rel(cwd, absPath)
+
+		// Find which original pattern this expanded path came from for Enabled/Alias settings
+		var originalPattern string
+		for _, p := range patterns {
+			absPatternBase := filepath.Join(cwd, strings.TrimSuffix(p, "*"))
+			if strings.HasPrefix(absPath, absPatternBase) {
+				originalPattern = p
+				break
+			}
+		}
+
+		domain := domainMap[originalPattern]
 		alias := domain.Alias
 		if alias == "" {
-			alias = InferAliasForDomain(path, tsconfigParsed, packageJsonImports)
+			alias = InferAliasForDomain(relPath, tsconfigParsed, packageJsonImports)
 		}
 
 		compiled = append(compiled, CompiledDomain{
-			Path:          path,
+			Path:          relPath,
 			Alias:         alias,
 			AbsolutePath:  absPath,
 			Enabled:       domain.Enabled,
 			AliasExplicit: domain.Alias != "",
 		})
-	}
-
-	// Process glob patterns
-	if len(globPatterns) > 0 {
-		expandedPaths, err := ExpandDomainGlobs(globPatterns, cwd)
-		if err != nil {
-			return nil, fmt.Errorf("failed to expand domain globs: %w", err)
-		}
-
-		// Create compiled domains for each expanded path
-		for _, expandedPath := range expandedPaths {
-			// Check if expandedPath is already absolute
-			var absPath string
-			if filepath.IsAbs(expandedPath) {
-				// Path is already absolute, use as-is
-				absPath = filepath.Clean(expandedPath)
-			} else {
-				// Path is relative, join with cwd
-				absPath = filepath.Join(cwd, expandedPath)
-				absPath = filepath.Clean(absPath)
-			}
-
-			relPath, err := filepath.Rel(cwd, absPath)
-			if err != nil {
-				relPath = expandedPath // Fallback
-			}
-
-			// For expanded paths, try to infer alias from the original glob pattern
-			// or use empty string if no alias can be inferred
-			var alias string
-			originalPattern := ""
-			for _, pattern := range globPatterns {
-				// Find which glob pattern this expanded path came from
-				absPatternBase := filepath.Join(cwd, strings.TrimSuffix(pattern, "*"))
-				if strings.HasPrefix(absPath, absPatternBase) {
-					originalPattern = pattern
-					break
-				}
-			}
-			if originalPattern != "" {
-				originalDomain := domainMap[originalPattern]
-				if originalDomain.Alias != "" {
-					// Use the alias from the original pattern
-					alias = originalDomain.Alias
-				} else {
-					// Try to infer alias from the expanded path
-					alias = InferAliasForDomain(relPath, tsconfigParsed, packageJsonImports)
-
-					if alias == "" {
-						// Fallback: generate a reasonable alias from the path
-						pathParts := strings.Split(relPath, string(filepath.Separator))
-						if len(pathParts) >= 2 {
-							// Use the last two parts as alias (e.g., "app/auth" -> "@app/auth")
-							alias = "@" + strings.Join(pathParts[len(pathParts)-2:], "/")
-						} else if len(pathParts) == 1 {
-							// Use the single part as alias (e.g., "auth" -> "@auth")
-							alias = "@" + pathParts[0]
-						}
-					}
-				}
-			}
-			// Get the original domain to access its Enabled field
-			var enabled bool
-			var aliasExplicit bool
-			if originalPattern != "" {
-				originalDomain := domainMap[originalPattern]
-				enabled = originalDomain.Enabled
-				aliasExplicit = originalDomain.Alias != ""
-			} else {
-				// Default to false if we can't find the original pattern (opt-in behavior)
-				enabled = false
-			}
-
-			compiled = append(compiled, CompiledDomain{
-				Path:          relPath,
-				Alias:         alias,
-				AbsolutePath:  absPath,
-				Enabled:       enabled,
-				AliasExplicit: aliasExplicit,
-			})
-		}
 	}
 
 	return compiled, nil
@@ -300,7 +212,16 @@ func InferAliasForDomain(
 		}
 	}
 
-	// No matching alias found
+	// No matching alias found, try fallback from path
+	pathParts := strings.Split(domainPath, string(filepath.Separator))
+	if len(pathParts) >= 2 {
+		// Use the last two parts as alias (e.g., "app/auth" -> "@app/auth")
+		return "@" + strings.Join(pathParts[len(pathParts)-2:], "/")
+	} else if len(pathParts) == 1 && pathParts[0] != "." {
+		// Use the single part as alias (e.g., "auth" -> "@auth")
+		return "@" + pathParts[0]
+	}
+
 	return ""
 }
 
@@ -311,27 +232,6 @@ func IsRelativeImport(request string) bool {
 		strings.HasPrefix(request, "../") ||
 		request == "." ||
 		request == ".."
-}
-
-// ResolveImportTargetDomain finds target domain of resolved import using prefix matching
-func ResolveImportTargetDomain(resolvedPath string, compiledDomains []CompiledDomain) *CompiledDomain {
-	// Normalize the path for consistent comparison
-	normalizedPath := filepath.Clean(resolvedPath)
-
-	for i := range compiledDomains {
-		if strings.HasPrefix(normalizedPath, compiledDomains[i].AbsolutePath) {
-			// Additional check to ensure we're not matching partial directory names
-			// e.g., "/src/auth" should not match "/src/authentication"
-			if len(normalizedPath) == len(compiledDomains[i].AbsolutePath) {
-				return &compiledDomains[i]
-			}
-			// Check if the next character is a path separator
-			if strings.HasPrefix(normalizedPath[len(compiledDomains[i].AbsolutePath):], string(filepath.Separator)) {
-				return &compiledDomains[i]
-			}
-		}
-	}
-	return nil
 }
 
 // ValidateImportUsesCorrectAlias checks if import uses the correct alias for the target domain
@@ -374,16 +274,8 @@ func CheckImportConventionsFromTree(
 		// Optimization: Build file-to-domain lookup map once before iterating
 		fileToDomain := make(map[string]*CompiledDomain)
 		for _, file := range files {
-			// Check if file path is already absolute or relative
-			var absoluteFilePath string
-			if filepath.IsAbs(file) {
-				// File is already absolute, use as-is
-				absoluteFilePath = filepath.Clean(file)
-			} else {
-				// File is relative, convert to absolute for domain resolution
-				absoluteFilePath = filepath.Clean(filepath.Join(cwd, file))
-			}
-			domain := ResolveDomainForFile(absoluteFilePath, compiledDomains)
+			// Paths are already absolute in our system
+			domain := ResolveDomainForFile(file, compiledDomains)
 			fileToDomain[file] = domain
 		}
 
@@ -411,7 +303,6 @@ func CheckImportConventionsFromTree(
 				imports,
 				compiledDomains,
 				sourceDomain,
-				cwd,
 			)
 			violations = append(violations, fileViolations...)
 		}
@@ -436,7 +327,6 @@ func checkFileImportConventions(
 	imports []MinimalDependency,
 	compiledDomains []CompiledDomain,
 	fileDomain *CompiledDomain,
-	cwd string,
 ) []ImportConventionViolation {
 	violations := []ImportConventionViolation{}
 
@@ -455,15 +345,8 @@ func checkFileImportConventions(
 		var targetDomain *CompiledDomain
 		var resolvedPath string
 		if dep.ID != nil {
-			// Check if the path is already absolute or relative
-			if filepath.IsAbs(*dep.ID) {
-				// Path is already absolute, use as-is
-				resolvedPath = filepath.Clean(*dep.ID)
-			} else {
-				// Path is relative, convert to absolute for domain resolution
-				resolvedPath = filepath.Clean(filepath.Join(cwd, *dep.ID))
-			}
-			targetDomain = ResolveImportTargetDomain(resolvedPath, compiledDomains)
+			resolvedPath = *dep.ID
+			targetDomain = ResolveDomainForFile(resolvedPath, compiledDomains)
 		}
 
 		// Check for violations based on the rule
@@ -564,8 +447,8 @@ func getTargetPath(targetDomain *CompiledDomain, resolvedPath string) string {
 	}
 	if resolvedPath != "" {
 		// Convert absolute path to relative for display
-		if strings.HasPrefix(resolvedPath, "/") {
-			parts := strings.Split(strings.TrimPrefix(resolvedPath, "/"), "/")
+		if after, found := strings.CutPrefix(resolvedPath, "/"); found {
+			parts := strings.Split(after, "/")
 			if len(parts) >= 2 {
 				return strings.Join(parts[:2], "/")
 			}
@@ -575,5 +458,3 @@ func getTargetPath(targetDomain *CompiledDomain, resolvedPath string) string {
 	}
 	return "unknown"
 }
-
-// ... (rest of the code remains the same)

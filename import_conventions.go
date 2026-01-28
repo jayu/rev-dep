@@ -1,14 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/tidwall/jsonc"
 )
 
 // ImportConventionViolation represents a violation of import conventions
@@ -31,67 +28,6 @@ type CompiledDomain struct {
 	AbsolutePath  string // Full absolute path for prefix matching
 	Enabled       bool   // Whether checks should be performed for this domain
 	AliasExplicit bool   // Whether the alias was explicitly provided in config
-}
-
-// ParsePackageJsonImports parses package.json imports from a file
-func ParsePackageJsonImports(packageJsonPath string) (*PackageJsonImports, error) {
-	content, err := os.ReadFile(packageJsonPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var rawPackageJson map[string]interface{}
-	if err := json.Unmarshal(jsonc.ToJSON(content), &rawPackageJson); err != nil {
-		return nil, err
-	}
-
-	packageJsonImports := &PackageJsonImports{
-		imports:                  map[string]interface{}{},
-		importsRegexps:           []RegExpArrItem{},
-		wildcardPatterns:         []WildcardPattern{},
-		conditionNames:           []string{}, // No conditions for import conventions
-		parsedImportTargets:      map[string]*ImportTargetTreeNode{},
-		simpleImportTargetsByKey: map[string]string{},
-	}
-
-	if imports, ok := rawPackageJson["imports"]; ok {
-		if importsMap, ok := imports.(map[string]interface{}); ok {
-			packageJsonImports.imports = importsMap
-			for key, target := range importsMap {
-				if strings.Count(key, "*") > 1 {
-					continue
-				}
-
-				// For simple string targets, store them directly
-				if targetStr, ok := target.(string); ok && !strings.Contains(targetStr, "#") {
-					cleanTarget := strings.TrimPrefix(targetStr, "./")
-					packageJsonImports.simpleImportTargetsByKey[key] = cleanTarget
-				}
-
-				// Parse the target into tree structure
-				parsedTarget := parseImportTarget(target, []string{})
-				if parsedTarget == nil {
-					continue
-				}
-
-				packageJsonImports.parsedImportTargets[key] = parsedTarget
-
-				// Create wildcard pattern if key contains wildcard
-				if strings.Contains(key, "*") {
-					wildcardIndex := strings.Index(key, "*")
-					prefix := key[:wildcardIndex]
-					suffix := key[wildcardIndex+1:]
-					packageJsonImports.wildcardPatterns = append(packageJsonImports.wildcardPatterns, WildcardPattern{
-						key:    key,
-						prefix: prefix,
-						suffix: suffix,
-					})
-				}
-			}
-		}
-	}
-
-	return packageJsonImports, nil
 }
 
 // ExpandDomainGlobs expands glob patterns to concrete directory paths
@@ -393,11 +329,17 @@ func CheckImportConventionsFromTree(
 	minimalTree MinimalDependencyTree,
 	files []string,
 	parsedRules []ParsedImportConventionRule,
-	tsconfigParsed *TsConfigParsed,
-	packageJsonImports *PackageJsonImports,
+	resolver *ModuleResolver,
 	cwd string,
 ) []ImportConventionViolation {
 	var violations []ImportConventionViolation
+
+	var tsconfigParsed *TsConfigParsed
+	var packageJsonImports *PackageJsonImports
+	if resolver != nil {
+		tsconfigParsed = resolver.tsConfigParsed
+		packageJsonImports = resolver.packageJsonImports
+	}
 
 	// Compile domains for each rule
 	for _, rule := range parsedRules {

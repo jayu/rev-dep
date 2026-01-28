@@ -281,10 +281,13 @@ func TestInferAliasForDomain(t *testing.T) {
 
 	tsconfigParsed := ParseTsConfigContent(tsconfigBytes)
 
-	packageJsonImports, err := ParsePackageJsonImports(packageJsonPath)
+	packageJsonBytes, err := os.ReadFile(packageJsonPath)
 	if err != nil {
-		t.Fatalf("Failed to parse package.json imports: %v", err)
+		t.Fatalf("Failed to read package.json: %v", err)
 	}
+
+	resolver := NewImportsResolver(tempDir, tsconfigBytes, packageJsonBytes, []string{}, []string{}, nil)
+	packageJsonImports := resolver.packageJsonImports
 
 	tests := []struct {
 		name          string

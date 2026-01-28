@@ -312,21 +312,6 @@ func processRuleChecks(
 		go func() {
 			defer wg.Done()
 
-			// Parse tsconfig and package.json for alias inference
-			var tsconfigParsed *TsConfigParsed
-			var packageJsonImports *PackageJsonImports
-
-			if tsconfigJson != "" {
-				tsconfigBytes, err := ParseTsConfig(tsconfigJson)
-				if err == nil {
-					tsconfigParsed = ParseTsConfigContent(tsconfigBytes)
-				}
-			}
-
-			if packageJson != "" {
-				packageJsonImports, _ = ParsePackageJsonImports(packageJson)
-			}
-
 			// Convert import conventions to parsed rules
 			parsedRules := make([]ParsedImportConventionRule, len(rule.ImportConventions))
 			for i, conv := range rule.ImportConventions {
@@ -348,8 +333,7 @@ func processRuleChecks(
 				ruleTree,
 				ruleFiles,
 				parsedRules,
-				tsconfigParsed,
-				packageJsonImports,
+				rulePathResolver,
 				fullRulePath, // Use rule path instead of current working directory
 			)
 

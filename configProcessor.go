@@ -118,49 +118,14 @@ func filterFilesForRule(
 	cwd string,
 	followMonorepoPackages bool,
 ) ([]string, MinimalDependencyTree) {
-	// Get the actual working directory if cwd is "."
-	actualCwd := cwd
-	if cwd == "." {
-		if actual, err := os.Getwd(); err == nil {
-			actualCwd = actual
-		}
-	}
-
-	// Convert rule path to absolute path for consistent comparison
-	var absoluteRulePath string
-	if rulePath == "." {
-		absoluteRulePath = filepath.Clean(actualCwd)
-	} else {
-		absoluteRulePath = filepath.Clean(filepath.Join(actualCwd, rulePath))
-	}
+	normalizedRulePath := normalizeRulePath(filepath.Join(cwd, rulePath))
 
 	filesWithinCwd := []string{}
 	subTree := MinimalDependencyTree{}
 
 	for file := range fullTree {
-		// Convert file path to absolute path for comparison
-		var absoluteFilePath string
-		if filepath.IsAbs(file) {
-			// File is already absolute, use it as-is
-			absoluteFilePath = filepath.Clean(file)
-		} else {
-			// File is relative, join with actual working directory
-			absoluteFilePath = filepath.Clean(filepath.Join(actualCwd, file))
-		}
-
-		// Check if absolute file path is within the absolute rule path
-		if strings.HasPrefix(absoluteFilePath, absoluteRulePath) {
-			// Additional check to ensure we're not matching partial directory names
-			// e.g., "/src/auth" should not match "/src/authentication"
-			if len(absoluteFilePath) == len(absoluteRulePath) {
-				filesWithinCwd = append(filesWithinCwd, file)
-			} else {
-				remainingPath := absoluteFilePath[len(absoluteRulePath):]
-				separator := string(filepath.Separator)
-				if strings.HasPrefix(remainingPath, separator) {
-					filesWithinCwd = append(filesWithinCwd, file)
-				}
-			}
+		if strings.HasPrefix(file, normalizedRulePath) {
+			filesWithinCwd = append(filesWithinCwd, file)
 		}
 	}
 

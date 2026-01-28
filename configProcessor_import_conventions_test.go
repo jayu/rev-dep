@@ -9,7 +9,7 @@ import (
 
 func TestConfigProcessor_ImportConventions(t *testing.T) {
 	// Change to the test fixture directory
-	tempDir := filepath.Join(".", "__fixtures__", "importConventionsProject")
+	tempDir, _ := filepath.Abs(filepath.Join(".", "__fixtures__", "importConventionsProject"))
 	originalCwd, _ := os.Getwd()
 	defer os.Chdir(originalCwd)
 	os.Chdir(tempDir)
@@ -32,7 +32,7 @@ func TestConfigProcessor_ImportConventions(t *testing.T) {
 	config := &configs[0]
 
 	// Process the config
-	result, err := ProcessConfig(config, ".", "package.json", "tsconfig.json")
+	result, err := ProcessConfig(config, tempDir, "package.json", "tsconfig.json")
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}

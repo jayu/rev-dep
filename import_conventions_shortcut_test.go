@@ -32,7 +32,7 @@ func TestConfigProcessor_ImportConventionsShortcut(t *testing.T) {
 	config := &configs[0]
 
 	// Process the config
-	result, err := ProcessConfig(config, tempDir, "package.json", "tsconfig.json")
+	result, err := ProcessConfig(config, tempDir, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestConfigProcessor_ImportConventionsExplicit(t *testing.T) {
 	config := &configs[0]
 
 	// Process the config
-	result, err := ProcessConfig(config, tempDir, "package.json", "tsconfig.json")
+	result, err := ProcessConfig(config, tempDir, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}

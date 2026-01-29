@@ -25,6 +25,7 @@ var configCmd = &cobra.Command{
 var (
 	runConfigCwd     string
 	runConfigListAll bool
+	runConfigFix     bool
 )
 
 var configRunCmd = &cobra.Command{
@@ -47,7 +48,7 @@ var configRunCmd = &cobra.Command{
 			}
 
 			// Process the config
-			result, err := ProcessConfig(&config, cwd, packageJsonPath, tsconfigJsonPath)
+			result, err := ProcessConfig(&config, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix)
 			if err != nil {
 				return fmt.Errorf("Error processing config: %v", err)
 			}
@@ -292,6 +293,15 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 	} else {
 		fmt.Printf("\n❌ Checks failed! See details above.\n")
 	}
+
+	// Print autofix summary if any fixes were applied or unfixable issues found
+	if result.FixedFilesCount > 0 || result.FixedImportsCount > 0 {
+		fmt.Printf("\n🛠️  Fixed %d imports in %d files\n", result.FixedImportsCount, result.FixedFilesCount)
+	}
+
+	if result.UnfixableAliasingCount > 0 {
+		fmt.Printf("\n⚠️  Warning: %d inter-domain relative imports could not be automatically fixed because target domains lack aliases or are not defined in config.\n", result.UnfixableAliasingCount)
+	}
 }
 
 func init() {
@@ -302,6 +312,7 @@ func init() {
 	addSharedFlags(configRunCmd)
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
+	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix import convention violations")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")

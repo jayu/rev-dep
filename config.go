@@ -54,21 +54,22 @@ type ImportConventionDomain struct {
 	Enabled bool   `json:"enabled,omitempty"`
 }
 
-// ParsedImportConventionRule is the normalized form after parsing
-type ParsedImportConventionRule struct {
+// ImportConventionRule represents a rule for import path conventions
+type ImportConventionRule struct {
 	Rule    string
 	Domains []ImportConventionDomain
+	Autofix bool
 }
 
 type Rule struct {
-	Path                        string                       `json:"path"`                             // Required
-	FollowMonorepoPackages      bool                         `json:"followMonorepoPackages,omitempty"` // Default: true
-	ModuleBoundaries            []BoundaryRule               `json:"moduleBoundaries,omitempty"`
-	CircularImportsDetection    *CircularImportsOptions      `json:"circularImportsDetection,omitempty"`
-	OrphanFilesDetection        *OrphanFilesOptions          `json:"orphanFilesDetection,omitempty"`
-	UnusedNodeModulesDetection  *UnusedNodeModulesOptions    `json:"unusedNodeModulesDetection,omitempty"`
-	MissingNodeModulesDetection *MissingNodeModulesOptions   `json:"missingNodeModulesDetection,omitempty"`
-	ImportConventions           []ParsedImportConventionRule `json:"-"`
+	Path                        string                     `json:"path"`                             // Required
+	FollowMonorepoPackages      bool                       `json:"followMonorepoPackages,omitempty"` // Default: true
+	ModuleBoundaries            []BoundaryRule             `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetection    *CircularImportsOptions    `json:"circularImportsDetection,omitempty"`
+	OrphanFilesDetection        *OrphanFilesOptions        `json:"orphanFilesDetection,omitempty"`
+	UnusedNodeModulesDetection  *UnusedNodeModulesOptions  `json:"unusedNodeModulesDetection,omitempty"`
+	MissingNodeModulesDetection *MissingNodeModulesOptions `json:"missingNodeModulesDetection,omitempty"`
+	ImportConventions           []ImportConventionRule     `json:"-"`
 }
 
 type RevDepConfig struct {
@@ -186,6 +187,7 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 	type rawImportConventionRule struct {
 		Rule    string      `json:"rule"`
 		Domains interface{} `json:"domains"`
+		Autofix bool        `json:"autofix,omitempty"`
 	}
 	type rawRuleItems struct {
 		ImportConventions []rawImportConventionRule `json:"importConventions"`
@@ -226,15 +228,16 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 
 		// Process and normalize import conventions
 		if i < len(rawRules.Rules) {
-			config.Rules[i].ImportConventions = make([]ParsedImportConventionRule, len(rawRules.Rules[i].ImportConventions))
+			config.Rules[i].ImportConventions = make([]ImportConventionRule, len(rawRules.Rules[i].ImportConventions))
 			for j, rawConv := range rawRules.Rules[i].ImportConventions {
 				parsedDomains, err := parseImportConventionDomains(rawConv.Domains)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse import convention domains for rules[%d].importConventions[%d]: %w", i, j, err)
 				}
-				config.Rules[i].ImportConventions[j] = ParsedImportConventionRule{
+				config.Rules[i].ImportConventions[j] = ImportConventionRule{
 					Rule:    rawConv.Rule,
 					Domains: parsedDomains,
+					Autofix: rawConv.Autofix,
 				}
 			}
 		}
@@ -800,6 +803,7 @@ func validateRawImportConventions(conventions interface{}, ruleIndex int) error 
 		allowedConventionFields := map[string]bool{
 			"rule":    true,
 			"domains": true,
+			"autofix": true,
 		}
 
 		for field := range conventionMap {
@@ -824,6 +828,13 @@ func validateRawImportConventions(conventions interface{}, ruleIndex int) error 
 
 		if rule != "relative-internal-absolute-external" {
 			return fmt.Errorf("rules[%d].importConventions[%d].rule: unknown rule '%s'. Only 'relative-internal-absolute-external' is supported", ruleIndex, i, rule)
+		}
+
+		// Validate autofix field (optional, defaults to false)
+		if autofix, exists := conventionMap["autofix"]; exists && autofix != nil {
+			if _, ok := autofix.(bool); !ok {
+				return fmt.Errorf("rules[%d].importConventions[%d].autofix must be a boolean, got %T", ruleIndex, i, autofix)
+			}
 		}
 
 		// Validate domains field

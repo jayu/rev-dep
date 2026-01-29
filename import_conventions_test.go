@@ -534,7 +534,7 @@ func TestValidateImportUsesCorrectAlias(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ValidateImportUsesCorrectAlias(tt.request, tt.targetDomain)
+			result := ValidateImportUsesCorrectAlias(tt.request, tt.targetDomain, nil, nil)
 			if result != tt.expected {
 				t.Errorf("ValidateImportUsesCorrectAlias(%q, domain with alias %q) = %v, want %v",
 					tt.request, tt.targetDomain.Alias, result, tt.expected)
@@ -565,6 +565,8 @@ func TestCheckImportConventions_IntraDomainAlias(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "utils.ts")),
 			Request:      "@auth/utils",
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -573,6 +575,10 @@ func TestCheckImportConventions_IntraDomainAlias(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[0],
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	if len(violations) != 1 {
@@ -615,6 +621,8 @@ func TestCheckImportConventions_InterDomainRelative(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
 			Request:      "../auth/service",
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -623,6 +631,10 @@ func TestCheckImportConventions_InterDomainRelative(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	if len(violations) != 1 {
@@ -665,6 +677,8 @@ func TestCheckImportConventions_WrongAlias(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
 			Request:      "@users/service", // Wrong alias - should be @auth
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -673,6 +687,10 @@ func TestCheckImportConventions_WrongAlias(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	if len(violations) != 1 {
@@ -713,6 +731,8 @@ func TestCheckImportConventions_ValidIntraDomain(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "utils.ts")),
 			Request:      "./utils",
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -721,6 +741,10 @@ func TestCheckImportConventions_ValidIntraDomain(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[0],
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	if len(violations) != 0 {
@@ -752,6 +776,8 @@ func TestCheckImportConventions_ValidInterDomain(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
 			Request:      "@auth/service",
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -760,6 +786,10 @@ func TestCheckImportConventions_ValidInterDomain(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	if len(violations) != 0 {
@@ -792,6 +822,8 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
 			Request:      "../auth/service", // This would normally be a violation (should be aliased)
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -800,6 +832,10 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain (enabled)
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	// Should have a violation because it targets a domain that has an alias, even if targets own checks are disabled
@@ -815,6 +851,8 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "users", "service.ts")),
 			Request:      "@users/service", // This is a violation (should be relative within same domain)
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -823,6 +861,10 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain (enabled)
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	// Should have a violation because it's intra-domain with alias instead of relative
@@ -840,6 +882,8 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "users", "service.ts")),
 			Request:      "@users/service", // This would normally be a violation (should be relative)
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -848,6 +892,10 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[0], // auth domain (disabled)
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	// Should have no violations because source domain is disabled
@@ -861,6 +909,8 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 			ID:           stringPtr(filepath.Join(tempDir, "src", "auth", "service.ts")),
 			Request:      "@wrong-alias/service", // Wrong alias for auth domain
 			ResolvedType: UserModule,
+			RequestStart: 0,
+			RequestEnd:   0,
 		},
 	}
 
@@ -869,6 +919,10 @@ func TestCheckImportConventions_EnabledField(t *testing.T) {
 		imports,
 		compiledDomains,
 		&compiledDomains[1], // users domain (enabled)
+		false,
+		"",
+		nil,
+		nil,
 	)
 
 	// Should have a violation because it uses the wrong explicit alias for the target domain

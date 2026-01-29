@@ -91,7 +91,7 @@ func TestConfigOutput_Limiting(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&configs[0], tempDir, "", "")
+	result, err := ProcessConfig(&configs[0], tempDir, "", "", false)
 	if err != nil {
 		t.Fatalf("Failed to process config: %v", err)
 	}

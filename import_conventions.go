@@ -10,15 +10,16 @@ import (
 
 // ImportConventionViolation represents a violation of import conventions
 type ImportConventionViolation struct {
-	FilePath        string // Path to the file with the violation
-	ImportRequest   string // The original import string (e.g., "@auth/utils")
-	ImportResolved  string // The resolved import path
-	ImportIndex     int    // Index of this import in the source file (0-based)
-	ViolationType   string // "should-be-relative" | "should-be-aliased" | "wrong-alias"
-	SourceDomain    string // Domain of the source file
-	TargetDomain    string // Domain of the target import
-	ExpectedPattern string // Expected import pattern
-	ActualPattern   string // Actual import pattern
+	FilePath        string  // Path to the file with the violation
+	ImportRequest   string  // The original import string (e.g., "@auth/utils")
+	ImportResolved  string  // The resolved import path
+	ImportIndex     int     // Index of this import in the source file (0-based)
+	ViolationType   string  // "should-be-relative" | "should-be-aliased" | "wrong-alias"
+	SourceDomain    string  // Domain of the source file
+	TargetDomain    string  // Domain of the target import
+	ExpectedPattern string  // Expected import pattern
+	ActualPattern   string  // Actual import pattern
+	Fix             *Change // Optional autofix change
 }
 
 // CompiledDomain represents a processed domain with absolute path for fast matching
@@ -172,7 +173,13 @@ func InferAliasForDomain(
 			cleanPath = strings.TrimSuffix(cleanPath, "/**")
 
 			// Check if the domain path matches this path
-			if strings.HasPrefix(domainPath, cleanPath) {
+			// If cleanPath is ".", it matches everything (equivalent to root)
+			isMatch := strings.HasPrefix(domainPath, cleanPath)
+			if !isMatch && cleanPath == "." {
+				isMatch = true
+			}
+
+			if isMatch {
 				// Return the alias without wildcards
 				cleanAlias := strings.TrimSuffix(p.alias, "/*")
 				cleanAlias = strings.TrimSuffix(cleanAlias, "/**")
@@ -235,12 +242,64 @@ func IsRelativeImport(request string) bool {
 }
 
 // ValidateImportUsesCorrectAlias checks if import uses the correct alias for the target domain
-func ValidateImportUsesCorrectAlias(request string, targetDomain *CompiledDomain) bool {
+func ValidateImportUsesCorrectAlias(request string, targetDomain *CompiledDomain, tsconfigParsed *TsConfigParsed, packageJsonImports *PackageJsonImports) bool {
 	if targetDomain == nil || targetDomain.Alias == "" {
 		return false
 	}
 
-	// Check if the import starts with the domain's alias
+	// If domain has explicit alias, use the original validation logic
+	if targetDomain.AliasExplicit {
+		if targetDomain.Alias == "*" {
+			// If alias is catch-all "*", import should match the domain path
+			// e.g. alias "*" -> import "src/auth/utils" for domain "src/auth"
+			return strings.HasPrefix(request, targetDomain.Path)
+		}
+		return strings.HasPrefix(request, targetDomain.Alias)
+	}
+
+	// For inferred aliases (catch-all "*"), check if there's a more specific alias available
+	if targetDomain.Alias == "*" {
+		// First check tsconfig aliases
+		if tsconfigParsed != nil {
+			for alias := range tsconfigParsed.aliases {
+				if alias == "*" {
+					continue // Skip the catch-all itself
+				}
+
+				// Remove wildcards for matching
+				cleanAlias := strings.TrimSuffix(alias, "/*")
+				cleanAlias = strings.TrimSuffix(cleanAlias, "/**")
+
+				// Check if the import starts with this more specific alias
+				if strings.HasPrefix(request, cleanAlias) {
+					// Import uses a more specific alias, which is correct
+					return true
+				}
+			}
+		}
+
+		// Then check package.json imports
+		if packageJsonImports != nil {
+			for alias := range packageJsonImports.simpleImportTargetsByKey {
+				// Remove wildcards for matching
+				cleanAlias := strings.TrimSuffix(alias, "/*")
+				cleanAlias = strings.TrimSuffix(cleanAlias, "/**")
+
+				// Check if the import starts with this more specific alias
+				if strings.HasPrefix(request, cleanAlias) {
+					// Import uses a more specific alias from package.json, which is correct
+					return true
+				}
+			}
+		}
+	}
+
+	// Fall back to original validation for catch-all alias
+	if targetDomain.Alias == "*" {
+		// If alias is catch-all "*", import should match the domain path
+		// e.g. alias "*" -> import "src/auth/utils" for domain "src/auth"
+		return strings.HasPrefix(request, targetDomain.Path)
+	}
 	return strings.HasPrefix(request, targetDomain.Alias)
 }
 
@@ -250,9 +309,10 @@ func ValidateImportUsesCorrectAlias(request string, targetDomain *CompiledDomain
 func CheckImportConventionsFromTree(
 	minimalTree MinimalDependencyTree,
 	files []string,
-	parsedRules []ParsedImportConventionRule,
+	parsedRules []ImportConventionRule,
 	resolver *ModuleResolver,
 	cwd string,
+	autofix bool,
 ) []ImportConventionViolation {
 	var violations []ImportConventionViolation
 
@@ -303,6 +363,10 @@ func CheckImportConventionsFromTree(
 				imports,
 				compiledDomains,
 				sourceDomain,
+				rule.Autofix && autofix,
+				cwd,
+				tsconfigParsed,
+				packageJsonImports,
 			)
 			violations = append(violations, fileViolations...)
 		}
@@ -327,6 +391,10 @@ func checkFileImportConventions(
 	imports []MinimalDependency,
 	compiledDomains []CompiledDomain,
 	fileDomain *CompiledDomain,
+	autofix bool,
+	cwd string,
+	tsconfigParsed *TsConfigParsed,
+	packageJsonImports *PackageJsonImports,
 ) []ImportConventionViolation {
 	violations := []ImportConventionViolation{}
 
@@ -335,7 +403,26 @@ func checkFileImportConventions(
 		return violations
 	}
 
+	// Check if tsconfig has explicit catch-all alias by examining the original tsconfig content
+	hasExplicitCatchAll := false
+	if tsconfigParsed != nil {
+		// Try to find and read the original tsconfig.json to check if "*" was explicitly defined
+		tsconfigPath := filepath.Join(cwd, "tsconfig.json")
+		if tsconfigBytes, err := os.ReadFile(tsconfigPath); err == nil {
+			originalContent := string(tsconfigBytes)
+			// Check if "*" is explicitly mentioned in the paths section
+			hasExplicitCatchAll = strings.Contains(originalContent, `"*"`) ||
+				strings.Contains(originalContent, `'*'`) ||
+				strings.Contains(originalContent, "\"*\"")
+		} else {
+			// Fallback: if we can't read the original file, assume catch-all is available if it exists
+			_, hasCatchAll := tsconfigParsed.aliases["*"]
+			hasExplicitCatchAll = hasCatchAll
+		}
+	}
+
 	for importIndex, dep := range imports {
+		// ... (rest of the code remains the same)
 		// Pre-filter: Only check UserModule and MonorepoModule imports
 		if dep.ResolvedType != UserModule && dep.ResolvedType != MonorepoModule {
 			continue // Skip NodeModule, BuiltInModule, etc.
@@ -350,7 +437,7 @@ func checkFileImportConventions(
 		}
 
 		// Check for violations based on the rule
-		violation := checkImportForViolation(filePath, dep, fileDomain, targetDomain, resolvedPath, importIndex)
+		violation := checkImportForViolation(filePath, dep, fileDomain, targetDomain, resolvedPath, importIndex, autofix, cwd, tsconfigParsed, hasExplicitCatchAll, packageJsonImports)
 		if violation != nil {
 			violations = append(violations, *violation)
 		}
@@ -367,6 +454,11 @@ func checkImportForViolation(
 	targetDomain *CompiledDomain,
 	resolvedPath string,
 	importIndex int,
+	autofix bool,
+	cwd string,
+	tsconfigParsed *TsConfigParsed,
+	hasExplicitCatchAll bool,
+	packageJsonImports *PackageJsonImports,
 ) *ImportConventionViolation {
 	isRelative := IsRelativeImport(dep.Request)
 
@@ -385,7 +477,7 @@ func checkImportForViolation(
 	if isIntraDomain {
 		if !isRelative {
 			// Intra-domain import should be relative
-			return &ImportConventionViolation{
+			violation := &ImportConventionViolation{
 				FilePath:        filePath,
 				ImportRequest:   dep.Request,
 				ImportIndex:     importIndex,
@@ -395,6 +487,26 @@ func checkImportForViolation(
 				ExpectedPattern: "relative path (e.g., ./utils)",
 				ActualPattern:   dep.Request,
 			}
+
+			if autofix && dep.RequestStart > 0 && resolvedPath != "" {
+				// Generate relative path from source file to target file
+				sourceDir := filepath.Dir(filePath)
+				rel, err := filepath.Rel(sourceDir, resolvedPath)
+				if err == nil {
+					// Ensure it starts with ./ or ../
+					if !IsRelativeImport(rel) {
+						rel = "./" + rel
+					}
+					// Preserving the style (extension and /index) from original request
+					rel = adjustImportPathStyle(rel, dep.Request)
+					violation.Fix = &Change{
+						Start: int32(dep.RequestStart),
+						End:   int32(dep.RequestEnd),
+						Text:  rel,
+					}
+				}
+			}
+			return violation
 		}
 		return nil // Valid intra-domain relative import
 	}
@@ -404,12 +516,16 @@ func checkImportForViolation(
 		// Inter-domain import should be aliased
 		expectedPattern := "alias path (e.g., @domain/utils)"
 		if targetDomain != nil && targetDomain.Alias != "" {
-			expectedPattern = targetDomain.Alias + "/*"
+			if targetDomain.Alias == "*" {
+				expectedPattern = targetDomain.Path + "/*"
+			} else {
+				expectedPattern = targetDomain.Alias + "/*"
+			}
 		} else {
 			expectedPattern = "alias path (target domain not configured)"
 		}
 
-		return &ImportConventionViolation{
+		violation := &ImportConventionViolation{
 			FilePath:        filePath,
 			ImportRequest:   dep.Request,
 			ImportIndex:     importIndex,
@@ -419,12 +535,61 @@ func checkImportForViolation(
 			ExpectedPattern: expectedPattern,
 			ActualPattern:   dep.Request,
 		}
+
+		if autofix && dep.RequestStart > 0 {
+			var fixedPath string
+
+			if targetDomain != nil && targetDomain.Alias != "" {
+				// Case 1: Target domain is configured - use its alias
+				relPathInTarget, err := filepath.Rel(targetDomain.AbsolutePath, resolvedPath)
+				if err == nil {
+					fixedPath = targetDomain.Alias
+					if targetDomain.Alias == "*" {
+						// If alias is "*", use the domain path as base
+						fixedPath = targetDomain.Path
+					}
+
+					if relPathInTarget != "." {
+						// Preserving the style (extension and /index) from original request
+						fixedPath = adjustImportPathStyle(filepath.Join(fixedPath, relPathInTarget), dep.Request)
+					}
+				}
+			} else if tsconfigParsed != nil && resolvedPath != "" && hasExplicitCatchAll {
+				// Case 2: Target domain not configured - try to infer catch-all alias
+				// Only do this if user has explicitly configured catch-all alias
+				relPath, err := filepath.Rel(cwd, resolvedPath)
+				if err == nil {
+					relPath = filepath.ToSlash(relPath)
+					inferredAlias := InferAliasForDomain(relPath, tsconfigParsed, nil)
+
+					// Only use inferred alias if it's a catch-all alias
+					if inferredAlias == "*" {
+						fixedPath = inferredAlias
+						if inferredAlias == "*" {
+							fixedPath = relPath
+						}
+						// Preserving the style (extension and /index) from original request
+						fixedPath = adjustImportPathStyle(fixedPath, dep.Request)
+					}
+				}
+			}
+
+			if fixedPath != "" {
+				violation.Fix = &Change{
+					Start: int32(dep.RequestStart),
+					End:   int32(dep.RequestEnd),
+					Text:  fixedPath,
+				}
+			}
+		}
+
+		return violation
 	}
 
-	// Check if using correct alias (only if we have an explicit alias definition in config)
-	if targetDomain != nil && targetDomain.Alias != "" && targetDomain.AliasExplicit {
-		if !ValidateImportUsesCorrectAlias(dep.Request, targetDomain) {
-			return &ImportConventionViolation{
+	// Check if using correct alias (only if we have an explicit alias definition in config or catch-all alias)
+	if targetDomain != nil && targetDomain.Alias != "" && (targetDomain.AliasExplicit || targetDomain.Alias == "*") {
+		if !ValidateImportUsesCorrectAlias(dep.Request, targetDomain, tsconfigParsed, packageJsonImports) {
+			violation := &ImportConventionViolation{
 				FilePath:        filePath,
 				ImportRequest:   dep.Request,
 				ImportIndex:     importIndex,
@@ -434,6 +599,36 @@ func checkImportForViolation(
 				ExpectedPattern: targetDomain.Alias + "/*",
 				ActualPattern:   dep.Request,
 			}
+
+			if targetDomain.Alias == "*" {
+				violation.ExpectedPattern = targetDomain.Path + "/*"
+			}
+
+			if autofix && dep.RequestStart > 0 {
+				// If it's already an alias but wrong one, and we know the target domain,
+				// we can try to fix it.
+				// This is slightly more complex as we need to find the relative part of the import.
+				// For now, if we have the resolved path, we can regenerate the aliased path.
+				if resolvedPath != "" {
+					relPathInTarget, err := filepath.Rel(targetDomain.AbsolutePath, resolvedPath)
+					if err == nil {
+						fixedPath := targetDomain.Alias
+						if targetDomain.Alias == "*" {
+							fixedPath = targetDomain.Path
+						}
+
+						if relPathInTarget != "." {
+							fixedPath = adjustImportPathStyle(filepath.Join(fixedPath, relPathInTarget), dep.Request)
+						}
+						violation.Fix = &Change{
+							Start: int32(dep.RequestStart),
+							End:   int32(dep.RequestEnd),
+							Text:  fixedPath,
+						}
+					}
+				}
+			}
+			return violation
 		}
 	}
 
@@ -457,4 +652,46 @@ func getTargetPath(targetDomain *CompiledDomain, resolvedPath string) string {
 		return resolvedPath
 	}
 	return "unknown"
+}
+
+// adjustImportPathStyle ensures that the generated fix path matches the style of the original import request
+// regarding file extensions and /index suffixes.
+func adjustImportPathStyle(newPath, originalRequest string) string {
+	// 1. Check if original had any of these extensions
+	hasExtension := false
+	for _, ext := range SourceExtensions {
+		if strings.HasSuffix(originalRequest, ext) {
+			hasExtension = true
+			break
+		}
+	}
+
+	// 2. Check if original had /index suffix (with or without extension)
+	hasIndex := strings.HasSuffix(originalRequest, "/index")
+	if !hasIndex {
+		for _, ext := range SourceExtensions {
+			if strings.HasSuffix(originalRequest, "/index"+ext) {
+				hasIndex = true
+				break
+			}
+		}
+	}
+
+	result := newPath
+	// If original didn't have extension, strip from result
+	if !hasExtension {
+		for _, ext := range SourceExtensions {
+			if strings.HasSuffix(result, ext) {
+				result = strings.TrimSuffix(result, ext)
+				break
+			}
+		}
+	}
+
+	// If original didn't have /index, strip from result
+	if !hasIndex {
+		result = strings.TrimSuffix(result, "/index")
+	}
+
+	return result
 }

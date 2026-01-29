@@ -89,15 +89,19 @@ const (
 	FileNotFound
 )
 
+var SourceExtensions = []string{".d.ts", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"}
+
 var extensionRegExp = regexp.MustCompile(`(?:/index)?\.(?:js|jsx|ts|tsx|mjs|mjsx|cjs|d\.ts)$`)
 var tsSupportedExtensionRegExp = regexp.MustCompile(`\.(?:js|jsx|ts|tsx|d\.ts)$`)
 
 var extensionToOrder = map[string]int{
-	".d.ts": 5,
-	".ts":   4,
-	".tsx":  3,
-	".js":   2,
-	".jsx":  1,
+	".d.ts": 7,
+	".ts":   6,
+	".tsx":  5,
+	".js":   4,
+	".jsx":  3,
+	".mjs":  2,
+	".cjs":  1,
 }
 
 func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {

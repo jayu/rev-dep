@@ -987,6 +987,10 @@ func parseImportConventionDomains(domains interface{}) ([]ImportConventionDomain
 				return nil, fmt.Errorf("domains[%d].path cannot be empty", i)
 			}
 
+			if strings.Contains(pathStr, "*") {
+				return nil, fmt.Errorf("domains[%d].path cannot contain wildcards", i)
+			}
+
 			// Check for optional alias field
 			var alias string
 			if aliasField, exists := domainMap["alias"]; exists {

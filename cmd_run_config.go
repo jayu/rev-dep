@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -238,6 +239,15 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 					fmt.Printf("  ❌ Import Convention Issues (%d):\n", len(ruleResult.ImportConventionViolations))
 
 					violationsToDisplay := ruleResult.ImportConventionViolations
+
+					// Sort violations by file path and then by import index
+					slices.SortFunc(violationsToDisplay, func(a, b ImportConventionViolation) int {
+						if a.FilePath != b.FilePath {
+							return strings.Compare(a.FilePath, b.FilePath)
+						}
+						return a.ImportIndex - b.ImportIndex
+					})
+
 					remaining := 0
 					if !listAll && len(violationsToDisplay) > maxIssuesToList {
 						remaining = len(violationsToDisplay) - maxIssuesToList

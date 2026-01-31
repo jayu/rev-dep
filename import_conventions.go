@@ -328,3 +328,36 @@ func CheckImportConventionsFromTree(
 
 	return violations, shouldWarnAboutImportConventionWithPJsonImports
 }
+
+/**
+
+Tests
+
+== STEP 1 ==
+
+Config 1
+- three domains defined using normal object-based config
+  - path + alias in config (without trailing `/`) + enabled
+	- path + no alias in config, but alias in tsconfig - basepath alias + enabled
+	- path + alias in config (with trailing `/`) + disabled
+Config 2
+- two domains defined using simplified string-based config
+  - one with wildcard - resolved into two directories, one dir has ts alias eg @consultants, another one has only basepath url alias
+	- one without wildcard - resolved into existing dir, has alias in ts config
+
+Test cases (all asserts violations and autofix)
+- should-be-relative + persist extension
+- should-be-aliased
+  - target alias defined in config
+	- target alias resolving to non-empty string eg @consultants
+	- target alias resolving to baseUrl wildcard ("*": ["./*"],)
+- wrong-alias
+	- current alias is baseUrl wildcard alias ("*": ["./*"],)
+	- current alias is non-empty string alias eg @consultants
+
+For Config 1 Make sure to add all the above in the cases in disabled domain to verify it's actually disabled
+
+== STEP 2 ==
+
+Once the above 2 config test suits are implemented, copy-paste it but use tsconfig without basepath url alias, make different assertions
+*/

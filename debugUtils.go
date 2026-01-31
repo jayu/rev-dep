@@ -537,3 +537,26 @@ func stringifyImportTargetTreeNode(node *ImportTargetTreeNode, indent string) st
 
 	return builder.String()
 }
+
+// StringifyImportConventionViolation returns a string representation of ImportConventionViolation
+// including the nested Change struct if present
+func StringifyImportConventionViolation(violation ImportConventionViolation, cwd string) string {
+	var builder strings.Builder
+
+	builder.WriteString("ImportConventionViolation:\n")
+	builder.WriteString(fmt.Sprintf("  FilePath: %s\n", strings.Replace(violation.FilePath, cwd, "", 1)))
+	builder.WriteString(fmt.Sprintf("  ImportRequest: %s\n", violation.ImportRequest))
+	builder.WriteString(fmt.Sprintf("  ImportIndex: %d\n", violation.ImportIndex))
+	builder.WriteString(fmt.Sprintf("  ViolationType: %s\n", violation.ViolationType))
+
+	if violation.Fix != nil {
+		builder.WriteString("  Fix:\n")
+		builder.WriteString(fmt.Sprintf("    Start: %d\n", violation.Fix.Start))
+		builder.WriteString(fmt.Sprintf("    End: %d\n", violation.Fix.End))
+		builder.WriteString(fmt.Sprintf("    Text: %s\n", violation.Fix.Text))
+	} else {
+		builder.WriteString("  Fix: <nil>\n")
+	}
+
+	return builder.String()
+}

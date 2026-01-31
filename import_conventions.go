@@ -24,6 +24,7 @@ type CompiledDomain struct {
 	EnforcedAlias    string // e.g., "@auth"
 	AliasReplacement string
 	AliasPathPrefix  string
+	HasMatchingAlias bool
 	CheckEnabled     bool
 }
 
@@ -35,6 +36,12 @@ func IsRelativeImport(request string) bool {
 }
 
 func compileDomains(domains []ImportConventionDomain, compiledAliases []CompiledAlias, cwd string) []CompiledDomain {
+	/**
+	Alias replacement rules
+	AliasPathPrefix - always must have trailing '/'
+	AliasReplacement - always must have trailing '/'
+		- except for empty string (we only cut prefix). This is handled by compile aliases
+	*/
 	var compiledDomains []CompiledDomain
 	for _, domain := range domains {
 		// should expand glob patterns
@@ -47,40 +54,45 @@ func compileDomains(domains []ImportConventionDomain, compiledAliases []Compiled
 			directories, err := os.ReadDir(DenormalizePathForOS(baseDir))
 
 			if err != nil {
-				fmt.Println(err)
+				fmt.Printf("Failed to read domain directory: %e\n", err)
 				continue
 			}
 			for _, directory := range directories {
 				if directory.IsDir() && dirNameMatcher.Match(directory.Name()) {
-					absolutePath := StandardiseDirPathInternal(filepath.Join(baseDir, directory.Name()))
+					absolutePath := StandardiseDirPath(NormalizePathForInternal(filepath.Join(baseDir, directory.Name())))
 					matches, aliasReplacement, aliasPathPrefix := getMatchingAlias(compiledAliases, absolutePath)
-					if matches {
-						aliasReplacement = StandardiseDirPathInternal(aliasReplacement)
-					}
+
 					compiledDomains = append(compiledDomains, CompiledDomain{
 						Path:             domain.Path,
 						AbsolutePath:     absolutePath,
 						EnforcedAlias:    "", // glob domain does not have `enabled` config flag
 						AliasReplacement: aliasReplacement,
 						AliasPathPrefix:  aliasPathPrefix,
+						HasMatchingAlias: matches,
 						CheckEnabled:     domain.Enabled,
 					})
 				}
 			}
 		} else {
 			// domain was defined as an object, path does not contains wildcard
-			absolutePath := StandardiseDirPathInternal(filepath.Join(cwd, domain.Path))
+			absolutePath := StandardiseDirPathInternal(NormalizePathForInternal(filepath.Join(cwd, domain.Path)))
 			aliasReplacement := ""
 			aliasPathPrefix := ""
+			hasMatchingAlias := false
+
+			// Try get alias defined in config
 			if domain.Alias != "" {
-				aliasReplacement = StandardiseDirPathInternal(domain.Alias)
+				aliasReplacement = StandardiseDirPathInternal(domain.Alias) // user defined alias might not have trailing `/`
 				aliasPathPrefix = absolutePath
+				hasMatchingAlias = true
 			}
-			if aliasReplacement == "" {
+			// Try match alias if not in config
+			if !hasMatchingAlias {
 				matches, aliasReplacementLocal, aliasPathPrefixLocal := getMatchingAlias(compiledAliases, absolutePath)
 				if matches {
-					aliasReplacement = StandardiseDirPathInternal(aliasReplacementLocal)
+					aliasReplacement = aliasReplacementLocal
 					aliasPathPrefix = aliasPathPrefixLocal
+					hasMatchingAlias = true
 				}
 			}
 			compiledDomains = append(compiledDomains, CompiledDomain{
@@ -89,6 +101,7 @@ func compileDomains(domains []ImportConventionDomain, compiledAliases []Compiled
 				EnforcedAlias:    domain.Alias,
 				AliasReplacement: aliasReplacement,
 				AliasPathPrefix:  aliasPathPrefix,
+				HasMatchingAlias: hasMatchingAlias,
 				CheckEnabled:     domain.Enabled,
 			})
 		}
@@ -109,10 +122,12 @@ type AliasMapping struct {
 func compileAliases(tsConfigParsed *TsConfigParsed, packageJsonImports *PackageJsonImports, cwd string) []CompiledAlias {
 	var aliasMappings []AliasMapping
 	for aliasKey, aliasValue := range tsConfigParsed.aliases {
-		aliasMappings = append(aliasMappings, AliasMapping{
-			Alias:  aliasKey,
-			Target: aliasValue,
-		})
+		if strings.HasSuffix(aliasValue, "*") {
+			aliasMappings = append(aliasMappings, AliasMapping{
+				Alias:  aliasKey,
+				Target: aliasValue,
+			})
+		}
 	}
 
 	sort.Slice(aliasMappings, func(a, b int) bool {
@@ -140,10 +155,10 @@ func compileAliases(tsConfigParsed *TsConfigParsed, packageJsonImports *PackageJ
 	compiledAliases := make([]CompiledAlias, 0, len(aliasMappings))
 
 	for _, aliasMapping := range aliasMappings {
-		absoluteTarget := filepath.Join(cwd, aliasMapping.Target)
+		absoluteTarget := NormalizePathForInternal(filepath.Join(cwd, aliasMapping.Target)) // on Windows filepath.Join will add wrong slash
 		compiledAliases = append(compiledAliases, CompiledAlias{
-			AliasReplacement: strings.TrimSuffix(strings.TrimSuffix(aliasMapping.Alias, "*"), "/"),
-			PathPrefix:       strings.TrimSuffix(strings.TrimSuffix(absoluteTarget, "*"), "/"),
+			AliasReplacement: strings.TrimSuffix(aliasMapping.Alias, "*"),
+			PathPrefix:       strings.TrimSuffix(absoluteTarget, "*"),
 			PathPrefixExact:  !strings.Contains(aliasMapping.Target, "*"),
 		})
 	}
@@ -224,8 +239,6 @@ func CheckImportConventionsFromTree(
 	autofix bool,
 ) ([]ImportConventionViolation, bool) {
 	// TODO tests for current functionality
-	// test for typescript aliases with non-suffix wildcard (and add warning if this is not working, and github issue)
-	// Investigate and add github issues for pjson imports map (should we, can we parse imports map upfront or we should in runtime)
 
 	shouldWarnAboutImportConventionWithPJsonImports := false
 	if len(resolver.packageJsonImports.imports) > 0 {
@@ -272,7 +285,7 @@ func CheckImportConventionsFromTree(
 							importMatches, importDomain := matchDomainToAbsolutePath(compiledDomains, importFilePath)
 							if isRelative {
 								var fix *Change
-								if importMatches && importDomain.AliasReplacement != "" {
+								if importMatches && importDomain.HasMatchingAlias {
 									fix = &Change{
 										Start: int32(imp.RequestStart),
 										End:   int32(imp.RequestEnd),

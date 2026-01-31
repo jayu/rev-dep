@@ -149,7 +149,7 @@ func TestConfigProcessor_ImportConventions_Autofix_Aliasing(t *testing.T) {
 
 	// Create rev-dep config with autofix enabled
 	config := RevDepConfig{
-		ConfigVersion: "1.0",
+		ConfigVersion: "1.1",
 		Rules: []Rule{
 			{
 				Path: ".",

@@ -74,6 +74,7 @@ func compileDomains(domains []ImportConventionDomain, compiledAliases []Compiled
 			aliasPathPrefix := ""
 			if domain.Alias != "" {
 				aliasReplacement = StandardiseDirPathInternal(domain.Alias)
+				aliasPathPrefix = absolutePath
 			}
 			if aliasReplacement == "" {
 				matches, aliasReplacementLocal, aliasPathPrefixLocal := getMatchingAlias(compiledAliases, absolutePath)
@@ -113,8 +114,6 @@ func compileAliases(tsConfigParsed *TsConfigParsed, packageJsonImports *PackageJ
 			Target: aliasValue,
 		})
 	}
-
-	// TODO support package.json imports. Add them to aliasMappings
 
 	sort.Slice(aliasMappings, func(a, b int) bool {
 		targetAHasWildcard := strings.Contains(aliasMappings[a].Target, "*")
@@ -223,9 +222,15 @@ func CheckImportConventionsFromTree(
 	resolver *ModuleResolver,
 	cwd string,
 	autofix bool,
-) []ImportConventionViolation {
-	// TODO
-	// Issue 3: lack of support for pjson import aliases
+) ([]ImportConventionViolation, bool) {
+	// TODO tests for current functionality
+	// test for typescript aliases with non-suffix wildcard (and add warning if this is not working, and github issue)
+	// Investigate and add github issues for pjson imports map (should we, can we parse imports map upfront or we should in runtime)
+
+	shouldWarnAboutImportConventionWithPJsonImports := false
+	if len(resolver.packageJsonImports.imports) > 0 {
+		shouldWarnAboutImportConventionWithPJsonImports = true
+	}
 
 	var violations []ImportConventionViolation
 	compiledAliases := compileAliases(resolver.tsConfigParsed, resolver.packageJsonImports, cwd)
@@ -308,5 +313,5 @@ func CheckImportConventionsFromTree(
 
 	}
 
-	return violations
+	return violations, shouldWarnAboutImportConventionWithPJsonImports
 }

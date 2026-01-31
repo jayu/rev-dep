@@ -412,3 +412,128 @@ func ResolutionErrorToString(err ResolutionError) string {
 		return "Unknown"
 	}
 }
+
+func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
+	result := ""
+
+	for key, val := range tsConfigParsed.aliases {
+		result += key + ":" + val + "\n"
+	}
+
+	result += "\n___________\n"
+
+	result += "\n___________\n"
+
+	for _, val := range tsConfigParsed.aliasesRegexps {
+		result += fmt.Sprintf("%v", val) + "\n"
+	}
+
+	return result
+}
+
+func stringifyPackageJsonImports(pji *PackageJsonImports) string {
+	if pji == nil {
+		return "PackageJsonImports: nil"
+	}
+
+	var builder strings.Builder
+	builder.WriteString("PackageJsonImports:\n")
+	builder.WriteString("  imports:\n")
+
+	if len(pji.imports) == 0 {
+		builder.WriteString("    (empty)\n")
+	} else {
+		for key, value := range pji.imports {
+			builder.WriteString(fmt.Sprintf("    %s: %v\n", key, value))
+		}
+	}
+
+	builder.WriteString("\n  simpleImportTargetsByKey:\n")
+	if len(pji.simpleImportTargetsByKey) == 0 {
+		builder.WriteString("    (empty)\n")
+	} else {
+		for key, value := range pji.simpleImportTargetsByKey {
+			builder.WriteString(fmt.Sprintf("    %s: %s\n", key, value))
+		}
+	}
+
+	builder.WriteString("\n  conditionalImportTargetsByKey:\n")
+	if len(pji.conditionalImportTargetsByKey) == 0 {
+		builder.WriteString("    (empty)\n")
+	} else {
+		for key, conditions := range pji.conditionalImportTargetsByKey {
+			builder.WriteString(fmt.Sprintf("    %s:\n", key))
+			if len(conditions) == 0 {
+				builder.WriteString("      (no conditions)\n")
+			} else {
+				for condition, regex := range conditions {
+					builder.WriteString(fmt.Sprintf("      %s: %s\n", condition, regex.String()))
+				}
+			}
+		}
+	}
+
+	builder.WriteString("\n  importsRegexps:\n")
+	if len(pji.importsRegexps) == 0 {
+		builder.WriteString("    (empty)\n")
+	} else {
+		for _, item := range pji.importsRegexps {
+			builder.WriteString(fmt.Sprintf("    %s: %s\n", item.aliasKey, item.regExp.String()))
+		}
+	}
+
+	builder.WriteString("\n  wildcardPatterns:\n")
+	if len(pji.wildcardPatterns) == 0 {
+		builder.WriteString("    (empty)\n")
+	} else {
+		for _, pattern := range pji.wildcardPatterns {
+			builder.WriteString(fmt.Sprintf("    key: %s, prefix: %s, suffix: %s\n", pattern.key, pattern.prefix, pattern.suffix))
+		}
+	}
+
+	builder.WriteString("\n  conditionNames:\n")
+	if len(pji.conditionNames) == 0 {
+		builder.WriteString("    (none)\n")
+	} else {
+		for i, name := range pji.conditionNames {
+			builder.WriteString(fmt.Sprintf("    [%d]: %s\n", i, name))
+		}
+	}
+
+	builder.WriteString("\n  parsedImportTargets:\n")
+	if len(pji.parsedImportTargets) == 0 {
+		builder.WriteString("    (empty)\n")
+	} else {
+		for key, node := range pji.parsedImportTargets {
+			builder.WriteString(fmt.Sprintf("    %s:\n", key))
+			builder.WriteString(stringifyImportTargetTreeNode(node, "      "))
+		}
+	}
+
+	return builder.String()
+}
+
+func stringifyImportTargetTreeNode(node *ImportTargetTreeNode, indent string) string {
+	if node == nil {
+		return indent + "(nil)\n"
+	}
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("%snodeType: %s\n", indent, node.nodeType))
+
+	if node.nodeType == LeafNode {
+		builder.WriteString(fmt.Sprintf("%svalue: %s\n", indent, node.value))
+	} else if node.nodeType == MapNode {
+		if len(node.conditionsMap) == 0 {
+			builder.WriteString(indent + "conditionsMap: (empty)\n")
+		} else {
+			builder.WriteString(indent + "conditionsMap:\n")
+			for condition, childNode := range node.conditionsMap {
+				builder.WriteString(fmt.Sprintf("%s  %s:\n", indent, condition))
+				builder.WriteString(stringifyImportTargetTreeNode(childNode, indent+"    "))
+			}
+		}
+	}
+
+	return builder.String()
+}

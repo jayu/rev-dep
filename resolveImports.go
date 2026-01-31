@@ -104,24 +104,6 @@ var extensionToOrder = map[string]int{
 	".cjs":  1,
 }
 
-func stringifyParsedTsConfig(tsConfigParsed *TsConfigParsed) string {
-	result := ""
-
-	for key, val := range tsConfigParsed.aliases {
-		result += key + ":" + val + "\n"
-	}
-
-	result += "\n___________\n"
-
-	result += "\n___________\n"
-
-	for _, val := range tsConfigParsed.aliasesRegexps {
-		result += fmt.Sprintf("%v", val) + "\n"
-	}
-
-	return result
-}
-
 type SubpackageResolver struct {
 	PkgPath  string
 	Resolver *ModuleResolver

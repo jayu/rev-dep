@@ -104,7 +104,11 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 		return filepath.ToSlash(relPath)
 	}
 
+	shouldWarnAboutImportConventionWithPJsonImports := false
+
 	for _, ruleResult := range result.RuleResults {
+		shouldWarnAboutImportConventionWithPJsonImports = shouldWarnAboutImportConventionWithPJsonImports || ruleResult.ShouldWarnAboutImportConventionWithPJsonImports
+
 		if ruleResult.RulePath != "" {
 			fmt.Printf("\n📁 Rule: %s (%d files)\n", ruleResult.RulePath, ruleResult.FileCount)
 		}
@@ -306,11 +310,18 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 
 	// Print autofix summary if any fixes were applied or unfixable issues found
 	if result.FixedFilesCount > 0 || result.FixedImportsCount > 0 {
-		fmt.Printf("\n🛠️  Fixed %d imports in %d files\n", result.FixedImportsCount, result.FixedFilesCount)
+		fmt.Printf("✍️ Fixed %d imports in %d files\n", result.FixedImportsCount, result.FixedFilesCount)
+	}
+
+	if result.FixableIssuesCount > 0 {
+		fmt.Printf("💡 Fixable issues: %d. Use '--fix' flag to autofix.\n", result.FixableIssuesCount)
 	}
 
 	if result.UnfixableAliasingCount > 0 {
-		fmt.Printf("\n⚠️  Warning: %d inter-domain relative imports could not be automatically fixed because target domains lack aliases or are not defined in config.\n", result.UnfixableAliasingCount)
+		fmt.Printf("⚠️ Warning: %d inter-domain relative imports could not be automatically fixed because target domains lack aliases or are not defined in config.\n", result.UnfixableAliasingCount)
+	}
+	if shouldWarnAboutImportConventionWithPJsonImports {
+		fmt.Println("⚠️ Warning: Support for package.json imports map aliases is not yet implemented for import conventions checks")
 	}
 }
 

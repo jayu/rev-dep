@@ -33,17 +33,18 @@ func validateRulePathPackageJson(rulePath, cwd string) bool {
 
 // RuleResult contains the results for a single rule in the config
 type RuleResult struct {
-	RulePath                   string
-	FileCount                  int
-	EnabledChecks              []string
-	DependencyTree             MinimalDependencyTree
-	ModuleBoundaryViolations   []ModuleBoundaryViolation
-	CircularDependencies       [][]string
-	OrphanFiles                []string
-	UnusedNodeModules          []string
-	MissingNodeModules         []MissingNodeModuleResult
-	ImportConventionViolations []ImportConventionViolation
-	MissingPackageJson         bool
+	RulePath                                        string
+	FileCount                                       int
+	EnabledChecks                                   []string
+	DependencyTree                                  MinimalDependencyTree
+	ModuleBoundaryViolations                        []ModuleBoundaryViolation
+	CircularDependencies                            [][]string
+	OrphanFiles                                     []string
+	UnusedNodeModules                               []string
+	MissingNodeModules                              []MissingNodeModuleResult
+	ImportConventionViolations                      []ImportConventionViolation
+	MissingPackageJson                              bool
+	ShouldWarnAboutImportConventionWithPJsonImports bool
 }
 
 // ConfigProcessingResult contains the results for processing an entire config
@@ -53,6 +54,7 @@ type ConfigProcessingResult struct {
 	FixedFilesCount        int
 	FixedImportsCount      int
 	UnfixableAliasingCount int
+	FixableIssuesCount     int
 }
 
 // discoverAllFilesForConfig discovers all files for config processing
@@ -315,7 +317,7 @@ func processRuleChecks(
 		go func() {
 			defer wg.Done()
 
-			violations := CheckImportConventionsFromTree(
+			violations, shouldWarnAboutImportConventionWithPJsonImports := CheckImportConventionsFromTree(
 				ruleTree,
 				ruleFiles,
 				rule.ImportConventions,
@@ -326,6 +328,7 @@ func processRuleChecks(
 
 			mu.Lock()
 			ruleResult.ImportConventionViolations = violations
+			ruleResult.ShouldWarnAboutImportConventionWithPJsonImports = shouldWarnAboutImportConventionWithPJsonImports
 			mu.Unlock()
 		}()
 	}
@@ -437,6 +440,16 @@ func ProcessConfig(
 			}
 			result.FixedFilesCount = len(changesByFile)
 		}
+	} else {
+		fixableIssuesCount := 0
+		for _, ruleResult := range result.RuleResults {
+			for _, v := range ruleResult.ImportConventionViolations {
+				if v.Fix != nil {
+					fixableIssuesCount++
+				}
+			}
+		}
+		result.FixableIssuesCount = fixableIssuesCount
 	}
 
 	return result, nil

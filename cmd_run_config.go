@@ -333,7 +333,7 @@ func init() {
 	addSharedFlags(configRunCmd)
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
-	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix import convention violations")
+	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")

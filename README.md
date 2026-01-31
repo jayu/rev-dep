@@ -653,6 +653,7 @@ rev-dep config run [flags]
 ```
       --condition-names strings    List of conditions for package.json imports resolution (e.g. node, imports, default)
   -c, --cwd string                 Working directory (default "$PWD")
+      --fix                        Automatically fix fixable issues
       --follow-monorepo-packages   Enable resolution of imports from monorepo workspace packages
   -h, --help                       help for run
       --list-all-issues            List all issues instead of limiting output

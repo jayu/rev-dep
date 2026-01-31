@@ -303,7 +303,7 @@ Rev-dep provides a configuration system for orchestrating project checks. The co
 Available checks are:
 
 - **module boundaries** - check if imports respect module boundaries
-- **import conventions** - enforce syntactic consistency for imports
+- **import conventions** - enforce syntactic consistency for imports (includes autofix capability)
 - **circular imports** - check if there are circular imports
 - **orphan files** - check if there are orphan/dead files
 - **unused node modules** - check against unused node modules
@@ -332,6 +332,19 @@ Run all configured checks:
 rev-dep config run
 ```
 
+List all detected issues:
+```bash
+# Lists all detected issues, by default lists first five issues for each check
+rev-dep config run --list-all-issues
+```
+
+Fix all fixable checks: 
+
+```bash
+# Fix checks configured with autofix
+rev-dep config run --fix
+```
+
 ### Configuration Structure
 
 The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) allows you to define multiple rules, each targeting different parts of your codebase with specific checks enabled.
@@ -340,8 +353,8 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.1",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.1.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.2",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.2.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -365,6 +378,7 @@ Here's a comprehensive example showing all available properties:
       "importConventions": [
         {
           "rule": "relative-internal-absolute-external",
+          "autofix": true,
           "domains": [
             {
               "path": "src/features/auth",
@@ -438,6 +452,7 @@ Each rule can contain the following properties:
 
 #### Import Convention Properties
 - **`rule`** (required): Type of the rule, currently only `relative-internal-absolute-external`
+- **`autofix`** (optional): Whether to automatically fix import convention violations (default: false)
 - **`domains`** (required): Array of domain definitions. Can be a string (glob pattern) or an object with:
   - **`path`** (required): Directory with the domain files
   - **`alias`** (optional): Alias to be used for absolute imports of code from this domain

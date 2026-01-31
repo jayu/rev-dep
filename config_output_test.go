@@ -18,7 +18,7 @@ func TestConfigOutput_Limiting(t *testing.T) {
 
 	// Create a config that will generate many issues
 	configContent := `{
-		"configVersion": "1.1",
+		"configVersion": "1.2",
 		"rules": [
 			{
 				"path": ".",

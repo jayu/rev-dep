@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,23 +33,28 @@ func validateRulePathPackageJson(rulePath, cwd string) bool {
 
 // RuleResult contains the results for a single rule in the config
 type RuleResult struct {
-	RulePath                   string
-	FileCount                  int
-	EnabledChecks              []string
-	DependencyTree             MinimalDependencyTree
-	ModuleBoundaryViolations   []ModuleBoundaryViolation
-	CircularDependencies       [][]string
-	OrphanFiles                []string
-	UnusedNodeModules          []string
-	MissingNodeModules         []MissingNodeModuleResult
-	ImportConventionViolations []ImportConventionViolation
-	MissingPackageJson         bool
+	RulePath                                        string
+	FileCount                                       int
+	EnabledChecks                                   []string
+	DependencyTree                                  MinimalDependencyTree
+	ModuleBoundaryViolations                        []ModuleBoundaryViolation
+	CircularDependencies                            [][]string
+	OrphanFiles                                     []string
+	UnusedNodeModules                               []string
+	MissingNodeModules                              []MissingNodeModuleResult
+	ImportConventionViolations                      []ImportConventionViolation
+	MissingPackageJson                              bool
+	ShouldWarnAboutImportConventionWithPJsonImports bool
 }
 
 // ConfigProcessingResult contains the results for processing an entire config
 type ConfigProcessingResult struct {
-	RuleResults []RuleResult
-	HasFailures bool
+	RuleResults            []RuleResult
+	HasFailures            bool
+	FixedFilesCount        int
+	FixedImportsCount      int
+	UnfixableAliasingCount int
+	FixableIssuesCount     int
 }
 
 // discoverAllFilesForConfig discovers all files for config processing
@@ -158,6 +164,7 @@ func processRuleChecks(
 	fullTree MinimalDependencyTree,
 	resolverManager *ResolverManager,
 	cwd string,
+	fix bool,
 ) RuleResult {
 	// Track enabled checks
 	enabledChecks := []string{}
@@ -310,16 +317,18 @@ func processRuleChecks(
 		go func() {
 			defer wg.Done()
 
-			violations := CheckImportConventionsFromTree(
+			violations, shouldWarnAboutImportConventionWithPJsonImports := CheckImportConventionsFromTree(
 				ruleTree,
 				ruleFiles,
 				rule.ImportConventions,
 				rulePathResolver,
 				fullRulePath, // Use rule path instead of current working directory
+				fix,
 			)
 
 			mu.Lock()
 			ruleResult.ImportConventionViolations = violations
+			ruleResult.ShouldWarnAboutImportConventionWithPJsonImports = shouldWarnAboutImportConventionWithPJsonImports
 			mu.Unlock()
 		}()
 	}
@@ -334,6 +343,7 @@ func ProcessConfig(
 	cwd string,
 	packageJson string,
 	tsconfigJson string,
+	fix bool,
 ) (*ConfigProcessingResult, error) {
 	// Step 1: Discover all files
 	allFiles, excludePatterns, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles)
@@ -384,6 +394,7 @@ func ProcessConfig(
 				fullTree,
 				resolverManager,
 				cwd,
+				fix,
 			)
 
 			// Set the missing package.json flag
@@ -407,5 +418,39 @@ func ProcessConfig(
 	}
 
 	wg.Wait()
+
+	// Step 4: Apply fixes if requested
+	if fix {
+		changesByFile := make(map[string][]Change)
+
+		for _, ruleResult := range result.RuleResults {
+			for _, v := range ruleResult.ImportConventionViolations {
+				if v.Fix != nil {
+					changesByFile[v.FilePath] = append(changesByFile[v.FilePath], *v.Fix)
+					result.FixedImportsCount++
+				} else if v.ViolationType == "should-be-aliased" {
+					result.UnfixableAliasingCount++
+				}
+			}
+		}
+
+		if len(changesByFile) > 0 {
+			if err := ApplyFileChanges(changesByFile); err != nil {
+				return result, fmt.Errorf("failed to apply autofixes: %w", err)
+			}
+			result.FixedFilesCount = len(changesByFile)
+		}
+	} else {
+		fixableIssuesCount := 0
+		for _, ruleResult := range result.RuleResults {
+			for _, v := range ruleResult.ImportConventionViolations {
+				if v.Fix != nil {
+					fixableIssuesCount++
+				}
+			}
+		}
+		result.FixableIssuesCount = fixableIssuesCount
+	}
+
 	return result, nil
 }

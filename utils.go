@@ -8,11 +8,22 @@ import (
 
 var osSeparator = string(os.PathSeparator)
 
-func StandardiseDirPath(cwd string) string {
-	if string(cwd[len(cwd)-1]) == osSeparator {
-		return cwd
+func StandardiseDirPath(p string) string {
+	if string(p[len(p)-1]) == osSeparator {
+		return p
 	} else {
-		return cwd + osSeparator
+		return p + osSeparator
+	}
+}
+
+func StandardiseDirPathInternal(p string) string {
+	if len(p) == 0 {
+		return "/"
+	}
+	if string(p[len(p)-1]) == "/" {
+		return p
+	} else {
+		return p + "/"
 	}
 }
 

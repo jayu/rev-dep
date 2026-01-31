@@ -530,3 +530,32 @@ func TestParseConfig_ImportConventions_EnabledFieldInvalidType(t *testing.T) {
 		t.Errorf("Expected error to contain '%s', got '%s'", expectedError, err.Error())
 	}
 }
+
+func TestParseConfig_ImportConventions_WildcardInPathOfDomainObject(t *testing.T) {
+	configJSON := `{
+		"configVersion": "1.0",
+		"rules": [
+			{
+				"path": ".",
+				"importConventions": [
+					{
+						"rule": "relative-internal-absolute-external",
+						"domains": [
+							{ "path": "src/auth/*", "alias": "@auth" }
+						]
+					}
+				]
+			}
+		]
+	}`
+
+	_, err := ParseConfig([]byte(configJSON))
+	if err == nil {
+		t.Error("Expected error for wildcard in path, got nil")
+	}
+
+	expectedError := "path cannot contain wildcards"
+	if !contains(err.Error(), expectedError) {
+		t.Errorf("Expected error to contain '%s', got '%s'", expectedError, err.Error())
+	}
+}

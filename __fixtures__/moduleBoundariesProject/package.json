@@ -1,7 +1,0 @@
-{
-  "name": "module-boundaries-project",
-  "version": "0.0.1",
-  "workspaces": [
-    "packages/*"
-  ]
-}

@@ -30,6 +30,8 @@ type Import struct {
 	Kind         ImportKind         `json:"kind"`
 	PathOrName   string             `json:"path"`
 	ResolvedType ResolvedImportType `json:"resolvedType"`
+	RequestStart int                `json:"requestStart"`
+	RequestEnd   int                `json:"requestEnd"`
 }
 
 type FileImports struct {
@@ -59,7 +61,7 @@ func isByteIdentifierChar(char byte) bool {
 }
 
 // parseStringLiteral extracts the string literal at position i (' or ")
-func parseStringLiteral(code []byte, i int) (string, int) {
+func parseStringLiteral(code []byte, i int) (string, int, int, int) {
 	quote := code[i]
 	i++
 	start := i
@@ -67,21 +69,23 @@ func parseStringLiteral(code []byte, i int) (string, int) {
 		i++
 	}
 	if i >= len(code) {
-		return "", i
+		return "", i, 0, 0
 	}
-	return string(code[start:i]), i + 1
+	return string(code[start:i]), i + 1, start, i
 }
 
-func parseExpression(code []byte, i int) (string, int) {
+func parseExpression(code []byte, i int) (string, int, int, int) {
 	i = skipSpaces(code, i)
 	if code[i] != '(' {
-		return "", i + 1
+		return "", i + 1, 0, 0
 	}
 	i++
 	parenthesisStack := 1
 	stringContext := false
 	stringChar := byte(0)
 	module := make([]byte, 0)
+	moduleStart := -1
+	moduleEnd := -1
 	j := 0
 	for i < len(code) {
 		if j > 1000 {
@@ -105,11 +109,13 @@ func parseExpression(code []byte, i int) (string, int) {
 		if !stringContext && (code[i] == '\'' || code[i] == '"') {
 			stringContext = true
 			stringChar = code[i]
+			moduleStart = i + 1
 			i++
 			continue
 		}
 		if stringContext && (code[i] == stringChar) {
 			stringContext = false
+			moduleEnd = i
 			stringChar = 0
 			i++
 			continue
@@ -123,11 +129,14 @@ func parseExpression(code []byte, i int) (string, int) {
 		skippedSpacesIndex := skipSpaces(code, i)
 		if skippedSpacesIndex == i {
 			// If there was any valid import the loop should break already
-			return "", i
+			return "", i, 0, 0
 		}
 		i = skippedSpacesIndex
 	}
-	return string(module), i
+	if moduleStart == -1 || moduleEnd == -1 {
+		return string(module), i, 0, 0
+	}
+	return string(module), i, moduleStart, moduleEnd
 }
 
 // areAllImportsInBracesTypes checks if a named import block { ... } contains only "type" imports.
@@ -260,16 +269,16 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 				}
 
 				if i < n && (code[i] == '"' || code[i] == '\'') {
-					module, next := parseStringLiteral(code, i)
+					module, next, start, end := parseStringLiteral(code, i)
 					if module != "" {
-						imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule})
+						imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: start, RequestEnd: end})
 					}
 					i = next
 				} else if i < n && code[i] == '(' {
 					// dynamic import
-					module, next := parseExpression(code, i)
+					module, next, start, end := parseExpression(code, i)
 					if module != "" {
-						imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule})
+						imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: start, RequestEnd: end})
 					}
 					i = next
 				} else {
@@ -298,10 +307,10 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 						i += len("from")
 						i = skipSpaces(code, i)
 						if i < n && (code[i] == '"' || code[i] == '\'') {
-							module, next := parseStringLiteral(code, i)
+							module, next, start, end := parseStringLiteral(code, i)
 							if module != "" {
 								if !ignoreTypeImports || kind == NotTypeOrMixedImport {
-									imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule})
+									imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: start, RequestEnd: end})
 								}
 							}
 							i = next
@@ -397,9 +406,9 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 					i += len("from")
 					i = skipSpaces(code, i)
 					if i < n && (code[i] == '"' || code[i] == '\'') {
-						module, next := parseStringLiteral(code, i)
+						module, next, start, end := parseStringLiteral(code, i)
 						if module != "" {
-							imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule})
+							imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: start, RequestEnd: end})
 						}
 						i = next
 					}
@@ -408,9 +417,9 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool) []Import {
 		} else if bytes.HasPrefix(code[i:], []byte("require")) {
 			i += len("require")
 			if bytes.HasPrefix(code[i:], []byte("(")) || skipSpaces(code, i) > i {
-				module, next := parseExpression(code, i)
+				module, next, start, end := parseExpression(code, i)
 				if module != "" {
-					imports = append(imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule})
+					imports = append(imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: start, RequestEnd: end})
 				}
 				i = next
 			}

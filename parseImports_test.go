@@ -1091,6 +1091,112 @@ func TestShouldNotProcessCommentedCodeAfterImportKeyword(t *testing.T) {
 	}
 }
 
+func TestImportSourceLocationTracking(t *testing.T) {
+	t.Run("Static import with double quotes", func(t *testing.T) {
+		code := `import a from "source"`
+		imports := ParseImportsForTests(code)
+
+		if len(imports) != 1 {
+			t.Fatalf("Expected 1 import, got %d", len(imports))
+		}
+
+		// In `import a from "source"`, the string "source" content starts at index 15 and ends at index 21
+		// (excluding the closing quote at index 21)
+		if imports[0].RequestStart != 15 || imports[0].RequestEnd != 21 {
+			t.Errorf("Expected start=15, end=21, got start=%d, end=%d", imports[0].RequestStart, imports[0].RequestEnd)
+		}
+	})
+
+	t.Run("Static import with single quotes", func(t *testing.T) {
+		code := `import a from 'source'`
+		imports := ParseImportsForTests(code)
+
+		if len(imports) != 1 {
+			t.Fatalf("Expected 1 import, got %d", len(imports))
+		}
+
+		// In `import a from 'source'`, the string 'source' content starts at index 15 and ends at index 21
+		if imports[0].RequestStart != 15 || imports[0].RequestEnd != 21 {
+			t.Errorf("Expected start=15, end=21, got start=%d, end=%d", imports[0].RequestStart, imports[0].RequestEnd)
+		}
+	})
+
+	t.Run("Dynamic import", func(t *testing.T) {
+		code := `import("source")`
+		imports := ParseImportsForTests(code)
+
+		if len(imports) != 1 {
+			t.Fatalf("Expected 1 import, got %d", len(imports))
+		}
+
+		// In `import("source")`, the string "source" content starts at index 8 and ends at index 14
+		if imports[0].RequestStart != 8 || imports[0].RequestEnd != 14 {
+			t.Errorf("Expected start=8, end=14, got start=%d, end=%d", imports[0].RequestStart, imports[0].RequestEnd)
+		}
+	})
+
+	t.Run("Dynamic import with expression", func(t *testing.T) {
+		code := `import((('module')))`
+		imports := ParseImportsForTests(code)
+
+		if len(imports) != 1 {
+			t.Fatalf("Expected 1 import, got %d", len(imports))
+		}
+
+		// In `import((('module')))`, the string "module" content starts at index 10 and ends at index 16
+		if imports[0].RequestStart != 10 || imports[0].RequestEnd != 16 {
+			t.Errorf("Expected start=10, end=16, got start=%d, end=%d", imports[0].RequestStart, imports[0].RequestEnd)
+		}
+	})
+
+	t.Run("Require import", func(t *testing.T) {
+		code := `require("source")`
+		imports := ParseImportsForTests(code)
+
+		if len(imports) != 1 {
+			t.Fatalf("Expected 1 import, got %d", len(imports))
+		}
+
+		// In `require("source")`, the string "source" content starts at index 9 and ends at index 15
+		if imports[0].RequestStart != 9 || imports[0].RequestEnd != 15 {
+			t.Errorf("Expected start=9, end=15, got start=%d, end=%d", imports[0].RequestStart, imports[0].RequestEnd)
+		}
+	})
+
+	t.Run("Export from", func(t *testing.T) {
+		code := `export { a } from "source"`
+		imports := ParseImportsForTests(code)
+
+		if len(imports) != 1 {
+			t.Fatalf("Expected 1 import, got %d", len(imports))
+		}
+
+		// In `export { a } from "source"`, the string "source" content starts at index 19 and ends at index 25
+		if imports[0].RequestStart != 19 || imports[0].RequestEnd != 25 {
+			t.Errorf("Expected start=19, end=25, got start=%d, end=%d", imports[0].RequestStart, imports[0].RequestEnd)
+		}
+	})
+
+	t.Run("Multiple imports with different locations", func(t *testing.T) {
+		code := `import "first"; import "second"`
+		imports := ParseImportsForTests(code)
+
+		if len(imports) != 2 {
+			t.Fatalf("Expected 2 imports, got %d", len(imports))
+		}
+
+		// First import "first" content starts at index 8, ends at index 13
+		if imports[0].RequestStart != 8 || imports[0].RequestEnd != 13 {
+			t.Errorf("First import: Expected start=8, end=13, got start=%d, end=%d", imports[0].RequestStart, imports[0].RequestEnd)
+		}
+
+		// Second import "second" content starts at index 24, ends at index 30
+		if imports[1].RequestStart != 24 || imports[1].RequestEnd != 30 {
+			t.Errorf("Second import: Expected start=24, end=30, got start=%d, end=%d", imports[1].RequestStart, imports[1].RequestEnd)
+		}
+	})
+}
+
 func BenchmarkParseImportsWithTypes(b *testing.B) {
 	fixtureContent, _ := os.ReadFile("./__fixtures__/parseImports.ts")
 	ignoreTypeImports := true

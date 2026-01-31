@@ -1,9 +1,0 @@
-{
-  "name": "@packages/client",
-  "version": "1.0.0",
-  "main": "index.ts",
-  "dependencies": {
-    "@packages/api": "1.0.0",
-    "@packages/utils": "1.0.0"
-  }
-}

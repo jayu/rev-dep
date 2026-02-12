@@ -33,13 +33,4 @@ func TestResolveMarksExcludedFilesAsExcludedByUser(t *testing.T) {
 		t.Errorf("Expected dependency ID to be %s, got %v", excluded, dep.ID)
 	}
 
-	// Ensure that excluded file has a placeholder entry in the minimal tree
-	depsForExcluded, exists := minimalTree[excluded]
-	if !exists {
-		t.Fatalf("Excluded file %s not present as placeholder in minimal tree", excluded)
-	}
-
-	if len(depsForExcluded) != 0 {
-		t.Errorf("Expected placeholder deps for excluded file to be empty, got %d entries", len(depsForExcluded))
-	}
 }

@@ -953,16 +953,13 @@ func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []st
 
 // getUnresolvedOutput returns formatted unresolved imports grouped by file as a string.
 func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (string, error) {
-	minimalTree, _, resolverManager := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
 
-	cwdNodeModules := resolverManager.rootResolver.nodeModules
 	// Group unresolved imports by file
 	unresolvedByFile := make(map[string][]string)
 	for filePath, deps := range minimalTree {
 		for _, dep := range deps {
-			// For followed monorepo pacakges, node_modules should be defined in cwd package.json, as this one bulds the app
-			// Module resolution checks for node_modules in resolver related to given file, so for followed pacakge, it will check followed package package.json. It might not contain node module, but the cwd might contain it.
-			if dep.ResolvedType == NotResolvedModule && dep.Request != "" && !cwdNodeModules[dep.Request] {
+			if dep.ResolvedType == NotResolvedModule && dep.Request != "" {
 				unresolvedByFile[filePath] = append(unresolvedByFile[filePath], dep.Request)
 			}
 		}
@@ -1171,7 +1168,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, ParseModeBasic)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, ParseModeBasic, NodeModulesMatchingStrategyRootResolver)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

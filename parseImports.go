@@ -27,11 +27,18 @@ const (
 	LocalExportDeclaration
 )
 
-type ParseMode int
+type ParseMode uint8
 
 const (
 	ParseModeBasic    ParseMode = iota // Current behavior
 	ParseModeDetailed                  // Keyword tracking + local exports
+)
+
+type NodeModulesMatchingStrategy uint8
+
+const (
+	NodeModulesMatchingStrategySelfResolver NodeModulesMatchingStrategy = iota
+	NodeModulesMatchingStrategyRootResolver
 )
 
 type KeywordInfo struct {

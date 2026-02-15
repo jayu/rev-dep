@@ -132,6 +132,7 @@ func buildDependencyTreeForConfig(
 		conditionNames,
 		followMonorepoPackages,
 		parseMode,
+		NodeModulesMatchingStrategySelfResolver,
 	)
 
 	// Transform to minimal dependency tree

@@ -402,7 +402,10 @@ func processRuleChecks(
 
 			for filePath, deps := range ruleTree {
 				for _, dep := range deps {
-					if dep.ResolvedType == NotResolvedModule && dep.Request != "" {
+					// NotResolvedModule might be actually a node module, but defined rule path package (eg apps/main-app) not in just in time package (pacakges/shared)
+					// We are not able to detect that during module resolution for config file, becasue we resolve all modules without knowing which workspace contains app and which contains shared code
+					// During rule evaluation we can assume that package.json in rule path is the one that contains node modules for app build from that rule path
+					if dep.ResolvedType == NotResolvedModule && dep.Request != "" && !rulePathNodeModules[dep.Request] {
 						unresolved = append(unresolved, UnresolvedImport{FilePath: filePath, Request: dep.Request})
 					}
 				}
@@ -549,9 +552,6 @@ func ProcessConfig(
 
 			// Handle orphan files autofix: delete files when configured
 			if isOrphanFixEnabled {
-				if len(ruleResult.OrphanFiles) > 0 {
-					fmt.Printf("Autofix: removing %d orphan files for rule '%s'\n", len(ruleResult.OrphanFiles), ruleCfg.Path)
-				}
 				for _, orphan := range ruleResult.OrphanFiles {
 					osPath := DenormalizePathForOS(orphan)
 					if !filepath.IsAbs(osPath) {

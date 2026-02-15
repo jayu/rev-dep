@@ -28,6 +28,7 @@ type OrphanFilesOptions struct {
 	ValidEntryPoints  []string `json:"validEntryPoints,omitempty"`
 	IgnoreTypeImports bool     `json:"ignoreTypeImports,omitempty"`
 	GraphExclude      []string `json:"graphExclude,omitempty"`
+	Autofix           bool     `json:"autofix,omitempty"`
 }
 
 type UnusedNodeModulesOptions struct {
@@ -532,6 +533,7 @@ func validateRawOrphanFilesDetection(orphan interface{}, ruleIndex int) error {
 		"validEntryPoints":  true,
 		"ignoreTypeImports": true,
 		"graphExclude":      true,
+		"autofix":           true,
 	}
 
 	for field := range orphanMap {
@@ -566,6 +568,12 @@ func validateRawOrphanFilesDetection(orphan interface{}, ruleIndex int) error {
 	if ignoreType, exists := orphanMap["ignoreTypeImports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
 			return fmt.Errorf("rules[%d].orphanFilesDetection.ignoreTypeImports must be a boolean, got %T", ruleIndex, ignoreType)
+		}
+	}
+
+	if autofix, exists := orphanMap["autofix"]; exists && autofix != nil {
+		if _, ok := autofix.(bool); !ok {
+			return fmt.Errorf("rules[%d].orphanFilesDetection.autofix must be a boolean, got %T", ruleIndex, autofix)
 		}
 	}
 

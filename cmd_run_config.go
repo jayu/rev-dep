@@ -421,8 +421,20 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 	}
 
 	// Print autofix summary if any fixes were applied or unfixable issues found
-	if result.FixedFilesCount > 0 || result.FixedImportsCount > 0 {
-		fmt.Printf("✍️ Fixed %d imports in %d files\n", result.FixedImportsCount, result.FixedFilesCount)
+	if result.FixedFilesCount > 0 || result.FixedImportsCount > 0 || result.DeletedFilesCount > 0 {
+		var summary []string
+		if result.FixedImportsCount > 0 || result.FixedFilesCount > 0 {
+			summary = append(summary, fmt.Sprintf("fixed %d imports in %d files", result.FixedImportsCount, result.FixedFilesCount))
+		}
+		if result.DeletedFilesCount > 0 {
+			summary = append(summary, fmt.Sprintf("removed %d orphan files", result.DeletedFilesCount))
+		}
+
+		if len(summary) > 0 {
+			// Capitalize first letter of first summary part
+			summary[0] = strings.ToUpper(summary[0][:1]) + summary[0][1:]
+			fmt.Printf("✍️ %s\n", strings.Join(summary, ", "))
+		}
 	}
 
 	if result.FixableIssuesCount > 0 {

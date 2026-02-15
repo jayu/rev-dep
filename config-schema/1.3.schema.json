@@ -105,6 +105,9 @@
         "unusedExportsDetection": {
           "$ref": "#/definitions/UnusedExportsOptions"
         },
+        "unresolvedImportsDetection": {
+          "$ref": "#/definitions/UnresolvedImportsOptions"
+        },
         "importConventions": {
           "type": "array",
           "items": {
@@ -223,6 +226,11 @@
             "pattern": "^(?!\\.{1,2}[\\\\/]).+"
           },
           "description": "Patterns to exclude from graph analysis"
+        },
+        "autofix": {
+          "type": "boolean",
+          "description": "Whether to automatically remove orphan files",
+          "default": false
         }
       }
     },
@@ -314,7 +322,8 @@
           "enum": [
             "list",
             "groupByModule",
-            "groupByFile"
+            "groupByFile",
+            "groupByModuleFilesCount"
           ],
           "description": "Output format type",
           "default": "list"
@@ -358,6 +367,19 @@
             "pattern": "^(?!\\.{1,2}[\\\\/]).+"
           },
           "description": "Patterns to exclude from unused exports analysis"
+        }
+      }
+    },
+    "UnresolvedImportsOptions": {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable unresolved imports detection"
         }
       }
     },

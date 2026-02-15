@@ -63,6 +63,7 @@ type ConfigProcessingResult struct {
 	HasFailures            bool
 	FixedFilesCount        int
 	FixedImportsCount      int
+	DeletedFilesCount      int
 	UnfixableAliasingCount int
 	FixableIssuesCount     int
 }
@@ -511,8 +512,24 @@ func ProcessConfig(
 	if fix {
 		changesByFile := make(map[string][]Change)
 
-		for _, ruleResult := range result.RuleResults {
+		for i, ruleResult := range result.RuleResults {
+			ruleCfg := config.Rules[i]
+			of := ruleCfg.OrphanFilesDetection
+			isOrphanFixEnabled := of != nil && of.Enabled && of.Autofix
+
+			// Create a set of orphan files to be deleted by this rule to avoid content fixes on them
+			orphanFilesToDelete := make(map[string]bool)
+			if isOrphanFixEnabled {
+				for _, orphan := range ruleResult.OrphanFiles {
+					orphanFilesToDelete[orphan] = true
+				}
+			}
+
+			// Handle import convention and unused exports fixes as before
 			for _, v := range ruleResult.ImportConventionViolations {
+				if orphanFilesToDelete[v.FilePath] {
+					continue
+				}
 				if v.Fix != nil {
 					changesByFile[v.FilePath] = append(changesByFile[v.FilePath], *v.Fix)
 					result.FixedImportsCount++
@@ -521,9 +538,29 @@ func ProcessConfig(
 				}
 			}
 			for _, v := range ruleResult.UnusedExports {
+				if orphanFilesToDelete[v.FilePath] {
+					continue
+				}
 				if v.Fix != nil {
 					changesByFile[v.FilePath] = append(changesByFile[v.FilePath], *v.Fix)
 					result.FixedImportsCount++
+				}
+			}
+
+			// Handle orphan files autofix: delete files when configured
+			if isOrphanFixEnabled {
+				if len(ruleResult.OrphanFiles) > 0 {
+					fmt.Printf("Autofix: removing %d orphan files for rule '%s'\n", len(ruleResult.OrphanFiles), ruleCfg.Path)
+				}
+				for _, orphan := range ruleResult.OrphanFiles {
+					osPath := DenormalizePathForOS(orphan)
+					if !filepath.IsAbs(osPath) {
+						osPath = filepath.Join(cwd, osPath)
+					}
+					if err := os.Remove(osPath); err != nil {
+						return result, fmt.Errorf("failed to remove orphan file '%s': %w", osPath, err)
+					}
+					result.DeletedFilesCount++
 				}
 			}
 		}
@@ -532,11 +569,11 @@ func ProcessConfig(
 			if err := ApplyFileChanges(changesByFile); err != nil {
 				return result, fmt.Errorf("failed to apply autofixes: %w", err)
 			}
-			result.FixedFilesCount = len(changesByFile)
+			result.FixedFilesCount += len(changesByFile)
 		}
 	} else {
 		fixableIssuesCount := 0
-		for _, ruleResult := range result.RuleResults {
+		for i, ruleResult := range result.RuleResults {
 			for _, v := range ruleResult.ImportConventionViolations {
 				if v.Fix != nil {
 					fixableIssuesCount++
@@ -546,6 +583,12 @@ func ProcessConfig(
 				if v.Fix != nil {
 					fixableIssuesCount++
 				}
+			}
+
+			// Add orphan files to fixable count if autofix is enabled for this rule
+			rule := config.Rules[i]
+			if rule.OrphanFilesDetection != nil && rule.OrphanFilesDetection.Enabled && rule.OrphanFilesDetection.Autofix {
+				fixableIssuesCount += len(ruleResult.OrphanFiles)
 			}
 		}
 		result.FixableIssuesCount = fixableIssuesCount

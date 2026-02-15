@@ -118,8 +118,8 @@ func TestInitConfigFile(t *testing.T) {
 	}
 
 	config := configs[0]
-	if config.ConfigVersion != "1.2" {
-		t.Errorf("Expected configVersion '1.2', got '%s'", config.ConfigVersion)
+	if config.ConfigVersion != "1.3" {
+		t.Errorf("Expected configVersion '1.3', got '%s'", config.ConfigVersion)
 	}
 
 	if len(config.Rules) != 1 {
@@ -1758,6 +1758,248 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+func TestParseConfig_UnusedExportsDetection(t *testing.T) {
+	t.Run("valid config with all options", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": ["src/index.ts", "src/public-api.ts"],
+					"ignoreTypeExports": true,
+					"graphExclude": ["**/*.test.ts", "**/*.spec.ts"]
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		if rule.UnusedExportsDetection == nil {
+			t.Fatal("Expected unusedExportsDetection to be non-nil")
+		}
+		if !rule.UnusedExportsDetection.Enabled {
+			t.Error("Expected enabled to be true")
+		}
+		if len(rule.UnusedExportsDetection.ValidEntryPoints) != 2 {
+			t.Errorf("Expected 2 entry points, got %d", len(rule.UnusedExportsDetection.ValidEntryPoints))
+		}
+		if !rule.UnusedExportsDetection.IgnoreTypeExports {
+			t.Error("Expected ignoreTypeExports to be true")
+		}
+		if len(rule.UnusedExportsDetection.GraphExclude) != 2 {
+			t.Errorf("Expected 2 graphExclude patterns, got %d", len(rule.UnusedExportsDetection.GraphExclude))
+		}
+	})
+
+	t.Run("minimal config", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		if rule.UnusedExportsDetection == nil || !rule.UnusedExportsDetection.Enabled {
+			t.Error("Expected unusedExportsDetection to be enabled")
+		}
+	})
+
+	t.Run("missing enabled field", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "unusedExportsDetection.enabled is required") {
+			t.Errorf("Expected 'enabled is required' error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("unknown field", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"unknownField": "value"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "unknown field 'unknownField'") {
+			t.Errorf("Expected unknown field error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for enabled", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": "yes"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must be a boolean") {
+			t.Errorf("Expected boolean type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for validEntryPoints", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": "not-an-array"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must be an array") {
+			t.Errorf("Expected array type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for ignoreTypeExports", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"ignoreTypeExports": "yes"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must be a boolean") {
+			t.Errorf("Expected boolean type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("invalid graphExclude pattern", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"graphExclude": ["./invalid/**"]
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "starts with './'") {
+			t.Errorf("Expected pattern validation error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("empty validEntryPoints string", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": [""]
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "cannot be empty") {
+			t.Errorf("Expected empty entry point error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("null enabled", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": null
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "cannot be null") {
+			t.Errorf("Expected null error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("not an object", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": "not-object"
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must be an object") {
+			t.Errorf("Expected object type error, got: %s", err.Error())
+		}
+	})
 }
 
 func TestParseConfig_FollowMonorepoPackages(t *testing.T) {

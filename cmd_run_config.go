@@ -286,6 +286,55 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				} else {
 					fmt.Printf("  ✅ Import Conventions\n")
 				}
+			case "unused-exports":
+				if len(ruleResult.UnusedExports) > 0 {
+					fmt.Printf("  ❌ Unused Exports Issues (%d):\n", len(ruleResult.UnusedExports))
+
+					exportsToDisplay := ruleResult.UnusedExports
+
+					// Sort exports by file path and then by export name
+					slices.SortFunc(exportsToDisplay, func(a, b UnusedExport) int {
+						if a.FilePath != b.FilePath {
+							return strings.Compare(a.FilePath, b.FilePath)
+						}
+						return strings.Compare(a.ExportName, b.ExportName)
+					})
+
+					remaining := 0
+					if !listAll && len(exportsToDisplay) > maxIssuesToList {
+						remaining = len(exportsToDisplay) - maxIssuesToList
+						exportsToDisplay = exportsToDisplay[:maxIssuesToList]
+					}
+
+					// Group by file path
+					exportsByFile := make(map[string][]UnusedExport)
+					for _, ue := range exportsToDisplay {
+						exportsByFile[ue.FilePath] = append(exportsByFile[ue.FilePath], ue)
+					}
+
+					var sortedFilePaths []string
+					for filePath := range exportsByFile {
+						sortedFilePaths = append(sortedFilePaths, filePath)
+					}
+					slices.Sort(sortedFilePaths)
+
+					for _, filePath := range sortedFilePaths {
+						fmt.Printf("    %s\n", getRelativePath(filePath))
+						for _, ue := range exportsByFile[filePath] {
+							if ue.IsType {
+								fmt.Printf("     - %s (type)\n", ue.ExportName)
+							} else {
+								fmt.Printf("     - %s\n", ue.ExportName)
+							}
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more unused export issues\n", remaining)
+					}
+				} else {
+					fmt.Printf("  ✅ Unused Exports\n")
+				}
 			}
 		}
 
@@ -344,7 +393,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
-	currentConfigVersion := "1.2"
+	currentConfigVersion := "1.3"
 
 	// Check if any config file already exists
 	existingConfig, err := findConfigFile(cwd)

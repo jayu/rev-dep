@@ -36,11 +36,11 @@ of your project's dependency graph.`,
 }
 
 type MinimalDependencyWithLabels struct {
-	ID                *string            `json:"id"`
+	ID                string             `json:"id"`
 	Request           string             `json:"request"`
 	ResolvedType      ResolvedImportType `json:"resolvedType"`
 	ResolvedTypeLabel string             `json:"resolvedTypeLabel"`
-	ImportKind        *ImportKind        `json:"importKind"`
+	ImportKind        ImportKind         `json:"importKind"`
 	ImportKindLabel   string             `json:"importKindLabel"`
 }
 
@@ -71,9 +71,7 @@ var debugParseFileCmd = &cobra.Command{
 				ResolvedType:      dep.ResolvedType,
 				ResolvedTypeLabel: ResolvedImportTypeToString(dep.ResolvedType),
 				ImportKind:        dep.ImportKind,
-			}
-			if dep.ImportKind != nil {
-				depWithLabels.ImportKindLabel = ImportKindToString(*dep.ImportKind)
+				ImportKindLabel:   ImportKindToString(dep.ImportKind),
 			}
 			jsonDep, err := json.MarshalIndent(depWithLabels, "  ", "  ")
 			if err == nil {
@@ -113,9 +111,7 @@ var debugGetTreeCmd = &cobra.Command{
 					ResolvedType:      dep.ResolvedType,
 					ResolvedTypeLabel: ResolvedImportTypeToString(dep.ResolvedType),
 					ImportKind:        dep.ImportKind,
-				}
-				if dep.ImportKind != nil {
-					dwl.ImportKindLabel = ImportKindToString(*dep.ImportKind)
+					ImportKindLabel:   ImportKindToString(dep.ImportKind),
 				}
 				depsWithLabels = append(depsWithLabels, dwl)
 			}

@@ -446,8 +446,8 @@ func TestShouldResolvePJsonAliasToExternalModule(t *testing.T) {
 		t.Errorf("Expected aliased import request to be '#utils-lib', got '%s'", aliasedImport.Request)
 	}
 
-	if *aliasedImport.ID != "lodash" {
-		t.Errorf("Expected aliased import ID to be 'lodash', got '%s'", *aliasedImport.ID)
+	if aliasedImport.ID != "lodash" {
+		t.Errorf("Expected aliased import ID to be 'lodash', got '%s'", aliasedImport.ID)
 	}
 }
 
@@ -465,8 +465,8 @@ func TestShouldResolvePJsonAliasToNodeModuleWithSubpath(t *testing.T) {
 	if basicSubpathImport.Request != "#my-util-submodule" {
 		t.Errorf("Expected basic import request to be '#my-util-submodule', got '%s'", basicSubpathImport.Request)
 	}
-	if *basicSubpathImport.ID != "lodash" {
-		t.Errorf("Expected basic import ID to be 'lodash', got '%s'", *basicSubpathImport.ID)
+	if basicSubpathImport.ID != "lodash" {
+		t.Errorf("Expected basic import ID to be 'lodash', got '%s'", basicSubpathImport.ID)
 	}
 	if basicSubpathImport.ResolvedType != NodeModule {
 		t.Errorf("Expected basic import type to be NodeModule, got '%s'", ResolvedImportTypeToString(basicSubpathImport.ResolvedType))
@@ -477,8 +477,8 @@ func TestShouldResolvePJsonAliasToNodeModuleWithSubpath(t *testing.T) {
 	if wildcardSubpathImport.Request != "#my-util-submodule/array.js" {
 		t.Errorf("Expected wildcard import request to be '#my-util-submodule/array.js', got '%s'", wildcardSubpathImport.Request)
 	}
-	if *wildcardSubpathImport.ID != "lodash" {
-		t.Errorf("Expected wildcard import ID to be 'lodash', got '%s'", *wildcardSubpathImport.ID)
+	if wildcardSubpathImport.ID != "lodash" {
+		t.Errorf("Expected wildcard import ID to be 'lodash', got '%s'", wildcardSubpathImport.ID)
 	}
 	if wildcardSubpathImport.ResolvedType != NodeModule {
 		t.Errorf("Expected wildcard import type to be NodeModule, got '%s'", ResolvedImportTypeToString(wildcardSubpathImport.ResolvedType))
@@ -489,8 +489,8 @@ func TestShouldResolvePJsonAliasToNodeModuleWithSubpath(t *testing.T) {
 	if deepSubpathImport.Request != "#my-util-submodule/deep/nested/path.js" {
 		t.Errorf("Expected deep import request to be '#my-util-submodule/deep/nested/path.js', got '%s'", deepSubpathImport.Request)
 	}
-	if *deepSubpathImport.ID != "lodash" {
-		t.Errorf("Expected deep import ID to be 'lodash', got '%s'", *deepSubpathImport.ID)
+	if deepSubpathImport.ID != "lodash" {
+		t.Errorf("Expected deep import ID to be 'lodash', got '%s'", deepSubpathImport.ID)
 	}
 	if deepSubpathImport.ResolvedType != NodeModule {
 		t.Errorf("Expected deep import type to be NodeModule, got '%s'", ResolvedImportTypeToString(deepSubpathImport.ResolvedType))

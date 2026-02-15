@@ -256,7 +256,7 @@ func CheckImportConventionsFromTree(
 			if fileMatches && fileDomain.CheckEnabled {
 				for impIdx, imp := range imports {
 					if imp.ResolvedType == UserModule || imp.ResolvedType == MonorepoModule {
-						importFilePath := *imp.ID
+						importFilePath := imp.ID
 						isSameDomain := strings.HasPrefix(importFilePath, fileDomain.AbsolutePath)
 						isRelative := IsRelativeImport(imp.Request)
 						if isSameDomain {
@@ -289,7 +289,7 @@ func CheckImportConventionsFromTree(
 									fix = &Change{
 										Start: int32(imp.RequestStart),
 										End:   int32(imp.RequestEnd),
-										Text:  adjustImportPathStyle(importDomain.AliasReplacement+strings.TrimPrefix(*imp.ID, importDomain.AliasPathPrefix), imp.Request),
+										Text:  adjustImportPathStyle(importDomain.AliasReplacement+strings.TrimPrefix(imp.ID, importDomain.AliasPathPrefix), imp.Request),
 									}
 								}
 								violations = append(violations, ImportConventionViolation{
@@ -302,7 +302,7 @@ func CheckImportConventionsFromTree(
 							} else {
 								if importMatches && importDomain.EnforcedAlias != "" {
 									if !strings.HasPrefix(imp.Request, importDomain.EnforcedAlias) {
-										newRequest := importDomain.AliasReplacement + strings.TrimPrefix(*imp.ID, importDomain.AliasPathPrefix)
+										newRequest := importDomain.AliasReplacement + strings.TrimPrefix(imp.ID, importDomain.AliasPathPrefix)
 										newRequest = adjustImportPathStyle(newRequest, imp.Request)
 										violations = append(violations, ImportConventionViolation{
 											FilePath:      filePath,

@@ -25,16 +25,16 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 		// Check dependencies
 		if nodeDeps, exists := deps[node]; exists && nodeDeps != nil {
 			for _, dep := range nodeDeps {
-				if dep.ID == nil || *dep.ID == "" {
+				if dep.ID == "" {
 					continue
 				}
 
 				// Skip type-only imports if ignoreTypeImports is enabled
-				if ignoreTypeImports && dep.ImportKind != nil && *dep.ImportKind == OnlyTypeImport {
+				if ignoreTypeImports && dep.ImportKind == OnlyTypeImport {
 					continue
 				}
 
-				depPath := *dep.ID
+				depPath := dep.ID
 
 				// Check if this dependency is in our recursion stack (cycle found)
 				if recStack[depPath] {
@@ -108,7 +108,7 @@ func formatCircularDependencies(cycles [][]string, pathPrefix string, deps Minim
 				// Keep linear search for small dependency lists
 				if nodeDeps, exists := deps[cycle[j-1]]; exists {
 					for _, imp := range nodeDeps {
-						if imp.ID != nil && *imp.ID == file {
+						if imp.ID == file {
 							request = imp.Request
 							break
 						}

@@ -47,6 +47,13 @@ type MissingNodeModulesOptions struct {
 	OutputType     string   `json:"outputType,omitempty"` // "list", "groupByModule", "groupByFile"
 }
 
+type UnusedExportsOptions struct {
+	Enabled           bool     `json:"enabled"`
+	ValidEntryPoints  []string `json:"validEntryPoints,omitempty"`
+	IgnoreTypeExports bool     `json:"ignoreTypeExports,omitempty"`
+	GraphExclude      []string `json:"graphExclude,omitempty"`
+}
+
 // ImportConventionDomain represents a single domain definition
 type ImportConventionDomain struct {
 	Path    string `json:"path,omitempty"`
@@ -69,6 +76,7 @@ type Rule struct {
 	OrphanFilesDetection        *OrphanFilesOptions        `json:"orphanFilesDetection,omitempty"`
 	UnusedNodeModulesDetection  *UnusedNodeModulesOptions  `json:"unusedNodeModulesDetection,omitempty"`
 	MissingNodeModulesDetection *MissingNodeModulesOptions `json:"missingNodeModulesDetection,omitempty"`
+	UnusedExportsDetection      *UnusedExportsOptions      `json:"unusedExportsDetection,omitempty"`
 	ImportConventions           []ImportConventionRule     `json:"-"`
 }
 
@@ -87,7 +95,7 @@ var hiddenConfigFileNameJsonc = ".rev-dep.config.jsonc"
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -327,6 +335,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		"orphanFilesDetection":        true,
 		"unusedNodeModulesDetection":  true,
 		"missingNodeModulesDetection": true,
+		"unusedExportsDetection":      true,
 		"importConventions":           true,
 	}
 
@@ -379,6 +388,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 
 	if missing, exists := rule["missingNodeModulesDetection"]; exists {
 		if err := validateRawMissingNodeModulesDetection(missing, index); err != nil {
+			return err
+		}
+	}
+
+	if unusedExports, exists := rule["unusedExportsDetection"]; exists {
+		if err := validateRawUnusedExportsDetection(unusedExports, index); err != nil {
 			return err
 		}
 	}
@@ -646,6 +661,58 @@ func validateRawMissingNodeModulesDetection(missing interface{}, ruleIndex int) 
 	return nil
 }
 
+// validateRawUnusedExportsDetection validates unused exports detection structure
+func validateRawUnusedExportsDetection(unusedExports interface{}, ruleIndex int) error {
+	unusedExportsMap, ok := unusedExports.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("rules[%d].unusedExportsDetection must be an object, got %T", ruleIndex, unusedExports)
+	}
+
+	allowedFields := map[string]bool{
+		"enabled":           true,
+		"validEntryPoints":  true,
+		"ignoreTypeExports": true,
+		"graphExclude":      true,
+	}
+
+	for field := range unusedExportsMap {
+		if !allowedFields[field] {
+			return fmt.Errorf("rules[%d].unusedExportsDetection: unknown field '%s'", ruleIndex, field)
+		}
+	}
+
+	if _, exists := unusedExportsMap["enabled"]; !exists {
+		return fmt.Errorf("rules[%d].unusedExportsDetection.enabled is required", ruleIndex)
+	}
+
+	if enabled, ok := unusedExportsMap["enabled"]; !ok || enabled == nil {
+		return fmt.Errorf("rules[%d].unusedExportsDetection.enabled cannot be null", ruleIndex)
+	} else if _, ok := enabled.(bool); !ok {
+		return fmt.Errorf("rules[%d].unusedExportsDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+	}
+
+	// Validate array fields
+	if entryPoints, exists := unusedExportsMap["validEntryPoints"]; exists && entryPoints != nil {
+		if _, ok := entryPoints.([]interface{}); !ok {
+			return fmt.Errorf("rules[%d].unusedExportsDetection.validEntryPoints must be an array, got %T", ruleIndex, entryPoints)
+		}
+	}
+
+	if graphExclude, exists := unusedExportsMap["graphExclude"]; exists && graphExclude != nil {
+		if _, ok := graphExclude.([]interface{}); !ok {
+			return fmt.Errorf("rules[%d].unusedExportsDetection.graphExclude must be an array, got %T", ruleIndex, graphExclude)
+		}
+	}
+
+	if ignoreType, exists := unusedExportsMap["ignoreTypeExports"]; exists && ignoreType != nil {
+		if _, ok := ignoreType.(bool); !ok {
+			return fmt.Errorf("rules[%d].unusedExportsDetection.ignoreTypeExports must be a boolean, got %T", ruleIndex, ignoreType)
+		}
+	}
+
+	return nil
+}
+
 // ValidateConfig validates the RevDepConfig structure and required fields.
 func ValidateConfig(config *RevDepConfig) error {
 	if config.ConfigVersion == "" {
@@ -688,6 +755,13 @@ func ValidateConfig(config *RevDepConfig) error {
 		// Validate missing node modules detection options
 		if rule.MissingNodeModulesDetection != nil {
 			if err := validateMissingNodeModulesOptions(rule.MissingNodeModulesDetection, fmt.Sprintf("rules[%d].missingNodeModulesDetection", j)); err != nil {
+				return err
+			}
+		}
+
+		// Validate unused exports detection options
+		if rule.UnusedExportsDetection != nil {
+			if err := validateUnusedExportsOptions(rule.UnusedExportsDetection, fmt.Sprintf("rules[%d].unusedExportsDetection", j)); err != nil {
 				return err
 			}
 		}
@@ -778,6 +852,29 @@ func validateMissingNodeModulesOptions(opts *MissingNodeModulesOptions, prefix s
 	// Validate output type
 	if opts.OutputType != "" && opts.OutputType != "list" && opts.OutputType != "groupByModule" && opts.OutputType != "groupByFile" {
 		return fmt.Errorf("%s.outputType: must be one of 'list', 'groupByModule', 'groupByFile', got '%s'", prefix, opts.OutputType)
+	}
+
+	return nil
+}
+
+// validateUnusedExportsOptions validates unused exports detection options
+func validateUnusedExportsOptions(opts *UnusedExportsOptions, prefix string) error {
+	if !opts.Enabled {
+		return nil
+	}
+
+	// Validate valid entry points if provided
+	for i, entryPoint := range opts.ValidEntryPoints {
+		if entryPoint == "" {
+			return fmt.Errorf("%s.validEntryPoints[%d]: cannot be empty", prefix, i)
+		}
+	}
+
+	// Validate graph exclude patterns
+	for i, pattern := range opts.GraphExclude {
+		if err := validatePattern(pattern); err != nil {
+			return fmt.Errorf("%s.graphExclude[%d]: %w", prefix, i, err)
+		}
 	}
 
 	return nil

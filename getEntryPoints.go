@@ -7,7 +7,7 @@ func GetEntryPoints(minimalTree MinimalDependencyTree, resultExclude []string, r
 
 	for _, imports := range minimalTree {
 		for _, dependency := range imports {
-			referencedFiles[*dependency.ID] = 0
+			referencedFiles[dependency.ID] = 0
 		}
 	}
 

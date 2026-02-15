@@ -218,7 +218,7 @@ func GetUsedNodeModulesFromTree(
 	for filePath, fileDeps := range minimalTree {
 		for _, dependency := range fileDeps {
 			if dependency.ResolvedType == NodeModule {
-				depId := *dependency.ID
+				depId := dependency.ID
 				setFilePathInNodeModuleFilesMap(&usedNodeModules, depId, filePath)
 			}
 

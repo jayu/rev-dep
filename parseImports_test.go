@@ -1202,7 +1202,7 @@ func BenchmarkParseImportsWithTypes(b *testing.B) {
 	ignoreTypeImports := true
 
 	for b.Loop() {
-		ParseImportsByte(fixtureContent, ignoreTypeImports)
+		ParseImportsByte(fixtureContent, ignoreTypeImports, ParseModeBasic)
 	}
 }
 
@@ -1211,7 +1211,7 @@ func BenchmarkParseImportsWithoutTypes(b *testing.B) {
 	ignoreTypeImports := true
 
 	for b.Loop() {
-		ParseImportsByte(fixtureContent, ignoreTypeImports)
+		ParseImportsByte(fixtureContent, ignoreTypeImports, ParseModeBasic)
 	}
 }
 
@@ -1220,7 +1220,7 @@ func BenchmarkParseImportsWithTypes600Loc(b *testing.B) {
 	ignoreTypeImports := true
 
 	for b.Loop() {
-		ParseImportsByte(fixtureContent, ignoreTypeImports)
+		ParseImportsByte(fixtureContent, ignoreTypeImports, ParseModeBasic)
 	}
 }
 
@@ -1229,6 +1229,2087 @@ func BenchmarkParseImportsWithoutTypes600Loc(b *testing.B) {
 	ignoreTypeImports := true
 
 	for b.Loop() {
-		ParseImportsByte(fixtureContent, ignoreTypeImports)
+		ParseImportsByte(fixtureContent, ignoreTypeImports, ParseModeBasic)
+	}
+}
+
+// ==================== Detailed Mode Tests ====================
+
+// --- Import Keyword Extraction ---
+
+func TestDetailedImportDefault(t *testing.T) {
+	code := `import Default from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw == nil || kw.Len() != 1 {
+		t.Fatalf("Expected 1 keyword, got %v", kw)
+	}
+	k := kw.Keywords[0]
+	if k.Name != "default" || k.Alias != "Default" || k.IsType || k.Position != 0 {
+		t.Errorf("Unexpected keyword: %+v", k)
+	}
+}
+
+func TestDetailedImportNamespace(t *testing.T) {
+	code := `import * as Ns from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw == nil || kw.Len() != 1 {
+		t.Fatalf("Expected 1 keyword, got %v", kw)
+	}
+	k := kw.Keywords[0]
+	if k.Name != "*" || k.Alias != "Ns" || k.IsType {
+		t.Errorf("Unexpected keyword: %+v", k)
+	}
+}
+
+func TestDetailedImportNamedSingle(t *testing.T) {
+	code := `import { A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw == nil || kw.Len() != 1 {
+		t.Fatalf("Expected 1 keyword, got %v", kw)
+	}
+	k := kw.Keywords[0]
+	if k.Name != "A" || k.Alias != "" || k.IsType {
+		t.Errorf("Unexpected keyword: %+v", k)
+	}
+}
+
+func TestDetailedImportNamedAlias(t *testing.T) {
+	code := `import { A as B } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "A" || k.Alias != "B" {
+		t.Errorf("Unexpected keyword: %+v", k)
+	}
+}
+
+func TestDetailedImportNamedMultiple(t *testing.T) {
+	code := `import { A, B, C } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 3 {
+		t.Fatalf("Expected 3 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].Name != "A" || kw.Keywords[1].Name != "B" || kw.Keywords[2].Name != "C" {
+		t.Errorf("Unexpected keywords: %+v", kw.Keywords)
+	}
+}
+
+func TestDetailedImportInlineType(t *testing.T) {
+	code := `import { type A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "A" || !k.IsType {
+		t.Errorf("Expected type keyword A, got: %+v", k)
+	}
+}
+
+func TestDetailedImportInlineTypeMixed(t *testing.T) {
+	code := `import { type A, B } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].Name != "A" || !kw.Keywords[0].IsType {
+		t.Errorf("Expected type A, got: %+v", kw.Keywords[0])
+	}
+	if kw.Keywords[1].Name != "B" || kw.Keywords[1].IsType {
+		t.Errorf("Expected non-type B, got: %+v", kw.Keywords[1])
+	}
+}
+
+func TestDetailedImportTypeStatement(t *testing.T) {
+	code := `import type { A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "A" || !k.IsType {
+		t.Errorf("Expected type keyword A, got: %+v", k)
+	}
+}
+
+func TestDetailedImportDefaultAndNamed(t *testing.T) {
+	code := `import Default, { A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].Name != "default" || kw.Keywords[0].Alias != "Default" {
+		t.Errorf("Expected default import, got: %+v", kw.Keywords[0])
+	}
+	if kw.Keywords[1].Name != "A" {
+		t.Errorf("Expected named import A, got: %+v", kw.Keywords[1])
+	}
+}
+
+func TestDetailedImportDefaultAndNamespace(t *testing.T) {
+	code := `import Default, * as Ns from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].Name != "default" || kw.Keywords[0].Alias != "Default" {
+		t.Errorf("Expected default import, got: %+v", kw.Keywords[0])
+	}
+	if kw.Keywords[1].Name != "*" || kw.Keywords[1].Alias != "Ns" {
+		t.Errorf("Expected namespace import, got: %+v", kw.Keywords[1])
+	}
+}
+
+func TestDetailedImportDefaultAsAlias(t *testing.T) {
+	code := `import { default as A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "default" || k.Alias != "A" {
+		t.Errorf("Expected default as A, got: %+v", k)
+	}
+}
+
+func TestDetailedImportStringName(t *testing.T) {
+	code := `import { "string name" as A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "string name" || k.Alias != "A" {
+		t.Errorf("Expected string name with alias, got: %+v", k)
+	}
+}
+
+func TestDetailedImportSideEffect(t *testing.T) {
+	code := `import "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords != nil {
+		t.Errorf("Expected nil keywords for side-effect import, got: %+v", imports[0].Keywords)
+	}
+}
+
+func TestDetailedImportDynamic(t *testing.T) {
+	code := `import("mod")`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords != nil {
+		t.Errorf("Expected nil keywords for dynamic import, got: %+v", imports[0].Keywords)
+	}
+}
+
+func TestDetailedRequire(t *testing.T) {
+	code := `require("mod")`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords != nil {
+		t.Errorf("Expected nil keywords for require, got: %+v", imports[0].Keywords)
+	}
+}
+
+// --- Export Keyword Extraction (Re-exports) ---
+
+func TestDetailedExportNamedReexport(t *testing.T) {
+	code := `export { A, B } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw == nil || kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %v", kw)
+	}
+	if kw.Keywords[0].Name != "A" || kw.Keywords[1].Name != "B" {
+		t.Errorf("Unexpected keywords: %+v", kw.Keywords)
+	}
+}
+
+func TestDetailedExportNamedAliasReexport(t *testing.T) {
+	code := `export { A as B } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "A" || k.Alias != "B" {
+		t.Errorf("Expected A as B, got: %+v", k)
+	}
+}
+
+func TestDetailedExportStarReexport(t *testing.T) {
+	code := `export * from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "*" || k.Alias != "" {
+		t.Errorf("Expected star export, got: %+v", k)
+	}
+}
+
+func TestDetailedExportStarAsReexport(t *testing.T) {
+	code := `export * as Ns from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "*" || k.Alias != "Ns" {
+		t.Errorf("Expected * as Ns, got: %+v", k)
+	}
+}
+
+func TestDetailedExportTypeReexport(t *testing.T) {
+	code := `export type { A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "A" || !k.IsType {
+		t.Errorf("Expected type export A, got: %+v", k)
+	}
+}
+
+func TestDetailedExportInlineTypeReexport(t *testing.T) {
+	code := `export { type A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "A" || !k.IsType {
+		t.Errorf("Expected type export A, got: %+v", k)
+	}
+}
+
+func TestDetailedExportDefaultReexport(t *testing.T) {
+	code := `export { default } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "default" {
+		t.Errorf("Expected default reexport, got: %+v", k)
+	}
+}
+
+func TestDetailedExportDefaultAndTypeReexport(t *testing.T) {
+	code := `export { default, type A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].Name != "default" {
+		t.Errorf("Expected default, got: %+v", kw.Keywords[0])
+	}
+	if kw.Keywords[1].Name != "A" || !kw.Keywords[1].IsType {
+		t.Errorf("Expected type A, got: %+v", kw.Keywords[1])
+	}
+}
+
+// --- Local Export Keyword Extraction ---
+
+func TestDetailedExportDefaultLocal(t *testing.T) {
+	code := `export default Variable`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	imp := imports[0]
+	if !imp.IsLocalExport {
+		t.Fatal("Expected IsLocalExport=true")
+	}
+	if imp.Keywords.Keywords[0].Name != "default" {
+		t.Errorf("Expected default keyword, got: %+v", imp.Keywords.Keywords[0])
+	}
+}
+
+func TestDetailedExportDefaultFunction(t *testing.T) {
+	code := `export default function Fn(){}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords.Keywords[0].Name != "default" {
+		t.Errorf("Expected default, got: %+v", imports[0].Keywords.Keywords[0])
+	}
+}
+
+func TestDetailedExportConst(t *testing.T) {
+	code := `export const Var = 'val'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords.Keywords[0].Name != "Var" {
+		t.Errorf("Expected Var, got: %+v", imports[0].Keywords.Keywords[0])
+	}
+}
+
+func TestDetailedExportLet(t *testing.T) {
+	code := `export let Var = 'val'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords.Keywords[0].Name != "Var" {
+		t.Errorf("Expected Var, got: %+v", imports[0].Keywords.Keywords[0])
+	}
+}
+
+func TestDetailedExportFunction(t *testing.T) {
+	code := `export function Fn(){}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords.Keywords[0].Name != "Fn" {
+		t.Errorf("Expected Fn, got: %+v", imports[0].Keywords.Keywords[0])
+	}
+}
+
+func TestDetailedExportAsyncFunction(t *testing.T) {
+	code := `export async function Fn(){}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords.Keywords[0].Name != "Fn" {
+		t.Errorf("Expected Fn, got: %+v", imports[0].Keywords.Keywords[0])
+	}
+}
+
+func TestDetailedExportClass(t *testing.T) {
+	code := `export class Cls {}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords.Keywords[0].Name != "Cls" {
+		t.Errorf("Expected Cls, got: %+v", imports[0].Keywords.Keywords[0])
+	}
+}
+
+func TestDetailedExportTypeLocal(t *testing.T) {
+	code := `export type T = {}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "T" || !k.IsType {
+		t.Errorf("Expected type T, got: %+v", k)
+	}
+}
+
+func TestDetailedExportInterface(t *testing.T) {
+	code := `export interface I {}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "I" || !k.IsType {
+		t.Errorf("Expected type I, got: %+v", k)
+	}
+}
+
+func TestDetailedExportEnum(t *testing.T) {
+	code := `export enum E {}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	k := imports[0].Keywords.Keywords[0]
+	if k.Name != "E" || !k.IsType {
+		t.Errorf("Expected type E, got: %+v", k)
+	}
+}
+
+func TestDetailedExportLocalNamedList(t *testing.T) {
+	code := `export { A, B }`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if !imports[0].IsLocalExport {
+		t.Fatal("Expected IsLocalExport=true")
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].Name != "A" || kw.Keywords[1].Name != "B" {
+		t.Errorf("Unexpected keywords: %+v", kw.Keywords)
+	}
+}
+
+func TestDetailedExportLocalNamedWithType(t *testing.T) {
+	code := `export { A, type B }`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Keywords[0].Name != "A" || kw.Keywords[0].IsType {
+		t.Errorf("Expected A non-type, got: %+v", kw.Keywords[0])
+	}
+	if kw.Keywords[1].Name != "B" || !kw.Keywords[1].IsType {
+		t.Errorf("Expected type B, got: %+v", kw.Keywords[1])
+	}
+}
+
+// --- ExportKeyStart/ExportKeyEnd accuracy ---
+
+func TestDetailedExportKeyStartEnd(t *testing.T) {
+	code := `export { A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].ExportKeyStart != 0 {
+		t.Errorf("Expected ExportKeyStart=0, got %d", imports[0].ExportKeyStart)
+	}
+	if imports[0].ExportKeyEnd != 7 {
+		t.Errorf("Expected ExportKeyEnd=7, got %d", imports[0].ExportKeyEnd)
+	}
+}
+
+func TestDetailedLocalExportKeyStartEnd(t *testing.T) {
+	code := `export const Var = 1`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].ExportKeyStart != 0 {
+		t.Errorf("Expected ExportKeyStart=0, got %d", imports[0].ExportKeyStart)
+	}
+	if imports[0].ExportKeyEnd != 7 {
+		t.Errorf("Expected ExportKeyEnd=7, got %d", imports[0].ExportKeyEnd)
+	}
+}
+
+func TestDetailedExportKeyStartEndWithLeadingCode(t *testing.T) {
+	code := `const x = 1; export const Var = 1`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].ExportKeyStart != 13 {
+		t.Errorf("Expected ExportKeyStart=13, got %d", imports[0].ExportKeyStart)
+	}
+}
+
+// --- Multiline ---
+
+func TestDetailedImportMultiline(t *testing.T) {
+	code := `import {
+	A,
+	B as C,
+	type D
+} from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 3 {
+		t.Fatalf("Expected 3 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].Name != "A" {
+		t.Errorf("Expected A, got: %+v", kw.Keywords[0])
+	}
+	if kw.Keywords[1].Name != "B" || kw.Keywords[1].Alias != "C" {
+		t.Errorf("Expected B as C, got: %+v", kw.Keywords[1])
+	}
+	if kw.Keywords[2].Name != "D" || !kw.Keywords[2].IsType {
+		t.Errorf("Expected type D, got: %+v", kw.Keywords[2])
+	}
+}
+
+func TestDetailedExportMultilineReexport(t *testing.T) {
+	code := `export {
+	A,
+	B as C
+} from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+}
+
+// --- Comments within statements ---
+
+func TestDetailedImportWithLineComment(t *testing.T) {
+	code := `import {
+	A, // comment
+	B
+} from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].Name != "A" || kw.Keywords[1].Name != "B" {
+		t.Errorf("Unexpected keywords: %+v", kw.Keywords)
+	}
+}
+
+func TestDetailedImportWithBlockComment(t *testing.T) {
+	code := `import { A, /* some comment */ B } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+}
+
+// --- Mixed statements ---
+
+func TestDetailedMixedStatements(t *testing.T) {
+	code := `import A from "modA"
+export { B } from "modB"
+export const C = 1
+import { D, type E } from "modD"
+require("modR")`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 5 {
+		t.Fatalf("Expected 5 imports, got %d", len(imports))
+	}
+	// import A
+	if imports[0].Keywords == nil || imports[0].Keywords.Keywords[0].Name != "default" {
+		t.Errorf("Import 0: expected default import A")
+	}
+	// export { B } from "modB"
+	if imports[1].Keywords == nil || imports[1].Keywords.Keywords[0].Name != "B" {
+		t.Errorf("Import 1: expected export B")
+	}
+	// export const C
+	if !imports[2].IsLocalExport || imports[2].Keywords.Keywords[0].Name != "C" {
+		t.Errorf("Import 2: expected local export C")
+	}
+	// import { D, type E }
+	if imports[3].Keywords == nil || imports[3].Keywords.Len() != 2 {
+		t.Errorf("Import 3: expected 2 keywords")
+	}
+	// require("modR")
+	if imports[4].Keywords != nil {
+		t.Errorf("Import 4: expected nil keywords for require")
+	}
+}
+
+// --- Edge Cases ---
+
+func TestDetailedTrailingComma(t *testing.T) {
+	code := `import { A, B, } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+}
+
+func TestDetailedEmptyBraces(t *testing.T) {
+	code := `import {} from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// Empty braces should produce Keywords with 0 entries
+	if imports[0].Keywords != nil && imports[0].Keywords.Len() != 0 {
+		t.Errorf("Expected 0 keywords for empty braces, got %d", imports[0].Keywords.Len())
+	}
+}
+
+// --- Basic mode unchanged ---
+
+func TestBasicModeNilKeywords(t *testing.T) {
+	code := `import { A } from "mod"`
+	imports := ParseImportsForTests(code) // Uses ParseModeBasic
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Keywords != nil {
+		t.Errorf("Expected nil keywords in basic mode, got: %+v", imports[0].Keywords)
+	}
+}
+
+func TestBasicModeNoLocalExports(t *testing.T) {
+	code := `export const Var = 1`
+	imports := ParseImportsForTests(code) // Uses ParseModeBasic
+	if len(imports) != 0 {
+		t.Errorf("Expected 0 imports in basic mode for local export, got %d", len(imports))
+	}
+}
+
+// --- KeywordMap.Get() ---
+
+func TestKeywordMapGet(t *testing.T) {
+	code := `import { A, B as C } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	kw := imports[0].Keywords
+
+	a, ok := kw.Get("A")
+	if !ok || a.Name != "A" {
+		t.Errorf("Get(A) failed: %+v, ok=%v", a, ok)
+	}
+
+	b, ok := kw.Get("B")
+	if !ok || b.Name != "B" || b.Alias != "C" {
+		t.Errorf("Get(B) failed: %+v, ok=%v", b, ok)
+	}
+
+	_, ok = kw.Get("Z")
+	if ok {
+		t.Error("Get(Z) should return false")
+	}
+}
+
+// --- Table-driven comprehensive test ---
+
+func TestDetailedKeywordsComprehensive(t *testing.T) {
+	type expectedKw struct {
+		Name   string
+		Alias  string
+		IsType bool
+	}
+	tests := []struct {
+		name          string
+		code          string
+		wantCount     int
+		wantRequest   string
+		isLocalExport bool
+		keywords      []expectedKw
+	}{
+		// Imports
+		{
+			name: "default import", code: `import Default from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "default", Alias: "Default"}},
+		},
+		{
+			name: "namespace import", code: `import * as name from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "*", Alias: "name"}},
+		},
+		{
+			name: "single named import", code: `import { export1 } from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "export1"}},
+		},
+		{
+			name: "named import with alias", code: `import { export1 as alias1 } from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "export1", Alias: "alias1"}},
+		},
+		{
+			name: "multiple named imports", code: `import { export1, export2 } from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "export1"}, {Name: "export2"}},
+		},
+		{
+			name: "named import mixed alias", code: `import { export1, export2 as alias2 } from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "export1"}, {Name: "export2", Alias: "alias2"}},
+		},
+		{
+			name: "default and named import", code: `import defaultExport, { export1 } from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "default", Alias: "defaultExport"}, {Name: "export1"}},
+		},
+		{
+			name: "default and namespace import", code: `import defaultExport, * as name from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "default", Alias: "defaultExport"}, {Name: "*", Alias: "name"}},
+		},
+		{
+			name: "inline type imports", code: `import { type MyType1, type MyType2, type MyType3 } from "./types"`,
+			wantCount: 1, wantRequest: "./types",
+			keywords: []expectedKw{
+				{Name: "MyType1", IsType: true},
+				{Name: "MyType2", IsType: true},
+				{Name: "MyType3", IsType: true},
+			},
+		},
+		{
+			name: "mixed type and value imports", code: `import { type MyType3, MyVal, type MyType2 } from "./types"`,
+			wantCount: 1, wantRequest: "./types",
+			keywords: []expectedKw{
+				{Name: "MyType3", IsType: true},
+				{Name: "MyVal"},
+				{Name: "MyType2", IsType: true},
+			},
+		},
+		{
+			name: "import type statement", code: `import type { MyType2 } from "./types"`,
+			wantCount: 1, wantRequest: "./types",
+			keywords: []expectedKw{{Name: "MyType2", IsType: true}},
+		},
+		{
+			name: "default import with inline type", code: `import fnA, { type MyType3 } from "./types"`,
+			wantCount: 1, wantRequest: "./types",
+			keywords: []expectedKw{{Name: "default", Alias: "fnA"}, {Name: "MyType3", IsType: true}},
+		},
+		// Re-exports
+		{
+			name: "export star", code: `export * from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "*"}},
+		},
+		{
+			name: "export star as", code: `export * as name1 from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "*", Alias: "name1"}},
+		},
+		{
+			name: "export named", code: `export { name1, nameN } from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "name1"}, {Name: "nameN"}},
+		},
+		{
+			name: "export named with alias", code: `export { import1 as name1, import2 as name2, nameN } from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "import1", Alias: "name1"}, {Name: "import2", Alias: "name2"}, {Name: "nameN"}},
+		},
+		{
+			name: "export default reexport", code: `export { default } from "module-name"`,
+			wantCount: 1, wantRequest: "module-name",
+			keywords: []expectedKw{{Name: "default"}},
+		},
+		{
+			name: "export type named reexport", code: `export type { MyType } from "./types"`,
+			wantCount: 1, wantRequest: "./types",
+			keywords: []expectedKw{{Name: "MyType", IsType: true}},
+		},
+		{
+			name: "export inline type reexport", code: `export { type MyType } from "./types"`,
+			wantCount: 1, wantRequest: "./types",
+			keywords: []expectedKw{{Name: "MyType", IsType: true}},
+		},
+		// Local exports
+		{
+			name: "local export default", code: `export default Variable`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "default"}},
+		},
+		{
+			name: "local export const", code: `export const Var = 'val'`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "Var"}},
+		},
+		{
+			name: "local export function", code: `export function Fn(){}`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "Fn"}},
+		},
+		{
+			name: "local export async function", code: `export async function Fn(){}`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "Fn"}},
+		},
+		{
+			name: "local export class", code: `export class Cls {}`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "Cls"}},
+		},
+		{
+			name: "local export type", code: `export type T = {}`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "T", IsType: true}},
+		},
+		{
+			name: "local export interface", code: `export interface I {}`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "I", IsType: true}},
+		},
+		{
+			name: "local export enum", code: `export enum E {}`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "E", IsType: true}},
+		},
+		{
+			name: "local export list", code: `export { A, B }`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "A"}, {Name: "B"}},
+		},
+		{
+			name: "local export list with type", code: `export { A, type B }`,
+			wantCount: 1, isLocalExport: true,
+			keywords: []expectedKw{{Name: "A"}, {Name: "B", IsType: true}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imports := ParseImportsForTestsDetailed(tt.code)
+			if len(imports) != tt.wantCount {
+				t.Fatalf("Expected %d imports, got %d", tt.wantCount, len(imports))
+			}
+			imp := imports[0]
+
+			if tt.wantRequest != "" && imp.Request != tt.wantRequest {
+				t.Errorf("Expected request=%q, got %q", tt.wantRequest, imp.Request)
+			}
+
+			if tt.isLocalExport && !imp.IsLocalExport {
+				t.Error("Expected IsLocalExport=true")
+			}
+
+			if tt.keywords != nil {
+				if imp.Keywords == nil {
+					t.Fatal("Expected keywords, got nil")
+				}
+				if imp.Keywords.Len() != len(tt.keywords) {
+					t.Fatalf("Expected %d keywords, got %d", len(tt.keywords), imp.Keywords.Len())
+				}
+				for j, want := range tt.keywords {
+					got := imp.Keywords.Keywords[j]
+					if got.Name != want.Name {
+						t.Errorf("Keyword %d: expected Name=%q, got %q", j, want.Name, got.Name)
+					}
+					if got.Alias != want.Alias {
+						t.Errorf("Keyword %d: expected Alias=%q, got %q", j, want.Alias, got.Alias)
+					}
+					if got.IsType != want.IsType {
+						t.Errorf("Keyword %d: expected IsType=%v, got %v", j, want.IsType, got.IsType)
+					}
+				}
+			}
+		})
+	}
+}
+
+// --- Keyword Start/End position tests ---
+
+func TestDetailedKeywordPositions(t *testing.T) {
+	code := `import { A } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	k := imports[0].Keywords.Keywords[0]
+	// "A" starts at index 9 and ends at 10
+	if code[int(k.Start):int(k.End)] != "A" {
+		t.Errorf("Expected source slice 'A', got %q (start=%d, end=%d)", code[int(k.Start):int(k.End)], k.Start, k.End)
+	}
+}
+
+func TestDetailedKeywordPositionsMultiple(t *testing.T) {
+	code := `import { Foo, Bar as Baz } from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	kw := imports[0].Keywords
+
+	// Foo
+	if code[int(kw.Keywords[0].Start):int(kw.Keywords[0].End)] != "Foo" {
+		t.Errorf("Expected 'Foo', got %q", code[int(kw.Keywords[0].Start):int(kw.Keywords[0].End)])
+	}
+	// Bar as Baz - Start at 'Bar', End at end of 'Baz'
+	slice := code[int(kw.Keywords[1].Start):int(kw.Keywords[1].End)]
+	if slice != "Bar as Baz" {
+		t.Errorf("Expected 'Bar as Baz', got %q", slice)
+	}
+}
+
+func TestDetailedKeywordPositionsDefault(t *testing.T) {
+	code := `import MyDefault from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	k := imports[0].Keywords.Keywords[0]
+	if code[int(k.Start):int(k.End)] != "MyDefault" {
+		t.Errorf("Expected 'MyDefault', got %q", code[int(k.Start):int(k.End)])
+	}
+}
+
+func TestDetailedKeywordPositionsNamespace(t *testing.T) {
+	code := `import * as Ns from "mod"`
+	imports := ParseImportsForTestsDetailed(code)
+	k := imports[0].Keywords.Keywords[0]
+	slice := code[int(k.Start):int(k.End)]
+	if slice != "* as Ns" {
+		t.Errorf("Expected '* as Ns', got %q", slice)
+	}
+}
+
+// --- Benchmarks for Detailed mode ---
+
+func BenchmarkParseImportsBasicMode(b *testing.B) {
+	fixtureContent, _ := os.ReadFile("./__fixtures__/parseImports.ts")
+
+	for b.Loop() {
+		ParseImportsByte(fixtureContent, true, ParseModeBasic)
+	}
+}
+
+func BenchmarkParseImportsDetailedMode(b *testing.B) {
+	fixtureContent, _ := os.ReadFile("./__fixtures__/parseImports.ts")
+
+	for b.Loop() {
+		ParseImportsByte(fixtureContent, true, ParseModeDetailed)
+	}
+}
+
+func BenchmarkParseImportsBasicMode600Loc(b *testing.B) {
+	fixtureContent, _ := os.ReadFile("./__fixtures__/parseImports600Loc.ts")
+
+	for b.Loop() {
+		ParseImportsByte(fixtureContent, true, ParseModeBasic)
+	}
+}
+
+func BenchmarkParseImportsDetailedMode600Loc(b *testing.B) {
+	fixtureContent, _ := os.ReadFile("./__fixtures__/parseImports600Loc.ts")
+
+	for b.Loop() {
+		ParseImportsByte(fixtureContent, true, ParseModeDetailed)
+	}
+}
+
+// --- ExportDeclStart tests ---
+
+func TestDetailedExportDeclStart_Const(t *testing.T) {
+	code := `export const X = 1`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// ExportDeclStart should point at `const`
+	if imports[0].ExportDeclStart != 7 {
+		t.Errorf("Expected ExportDeclStart=7, got %d", imports[0].ExportDeclStart)
+	}
+	if string(code[int(imports[0].ExportDeclStart):int(imports[0].ExportDeclStart)+5]) != "const" {
+		t.Errorf("ExportDeclStart does not point at 'const': %q", string(code[int(imports[0].ExportDeclStart):int(imports[0].ExportDeclStart)+5]))
+	}
+}
+
+func TestDetailedExportDeclStart_Function(t *testing.T) {
+	code := `export function Fn(){}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].ExportDeclStart != 7 {
+		t.Errorf("Expected ExportDeclStart=7, got %d", imports[0].ExportDeclStart)
+	}
+}
+
+func TestDetailedExportDeclStart_DefaultFunction(t *testing.T) {
+	code := `export default function Fn(){}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// ExportDeclStart should point at `function` (after `export default `)
+	if imports[0].ExportDeclStart != 15 {
+		t.Errorf("Expected ExportDeclStart=15, got %d", imports[0].ExportDeclStart)
+	}
+	if string(code[int(imports[0].ExportDeclStart):int(imports[0].ExportDeclStart)+8]) != "function" {
+		t.Errorf("ExportDeclStart does not point at 'function': %q", string(code[int(imports[0].ExportDeclStart):int(imports[0].ExportDeclStart)+8]))
+	}
+}
+
+func TestDetailedExportDeclStart_DefaultVar(t *testing.T) {
+	code := `export default someVar`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// ExportDeclStart should point at `someVar`
+	if imports[0].ExportDeclStart != 15 {
+		t.Errorf("Expected ExportDeclStart=15, got %d", imports[0].ExportDeclStart)
+	}
+}
+
+func TestDetailedExportDeclStart_Type(t *testing.T) {
+	code := `export type T = {}`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// ExportDeclStart should point at `type`
+	if imports[0].ExportDeclStart != 7 {
+		t.Errorf("Expected ExportDeclStart=7, got %d", imports[0].ExportDeclStart)
+	}
+}
+
+// --- ExportBraceStart/ExportBraceEnd tests ---
+
+func TestDetailedExportBracePositions_LocalBraceExport(t *testing.T) {
+	code := `export { A, B }`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// `{` is at position 7, `}` is at position 14, braceEnd = 15
+	if imports[0].ExportBraceStart != 7 {
+		t.Errorf("Expected ExportBraceStart=7, got %d", imports[0].ExportBraceStart)
+	}
+	if imports[0].ExportBraceEnd != 15 {
+		t.Errorf("Expected ExportBraceEnd=15, got %d", imports[0].ExportBraceEnd)
+	}
+}
+
+func TestDetailedExportBracePositions_ReexportBrace(t *testing.T) {
+	code := `export { A } from './file'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].ExportBraceStart != 7 {
+		t.Errorf("Expected ExportBraceStart=7, got %d", imports[0].ExportBraceStart)
+	}
+	// `}` is at position 11, braceEnd = 12
+	if imports[0].ExportBraceEnd != 12 {
+		t.Errorf("Expected ExportBraceEnd=12, got %d", imports[0].ExportBraceEnd)
+	}
+}
+
+func TestDetailedExportBracePositions_StarExport(t *testing.T) {
+	code := `export * from './file'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// Star exports have no braces
+	if imports[0].ExportBraceStart != 0 {
+		t.Errorf("Expected ExportBraceStart=0, got %d", imports[0].ExportBraceStart)
+	}
+	if imports[0].ExportBraceEnd != 0 {
+		t.Errorf("Expected ExportBraceEnd=0, got %d", imports[0].ExportBraceEnd)
+	}
+}
+
+func TestDetailedExportBracePositions_SingleDecl(t *testing.T) {
+	code := `export const X = 1`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// Single declarations have no braces
+	if imports[0].ExportBraceStart != 0 {
+		t.Errorf("Expected ExportBraceStart=0, got %d", imports[0].ExportBraceStart)
+	}
+	if imports[0].ExportBraceEnd != 0 {
+		t.Errorf("Expected ExportBraceEnd=0, got %d", imports[0].ExportBraceEnd)
+	}
+}
+
+// --- ExportStatementEnd tests ---
+
+func TestDetailedExportStatementEnd_ReexportNoSemicolon(t *testing.T) {
+	code := `export { A } from './file'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// Statement ends after closing quote
+	if int(imports[0].ExportStatementEnd) != len(code) {
+		t.Errorf("Expected ExportStatementEnd=%d, got %d", len(code), imports[0].ExportStatementEnd)
+	}
+}
+
+func TestDetailedExportStatementEnd_ReexportWithSemicolon(t *testing.T) {
+	code := `export { A } from './file';`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// Statement ends after `;`
+	if int(imports[0].ExportStatementEnd) != len(code) {
+		t.Errorf("Expected ExportStatementEnd=%d, got %d", len(code), imports[0].ExportStatementEnd)
+	}
+}
+
+func TestDetailedExportStatementEnd_StarReexport(t *testing.T) {
+	code := `export * from './file'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if int(imports[0].ExportStatementEnd) != len(code) {
+		t.Errorf("Expected ExportStatementEnd=%d, got %d", len(code), imports[0].ExportStatementEnd)
+	}
+}
+
+func TestDetailedExportStatementEnd_StarReexportWithSemicolon(t *testing.T) {
+	code := `export * from './file';`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if int(imports[0].ExportStatementEnd) != len(code) {
+		t.Errorf("Expected ExportStatementEnd=%d, got %d", len(code), imports[0].ExportStatementEnd)
+	}
+}
+
+func TestDetailedExportStatementEnd_LocalBraceExport(t *testing.T) {
+	code := `export { A, B }`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if int(imports[0].ExportStatementEnd) != len(code) {
+		t.Errorf("Expected ExportStatementEnd=%d, got %d", len(code), imports[0].ExportStatementEnd)
+	}
+}
+
+func TestDetailedExportStatementEnd_LocalBraceExportWithSemicolon(t *testing.T) {
+	code := `export { A, B };`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if int(imports[0].ExportStatementEnd) != len(code) {
+		t.Errorf("Expected ExportStatementEnd=%d, got %d", len(code), imports[0].ExportStatementEnd)
+	}
+}
+
+func TestDetailedExportStatementEnd_SingleDeclIsZero(t *testing.T) {
+	code := `export const X = 1`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	// Single declarations don't use ExportStatementEnd
+	if imports[0].ExportStatementEnd != 0 {
+		t.Errorf("Expected ExportStatementEnd=0 for single decl, got %d", imports[0].ExportStatementEnd)
+	}
+}
+
+// --- CommaAfter tests ---
+
+func TestDetailedCommaAfter_BraceListWithCommas(t *testing.T) {
+	code := `export { A, B, C } from './file'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 3 {
+		t.Fatalf("Expected 3 keywords, got %d", kw.Len())
+	}
+	// A has comma after
+	if kw.Keywords[0].CommaAfter == 0 {
+		t.Error("Expected CommaAfter != 0 for A")
+	}
+	if code[int(kw.Keywords[0].CommaAfter)] != ',' {
+		t.Errorf("CommaAfter for A does not point at ',': got %q", string(code[int(kw.Keywords[0].CommaAfter)]))
+	}
+	// B has comma after
+	if kw.Keywords[1].CommaAfter == 0 {
+		t.Error("Expected CommaAfter != 0 for B")
+	}
+	// C has no comma after (last keyword, no trailing comma)
+	if kw.Keywords[2].CommaAfter != 0 {
+		t.Errorf("Expected CommaAfter=0 for C (last, no trailing comma), got %d", kw.Keywords[2].CommaAfter)
+	}
+}
+
+func TestDetailedCommaAfter_TrailingComma(t *testing.T) {
+	code := `export { A, B, } from './file'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+	// Both A and B have commas after (trailing comma style)
+	if kw.Keywords[0].CommaAfter == 0 {
+		t.Error("Expected CommaAfter != 0 for A")
+	}
+	if kw.Keywords[1].CommaAfter == 0 {
+		t.Error("Expected CommaAfter != 0 for B (trailing comma)")
+	}
+}
+
+func TestDetailedCommaAfter_SingleItem(t *testing.T) {
+	code := `export { A } from './file'`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 1 {
+		t.Fatalf("Expected 1 keyword, got %d", kw.Len())
+	}
+	if kw.Keywords[0].CommaAfter != 0 {
+		t.Errorf("Expected CommaAfter=0 for single item, got %d", kw.Keywords[0].CommaAfter)
+	}
+}
+
+func TestDetailedCommaAfter_LocalBraceExport(t *testing.T) {
+	code := `export { A, type B }`
+	imports := ParseImportsForTestsDetailed(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	kw := imports[0].Keywords
+	if kw.Len() != 2 {
+		t.Fatalf("Expected 2 keywords, got %d", kw.Len())
+	}
+	if kw.Keywords[0].CommaAfter == 0 {
+		t.Error("Expected CommaAfter != 0 for A")
+	}
+	if kw.Keywords[1].CommaAfter != 0 {
+		t.Errorf("Expected CommaAfter=0 for B (last), got %d", kw.Keywords[1].CommaAfter)
+	}
+}
+
+func TestDynamicImportFlag(t *testing.T) {
+	code := `
+import { helper } from './utils'
+import './side-effect'
+const Component = dynamic(() => import('./Component'))
+const mod = require('./module')
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+
+	if len(imports) != 4 {
+		t.Fatalf("Expected 4 imports, got %d", len(imports))
+	}
+
+	// Static named import — not dynamic
+	if imports[0].Request != "./utils" || imports[0].IsDynamicImport {
+		t.Errorf("Expected static import './utils', got request='%s' dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
+	}
+
+	// Side-effect import — not dynamic
+	if imports[1].Request != "./side-effect" || imports[1].IsDynamicImport {
+		t.Errorf("Expected side-effect import './side-effect', got request='%s' dynamic=%v", imports[1].Request, imports[1].IsDynamicImport)
+	}
+
+	// Dynamic import() — IS dynamic
+	if imports[2].Request != "./Component" || !imports[2].IsDynamicImport {
+		t.Errorf("Expected dynamic import './Component', got request='%s' dynamic=%v", imports[2].Request, imports[2].IsDynamicImport)
+	}
+
+	// require() — IS dynamic
+	if imports[3].Request != "./module" || !imports[3].IsDynamicImport {
+		t.Errorf("Expected dynamic require './module', got request='%s' dynamic=%v", imports[3].Request, imports[3].IsDynamicImport)
+	}
+}
+
+func TestDeclareModuleExportsIgnored(t *testing.T) {
+	code := `
+import { something } from './real-import'
+
+declare module 'blitz' {
+  export interface Ctx {
+    session: SessionContext;
+  }
+  export interface AuthenticatedMiddlewareCtx extends Omit<Ctx, 'session'> {
+    session: AuthenticatedSessionContext;
+  }
+}
+
+export function realExport() {}
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	// Should have: 1 real import + 1 real local export = 2
+	// The exports inside declare module should be ignored
+	if len(imports) != 2 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v keywords=%v", i, imp.Request, imp.IsLocalExport, imp.Keywords)
+		}
+		t.Fatalf("Expected 2 imports (1 real import + 1 local export), got %d", len(imports))
+	}
+
+	if imports[0].Request != "./real-import" {
+		t.Errorf("Expected first import to be './real-import', got '%s'", imports[0].Request)
+	}
+
+	if !imports[1].IsLocalExport || imports[1].Keywords == nil || imports[1].Keywords.Keywords[0].Name != "realExport" {
+		t.Errorf("Expected second import to be local export 'realExport', got %+v", imports[1])
+	}
+}
+
+func TestDeclareGlobalExportsIgnored(t *testing.T) {
+	code := `
+declare global {
+  export interface Window {
+    customProp: string;
+  }
+}
+
+export const myConst = 42
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	if len(imports) != 1 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v keywords=%v", i, imp.Request, imp.IsLocalExport, imp.Keywords)
+		}
+		t.Fatalf("Expected 1 import (local export), got %d", len(imports))
+	}
+
+	if !imports[0].IsLocalExport || imports[0].Keywords.Keywords[0].Name != "myConst" {
+		t.Errorf("Expected local export 'myConst', got %+v", imports[0])
+	}
+}
+
+func TestDeclareNamespaceExportsIgnored(t *testing.T) {
+	code := `
+declare namespace NodeJS {
+  export interface ProcessEnv {
+    NODE_ENV: string;
+  }
+}
+
+export type MyType = string
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	if len(imports) != 1 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v keywords=%v", i, imp.Request, imp.IsLocalExport, imp.Keywords)
+		}
+		t.Fatalf("Expected 1 import (local type export), got %d", len(imports))
+	}
+}
+
+func TestDeclareModuleWithNestedBraces(t *testing.T) {
+	code := `
+declare module 'complex' {
+  export interface Config {
+    nested: {
+      deep: {
+        value: string;
+      };
+    };
+  }
+}
+
+export function afterDeclare() {}
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	if len(imports) != 1 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v", i, imp.Request, imp.IsLocalExport)
+		}
+		t.Fatalf("Expected 1 import (local export after declare), got %d", len(imports))
+	}
+
+	if !imports[0].IsLocalExport || imports[0].Keywords.Keywords[0].Name != "afterDeclare" {
+		t.Errorf("Expected local export 'afterDeclare'")
+	}
+}
+
+func TestExportNamespaceBodySkipped(t *testing.T) {
+	code := `
+export namespace Intercom {
+  export function trackEvent(name: string, payload?: any) {
+    if (canUseIntercom(window.Intercom)) {
+      window.Intercom('trackEvent', name);
+    }
+  }
+
+  export function setUserProperties(userProperties: Record<string, any>) {
+    if (canUseIntercom(window.Intercom)) {
+      window.Intercom('update', userProperties);
+    }
+  }
+}
+
+export function realExport() {}
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	// Should have 2 local exports:
+	// 1. The namespace "Intercom" itself (export namespace Intercom)
+	// 2. The function "realExport"
+	// Inner exports (trackEvent, setUserProperties) should NOT appear
+	if len(imports) != 2 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v keywords=%v", i, imp.Request, imp.IsLocalExport, imp.Keywords)
+		}
+		t.Fatalf("Expected 2 imports (namespace + realExport), got %d", len(imports))
+	}
+
+	if !imports[0].IsLocalExport || imports[0].Keywords.Keywords[0].Name != "Intercom" {
+		t.Errorf("Expected first export to be namespace 'Intercom', got %+v", imports[0])
+	}
+
+	if !imports[1].IsLocalExport || imports[1].Keywords.Keywords[0].Name != "realExport" {
+		t.Errorf("Expected second export to be 'realExport', got %+v", imports[1])
+	}
+}
+
+func TestExportNamespaceBasicMode(t *testing.T) {
+	// In basic mode, namespace body should also be skipped (no inner exports parsed)
+	code := `
+export namespace Foo {
+  export const bar = 1;
+  export function baz() {}
+}
+
+import { something } from './other'
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+
+	// Basic mode doesn't parse local exports, so only the import should appear
+	if len(imports) != 1 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v", i, imp.Request, imp.IsLocalExport)
+		}
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+
+	if imports[0].Request != "./other" {
+		t.Errorf("Expected import './other', got '%s'", imports[0].Request)
+	}
+}
+
+// =============================================================================
+// Brace-depth edge cases — these tests verify that the parser correctly handles
+// import/export/require keywords at various brace depths, inside strings,
+// comments, and template literals. Essential for brace-depth optimizations.
+// =============================================================================
+
+func TestDynamicImportInsideNestedFunctionBody(t *testing.T) {
+	code := `
+import { useState } from 'react'
+
+function App() {
+	const handler = () => {
+		if (condition) {
+			import('./lazy-component').then(m => m.default)
+		}
+	}
+}
+
+export default App
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	// Should find: static import 'react', dynamic import './lazy-component', local export 'App'
+	var staticImport, dynamicImport *Import
+	for i := range imports {
+		if imports[i].Request == "react" {
+			staticImport = &imports[i]
+		}
+		if imports[i].Request == "./lazy-component" {
+			dynamicImport = &imports[i]
+		}
+	}
+
+	if staticImport == nil {
+		t.Error("Expected static import 'react'")
+	}
+	if dynamicImport == nil {
+		t.Error("Expected dynamic import './lazy-component'")
+	}
+	if dynamicImport != nil && !dynamicImport.IsDynamicImport {
+		t.Error("Expected dynamic import flag to be true for './lazy-component'")
+	}
+}
+
+func TestRequireInsideClassMethod(t *testing.T) {
+	code := `
+import { Base } from './base'
+
+class Service extends Base {
+	loadModule() {
+		const mod = require('./plugin')
+		return mod
+	}
+
+	async init() {
+		const config = require('./config')
+		return config
+	}
+}
+
+export { Service }
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	if !requests["./base"] {
+		t.Error("Expected import './base'")
+	}
+	if !requests["./plugin"] {
+		t.Error("Expected require './plugin'")
+	}
+	if !requests["./config"] {
+		t.Error("Expected require './config'")
+	}
+}
+
+func TestStaticExportsAfterFunctionBodies(t *testing.T) {
+	code := `
+function helper() {
+	const x = 1
+	return x
+}
+
+export const A = 1
+
+class MyClass {
+	method() {
+		return { key: 'value' }
+	}
+}
+
+export const B = 2
+
+const obj = {
+	nested: {
+		deep: {
+			value: 42
+		}
+	}
+}
+
+export function C() {}
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	exportNames := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.IsLocalExport && imp.Keywords != nil {
+			for _, kw := range imp.Keywords.Keywords {
+				exportNames[kw.Name] = true
+			}
+		}
+	}
+
+	for _, name := range []string{"A", "B", "C"} {
+		if !exportNames[name] {
+			t.Errorf("Expected export '%s' to be found", name)
+		}
+	}
+}
+
+func TestStringWithBracesDoesNotAffectParsing(t *testing.T) {
+	code := `
+const config = "{ import: true, export: false }"
+const json = '{"require": "./module", "braces": "{{}}"}'
+
+export const realExport = 1
+
+import { something } from './real-module'
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	var hasRealModule bool
+	var hasRealExport bool
+	for _, imp := range imports {
+		if imp.Request == "./real-module" {
+			hasRealModule = true
+		}
+		if imp.IsLocalExport && imp.Keywords != nil && imp.Keywords.Keywords[0].Name == "realExport" {
+			hasRealExport = true
+		}
+	}
+
+	if !hasRealModule {
+		t.Error("Expected import './real-module'")
+	}
+	if !hasRealExport {
+		t.Error("Expected local export 'realExport'")
+	}
+
+	// Should NOT have any import from the strings
+	for _, imp := range imports {
+		if imp.Request == "./module" {
+			t.Error("Should not parse import from string content")
+		}
+	}
+}
+
+func TestTemplateLiteralWithBracesAndKeywords(t *testing.T) {
+	code := "import { A } from './a'\n" +
+		"\n" +
+		"const template = `some text ${ variable } more text`\n" +
+		"const complex = `import { B } from 'fake'`\n" +
+		"const braces = `{ export const C = 1 }`\n" +
+		"const nested = `outer ${ `inner` } end`\n" +
+		"\n" +
+		"export const realExport = 1\n"
+
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	var hasA bool
+	var hasRealExport bool
+	for _, imp := range imports {
+		if imp.Request == "./a" {
+			hasA = true
+		}
+		if imp.IsLocalExport && imp.Keywords != nil && imp.Keywords.Keywords[0].Name == "realExport" {
+			hasRealExport = true
+		}
+	}
+
+	if !hasA {
+		t.Error("Expected import './a'")
+	}
+	if !hasRealExport {
+		t.Error("Expected local export 'realExport'")
+	}
+
+	// Should NOT parse fake imports from template literals
+	for _, imp := range imports {
+		if imp.Request == "fake" {
+			t.Error("Should not parse import from template literal content")
+		}
+	}
+}
+
+func TestCommentsWithBracesDoNotAffectParsing(t *testing.T) {
+	code := `
+// function foo() {
+//   import { X } from 'commented-out'
+// }
+
+/*
+class Bar {
+	require('./also-commented')
+}
+*/
+
+import { real } from './real'
+
+export const afterComments = 1
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	var hasReal bool
+	var hasAfterComments bool
+	for _, imp := range imports {
+		if imp.Request == "./real" {
+			hasReal = true
+		}
+		if imp.IsLocalExport && imp.Keywords != nil && imp.Keywords.Keywords[0].Name == "afterComments" {
+			hasAfterComments = true
+		}
+	}
+
+	if !hasReal {
+		t.Error("Expected import './real'")
+	}
+	if !hasAfterComments {
+		t.Error("Expected local export 'afterComments'")
+	}
+
+	// Should NOT have imports from comments
+	for _, imp := range imports {
+		if imp.Request == "commented-out" || imp.Request == "./also-commented" {
+			t.Errorf("Should not parse import from comment: %s", imp.Request)
+		}
+	}
+}
+
+func TestObjectLiteralWithKeywordPropertyNames(t *testing.T) {
+	code := `
+import { config } from './config'
+
+const settings = {
+	import: true,
+	export: false,
+	require: './not-a-module',
+	from: 'nowhere',
+	module: 'test'
+}
+
+export const result = settings
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	if !requests["./config"] {
+		t.Error("Expected import './config'")
+	}
+
+	// Should NOT parse keyword property names as imports
+	if requests["./not-a-module"] {
+		t.Error("Should not parse object property 'require' as an import")
+	}
+	if requests["nowhere"] {
+		t.Error("Should not parse object property 'from' as an import")
+	}
+}
+
+func TestDeepNestingWithDynamicImports(t *testing.T) {
+	code := `
+import { init } from './init'
+
+async function bootstrap() {
+	try {
+		const config = await loadConfig()
+		if (config.plugins) {
+			for (const plugin of config.plugins) {
+				const mod = await import('./plugins/' + plugin)
+				if (mod.setup) {
+					await mod.setup({
+						callback: () => {
+							require('./fallback')
+						}
+					})
+				}
+			}
+		}
+	} catch (e) {
+		console.error(e)
+	}
+}
+
+export { bootstrap }
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	if !requests["./init"] {
+		t.Error("Expected import './init'")
+	}
+	// Dynamic import with concatenation — parser doesn't handle non-static paths,
+	// so './plugins/' + plugin won't be detected. This is expected behavior.
+	if !requests["./fallback"] {
+		t.Error("Expected require './fallback' inside deeply nested callback")
+	}
+}
+
+func TestExportsBetweenMultipleBraceScopes(t *testing.T) {
+	code := `
+function a() {
+	return 1
+}
+
+export const X = a()
+
+class B {
+	method() {
+		return { nested: { value: 2 } }
+	}
+}
+
+export const Y = new B()
+
+if (typeof window !== 'undefined') {
+	window.Z = 'test'
+}
+
+export function Z() {}
+
+const obj = {
+	key: {
+		deep: {
+			value: require('./deep-value')
+		}
+	}
+}
+
+export default obj
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	exportNames := make(map[string]bool)
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.IsLocalExport && imp.Keywords != nil {
+			for _, kw := range imp.Keywords.Keywords {
+				exportNames[kw.Name] = true
+			}
+		}
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	for _, name := range []string{"X", "Y", "Z", "default"} {
+		if !exportNames[name] {
+			t.Errorf("Expected export '%s' to be found", name)
+		}
+	}
+
+	if !requests["./deep-value"] {
+		t.Error("Expected require './deep-value' inside nested object literal")
+	}
+}
+
+func TestArrowFunctionWithDynamicImport(t *testing.T) {
+	code := `
+export const loader = () => import('./lazy')
+
+export const fetcher = async () => {
+	const data = await import('./data')
+	return data.default
+}
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	if !requests["./lazy"] {
+		t.Error("Expected dynamic import './lazy'")
+	}
+	if !requests["./data"] {
+		t.Error("Expected dynamic import './data'")
+	}
+}
+
+func TestReexportAfterComplexCode(t *testing.T) {
+	code := `
+const complexObject = {
+	a: { b: { c: { d: 1 } } },
+	e: [1, 2, 3].map(x => ({ value: x })),
+}
+
+function process() {
+	return { result: true }
+}
+
+export { something } from './re-exported'
+export * from './barrel'
+export { default as Named } from './named'
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	if !requests["./re-exported"] {
+		t.Error("Expected re-export from './re-exported'")
+	}
+	if !requests["./barrel"] {
+		t.Error("Expected re-export from './barrel'")
+	}
+	if !requests["./named"] {
+		t.Error("Expected re-export from './named'")
+	}
+}
+
+func TestConditionalRequire(t *testing.T) {
+	code := `
+import { env } from './env'
+
+function loadDriver() {
+	if (env === 'production') {
+		return require('./driver-prod')
+	} else {
+		return require('./driver-dev')
+	}
+}
+
+export { loadDriver }
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	if !requests["./env"] {
+		t.Error("Expected import './env'")
+	}
+	if !requests["./driver-prod"] {
+		t.Error("Expected require './driver-prod'")
+	}
+	if !requests["./driver-dev"] {
+		t.Error("Expected require './driver-dev'")
+	}
+}
+
+func TestStringsWithUnbalancedBraces(t *testing.T) {
+	code := `
+const openBrace = "{"
+const closeBrace = "}"
+const mixed = '{ "import": true }'
+const escaped = "import { A } from \"fake\""
+const template = "export { B } from 'also-fake'"
+
+export const realExport = 1
+import { C } from './real'
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	var hasReal bool
+	var hasExport bool
+	for _, imp := range imports {
+		if imp.Request == "./real" {
+			hasReal = true
+		}
+		if imp.IsLocalExport && imp.Keywords != nil && imp.Keywords.Keywords[0].Name == "realExport" {
+			hasExport = true
+		}
+	}
+
+	if !hasReal {
+		t.Error("Expected import './real'")
+	}
+	if !hasExport {
+		t.Error("Expected local export 'realExport'")
+	}
+
+	// Should NOT parse from string content
+	for _, imp := range imports {
+		if imp.Request == "fake" || imp.Request == "also-fake" {
+			t.Errorf("Should not parse import from string: %s", imp.Request)
+		}
+	}
+}
+
+func TestSwitchStatementWithRequire(t *testing.T) {
+	code := `
+import { type } from './types'
+
+function getHandler(action) {
+	switch (action) {
+		case 'upload':
+			return require('./handlers/upload')
+		case 'download': {
+			const handler = require('./handlers/download')
+			return handler
+		}
+		default:
+			return require('./handlers/default')
+	}
+}
+
+export { getHandler }
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	if !requests["./types"] {
+		t.Error("Expected import './types'")
+	}
+	if !requests["./handlers/upload"] {
+		t.Error("Expected require './handlers/upload'")
+	}
+	if !requests["./handlers/download"] {
+		t.Error("Expected require './handlers/download'")
+	}
+	if !requests["./handlers/default"] {
+		t.Error("Expected require './handlers/default'")
+	}
+}
+
+func TestIIFEWithImports(t *testing.T) {
+	code := `
+import { setup } from './setup'
+
+;(function() {
+	const mod = require('./iife-module')
+	mod.init()
+})()
+
+;(() => {
+	import('./async-iife').then(m => m.run())
+})()
+
+export { setup }
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	requests := make(map[string]bool)
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+	}
+
+	if !requests["./setup"] {
+		t.Error("Expected import './setup'")
+	}
+	if !requests["./iife-module"] {
+		t.Error("Expected require './iife-module' inside IIFE")
+	}
+	if !requests["./async-iife"] {
+		t.Error("Expected dynamic import './async-iife' inside arrow IIFE")
 	}
 }

@@ -1,0 +1,18 @@
+
+📁 Rule: . (10 files)
+  ❌  Orphan Files Issues (6):
+    - src/orphan1.ts
+    - src/orphan2.ts
+    - src/orphan3.ts
+    - src/orphan4.ts
+    - src/orphan5.ts
+    ... and 1 more orphan file issues
+  ❌ Module Boundary Issues (6):
+    - [rule] src/file1.ts -> src/forbidden.ts (NOT ALLOWED)
+    - [rule] src/file2.ts -> src/forbidden.ts (NOT ALLOWED)
+    - [rule] src/file3.ts -> src/forbidden.ts (NOT ALLOWED)
+    - [rule] src/file4.ts -> src/forbidden.ts (NOT ALLOWED)
+    - [rule] src/file5.ts -> src/forbidden.ts (NOT ALLOWED)
+    ... and 1 more module boundary issues
+
+❌ Checks failed! See details above.

@@ -18,7 +18,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExists(t *testing.T) {
 		t.Errorf("Contrary file for this test does not exists")
 	}
 
-	if *imports[0].ID != "__fixtures__/mockProject/src/fileDirTheSameName.ts" {
+	if imports[0].ID != "__fixtures__/mockProject/src/fileDirTheSameName.ts" {
 		t.Errorf("Should resolve file instead of directory with index file")
 	}
 }
@@ -33,7 +33,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExistsOutOfCwd(t *testing.T) {
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDirOutsideCwd.ts"]
 
 	// For this test file outside of CWD won't be in minimal tree, as it was not resolved and not looked up
-	if *imports[0].ID != "__fixtures__/fileDirTheSameName.ts" {
+	if imports[0].ID != "__fixtures__/fileDirTheSameName.ts" {
 		t.Errorf("Should resolve file instead of directory with index file")
 	}
 }
@@ -48,7 +48,7 @@ func TestShouldResolveImportToFileWhenNodeModuleWithTheSamePrefixExists(t *testi
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithSamePathAsNodeModule.ts"]
 
 	// For this test file outside of CWD won't be in minimal tree, as it was not resolved and not looked up
-	if *imports[0].ID != "__fixtures__/mockProject/lodash/file.ts" {
+	if imports[0].ID != "__fixtures__/mockProject/lodash/file.ts" {
 		t.Errorf("Should resolve file instead of node module with the same prefix")
 	}
 }
@@ -62,15 +62,15 @@ func TestShouldResolveFilesWithAmbiguousImportsByOrderingExtensions(t *testing.T
 
 	imports := minimalTree["__fixtures__/ambiguousImports/test.ts"]
 
-	if *imports[0].ID != "__fixtures__/ambiguousImports/1/file.ts" {
-		t.Errorf("Should resolve file ts extension, resolved '%v'", *imports[0].ID)
+	if imports[0].ID != "__fixtures__/ambiguousImports/1/file.ts" {
+		t.Errorf("Should resolve file ts extension, resolved '%v'", imports[0].ID)
 	}
-	if *imports[1].ID != "__fixtures__/ambiguousImports/2/file.tsx" {
-		t.Errorf("Should resolve file tsx extension, resolved '%v'", *imports[1].ID)
+	if imports[1].ID != "__fixtures__/ambiguousImports/2/file.tsx" {
+		t.Errorf("Should resolve file tsx extension, resolved '%v'", imports[1].ID)
 
 	}
-	if *imports[2].ID != "__fixtures__/ambiguousImports/3/file.js" {
-		t.Errorf("Should resolve file js extension, resolved '%v'", *imports[2].ID)
+	if imports[2].ID != "__fixtures__/ambiguousImports/3/file.js" {
+		t.Errorf("Should resolve file js extension, resolved '%v'", imports[2].ID)
 
 	}
 }
@@ -589,19 +589,361 @@ func TestResolveNodeModules(t *testing.T) {
 
 	nodeModulesImports := minimalTree[cwd+"src/nodeModules.ts"]
 
-	module1Ok := *nodeModulesImports[0].ID == "@types/node" && nodeModulesImports[0].ResolvedType == NodeModule
-	module2Ok := *nodeModulesImports[1].ID == "node:fs" && nodeModulesImports[1].ResolvedType == BuiltInModule
-	module3Ok := *nodeModulesImports[2].ID == "react" && nodeModulesImports[2].ResolvedType == NodeModule
-	module4Ok := *nodeModulesImports[3].ID == "path" && nodeModulesImports[3].ResolvedType == BuiltInModule
-	module5Ok := *nodeModulesImports[4].ID == "" && nodeModulesImports[4].ResolvedType == NotResolvedModule
+	module1Ok := nodeModulesImports[0].ID == "@types/node" && nodeModulesImports[0].ResolvedType == NodeModule
+	module2Ok := nodeModulesImports[1].ID == "node:fs" && nodeModulesImports[1].ResolvedType == BuiltInModule
+	module3Ok := nodeModulesImports[2].ID == "react" && nodeModulesImports[2].ResolvedType == NodeModule
+	module4Ok := nodeModulesImports[3].ID == "path" && nodeModulesImports[3].ResolvedType == BuiltInModule
+	module5Ok := nodeModulesImports[4].ID == "" && nodeModulesImports[4].ResolvedType == NotResolvedModule
 
 	results := []bool{module1Ok, module2Ok, module3Ok, module4Ok, module5Ok}
 
 	for idx, isOk := range results {
 		if !isOk {
-			t.Errorf("Module %d not resolved correctly. ID: '%s', Type: %s", idx, *nodeModulesImports[idx].ID, ResolvedImportTypeToString(nodeModulesImports[idx].ResolvedType))
+			t.Errorf("Module %d not resolved correctly. ID: '%s', Type: %s", idx, nodeModulesImports[idx].ID, ResolvedImportTypeToString(nodeModulesImports[idx].ResolvedType))
 		}
 	}
+}
+
+func TestModuleSuffixes(t *testing.T) {
+	t.Run("Should parse moduleSuffixes from tsconfig", func(t *testing.T) {
+		tsConfig := `{
+			"compilerOptions": {
+				"moduleSuffixes": [".ios", ".native", ""]
+			}
+		}`
+
+		parsed := ParseTsConfigContent([]byte(tsConfig))
+
+		if len(parsed.moduleSuffixes) != 3 {
+			t.Fatalf("Expected 3 moduleSuffixes, got %d", len(parsed.moduleSuffixes))
+		}
+		if parsed.moduleSuffixes[0] != ".ios" {
+			t.Errorf("Expected first suffix '.ios', got '%s'", parsed.moduleSuffixes[0])
+		}
+		if parsed.moduleSuffixes[1] != ".native" {
+			t.Errorf("Expected second suffix '.native', got '%s'", parsed.moduleSuffixes[1])
+		}
+		if parsed.moduleSuffixes[2] != "" {
+			t.Errorf("Expected third suffix '', got '%s'", parsed.moduleSuffixes[2])
+		}
+	})
+
+	t.Run("Should have nil moduleSuffixes when not configured", func(t *testing.T) {
+		tsConfig := `{
+			"compilerOptions": {
+				"paths": {}
+			}
+		}`
+
+		parsed := ParseTsConfigContent([]byte(tsConfig))
+
+		if parsed.moduleSuffixes != nil {
+			t.Errorf("Expected nil moduleSuffixes, got %v", parsed.moduleSuffixes)
+		}
+	})
+
+	t.Run("Should resolve suffixed file with moduleSuffixes", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/button.ios.tsx",
+			cwd + "app/button.tsx",
+			cwd + "app/index.ts",
+		}
+		tsConfig := `{
+			"compilerOptions": {
+				"moduleSuffixes": [".ios", ""]
+			}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+		if resolvedPath != cwd+"app/button.ios.tsx" {
+			t.Errorf("Expected %s, got %s", cwd+"app/button.ios.tsx", resolvedPath)
+		}
+	})
+
+	t.Run("Should fallback to unsuffixed file when suffixed file does not exist", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/button.tsx",
+			cwd + "app/index.ts",
+		}
+		tsConfig := `{
+			"compilerOptions": {
+				"moduleSuffixes": [".ios", ""]
+			}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+		if resolvedPath != cwd+"app/button.tsx" {
+			t.Errorf("Expected %s, got %s", cwd+"app/button.tsx", resolvedPath)
+		}
+	})
+
+	t.Run("Should resolve suffixed index file in directory", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/components/index.ios.tsx",
+			cwd + "app/components/index.tsx",
+			cwd + "app/index.ts",
+		}
+		tsConfig := `{
+			"compilerOptions": {
+				"moduleSuffixes": [".ios", ""]
+			}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("./components", cwd+"app/index.ts")
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+		if resolvedPath != cwd+"app/components/index.ios.tsx" {
+			t.Errorf("Expected %s, got %s", cwd+"app/components/index.ios.tsx", resolvedPath)
+		}
+	})
+
+	t.Run("Should not change behavior when no moduleSuffixes configured", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/button.tsx",
+			cwd + "app/index.ts",
+		}
+		tsConfig := `{
+			"compilerOptions": {}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+		if resolvedPath != cwd+"app/button.tsx" {
+			t.Errorf("Expected %s, got %s", cwd+"app/button.tsx", resolvedPath)
+		}
+	})
+
+	t.Run("Should resolve aliases combined with moduleSuffixes", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "src/button.ios.tsx",
+			cwd + "src/button.tsx",
+			cwd + "app/index.ts",
+		}
+		tsConfig := `{
+			"compilerOptions": {
+				"paths": {
+					"@/*": ["./src/*"]
+				},
+				"moduleSuffixes": [".ios", ""]
+			}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("@/button", cwd+"app/index.ts")
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+		if resolvedPath != cwd+"src/button.ios.tsx" {
+			t.Errorf("Expected %s, got %s", cwd+"src/button.ios.tsx", resolvedPath)
+		}
+	})
+
+	t.Run("Should not resolve unsuffixed when empty string not in moduleSuffixes", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/button.tsx",
+			cwd + "app/index.ts",
+		}
+		tsConfig := `{
+			"compilerOptions": {
+				"moduleSuffixes": [".ios"]
+			}
+		}`
+
+		rm := NewResolverManager(false, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		_, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
+
+		if err == nil {
+			t.Errorf("Expected FileNotFound error when empty string not in moduleSuffixes")
+		}
+	})
+}
+
+// createTestResolverManager creates a minimal ResolverManager for variant detection tests.
+func createTestResolverManager(cwd string, files []string, moduleSuffixes []string) *ResolverManager {
+	tsConfig := &TsConfigParsed{
+		aliases:          map[string]string{},
+		aliasesRegexps:   []RegExpArrItem{},
+		wildcardPatterns: []WildcardPattern{},
+		moduleSuffixes:   moduleSuffixes,
+	}
+	filesAndExtensions := &map[string]string{}
+	for _, f := range files {
+		addFilePathToFilesAndExtensions(f, filesAndExtensions)
+	}
+	return &ResolverManager{
+		rootResolver: &ModuleResolver{
+			tsConfigParsed: tsConfig,
+			resolverRoot:   cwd,
+		},
+		filesAndExtensions: filesAndExtensions,
+	}
+}
+
+func TestDetectModuleSuffixVariants(t *testing.T) {
+	t.Run("Should detect platform variants with multiple suffixes", func(t *testing.T) {
+		cwd := "/root/app/"
+		files := []string{
+			cwd + "button.ios.tsx",
+			cwd + "button.android.tsx",
+			cwd + "button.tsx",
+			cwd + "utils.tsx",
+		}
+
+		rm := createTestResolverManager(cwd, files, []string{".ios", ".android", ""})
+		variants := DetectModuleSuffixVariants(files, rm)
+
+		// button.ios.tsx, button.android.tsx, button.tsx are all variants of each other
+		if !variants[cwd+"button.ios.tsx"] {
+			t.Error("Expected button.ios.tsx to be a variant")
+		}
+		if !variants[cwd+"button.android.tsx"] {
+			t.Error("Expected button.android.tsx to be a variant")
+		}
+		if !variants[cwd+"button.tsx"] {
+			t.Error("Expected button.tsx to be a variant (empty suffix)")
+		}
+		// utils.tsx has no other variant, so it should NOT be detected
+		if variants[cwd+"utils.tsx"] {
+			t.Error("Expected utils.tsx to NOT be a variant")
+		}
+	})
+
+	t.Run("Should return empty map when no moduleSuffixes configured", func(t *testing.T) {
+		files := []string{"/root/app/button.tsx"}
+		rm := createTestResolverManager("/root/app/", files, []string{})
+		variants := DetectModuleSuffixVariants(files, rm)
+
+		if len(variants) != 0 {
+			t.Errorf("Expected 0 variants, got %d", len(variants))
+		}
+	})
+
+	t.Run("Should not detect variant when suffix is not in config", func(t *testing.T) {
+		cwd := "/root/app/"
+		files := []string{
+			cwd + "button.ios.tsx",
+			cwd + "button.web.tsx",
+		}
+
+		rm := createTestResolverManager(cwd, files, []string{".ios", ""})
+		variants := DetectModuleSuffixVariants(files, rm)
+
+		// button.ios.tsx: suffix .ios, base = button, check button (empty suffix) → not in filesAndExtensions
+		// So button.ios.tsx is NOT a variant (no other suffix variant exists)
+		if variants[cwd+"button.ios.tsx"] {
+			t.Error("Expected button.ios.tsx to NOT be a variant when no other configured suffix file exists")
+		}
+		// button.web.tsx: no configured suffix matches .web, empty suffix gives base=button.web, check button.web.ios → no
+		if variants[cwd+"button.web.tsx"] {
+			t.Error("Expected button.web.tsx to NOT be a variant (.web not in config)")
+		}
+	})
+
+	t.Run("Should detect variant when only two suffixes exist", func(t *testing.T) {
+		cwd := "/root/app/"
+		files := []string{
+			cwd + "button.ios.tsx",
+			cwd + "button.tsx",
+		}
+
+		rm := createTestResolverManager(cwd, files, []string{".ios", ""})
+		variants := DetectModuleSuffixVariants(files, rm)
+
+		if !variants[cwd+"button.ios.tsx"] {
+			t.Error("Expected button.ios.tsx to be a variant")
+		}
+		if !variants[cwd+"button.tsx"] {
+			t.Error("Expected button.tsx to be a variant")
+		}
+	})
+
+	t.Run("Should detect variants with four suffixes including native", func(t *testing.T) {
+		cwd := "/root/app/"
+		files := []string{
+			cwd + "FormContent.ios.tsx",
+			cwd + "FormContent.android.tsx",
+			cwd + "types.ts",
+		}
+
+		rm := createTestResolverManager(cwd, files, []string{".ios", ".android", ".native", ""})
+		variants := DetectModuleSuffixVariants(files, rm)
+
+		if !variants[cwd+"FormContent.ios.tsx"] {
+			t.Error("Expected FormContent.ios.tsx to be a variant")
+		}
+		if !variants[cwd+"FormContent.android.tsx"] {
+			t.Error("Expected FormContent.android.tsx to be a variant")
+		}
+		if variants[cwd+"types.ts"] {
+			t.Error("Expected types.ts to NOT be a variant")
+		}
+	})
 }
 
 func TestSpecialCharactersInAliases(t *testing.T) {

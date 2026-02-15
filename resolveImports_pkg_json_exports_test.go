@@ -21,8 +21,8 @@ func TestPackageJsonExportsDifferentSpecificity(t *testing.T) {
 		if exactMatchImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected exact match import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(exactMatchImport.ResolvedType))
 		}
-		if *exactMatchImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/features/feature-a.ts" {
-			t.Errorf("Expected exact match import ID to be the resolved path, got '%s'", *exactMatchImport.ID)
+		if exactMatchImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/features/feature-a.ts" {
+			t.Errorf("Expected exact match import ID to be the resolved path, got '%s'", exactMatchImport.ID)
 		}
 	}
 
@@ -34,8 +34,8 @@ func TestPackageJsonExportsDifferentSpecificity(t *testing.T) {
 		if wildcardImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected wildcard import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(wildcardImport.ResolvedType))
 		}
-		if *wildcardImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/features/feature-from-dist.js" {
-			t.Errorf("Expected wildcard import ID to be the resolved path, got '%s'", *wildcardImport.ID)
+		if wildcardImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/features/feature-from-dist.js" {
+			t.Errorf("Expected wildcard import ID to be the resolved path, got '%s'", wildcardImport.ID)
 		}
 	}
 }
@@ -56,8 +56,8 @@ func TestPackageJsonExportsConditionalExports(t *testing.T) {
 		if conditionalImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected conditional import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(conditionalImport.ResolvedType))
 		}
-		if *conditionalImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/utils/helper.ts" {
-			t.Errorf("Expected conditional import ID to be the resolved path, got '%s'", *conditionalImport.ID)
+		if conditionalImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/utils/helper.ts" {
+			t.Errorf("Expected conditional import ID to be the resolved path, got '%s'", conditionalImport.ID)
 		}
 	}
 
@@ -72,8 +72,8 @@ func TestPackageJsonExportsConditionalExports(t *testing.T) {
 		if conditionalImportProd.ResolvedType != MonorepoModule {
 			t.Errorf("Expected conditional import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(conditionalImportProd.ResolvedType))
 		}
-		if *conditionalImportProd.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/utils/helper.js" {
-			t.Errorf("Expected conditional import ID to be the resolved path, got '%s'", *conditionalImportProd.ID)
+		if conditionalImportProd.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/utils/helper.js" {
+			t.Errorf("Expected conditional import ID to be the resolved path, got '%s'", conditionalImportProd.ID)
 		}
 	}
 
@@ -88,8 +88,8 @@ func TestPackageJsonExportsConditionalExports(t *testing.T) {
 		if conditionalImportDefault.ResolvedType != MonorepoModule {
 			t.Errorf("Expected conditional import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(conditionalImportDefault.ResolvedType))
 		}
-		if *conditionalImportDefault.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/utils/helper.ts" {
-			t.Errorf("Expected conditional import ID to be the resolved path, got '%s'", *conditionalImportDefault.ID)
+		if conditionalImportDefault.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/utils/helper.ts" {
+			t.Errorf("Expected conditional import ID to be the resolved path, got '%s'", conditionalImportDefault.ID)
 		}
 	}
 }
@@ -111,8 +111,8 @@ func TestPackageJsonExportsBasicWildcard(t *testing.T) {
 		if wildcardImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected wildcard import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(wildcardImport.ResolvedType))
 		}
-		if *wildcardImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/something.ts" {
-			t.Errorf("Expected wildcard import ID to be the resolved path, got '%s'", *wildcardImport.ID)
+		if wildcardImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/something.ts" {
+			t.Errorf("Expected wildcard import ID to be the resolved path, got '%s'", wildcardImport.ID)
 		}
 	}
 }
@@ -134,8 +134,8 @@ func TestPackageJsonExportsRootWildcard(t *testing.T) {
 		if rootWildcardImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected root wildcard import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(rootWildcardImport.ResolvedType))
 		}
-		if *rootWildcardImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/config/setup.config.js" {
-			t.Errorf("Expected root wildcard import ID to be the resolved path, got '%s'", *rootWildcardImport.ID)
+		if rootWildcardImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/config/setup.config.js" {
+			t.Errorf("Expected root wildcard import ID to be the resolved path, got '%s'", rootWildcardImport.ID)
 		}
 	}
 }
@@ -157,8 +157,8 @@ func TestPackageJsonExportsDirectorySwap(t *testing.T) {
 		if directorySwapImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected directory swap import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(directorySwapImport.ResolvedType))
 		}
-		if *directorySwapImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/some/files/xyz.js" {
-			t.Errorf("Expected directory swap import ID to be the swapped file path, got '%s'", *directorySwapImport.ID)
+		if directorySwapImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/some/files/xyz.js" {
+			t.Errorf("Expected directory swap import ID to be the swapped file path, got '%s'", directorySwapImport.ID)
 		}
 	}
 }
@@ -212,8 +212,8 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 		if deepDevNodeImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected deep dev+node import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepDevNodeImport.ResolvedType))
 		}
-		if *deepDevNodeImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/node.ts" {
-			t.Errorf("Expected deep dev+node import ID to be node.ts path, got '%s'", *deepDevNodeImport.ID)
+		if deepDevNodeImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/node.ts" {
+			t.Errorf("Expected deep dev+node import ID to be node.ts path, got '%s'", deepDevNodeImport.ID)
 		}
 	}
 
@@ -228,8 +228,8 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 		if deepDevDefaultImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected deep dev+default import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepDevDefaultImport.ResolvedType))
 		}
-		if *deepDevDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/dev-default.ts" {
-			t.Errorf("Expected deep dev+default import ID to be dev-default.ts path, got '%s'", *deepDevDefaultImport.ID)
+		if deepDevDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/dev-default.ts" {
+			t.Errorf("Expected deep dev+default import ID to be dev-default.ts path, got '%s'", deepDevDefaultImport.ID)
 		}
 	}
 
@@ -244,8 +244,8 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 		if deepProdBrowserImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected deep prod+browser import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepProdBrowserImport.ResolvedType))
 		}
-		if *deepProdBrowserImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/deep/browser.js" {
-			t.Errorf("Expected deep prod+browser import ID to be browser.js path, got '%s'", *deepProdBrowserImport.ID)
+		if deepProdBrowserImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/deep/browser.js" {
+			t.Errorf("Expected deep prod+browser import ID to be browser.js path, got '%s'", deepProdBrowserImport.ID)
 		}
 	}
 
@@ -260,8 +260,8 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 		if deepProdDefaultImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected deep prod+default import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepProdDefaultImport.ResolvedType))
 		}
-		if *deepProdDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/deep/prod-default.js" {
-			t.Errorf("Expected deep prod+default import ID to be prod-default.js path, got '%s'", *deepProdDefaultImport.ID)
+		if deepProdDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/dist/deep/prod-default.js" {
+			t.Errorf("Expected deep prod+default import ID to be prod-default.js path, got '%s'", deepProdDefaultImport.ID)
 		}
 	}
 
@@ -276,8 +276,8 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 		if deepDefaultImport.ResolvedType != MonorepoModule {
 			t.Errorf("Expected deep default import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(deepDefaultImport.ResolvedType))
 		}
-		if *deepDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/fallback.ts" {
-			t.Errorf("Expected deep default import ID to be fallback.ts path, got '%s'", *deepDefaultImport.ID)
+		if deepDefaultImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/deep/fallback.ts" {
+			t.Errorf("Expected deep default import ID to be fallback.ts path, got '%s'", deepDefaultImport.ID)
 		}
 	}
 
@@ -354,8 +354,8 @@ func TestPackageJsonExportsBaseUrlWildcard(t *testing.T) {
 
 	// Expected: Should resolve to the monorepo package index file
 	expectedPath := "__fixtures__/mockMonorepo/packages/baseurl-package/index.ts"
-	if *imports[0].ID != expectedPath || imports[0].ResolvedType != MonorepoModule {
-		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedPath, *imports[0].ID, ResolvedImportTypeToString(imports[0].ResolvedType))
+	if imports[0].ID != expectedPath || imports[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedPath, imports[0].ID, ResolvedImportTypeToString(imports[0].ResolvedType))
 	}
 }
 
@@ -376,8 +376,8 @@ func TestPackageJsonExportsNoMain(t *testing.T) {
 
 	// Expected: Should resolve to package root index file
 	expectedIndex := "__fixtures__/mockMonorepo/packages/no-exports-package/index.ts"
-	if *imports0[0].ID != expectedIndex || imports0[0].ResolvedType != MonorepoModule {
-		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedIndex, *imports0[0].ID, ResolvedImportTypeToString(imports0[0].ResolvedType))
+	if imports0[0].ID != expectedIndex || imports0[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedIndex, imports0[0].ID, ResolvedImportTypeToString(imports0[0].ResolvedType))
 	}
 
 	// Test 1: Resolve index file from package without exports/main
@@ -390,8 +390,8 @@ func TestPackageJsonExportsNoMain(t *testing.T) {
 
 	// Expected: Should resolve to package root index file
 	expectedIndex = "__fixtures__/mockMonorepo/packages/no-exports-package/index.ts"
-	if *imports[0].ID != expectedIndex || imports[0].ResolvedType != MonorepoModule {
-		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedIndex, *imports[0].ID, ResolvedImportTypeToString(imports[0].ResolvedType))
+	if imports[0].ID != expectedIndex || imports[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedIndex, imports[0].ID, ResolvedImportTypeToString(imports[0].ResolvedType))
 	}
 
 	// Test 2: Resolve non-index file from package without exports/main
@@ -404,8 +404,8 @@ func TestPackageJsonExportsNoMain(t *testing.T) {
 
 	// Expected: Should resolve to utils.ts file (file takes precedence over directory)
 	expectedUtils := "__fixtures__/mockMonorepo/packages/no-exports-package/utils.ts"
-	if *imports2[0].ID != expectedUtils || imports2[0].ResolvedType != MonorepoModule {
-		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedUtils, *imports2[0].ID, ResolvedImportTypeToString(imports2[0].ResolvedType))
+	if imports2[0].ID != expectedUtils || imports2[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedUtils, imports2[0].ID, ResolvedImportTypeToString(imports2[0].ResolvedType))
 	}
 
 	// Test 3: Resolve utils/index.ts from package without exports/main
@@ -418,8 +418,8 @@ func TestPackageJsonExportsNoMain(t *testing.T) {
 
 	// Expected: Should resolve to utils.ts (file takes precedence over directory)
 	expectedUtilsIndex := "__fixtures__/mockMonorepo/packages/no-exports-package/utils.ts"
-	if *imports3[0].ID != expectedUtilsIndex || imports3[0].ResolvedType != MonorepoModule {
-		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedUtilsIndex, *imports3[0].ID, ResolvedImportTypeToString(imports3[0].ResolvedType))
+	if imports3[0].ID != expectedUtilsIndex || imports3[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedUtilsIndex, imports3[0].ID, ResolvedImportTypeToString(imports3[0].ResolvedType))
 	}
 
 	// Test 4: Resolve lib/index.ts from package without exports/main (different directory)
@@ -432,7 +432,7 @@ func TestPackageJsonExportsNoMain(t *testing.T) {
 
 	// Expected: Should resolve to lib/index.ts
 	expectedLibIndex := "__fixtures__/mockMonorepo/packages/no-exports-package/lib/index.ts"
-	if *imports4[0].ID != expectedLibIndex || imports4[0].ResolvedType != MonorepoModule {
-		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedLibIndex, *imports4[0].ID, ResolvedImportTypeToString(imports4[0].ResolvedType))
+	if imports4[0].ID != expectedLibIndex || imports4[0].ResolvedType != MonorepoModule {
+		t.Errorf("Expected %s with MonorepoModule type, got '%s' with type %s", expectedLibIndex, imports4[0].ID, ResolvedImportTypeToString(imports4[0].ResolvedType))
 	}
 }

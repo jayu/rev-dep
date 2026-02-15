@@ -18,7 +18,7 @@ func getSortedTreeForPrint(tree MinimalDependencyTree) string {
 		imports := [][]string{}
 
 		for _, imp := range v {
-			imports = append(imports, []string{*imp.ID, imp.Request})
+			imports = append(imports, []string{imp.ID, imp.Request})
 		}
 
 		sort.Slice(imports, func(i, j int) bool {
@@ -69,13 +69,9 @@ func StringifyMinimalDependencyTree(tree MinimalDependencyTree) string {
 			if deps[i].Request != deps[j].Request {
 				return deps[i].Request < deps[j].Request
 			}
-			var idI, idJ string
-			if deps[i].ID != nil {
-				idI = *deps[i].ID
-			}
-			if deps[j].ID != nil {
-				idJ = *deps[j].ID
-			}
+			idI := deps[i].ID
+			idJ := deps[j].ID
+
 			if idI != idJ {
 				return idI < idJ
 			}
@@ -89,13 +85,11 @@ func StringifyMinimalDependencyTree(tree MinimalDependencyTree) string {
 
 		for _, d := range deps {
 			id := "<nil>"
-			if d.ID != nil && *d.ID != "" {
-				id = *d.ID
+			if d.ID != "" {
+				id = d.ID
 			}
-			importKind := "<nil>"
-			if d.ImportKind != nil {
-				importKind = ImportKindToString(*d.ImportKind)
-			}
+			importKind := ImportKindToString(d.ImportKind)
+
 			b.WriteString("  - request: ")
 			b.WriteString(d.Request)
 			b.WriteString("\n")

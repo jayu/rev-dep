@@ -29,7 +29,7 @@ func TestResolveMarksExcludedFilesAsExcludedByUser(t *testing.T) {
 		t.Errorf("Expected dependency to be marked ExcludedByUser, got %v", dep.ResolvedType)
 	}
 
-	if dep.ID == nil || *dep.ID != excluded {
+	if dep.ID != excluded {
 		t.Errorf("Expected dependency ID to be %s, got %v", excluded, dep.ID)
 	}
 

@@ -43,6 +43,7 @@ type RuleResult struct {
 	UnusedNodeModules                               []string
 	MissingNodeModules                              []MissingNodeModuleResult
 	ImportConventionViolations                      []ImportConventionViolation
+	UnusedExports                                   []UnusedExport
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
 }
@@ -75,6 +76,15 @@ func discoverAllFilesForConfig(
 	return files, combinedMatchers, nil
 }
 
+func anyRuleChecksForUnusedExports(config *RevDepConfig) bool {
+	for _, rule := range config.Rules {
+		if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
 // buildDependencyTreeForConfig builds dependency tree for config processing
 func buildDependencyTreeForConfig(
 	allFiles []string,
@@ -83,6 +93,7 @@ func buildDependencyTreeForConfig(
 	cwd string,
 	packageJson string,
 	tsconfigJson string,
+	parseMode ParseMode,
 ) (MinimalDependencyTree, *ResolverManager, error) {
 	// For config processing, we always resolve type imports (we filter later per-check)
 	ignoreTypeImports := false
@@ -94,7 +105,7 @@ func buildDependencyTreeForConfig(
 	skipResolveMissing := false
 
 	// Parse imports from all files
-	fileImportsArr, _ := ParseImportsFromFiles(allFiles, ignoreTypeImports)
+	fileImportsArr, _ := ParseImportsFromFiles(allFiles, ignoreTypeImports, parseMode)
 
 	slices.Sort(allFiles)
 
@@ -110,6 +121,7 @@ func buildDependencyTreeForConfig(
 		excludePatterns,
 		conditionNames,
 		followMonorepoPackages,
+		parseMode,
 	)
 
 	// Transform to minimal dependency tree
@@ -185,6 +197,9 @@ func processRuleChecks(
 	if rule.MissingNodeModulesDetection != nil && rule.MissingNodeModulesDetection.Enabled {
 		enabledChecks = append(enabledChecks, "missing-node-modules")
 	}
+	if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+		enabledChecks = append(enabledChecks, "unused-exports")
+	}
 	if len(rule.ImportConventions) > 0 {
 		enabledChecks = append(enabledChecks, "import-conventions")
 	}
@@ -204,6 +219,10 @@ func processRuleChecks(
 	if rulePathResolver != nil {
 		rulePathNodeModules = rulePathResolver.nodeModules
 	}
+
+	// Detect module-suffix variants to exclude from orphan/unused-exports detection.
+	// Uses per-file resolver lookup so monorepos with package-level moduleSuffixes work.
+	moduleSuffixVariants := DetectModuleSuffixVariants(ruleFiles, resolverManager)
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -242,6 +261,7 @@ func processRuleChecks(
 				rule.OrphanFilesDetection.GraphExclude,
 				rule.OrphanFilesDetection.IgnoreTypeImports,
 				fullRulePath,
+				moduleSuffixVariants,
 			)
 
 			mu.Lock()
@@ -333,6 +353,27 @@ func processRuleChecks(
 		}()
 	}
 
+	// Unused Exports
+	if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			unusedExports := FindUnusedExports(
+				ruleFiles,
+				ruleTree,
+				rule.UnusedExportsDetection.ValidEntryPoints,
+				rule.UnusedExportsDetection.GraphExclude,
+				rule.UnusedExportsDetection.IgnoreTypeExports,
+				fullRulePath,
+				moduleSuffixVariants,
+			)
+
+			mu.Lock()
+			ruleResult.UnusedExports = unusedExports
+			mu.Unlock()
+		}()
+	}
+
 	wg.Wait()
 	return ruleResult
 }
@@ -351,6 +392,11 @@ func ProcessConfig(
 		return nil, err
 	}
 	// Step 2: Build dependency tree for config
+	parseMode := ParseModeBasic
+	if anyRuleChecksForUnusedExports(config) {
+		parseMode = ParseModeDetailed
+	}
+
 	fullTree, resolverManager, err := buildDependencyTreeForConfig(
 		allFiles,
 		excludePatterns,
@@ -358,6 +404,7 @@ func ProcessConfig(
 		cwd,
 		packageJson,
 		tsconfigJson,
+		parseMode,
 	)
 	if err != nil {
 		return nil, err
@@ -406,7 +453,8 @@ func ProcessConfig(
 				len(ruleResult.ModuleBoundaryViolations) > 0 ||
 				len(ruleResult.UnusedNodeModules) > 0 ||
 				len(ruleResult.MissingNodeModules) > 0 ||
-				len(ruleResult.ImportConventionViolations) > 0
+				len(ruleResult.ImportConventionViolations) > 0 ||
+				len(ruleResult.UnusedExports) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult
@@ -432,6 +480,12 @@ func ProcessConfig(
 					result.UnfixableAliasingCount++
 				}
 			}
+			for _, v := range ruleResult.UnusedExports {
+				if v.Fix != nil {
+					changesByFile[v.FilePath] = append(changesByFile[v.FilePath], *v.Fix)
+					result.FixedImportsCount++
+				}
+			}
 		}
 
 		if len(changesByFile) > 0 {
@@ -444,6 +498,11 @@ func ProcessConfig(
 		fixableIssuesCount := 0
 		for _, ruleResult := range result.RuleResults {
 			for _, v := range ruleResult.ImportConventionViolations {
+				if v.Fix != nil {
+					fixableIssuesCount++
+				}
+			}
+			for _, v := range ruleResult.UnusedExports {
 				if v.Fix != nil {
 					fixableIssuesCount++
 				}

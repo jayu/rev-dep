@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -43,6 +44,7 @@ type TsConfigParsed struct {
 	aliases          map[string]string
 	aliasesRegexps   []RegExpArrItem // Keep for backward compatibility during transition
 	wildcardPatterns []WildcardPattern
+	moduleSuffixes   []string
 }
 
 type PackageJsonImports struct {
@@ -254,6 +256,7 @@ func ParseTsConfigContent(tsconfigContent []byte) *TsConfigParsed {
 	var paths map[string][]string
 	var baseUrl string
 	var hasBaseUrl bool
+	var moduleSuffixes []string
 
 	// Only attempt to parse if tsconfig content is not empty
 	if len(tsconfigContent) > 0 && string(tsconfigContent) != "" && string(tsconfigContent) != "{}" {
@@ -277,6 +280,14 @@ func ParseTsConfigContent(tsconfigContent []byte) *TsConfigParsed {
 							}
 						}
 						paths[key] = pathArray
+					}
+				}
+			}
+
+			if suffixesRaw, ok := compilerOptions["moduleSuffixes"].([]interface{}); ok {
+				for _, v := range suffixesRaw {
+					if str, ok := v.(string); ok {
+						moduleSuffixes = append(moduleSuffixes, str)
 					}
 				}
 			}
@@ -324,6 +335,7 @@ func ParseTsConfigContent(tsconfigContent []byte) *TsConfigParsed {
 		aliases:          map[string]string{},
 		aliasesRegexps:   []RegExpArrItem{},
 		wildcardPatterns: []WildcardPattern{},
+		moduleSuffixes:   moduleSuffixes,
 	}
 
 	for aliasKey, aliasValues := range paths {
@@ -568,30 +580,47 @@ func (f *ResolverManager) AddFilePathToFilesAndExtensions(filePath string) {
 	addFilePathToFilesAndExtensions(filePath, f.filesAndExtensions)
 }
 
-func (f *ResolverManager) getModulePathWithExtension(modulePath string) (path string, err *ResolutionError) {
+func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path string, err *ResolutionError) {
+	// Strip existing TS extension from modulePath
 	match := extensionRegExp.FindString(modulePath)
-
 	if match != "" {
 		tsSupportedExtension := tsSupportedExtensionRegExp.FindString(match)
-
-		// TS has this weird feature that file extension in import actually does not matter until it is js|jsx|ts|tsx
-		// You can import 'file.ts' by importing 'file.jsx'
-		// Hence we modify the modulePath by removing the extension so the file can be picked up with other extension
 		if tsSupportedExtension == "" {
 			return modulePath, nil
 		}
 		modulePath = strings.Replace(modulePath, tsSupportedExtension, "", 1)
 	}
 
-	extension, has := (*f.filesAndExtensions)[modulePath]
+	suffixes := f.tsConfigParsed.moduleSuffixes
+	if len(suffixes) == 0 {
+		// No suffixes configured - direct lookup
+		extension, has := (*f.manager.filesAndExtensions)[modulePath]
+		if has {
+			return modulePath + extension, nil
+		}
+		e := FileNotFound
+		return modulePath, &e
+	}
 
-	if has {
+	// Try each suffix in order
+	for _, suffix := range suffixes {
+		suffixedPath := modulePath + suffix
+		extension, has := (*f.manager.filesAndExtensions)[suffixedPath]
+		if has {
+			return suffixedPath + extension, nil
+		}
 
-		return modulePath + extension, nil
+		// For non-empty suffixes, also try index files: basePath + "/index" + suffix
+		if suffix != "" {
+			indexPath := modulePath + "/index" + suffix
+			extension, has := (*f.manager.filesAndExtensions)[indexPath]
+			if has {
+				return indexPath + extension, nil
+			}
+		}
 	}
 
 	e := FileNotFound
-
 	return modulePath, &e
 }
 
@@ -751,7 +780,7 @@ func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string
 	}
 
 	modulePath := NormalizePathForInternal(resolvedTarget)
-	actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
+	actualFilePath, e := f.getModulePathWithExtension(modulePath)
 
 	if e == nil {
 		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
@@ -775,7 +804,7 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 		modulePath := filepath.Join(root, resolvedTarget)
 		modulePath = NormalizePathForInternal(modulePath)
 
-		actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
+		actualFilePath, e := f.getModulePathWithExtension(modulePath)
 		if e != nil {
 			// alias matched, but file was not resolved
 			return true, modulePath, NotResolvedModule, e
@@ -821,7 +850,7 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 		modulePath := filepath.Join(root, resolvedTarget)
 		modulePath = NormalizePathForInternal(modulePath)
 
-		actualFilePath, e := f.manager.getModulePathWithExtension(modulePath)
+		actualFilePath, e := f.getModulePathWithExtension(modulePath)
 
 		if e != nil {
 			// alias matched, but file was not resolved
@@ -934,7 +963,7 @@ func (f *ModuleResolver) resolvePackageExports(pkgPath, subpath string) (string,
 	// resolvedExport is relative to target package root
 	fullPath := filepath.Join(pkgPath, resolvedExport)
 	modulePath := NormalizePathForInternal(fullPath)
-	actualFilePath, resolveErr := f.manager.getModulePathWithExtension(modulePath)
+	actualFilePath, resolveErr := f.getModulePathWithExtension(modulePath)
 	return actualFilePath, resolveErr
 }
 
@@ -957,7 +986,7 @@ func (f *ModuleResolver) resolvePackageFallback(pkgPath, subpath string) (string
 
 	fullPath := filepath.Join(pkgPath, resolvedSubpath)
 	modulePath := NormalizePathForInternal(fullPath)
-	actualFilePath, resolveErr := f.manager.getModulePathWithExtension(modulePath)
+	actualFilePath, resolveErr := f.getModulePathWithExtension(modulePath)
 	return actualFilePath, resolveErr
 }
 
@@ -1012,7 +1041,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		cleanedModulePath := filepath.Clean(modulePath)
 		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
 
-		p, e := f.manager.getModulePathWithExtension(modulePathInternal)
+		p, e := f.getModulePathWithExtension(modulePathInternal)
 
 		return p, UserModule, e
 	}
@@ -1065,7 +1094,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	return "", NotResolvedModule, &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages bool) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages bool, parseMode ParseMode) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
 	tsConfigPath := JoinWithCwd(cwd, tsconfigJson)
 	pkgJsonPath := JoinWithCwd(cwd, packageJson)
 
@@ -1116,24 +1145,33 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	var mu sync.Mutex
 	ch_idx := make(chan int)
 
+	// Limit concurrency to avoid memory spikes
+	maxConcurrency := runtime.GOMAXPROCS(0) * 2
+	sem := make(chan struct{}, maxConcurrency)
+
 	go func() {
 		for idx := range ch_idx {
-			go resolveSingleFileImports(
-				resolverManager,
-				&missingResolutionFailedAttempts,
-				&discoveredFiles,
-				&fileImportsArr,
-				&sortedFiles,
-				pkjJsonDir,
-				ignoreTypeImports,
-				skipResolveMissing,
-				idx,
-				&wg,
-				&mu,
-				ch_idx,
-				BuiltInModules,
-				excludeFilePatterns,
-			)
+			sem <- struct{}{} // Acquire semaphore
+			go func(i int) {
+				defer func() { <-sem }() // Release semaphore
+				resolveSingleFileImports(
+					resolverManager,
+					&missingResolutionFailedAttempts,
+					&discoveredFiles,
+					&fileImportsArr,
+					&sortedFiles,
+					pkjJsonDir,
+					ignoreTypeImports,
+					skipResolveMissing,
+					i,
+					&wg,
+					&mu,
+					ch_idx,
+					BuiltInModules,
+					excludeFilePatterns,
+					parseMode,
+				)
+			}(idx)
 		}
 	}()
 
@@ -1167,7 +1205,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	return filteredFileImportsArr, filteredFiles, resolverManager
 }
 
-func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, pkgJsonDir string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher) {
+func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, pkgJsonDir string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher, parseMode ParseMode) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()
@@ -1235,7 +1273,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 					// File is likely outside of cwd or in ignored path
 					modulePath := importPath
 
-					missingFilePath := GetMissingFile(modulePath)
+					missingFilePath := GetMissingFile(modulePath, importsResolver.tsConfigParsed.moduleSuffixes)
 
 					if missingFilePath != "" {
 						// If file exists on disk but matches exclude patterns, mark it as excluded by user and do not add to discovery lists
@@ -1252,7 +1290,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 								imports[impIdx].ResolvedType = resolvedType
 								mu.Unlock()
 
-								missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)
+								missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports, parseMode)
 
 								mu.Lock()
 								// Double-check after acquiring lock in case another goroutine added it
@@ -1262,7 +1300,15 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 										Imports:  missingFileImports,
 									})
 									wg.Add(1)
-									ch_idx <- len(*fileImportsArr) - 1
+									// We use a goroutine here to push the new index to the channel.
+									// If we pushed directly (ch_idx <- val), it could block if the channel is full (unbuffered)
+									// or no worker is ready to receive. Since we are inside a worker, blocking here
+									// could lead to a deadlock if all workers are blocked trying to add new work.
+									// By spawning a goroutine, we ensure this worker can finish its current job
+									// and release the semaphore, allowing another worker (or itself) to pick up this new task.
+									go func(val int) {
+										ch_idx <- val
+									}(len(*fileImportsArr) - 1)
 
 									*sortedFiles = append(*sortedFiles, missingFilePath)
 									(*discoveredFiles)[missingFilePath] = true
@@ -1324,7 +1370,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 					missingFileContent, err := os.ReadFile(DenormalizePathForOS(importPath))
 					if err == nil {
 
-						missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports)
+						missingFileImports := ParseImportsByte(missingFileContent, ignoreTypeImports, parseMode)
 						mu.Lock()
 						// Double-check after acquiring lock in case another goroutine added it
 						if _, alreadyAdded := (*discoveredFiles)[importPath]; !alreadyAdded {
@@ -1333,7 +1379,17 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 								Imports:  missingFileImports,
 							})
 							wg.Add(1)
-							ch_idx <- len(*fileImportsArr) - 1
+							/*
+								We use a goroutine here to push the new index to the channel.
+								If we pushed directly (ch_idx <- val), it could block if the channel is full (unbuffered)
+								or no worker is ready to receive. Since we are inside a worker, blocking here
+								could lead to a deadlock if all workers are blocked trying to add new work.
+								By spawning a goroutine, we ensure this worker can finish its current job
+								and release the semaphore, allowing another worker (or itself) to pick up this new task.
+							*/
+							go func(val int) {
+								ch_idx <- val
+							}(len(*fileImportsArr) - 1)
 
 							*sortedFiles = append(*sortedFiles, importPath)
 							(*discoveredFiles)[importPath] = true
@@ -1356,6 +1412,62 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 }
 
 var assetExtensions = []string{"json", "png", "jpeg", "webp", "jpg", "svg", "gif", "ttf", "otf", "woff", "woff2", "css", "scss"}
+
+// DetectModuleSuffixVariants identifies files that are platform-specific variants
+// created by moduleSuffixes (e.g., button.android.tsx when button.ios.tsx is the
+// resolved variant). These files should be excluded from orphan/unused-exports
+// detection since they are valid platform alternatives, not truly unreferenced.
+// Each file is checked against the moduleSuffixes of its own resolver, so
+// monorepos where only some packages define moduleSuffixes are handled correctly.
+func DetectModuleSuffixVariants(files []string, resolverManager *ResolverManager) map[string]bool {
+	variants := map[string]bool{}
+
+	for _, file := range files {
+		resolver := resolverManager.GetResolverForFile(file)
+		if resolver == nil {
+			continue
+		}
+		moduleSuffixes := resolver.tsConfigParsed.moduleSuffixes
+		if len(moduleSuffixes) == 0 {
+			continue
+		}
+
+		ext := extensionRegExp.FindString(file)
+		if ext == "" {
+			continue
+		}
+		fileWithoutExt := strings.TrimSuffix(file, ext)
+
+		for _, suffix := range moduleSuffixes {
+			var base string
+			if suffix == "" {
+				base = fileWithoutExt
+			} else {
+				if !strings.HasSuffix(fileWithoutExt, suffix) {
+					continue
+				}
+				base = strings.TrimSuffix(fileWithoutExt, suffix)
+			}
+
+			// Check if any OTHER configured suffix + base exists
+			for _, otherSuffix := range moduleSuffixes {
+				if otherSuffix == suffix {
+					continue
+				}
+				candidate := base + otherSuffix
+				if _, exists := (*resolverManager.filesAndExtensions)[candidate]; exists {
+					variants[file] = true
+					break
+				}
+			}
+			if variants[file] {
+				break
+			}
+		}
+	}
+
+	return variants
+}
 
 func isAssetPath(filePath string) bool {
 	for _, ext := range assetExtensions {

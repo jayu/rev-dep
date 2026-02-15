@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -156,9 +157,17 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 		wg.Done()
 	}
 
+	// Limit concurrency
+	maxConcurrency := runtime.GOMAXPROCS(0) * 2
+	sem := make(chan struct{}, maxConcurrency)
+
 	go func() {
 		for absolutePathToEntryPoint := range ch {
-			go buildGraph(absolutePathToEntryPoint, &depsGraphs, &wg, &mu)
+			sem <- struct{}{} // Acquire
+			go func(ep string) {
+				defer func() { <-sem }() // Release
+				buildGraph(ep, &depsGraphs, &wg, &mu)
+			}(absolutePathToEntryPoint)
 		}
 	}()
 
@@ -280,9 +289,15 @@ func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDepen
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
+	// Limit concurrency
+	maxConcurrency := runtime.GOMAXPROCS(0) * 2
+	sem := make(chan struct{}, maxConcurrency)
+
 	for entryPoint, root := range multiGraph.Roots {
 		wg.Add(1)
+		sem <- struct{}{} // Acquire
 		go func(ep string, r *SerializableNode) {
+			defer func() { <-sem }() // Release
 			vertices := bst(r, multiGraph.Vertices)
 
 			mu.Lock()
@@ -818,7 +833,7 @@ func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonP
 
 	for filePath, dependencies := range minimalTree {
 		for _, dependency := range dependencies {
-			if dependency.ID != nil && *dependency.ID == absolutePathToFilePath {
+			if dependency.ID != "" && dependency.ID == absolutePathToFilePath {
 				// Convert to relative path for output
 				relativePath := strings.TrimPrefix(filePath, cwd)
 				if relativePath != filePath { // Only trim if cwd was actually found
@@ -1069,13 +1084,13 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 		files = upfrontFilesList
 	}
 
-	fileImportsArr, _ := ParseImportsFromFiles(files, ignoreTypeImports)
+	fileImportsArr, _ := ParseImportsFromFiles(files, ignoreTypeImports, ParseModeBasic)
 
 	slices.Sort(files)
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, ParseModeBasic)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

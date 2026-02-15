@@ -1,0 +1,12 @@
+{
+  "configVersion": "1.3",
+  "rules": [
+    {
+      "path": ".",
+      "unusedExportsDetection": {
+        "enabled": true,
+        "validEntryPoints": ["**/index.ts"]
+      }
+    }
+  ]
+}

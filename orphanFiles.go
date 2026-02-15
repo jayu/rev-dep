@@ -11,6 +11,7 @@ func FindOrphanFiles(
 	graphExclude []string,
 	ignoreTypeImports bool,
 	cwd string,
+	moduleSuffixVariants map[string]bool,
 ) []string {
 	// Create glob matchers for valid entry points and graph exclusions
 	entryPointGlobs := CreateGlobMatchers(validEntryPoints, cwd)
@@ -26,16 +27,16 @@ func FindOrphanFiles(
 		}
 
 		for _, dependency := range fileDeps {
-			if dependency.ID == nil || *dependency.ID == "" {
+			if dependency.ID == "" {
 				continue
 			}
 
 			// Skip type-only imports if ignoreTypeImports is enabled
-			if ignoreTypeImports && dependency.ImportKind != nil && *dependency.ImportKind == OnlyTypeImport {
+			if ignoreTypeImports && dependency.ImportKind == OnlyTypeImport {
 				continue
 			}
 
-			depPath := *dependency.ID
+			depPath := dependency.ID
 			// Only mark as referenced if the dependency file exists and is not excluded
 			if _, exists := minimalTree[depPath]; exists && !MatchesAnyGlobMatcher(depPath, excludeGlobs, false) {
 				referencedFiles[depPath] = true
@@ -53,9 +54,11 @@ func FindOrphanFiles(
 
 		isReferenced := referencedFiles[filePath]
 		isEntryPoint := len(entryPointGlobs) > 0 && MatchesAnyGlobMatcher(filePath, entryPointGlobs, false)
+		isVariant := moduleSuffixVariants != nil && moduleSuffixVariants[filePath]
 
 		// A file is orphan if it's not referenced by other files AND it's not a valid entry point
-		if !isReferenced && !isEntryPoint {
+		// AND it's not a module-suffix variant (platform-specific sibling)
+		if !isReferenced && !isEntryPoint && !isVariant {
 			orphanFiles = append(orphanFiles, filePath)
 		}
 	}

@@ -27,6 +27,7 @@ var (
 	runConfigCwd     string
 	runConfigListAll bool
 	runConfigFix     bool
+	runConfigRules   []string
 )
 
 var configRunCmd = &cobra.Command{
@@ -46,6 +47,20 @@ var configRunCmd = &cobra.Command{
 		for i, config := range configs {
 			if len(configs) > 1 {
 				fmt.Printf("=== Processing config %d ===\n", i+1)
+			}
+
+			if len(runConfigRules) > 0 {
+				var filteredRules []Rule
+				for _, r := range config.Rules {
+					if slices.Contains(runConfigRules, r.Path) {
+						filteredRules = append(filteredRules, r)
+					}
+				}
+
+				if len(filteredRules) == 0 {
+					return fmt.Errorf("none of the requested rules %v found in config", runConfigRules)
+				}
+				config.Rules = filteredRules
 			}
 
 			// Process the config
@@ -458,6 +473,7 @@ func init() {
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
+	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")

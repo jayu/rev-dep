@@ -44,7 +44,7 @@ type MissingNodeModulesOptions struct {
 	Enabled        bool     `json:"enabled"`
 	IncludeModules []string `json:"includeModules,omitempty"`
 	ExcludeModules []string `json:"excludeModules,omitempty"`
-	OutputType     string   `json:"outputType,omitempty"` // "list", "groupByModule", "groupByFile"
+	OutputType     string   `json:"outputType,omitempty"` // "list", "groupByModule", "groupByFile", "groupByModuleFilesCount"
 }
 
 type UnusedExportsOptions struct {
@@ -52,6 +52,10 @@ type UnusedExportsOptions struct {
 	ValidEntryPoints  []string `json:"validEntryPoints,omitempty"`
 	IgnoreTypeExports bool     `json:"ignoreTypeExports,omitempty"`
 	GraphExclude      []string `json:"graphExclude,omitempty"`
+}
+
+type UnresolvedImportsOptions struct {
+	Enabled bool `json:"enabled"`
 }
 
 // ImportConventionDomain represents a single domain definition
@@ -77,6 +81,7 @@ type Rule struct {
 	UnusedNodeModulesDetection  *UnusedNodeModulesOptions  `json:"unusedNodeModulesDetection,omitempty"`
 	MissingNodeModulesDetection *MissingNodeModulesOptions `json:"missingNodeModulesDetection,omitempty"`
 	UnusedExportsDetection      *UnusedExportsOptions      `json:"unusedExportsDetection,omitempty"`
+	UnresolvedImportsDetection  *UnresolvedImportsOptions  `json:"unresolvedImportsDetection,omitempty"`
 	ImportConventions           []ImportConventionRule     `json:"-"`
 }
 
@@ -336,6 +341,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		"unusedNodeModulesDetection":  true,
 		"missingNodeModulesDetection": true,
 		"unusedExportsDetection":      true,
+		"unresolvedImportsDetection":  true,
 		"importConventions":           true,
 	}
 
@@ -394,6 +400,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 
 	if unusedExports, exists := rule["unusedExportsDetection"]; exists {
 		if err := validateRawUnusedExportsDetection(unusedExports, index); err != nil {
+			return err
+		}
+	}
+
+	if unresolved, exists := rule["unresolvedImportsDetection"]; exists {
+		if err := validateRawUnresolvedImportsDetection(unresolved, index); err != nil {
 			return err
 		}
 	}
@@ -766,6 +778,13 @@ func ValidateConfig(config *RevDepConfig) error {
 			}
 		}
 
+		// Validate unresolved imports detection options
+		if rule.UnresolvedImportsDetection != nil {
+			if err := validateUnresolvedImportsOptions(rule.UnresolvedImportsDetection, fmt.Sprintf("rules[%d].unresolvedImportsDetection", j)); err != nil {
+				return err
+			}
+		}
+
 		// Validate import conventions
 		if len(rule.ImportConventions) > 0 {
 			// Additional validation can be added here if needed
@@ -850,8 +869,13 @@ func validateMissingNodeModulesOptions(opts *MissingNodeModulesOptions, prefix s
 	}
 
 	// Validate output type
-	if opts.OutputType != "" && opts.OutputType != "list" && opts.OutputType != "groupByModule" && opts.OutputType != "groupByFile" {
-		return fmt.Errorf("%s.outputType: must be one of 'list', 'groupByModule', 'groupByFile', got '%s'", prefix, opts.OutputType)
+	if opts.OutputType != "" {
+		switch opts.OutputType {
+		case "list", "groupByModule", "groupByFile", "groupByModuleFilesCount":
+			// allowed
+		default:
+			return fmt.Errorf("%s.outputType: must be one of 'list', 'groupByModule', 'groupByFile', 'groupByModuleFilesCount', got '%s'", prefix, opts.OutputType)
+		}
 	}
 
 	return nil
@@ -877,6 +901,44 @@ func validateUnusedExportsOptions(opts *UnusedExportsOptions, prefix string) err
 		}
 	}
 
+	return nil
+}
+
+// validateRawUnresolvedImportsDetection validates raw unresolved imports detection option
+func validateRawUnresolvedImportsDetection(unresolved interface{}, ruleIndex int) error {
+	unresolvedMap, ok := unresolved.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("rules[%d].unresolvedImportsDetection must be an object, got %T", ruleIndex, unresolved)
+	}
+
+	allowedFields := map[string]bool{
+		"enabled": true,
+	}
+
+	for field := range unresolvedMap {
+		if !allowedFields[field] {
+			return fmt.Errorf("rules[%d].unresolvedImportsDetection: unknown field '%s'", ruleIndex, field)
+		}
+	}
+
+	if _, exists := unresolvedMap["enabled"]; !exists {
+		return fmt.Errorf("rules[%d].unresolvedImportsDetection.enabled is required", ruleIndex)
+	}
+
+	if enabled, ok := unresolvedMap["enabled"]; !ok || enabled == nil {
+		return fmt.Errorf("rules[%d].unresolvedImportsDetection.enabled cannot be null", ruleIndex)
+	} else if _, ok := enabled.(bool); !ok {
+		return fmt.Errorf("rules[%d].unresolvedImportsDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+	}
+
+	return nil
+}
+
+// validateUnresolvedImportsOptions validates resolved options structure
+func validateUnresolvedImportsOptions(opts *UnresolvedImportsOptions, prefix string) error {
+	if !opts.Enabled {
+		return nil
+	}
 	return nil
 }
 

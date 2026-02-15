@@ -40,12 +40,21 @@ type RuleResult struct {
 	ModuleBoundaryViolations                        []ModuleBoundaryViolation
 	CircularDependencies                            [][]string
 	OrphanFiles                                     []string
-	UnusedNodeModules                               []string
 	MissingNodeModules                              []MissingNodeModuleResult
+	MissingNodeModulesOutputType                    string
+	UnusedNodeModules                               []string
+	UnusedNodeModulesOutputType                     string
 	ImportConventionViolations                      []ImportConventionViolation
 	UnusedExports                                   []UnusedExport
+	UnresolvedImports                               []UnresolvedImport
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
+}
+
+// UnresolvedImport represents a single unresolved import detected in a file
+type UnresolvedImport struct {
+	FilePath string
+	Request  string
 }
 
 // ConfigProcessingResult contains the results for processing an entire config
@@ -200,6 +209,9 @@ func processRuleChecks(
 	if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
 		enabledChecks = append(enabledChecks, "unused-exports")
 	}
+	if rule.UnresolvedImportsDetection != nil && rule.UnresolvedImportsDetection.Enabled {
+		enabledChecks = append(enabledChecks, "unresolved-imports")
+	}
 	if len(rule.ImportConventions) > 0 {
 		enabledChecks = append(enabledChecks, "import-conventions")
 	}
@@ -309,6 +321,9 @@ func processRuleChecks(
 
 			mu.Lock()
 			ruleResult.UnusedNodeModules = unusedModules
+			if rule.UnusedNodeModulesDetection.OutputType != "" {
+				ruleResult.UnusedNodeModulesOutputType = rule.UnusedNodeModulesDetection.OutputType
+			}
 			mu.Unlock()
 		}()
 	}
@@ -327,6 +342,9 @@ func processRuleChecks(
 
 			mu.Lock()
 			ruleResult.MissingNodeModules = missingModules
+			if rule.MissingNodeModulesDetection.OutputType != "" {
+				ruleResult.MissingNodeModulesOutputType = rule.MissingNodeModulesDetection.OutputType
+			}
 			mu.Unlock()
 		}()
 	}
@@ -370,6 +388,27 @@ func processRuleChecks(
 
 			mu.Lock()
 			ruleResult.UnusedExports = unusedExports
+			mu.Unlock()
+		}()
+	}
+
+	// Unresolved Imports
+	if rule.UnresolvedImportsDetection != nil && rule.UnresolvedImportsDetection.Enabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var unresolved []UnresolvedImport
+
+			for filePath, deps := range ruleTree {
+				for _, dep := range deps {
+					if dep.ResolvedType == NotResolvedModule && dep.Request != "" {
+						unresolved = append(unresolved, UnresolvedImport{FilePath: filePath, Request: dep.Request})
+					}
+				}
+			}
+
+			mu.Lock()
+			ruleResult.UnresolvedImports = unresolved
 			mu.Unlock()
 		}()
 	}
@@ -454,7 +493,8 @@ func ProcessConfig(
 				len(ruleResult.UnusedNodeModules) > 0 ||
 				len(ruleResult.MissingNodeModules) > 0 ||
 				len(ruleResult.ImportConventionViolations) > 0 ||
-				len(ruleResult.UnusedExports) > 0
+				len(ruleResult.UnusedExports) > 0 ||
+				len(ruleResult.UnresolvedImports) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

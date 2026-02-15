@@ -218,17 +218,36 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 						missingToDisplay = missingToDisplay[:maxIssuesToList]
 					}
 
-					for _, missing := range missingToDisplay {
-						// Convert imported from paths to relative paths
-						relativeImportedFrom := make([]string, len(missing.ImportedFrom))
-						for j, path := range missing.ImportedFrom {
-							relativeImportedFrom[j] = getRelativePath(path)
-						}
+					if ruleResult.MissingNodeModulesOutputType != "" {
+						groupByModule := ruleResult.MissingNodeModulesOutputType == "groupByModule"
+						groupByFile := ruleResult.MissingNodeModulesOutputType == "groupByFile"
+						groupByModuleFilesCount := ruleResult.MissingNodeModulesOutputType == "groupByModuleFilesCount"
 
-						if len(relativeImportedFrom) == 1 {
-							fmt.Printf("    - %s (imported from: %s)\n", missing.ModuleName, relativeImportedFrom[0])
-						} else if len(relativeImportedFrom) > 1 {
-							fmt.Printf("    - %s (imported from: %s and %d more files)\n", missing.ModuleName, relativeImportedFrom[0], len(relativeImportedFrom)-1)
+						formatted, _ := formatMissingNodeModulesResults(missingToDisplay, cwd, false, groupByModule, groupByFile, groupByModuleFilesCount)
+						lines := strings.Split(strings.TrimSpace(formatted), "\n")
+						for _, line := range lines {
+							if line == "" {
+								continue
+							}
+							if groupByModuleFilesCount || ruleResult.MissingNodeModulesOutputType == "list" {
+								fmt.Printf("    - %s\n", line)
+							} else {
+								fmt.Printf("    %s\n", line)
+							}
+						}
+					} else {
+						for _, missing := range missingToDisplay {
+							// Convert imported from paths to relative paths
+							relativeImportedFrom := make([]string, len(missing.ImportedFrom))
+							for j, path := range missing.ImportedFrom {
+								relativeImportedFrom[j] = getRelativePath(path)
+							}
+
+							if len(relativeImportedFrom) == 1 {
+								fmt.Printf("    - %s (imported from: %s)\n", missing.ModuleName, relativeImportedFrom[0])
+							} else if len(relativeImportedFrom) > 1 {
+								fmt.Printf("    - %s (imported from: %s and %d more files)\n", missing.ModuleName, relativeImportedFrom[0], len(relativeImportedFrom)-1)
+							}
 						}
 					}
 
@@ -285,6 +304,50 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 					}
 				} else {
 					fmt.Printf("  ✅ Import Conventions\n")
+				}
+			case "unresolved-imports":
+				if len(ruleResult.UnresolvedImports) > 0 {
+					fmt.Printf("  ❌ Unresolved Imports (%d):\n", len(ruleResult.UnresolvedImports))
+
+					// Sort all results before limiting
+					unresolvedToDisplay := ruleResult.UnresolvedImports
+					slices.SortFunc(unresolvedToDisplay, func(a, b UnresolvedImport) int {
+						if a.FilePath != b.FilePath {
+							return strings.Compare(a.FilePath, b.FilePath)
+						}
+						return strings.Compare(a.Request, b.Request)
+					})
+
+					remaining := 0
+					if !listAll && len(unresolvedToDisplay) > maxIssuesToList {
+						remaining = len(unresolvedToDisplay) - maxIssuesToList
+						unresolvedToDisplay = unresolvedToDisplay[:maxIssuesToList]
+					}
+
+					// Group by file
+					unresolvedByFile := make(map[string][]string)
+					for _, u := range unresolvedToDisplay {
+						unresolvedByFile[u.FilePath] = append(unresolvedByFile[u.FilePath], u.Request)
+					}
+
+					var sortedFilePaths []string
+					for fp := range unresolvedByFile {
+						sortedFilePaths = append(sortedFilePaths, fp)
+					}
+					slices.Sort(sortedFilePaths)
+
+					for _, filePath := range sortedFilePaths {
+						fmt.Printf("    %s\n", getRelativePath(filePath))
+						for _, req := range unresolvedByFile[filePath] {
+							fmt.Printf("     - %s\n", req)
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more unresolved import issues\n", remaining)
+					}
+				} else {
+					fmt.Printf("  ✅ Unresolved Imports\n")
 				}
 			case "unused-exports":
 				if len(ruleResult.UnusedExports) > 0 {

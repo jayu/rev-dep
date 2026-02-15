@@ -395,6 +395,7 @@ var (
 	nodeModulesZeroExitCode              bool
 	nodeModulesGroupByModule             bool
 	nodeModulesGroupByFile               bool
+	nodeModulesGroupByModuleFilesCount   bool
 	nodeModulesPkgJsonFieldsWithBinaries []string
 	nodeModulesFilesWithBinaries         []string
 	nodeModulesFilesWithModules          []string
@@ -432,6 +433,7 @@ Helps keep track of your project's runtime dependencies.`,
 			false,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			nodeModulesGroupByModuleFilesCount,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -465,6 +467,7 @@ to identify potentially unused packages.`,
 			false,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			nodeModulesGroupByModuleFilesCount,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -502,6 +505,7 @@ in your package.json dependencies.`,
 			true,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			nodeModulesGroupByModuleFilesCount,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -708,6 +712,10 @@ by the specified entry point.`,
 
 var (
 	locCwd string
+)
+
+var (
+	unresolvedCwd string
 )
 
 // ---------------- imported-by ----------------
@@ -921,6 +929,69 @@ This is useful for understanding the impact of changes to a particular file.`,
 	},
 }
 
+// ---------------- unresolved ----------------
+var unresolvedCmd = &cobra.Command{
+	Use:   "unresolved",
+	Short: "List unresolved imports in the project",
+	Long:  `Detect and list imports that could not be resolved during imports resolution. Groups imports by file.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return unresolvedCmdRun(ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+	},
+}
+
+// unresolvedCmdRun is the functional core for the `unresolved` command. It returns an error on failure.
+func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) error {
+	out, err := getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
+	if err != nil {
+		return err
+	}
+	if out != "" {
+		fmt.Print(out)
+	}
+	return nil
+}
+
+// getUnresolvedOutput returns formatted unresolved imports grouped by file as a string.
+func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (string, error) {
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
+
+	// Group unresolved imports by file
+	unresolvedByFile := make(map[string][]string)
+	for filePath, deps := range minimalTree {
+		for _, dep := range deps {
+			if dep.ResolvedType == NotResolvedModule && dep.Request != "" {
+				unresolvedByFile[filePath] = append(unresolvedByFile[filePath], dep.Request)
+			}
+		}
+	}
+
+	// Build output
+	var filePaths []string
+	for fp := range unresolvedByFile {
+		filePaths = append(filePaths, fp)
+	}
+	slices.Sort(filePaths)
+
+	var b strings.Builder
+	for _, fp := range filePaths {
+		// Convert to relative path
+		rel, err := filepath.Rel(cwd, DenormalizePathForOS(fp))
+		if err != nil {
+			b.WriteString(fp)
+		} else {
+			b.WriteString(filepath.ToSlash(rel))
+		}
+		b.WriteString("\n")
+		for _, req := range unresolvedByFile[fp] {
+			b.WriteString("  - ")
+			b.WriteString(req)
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String(), nil
+}
+
 func addNodeModulesIncludeExcludeFlags(command *cobra.Command) {
 	command.Flags().StringSliceVarP(&nodeModulesIncludeModules, "include-modules", "i", []string{}, "list of modules to include in the output")
 	command.Flags().StringSliceVarP(&nodeModulesExcludeModules, "exclude-modules", "e", []string{}, "list of modules to exclude from the output")
@@ -941,6 +1012,8 @@ func addNodeModulesFlags(command *cobra.Command, skipGroupingFlags bool) {
 			"Organize output by npm package name")
 		command.Flags().BoolVar(&nodeModulesGroupByFile, "group-by-file", false,
 			"Organize output by project file path")
+		command.Flags().BoolVar(&nodeModulesGroupByModuleFilesCount, "group-by-module-files-count", false,
+			"Organize output by npm package name and show count of files using it")
 	}
 	command.Flags().StringSliceVar(&nodeModulesPkgJsonFieldsWithBinaries, "pkg-fields-with-binaries", []string{},
 		"Additional package.json fields to check for binary usages")
@@ -1056,8 +1129,13 @@ func init() {
 		"List the import identifiers used by each file")
 	importedByCmd.MarkFlagRequired("file")
 
+	// unresolved flags
+	addSharedFlags(unresolvedCmd)
+	unresolvedCmd.Flags().StringVarP(&unresolvedCwd, "cwd", "c", currentDir,
+		"Working directory for the command")
+
 	// add commands
-	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, docsCmd, configCmd)
+	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, unresolvedCmd, docsCmd, configCmd)
 }
 
 func main() {

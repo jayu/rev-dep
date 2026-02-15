@@ -132,6 +132,7 @@ func NodeModulesCmd(
 	listMissing bool,
 	groupByModule bool,
 	groupByFile bool,
+	groupByModuleFilesCount bool,
 	pkgJsonFieldsWithBinaries []string,
 	filesWithBinaries []string,
 	filesWithModules []string,
@@ -167,7 +168,7 @@ func NodeModulesCmd(
 
 	if listMissing {
 		missingResults := GetMissingNodeModulesFromTree(minimalTree, modulesToInclude, modulesToExclude, cwdNodeModules)
-		return formatMissingNodeModulesResults(missingResults, cwd, countFlag, groupByModule, groupByFile)
+		return formatMissingNodeModulesResults(missingResults, cwd, countFlag, groupByModule, groupByFile, groupByModuleFilesCount)
 	}
 
 	if listUnused {
@@ -187,7 +188,7 @@ func NodeModulesCmd(
 	}
 
 	usedNodeModules := GetUsedNodeModulesFromTree(minimalTree, cwdNodeModules, cwd, pkgJsonFieldsWithBinaries, filesWithBinaries, filesWithModules, packageJson, tsconfigJson)
-	return formatUsedNodeModulesResult(usedNodeModules, cwd, countFlag, groupByModule, groupByFile, shouldIncludeModule)
+	return formatUsedNodeModulesResult(usedNodeModules, cwd, countFlag, groupByModule, groupByFile, groupByModuleFilesCount, shouldIncludeModule)
 }
 
 type MissingNodeModuleResult struct {
@@ -532,7 +533,7 @@ func ParsePackageJson(filePath string, cwd string, ch chan PackageInfo, wg *sync
 	}
 }
 
-func formatUsedNodeModulesResult(usedNodeModules map[string]map[string]bool, cwd string, countFlag bool, groupByModule bool, groupByFile bool, shouldIncludeModule func(moduleName string) bool) (string, int) {
+func formatUsedNodeModulesResult(usedNodeModules map[string]map[string]bool, cwd string, countFlag bool, groupByModule bool, groupByFile bool, groupByModuleFilesCount bool, shouldIncludeModule func(moduleName string) bool) (string, int) {
 	usedNodeModulesArr := make([]string, 0, len(usedNodeModules))
 
 	for depName := range usedNodeModules {
@@ -555,6 +556,8 @@ func formatUsedNodeModulesResult(usedNodeModules map[string]map[string]bool, cwd
 		result += getGroupByModuleResult(usedNodeModulesArr, usedNodeModules, cwd)
 	} else if groupByFile {
 		result += getGroupByFileResult(usedNodeModulesArr, usedNodeModules, cwd)
+	} else if groupByModuleFilesCount {
+		result += getGroupByModuleFilesCountResult(usedNodeModulesArr, usedNodeModules)
 	} else {
 		result += fmt.Sprintln(strings.Join(usedNodeModulesArr, "\n"))
 	}
@@ -563,7 +566,7 @@ func formatUsedNodeModulesResult(usedNodeModules map[string]map[string]bool, cwd
 }
 
 // formatMissingNodeModulesResults formats MissingNodeModuleResult into the existing string output format
-func formatMissingNodeModulesResults(results []MissingNodeModuleResult, cwd string, countFlag bool, groupByModule bool, groupByFile bool) (string, int) {
+func formatMissingNodeModulesResults(results []MissingNodeModuleResult, cwd string, countFlag bool, groupByModule bool, groupByFile bool, groupByModuleFilesCount bool) (string, int) {
 	if countFlag {
 		return fmt.Sprintln(len(results)), len(results)
 	}
@@ -612,6 +615,18 @@ func formatMissingNodeModulesResults(results []MissingNodeModuleResult, cwd stri
 				result += fmt.Sprintln("    ➞", module)
 			}
 			result += fmt.Sprintln()
+		}
+		return result, len(results)
+	}
+
+	if groupByModuleFilesCount {
+		result := ""
+		// Sort by module name for consistent output
+		slices.SortFunc(results, func(a, b MissingNodeModuleResult) int {
+			return strings.Compare(a.ModuleName, b.ModuleName)
+		})
+		for _, missing := range results {
+			result += fmt.Sprintf("%s (%d files)\n", missing.ModuleName, len(missing.ImportedFrom))
 		}
 		return result, len(results)
 	}
@@ -687,6 +702,15 @@ func getGroupByModuleResult(modulesArr []string, modulesFilesMap map[string]map[
 			result += fmt.Sprintln("    ➞", cleaned)
 		}
 		result += fmt.Sprintln()
+	}
+	return result
+}
+
+func getGroupByModuleFilesCountResult(modulesArr []string, modulesFilesMap map[string]map[string]bool) string {
+	result := ""
+	for _, moduleName := range modulesArr {
+		filesCount := len(modulesFilesMap[moduleName])
+		result += fmt.Sprintf("%s (%d files)\n", moduleName, filesCount)
 	}
 	return result
 }

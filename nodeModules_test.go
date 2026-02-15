@@ -78,6 +78,7 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -109,6 +110,7 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -139,6 +141,7 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -169,6 +172,7 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -181,6 +185,36 @@ func TestUsedNodeModules(t *testing.T) {
 		)
 
 		expected := "\n @types/dep-types-1\n    ➞ tsconfig.json\n\n\n @types/dep-types-2\n    ➞ index.ts\n\n\n dep1\n    ➞ package.json\n\n\n dep2\n    ➞ index.ts\n\n\n dep4\n    ➞ file.ts\n\n\n dep5\n    ➞ file.ts\n\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should print node modules with files count", func(t *testing.T) {
+		nodeModulesGroupByModuleFilesCount := true
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			false,
+			false,
+			nodeModulesGroupByModuleFilesCount,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			nodeModulesExcludeModules,
+			"",
+			"",
+			[]string{},
+			false,
+		)
+
+		expected := "@types/dep-types-1 (1 files)\n@types/dep-types-2 (1 files)\ndep1 (1 files)\ndep2 (1 files)\ndep4 (1 files)\ndep5 (1 files)\n"
 
 		if result != expected {
 			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
@@ -214,6 +248,7 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -243,6 +278,7 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -289,6 +325,7 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -319,6 +356,7 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -349,6 +387,7 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -379,6 +418,7 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -425,6 +465,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -454,6 +495,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -483,6 +525,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -512,6 +555,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -558,6 +602,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -587,6 +632,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -616,6 +662,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -645,6 +692,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -691,6 +739,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -720,6 +769,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -750,6 +800,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -780,6 +831,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -810,6 +862,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -840,6 +893,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -884,6 +938,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -913,6 +968,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -942,6 +998,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -971,6 +1028,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -1000,6 +1058,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -1067,6 +1126,7 @@ func TestTsConfigTypesComplexRealWorld(t *testing.T) {
 			false,      // listMissing
 			false,      // groupByModule
 			false,      // groupByFile
+			false,      // groupByModuleFilesCount
 			[]string{}, // pkgJsonFieldsWithBinaries
 			[]string{}, // filesWithBinaries
 			[]string{}, // filesWithModules

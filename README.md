@@ -3,16 +3,16 @@
 </p>
 
 <p align="center">
-  <a href="#key-features-">Key Features</a>&nbsp;&nbsp;•&nbsp;&nbsp;  
-  <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
-  <a href="#practical-examples-">Practical Examples</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
+  <a href="#capabilities">Capabilities</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#installation">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#cli-commands-exploratory-analysis">Exploratory Analysis</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#cli-reference-">CLI Reference</a>
 </p>
 
 <p align="center">
-  Dependency analysis and optimization toolkit for modern JavaScript and TypeScript projects.  
+  Dependency analysis and optimization toolkit for modern JavaScript and TypeScript codebases.  
   <br>
-  Trace imports, identify circular dependencies, find unused code, clean node modules — all from a blazing-fast CLI.
+  Enforce dependency graph hygiene and remove unused bits with a very fast CLI.
 </p>
 
 ---
@@ -23,76 +23,62 @@
 
 # **About 📣**
 
-Working in large JS/TS projects makes it difficult to answer simple but crucial questions:
+As codebases scale, it becomes impossible to maintain a mental map of the dependency graph. **Rev-dep** provides the missing visibility and automation needed to manage large-scale JS/TS projects.
 
-* Which files depend on this file?
-* Is this file even used?
-* Which files does this entry point import?
-* Do I have circular dependencies?
-* Which packages in node_modules are unused?
-* Which modules take the most disk space?
+It answers the hard questions that manual inspection can't:
+* **Refactoring Safety:** "If I change this utility, what are all the entry points that actually use it?"
+* **Dead Code:** "Are these 50 files actually unreachable from my main bundle?"
+* **Architecture Integrity:** "Is my 'Domain A' illegally importing from 'Domain B'?"
+* **Dependency Bloat:** "Which `node_modules` are costing us the most disk space?"
 
-Rev-dep helps you understand the real structure of your codebase so you can debug issues faster, refactor safely, and keep your dependencies clean.
-
-It's particularly useful for JavaScript projects without TypeScript or test coverage — places where answering question "What will break if I change this" is not straightforward  
-
+Rev-dep governs of your codebase dependency graph so you can refactor with confidence, debug faster, and keep your workspace lean.
 
 ## **Why Rev-dep? 🤔**
 
-Rev-dep is designed for **fast iteration** and **minimal, actionable results** — no noise, just answers.
+### 🏗️ **First-class monorepo support**
+Designed for modern workspaces (`pnpm`, `yarn`, `npm`). Rev-dep natively resolves `package.json` **exports/imports** maps, TypeScript aliases and traces dependencies across package boundaries.
 
-### ✅ **Results in milliseconds**
+### 🛡️ ** Config-Based Codebase Governance**
+Move beyond passive scanning. Use the configuration engine to enforce **Module Boundaries** and **Import Conventions**. Execute a full suite of hygiene checks (circularity, orphans, unused modules and more) in a **single, parallelized pass** that serves as a high-speed gatekeeper for your CI.
 
-Built in Go for speed. Even on large codebases, rev-dep responds almost instantly.
+### 🔍 ** Exploratory Toolkit**
+CLI toolkit that helps debug issues with dependencies between files. Understand transitive relation between files and fix issues.
 
-### ✅ **Actionable, list-based output**
+### ⚡ **Built for Speed and CI Efficiency**
+Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **10x-200x faster execution** than alternatives, significantly reducing CI costs and developer wait-states.
 
-You get **exact file paths**, **import chains**, and **clear dependency relationships** — the kind of information you can fix or clean up right away.
+> **Rev-dep can audit a 500k+ LoC project in under 500ms.**
+> [See the performance comparison](#performance-comparison)
 
-### ✅ **Designed for real-world JS/TS with first class monorepo support**
+# Capabilities
 
-Works with mixed JS/TS projects, path aliases and thousands of files without configuration hassles.
+## Governance and maintenance (config-based)
 
-### ✅ **Deep analysis, one CLI**
+Use `rev-dep config run` to execute multiple checks in one pass for all packages.
 
-Unused files, unused or missing dependencies, reverse-imports, entry point detection, node_modules insights, dependency paths — everything in one tool.
+Available checks:
 
+- `moduleBoundaries` - enforce architecture boundaries between modules.
+- `importConventions` - enforce import style conventions (offers autofix).
+- `unusedExportsDetection` - detect exports that are never used (offers autofix).
+- `orphanFilesDetection` - detect dead/orphan files (offers autofix).
+- `unusedNodeModulesDetection` - detect dependencies declared but not used.
+- `missingNodeModulesDetection` - detect imports missing from package json.
+- `unresolvedImportsDetection` - detect unresolved import requests.
+- `circularImportsDetection` - detect circular imports.
 
-### ✅ **Much faster than alternatives**
+## Exploratory analysis (CLI-based)
 
-Rev-dep outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools. 
+Use CLI commands for ad-hoc dependency exploration:
 
-For large project with 500k+ lines of code and 6k+ source code files get checks as fast as:
-
-| Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
-|------|-------|--------------|------|----|
-| Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
-| Find unused files | 588 | knip | 6346 | 11x |
-| Find unused node modules | 594 | knip | 6230 | 10x |
-| Find missing node modules | 553 | knip| 6226 | 11x |
-| List all files imported by an entry point | 229 | madge | 4467 | 20x | 
-| Discover entry points | 323 | madge | 67000 | 207x
-| Resolve dependency path between files | 228 | please suggest | 
-| Count lines of code | 342 | please suggest | 
-| Check node_modules disk usage | 1619 | please suggest | 
-| Analyze node_modules directory sizes | 521 | please suggest | 
-
->Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
-
-# **Key Features 🚀**
-
-* 🔍 **Reverse dependency lookup** — see all entry points that require a given file
-* 🗂️ **Entry point discovery**
-* 🧹 **Dead file detection**
-* 📦 **Unused / missing / used node modules / dependencies analysis**
-* 🔄 **Circular imports/dependencies detection**
-* 🧭 **Trace all import paths between files**
-* 📁 **List all files imported by any entry point**
-* 📏 **Count actual lines of code (excluding comments and blanks)**
-* 💽 **Node modules disk usage & size analysis**
-* 💡 **Works with both JavaScript and TypeScript**
-* ⚡ **Built for large codebases and monorepos**
-* 🏗️ **Supports TypeScript path aliases and package.json imports and exports map**
+- `entry-points` - discover project entry points.
+- `files` - list dependency tree files for a given entry point.
+- `resolve` - trace dependency paths between files (who imports this file).
+- `imported-by` - list direct importers of a file.
+- `circular` - list circular dependency chains.
+- `node-modules` - inspect `used`, `unused`, `missing`, and `installed` node modules.
+- `lines-of-code` - count effective LOC.
+- `list-cwd-files` - list files by include/exclude patterns.
 
 # **Installation 📦**
 
@@ -108,6 +94,12 @@ npm install -g rev-dep
 
 ```
 pnpm global add rev-dep
+```
+
+Create config file for a quick start
+
+```
+rev-dep config init
 ```
 
 
@@ -528,93 +520,51 @@ The configuration approach provides significant performance advantages:
 This makes config-based checks faster than running individual commands sequentially, especially for large codebases with multiple sub packages.
 
 
+# Performance comparison
 
-## Reimplemented to achieve 7x-37x speedup
+Rev-dep can perform multiple checks on 500k+ LoC monorepo with several sub-packages in around 500ms.
 
-Rev-dep@2.0.0 was reimplemented in Go from scratch to leverage it's concurrency features and better memory management of compiled languages.
+It outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools.
 
-As a result v2 is up to 37x faster than v1 and consumes up to 13x less memory.
+Here is a performance comparison of specific tasks between rev-dep and alternatives:
 
-### Performance comparison
+| Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
+|------|-------|--------------|------|----|
+| Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
+| Find unused files | 588 | knip | 6346 | 11x |
+| Find unused node modules | 594 | knip | 6230 | 10x |
+| Find missing node modules | 553 | knip| 6226 | 11x |
+| List all files imported by an entry point | 229 | madge | 4467 | 20x | 
+| Discover entry points | 323 | madge | 67000 | 207x
+| Resolve dependency path between files | 228 | please suggest | 
+| Count lines of code | 342 | please suggest | 
+| Check node_modules disk usage | 1619 | please suggest | 
+| Analyze node_modules directory sizes | 521 | please suggest | 
 
-To compare performance rev-dep was benchmarked with hyperfine using 8 runs per test, taking mean time values as a result.
-Benchmark was run on TypeScript codebase with 507658 lines of code and 5977 source code files.
+>Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
 
-Memory usage on Mac was measure using `/usr/bin/time` utility. Memory usage on Linux was not measured because I could't find reliable way to measure RAM usage on Linux. Subsequent runs had too much fluctuation.
+## Circular check performance comparison
 
-### MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of storage. Power save mode off
+Benchmark performed on TypeScript codebase with `6034` source code files and `518862` lines of code.
 
-| Command                                                      | V1 Time | V2 Time | Time Change | V1 RAM | V2 RAM | RAM Change |
-| ------------------------------------------------------------ | ------- | ------- | ----------- | ------ | ------ | ---------- |
-| List entry-points `rev-dep entry-points`                     | 6500ms  | 347ms   | 19x         | ~680MB | ~51MB  | 13x        |
-| List entry-points with dependent files count `-pdc`          | 8333ms  | 782ms   | 11x         | ~885MB | ~110MB | 8x         |
-| List entry-point files `rev-dep files`                       | 2729ms  | 400ms   | 7x          | ~330MB | ~36MB  | 9x         |
-| Resolve dependency path `rev-dep resolve`                    | 2984ms  | 359ms   | 8x          | ~330MB | ~35MB  | 9x         |
+Benchmark performed on MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of Storage. Power save mode off.
 
-### WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
+Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, taking mean time values as a result. If single run was taking more than 10s, only 1 run was performed.
 
-| Command                                                                 | V1 Time | V2 Time | Time Change |
-| ----------------------------------------------------------------------- | ------- | ------- | ----------- |
-| List entry-points `rev-dep entry-points`                                | 9904ms  | 270ms   | 37x         |
-| List entry-points with dependent files count `--print-deps-count`       | 10562ms | 458ms   | 23x         |
-| List entry-point files `rev-dep files`                                  | 3097ms  | 230ms   | 13x         |
-| Resolve dependency path `rev-dep resolve`                               | 3146ms  | 230ms   | 14x         |
+`rev-dep` circular check is **12 times** faster than the fastest alternative❗
 
-### New features
+| Tool | Version | Command to Run Circular Check | Time |
+|------|---------|-------------------------------|------|
+| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 2.0.0 | `rev-dep circular` | 397 ms |
+| 🥈 [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-progress  --no-warning` + list of directories with source code  | 4960 ms |
+| 🥉 [dpdm](https://github.com/acrazing/dpdm) | 3.14.0 | `dpdm  --no-warning` + list of directories with source code | 5030 ms |
+| [skott](https://github.com/antoine-coulon/skott) | 0.35.6 | node script using skott `findCircularDependencies` function  | 29575 ms |
+| [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions js,ts,jsx,tsx .` | 69328 ms |
+| [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
 
-V2 comes with bunch of new commands
 
-- `circular` - detects circular dependencies in the project
-- `lines-of-code` - counts actual lines of code in the project excluding comments and blank lines
-- `list-cwd-files` - lists all files in the current working directory
-- `node-modules used` - lists all used node modules
-- `node-modules unused` - lists all unused node modules
-- `node-modules missing` - lists all missing node modules
-- `node-modules installed` - lists all installed node modules
-- `node-modules installed-duplicates` - lists all installed node modules that exist in file system with the same version multiple times
-- `node-modules analyze-size` - analyzes size of specific node modules and helps to identify space-hogging dependencies
-- `node-modules dirs-size` - calculates cumulative files size in node_modules directories
 
-### ⚠️ What's not supported
-
-Comparing to previous versions, these tsconfig features are not supported
-
-#### Multiple path aliases
-
-Only first path will be used in resolution.
-
-```json
-// tsconfig.json
-{
-  "paths": {
-    "@/components": ["src/components/*", "src/components2/*"]
-  }
-}
-```
-
-Imports that should resolve to `src/components2/*` will be considered unresolved.
-
-Why it's not supported? I consider this typescript capability as an anti-pattern. It introduces unnecessary ambiguity in module resolution.
-Implementing this would make code more complex, less maintainable and slower.
-
-#### Using rev-dep as node module
-
-Importing rev-dep in JS/TS is no longer supported. Preferred way is to run rev-dep using child process. 
-
-#### Other discrepancies
-
-Any other discrepancies between TypeScript module resolution and rev-dep should be considered as a bug.
-
-### Supported Platforms
-
-- Linux x64
-- MacOS Apple Silicon
-- Windows x64
-
-Go allows for cross-compiling, so I'm happy to build and distribute binaries for other platforms as well.
-Feel free to open an issue if you need support for another platform.
-
-## CLI reference 📖
+# CLI reference 📖
 
 <!-- cli-docs-start -->
 
@@ -1152,24 +1102,6 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
 
 <!-- cli-docs-end -->
 
-## Circular check performance comparison
-
-Benchmark performed on TypeScript codebase with `6034` source code files and `518862` lines of code.
-
-Benchmark performed on MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of Storage. Power save mode off.
-
-Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, taking mean time values as a result. If single run was taking more than 10s, only 1 run was performed.
-
-`rev-dep` circular check is **12 times** faster than the fastest alternative❗
-
-| Tool | Version | Command to Run Circular Check | Time |
-|------|---------|-------------------------------|------|
-| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 2.0.0 | `rev-dep circular` | 397 ms |
-| 🥈 [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-progress  --no-warning` + list of directories with source code  | 4960 ms |
-| 🥉 [dpdm](https://github.com/acrazing/dpdm) | 3.14.0 | `dpdm  --no-warning` + list of directories with source code | 5030 ms |
-| [skott](https://github.com/antoine-coulon/skott) | 0.35.6 | node script using skott `findCircularDependencies` function  | 29575 ms |
-| [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions js,ts,jsx,tsx .` | 69328 ms |
-| [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
 
 ## Glossary
 

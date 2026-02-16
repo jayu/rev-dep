@@ -249,6 +249,54 @@ func TestConfigProcessor_MissingNodeModules(t *testing.T) {
 
 }
 
+func TestFilterFilesForRule_FollowMonorepoPackagesSelective(t *testing.T) {
+	cwd := "/repo"
+	rulePath := "packages/consumer"
+	consumerFile := "/repo/packages/consumer/src/index.ts"
+	allowedFile := "/repo/packages/allowed/src/index.ts"
+	disallowedFile := "/repo/packages/disallowed/src/index.ts"
+
+	fullTree := MinimalDependencyTree{
+		consumerFile: {
+			{ID: allowedFile},
+			{ID: disallowedFile},
+		},
+		allowedFile:    {},
+		disallowedFile: {},
+	}
+
+	resolverManager := &ResolverManager{
+		monorepoContext: &MonorepoContext{
+			PackageToPath: map[string]string{
+				"@scope/allowed":    "/repo/packages/allowed",
+				"@scope/disallowed": "/repo/packages/disallowed",
+			},
+		},
+	}
+
+	ruleFiles, ruleTree := filterFilesForRule(
+		fullTree,
+		rulePath,
+		cwd,
+		FollowMonorepoPackagesValue{Packages: map[string]bool{"@scope/allowed": true}},
+		resolverManager,
+	)
+
+	if !containsString(ruleFiles, consumerFile) {
+		t.Fatalf("expected consumer file to be present in ruleFiles: %v", ruleFiles)
+	}
+	if !containsString(ruleFiles, allowedFile) {
+		t.Fatalf("expected allowed package file to be present in ruleFiles: %v", ruleFiles)
+	}
+	if containsString(ruleFiles, disallowedFile) {
+		t.Fatalf("expected disallowed package file to be excluded from ruleFiles: %v", ruleFiles)
+	}
+
+	if _, ok := ruleTree[disallowedFile]; ok {
+		t.Fatalf("expected disallowed package file to be excluded from ruleTree")
+	}
+}
+
 func TestConfigProcessor_MultipleRules(t *testing.T) {
 	currentDir, _ := os.Getwd()
 	testCwd := filepath.Join(currentDir, "__fixtures__/configProcessorProject")

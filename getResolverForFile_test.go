@@ -194,7 +194,7 @@ func TestGetResolverForFile_EdgeCases(t *testing.T) {
 			name:            "Prefix but not full path match",
 			subpackagePaths: []string{"/workspace/packages/core"},
 			filePath:        "/workspace/packages/core-extra/file.ts",
-			expectedPath:    "/workspace/packages/core", // This actually should match since HasPrefix is used
+			expectRoot:      true, // Should not match sibling path with shared prefix
 		},
 		{
 			name: "Multiple potential matches, choose most specific",

@@ -115,7 +115,9 @@ type ResolverManager struct {
 	monorepoContext        *MonorepoContext
 	subpackageResolvers    []SubpackageResolver
 	rootResolver           *ModuleResolver
-	followMonorepoPackages bool
+	cwdResolver            *ModuleResolver
+	cwdPackagePath         string
+	followMonorepoPackages FollowMonorepoPackagesValue
 	conditionNames         []string
 	rootParams             RootParams
 	filesAndExtensions     *map[string]string
@@ -128,19 +130,15 @@ type RootParams struct {
 	Cwd             string
 }
 
-func NewResolverManager(followMonorepoPackages bool, conditionNames []string, rootParams RootParams, excludeFilePatterns []GlobMatcher) *ResolverManager {
-	var monorepoCtx *MonorepoContext
-	if followMonorepoPackages {
-		monorepoCtx = DetectMonorepo(rootParams.Cwd)
-		if monorepoCtx != nil {
-			monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, excludeFilePatterns)
-		}
-	}
+func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, conditionNames []string, rootParams RootParams, excludeFilePatterns []GlobMatcher) *ResolverManager {
+	monorepoCtx := detectMonorepoContext(rootParams.Cwd, followMonorepoPackages, excludeFilePatterns)
 
 	rm := &ResolverManager{
 		monorepoContext:        monorepoCtx,
 		subpackageResolvers:    []SubpackageResolver{},
 		rootResolver:           nil,
+		cwdResolver:            nil,
+		cwdPackagePath:         "",
 		followMonorepoPackages: followMonorepoPackages,
 		conditionNames:         conditionNames,
 		rootParams:             rootParams,
@@ -151,24 +149,108 @@ func NewResolverManager(followMonorepoPackages bool, conditionNames []string, ro
 		addFilePathToFilesAndExtensions(NormalizePathForInternal(filePath), rm.filesAndExtensions)
 	}
 
-	// Create resolvers
-	if monorepoCtx != nil {
-		rm.rootResolver = createResolverForDir(monorepoCtx.WorkspaceRoot, rm)
-		for _, pkgPath := range monorepoCtx.PackageToPath {
-			rm.subpackageResolvers = append(rm.subpackageResolvers, SubpackageResolver{
-				PkgPath:  pkgPath,
-				Resolver: createResolverForDir(pkgPath, rm),
-			})
-		}
-		// Sort by path length descending to ensure most specific paths are checked first
-		slices.SortFunc(rm.subpackageResolvers, func(a, b SubpackageResolver) int {
-			return len(b.PkgPath) - len(a.PkgPath)
-		})
-	} else {
+	if monorepoCtx == nil {
 		rm.rootResolver = NewImportsResolver(rootParams.Cwd, rootParams.TsConfigContent, rootParams.PkgJsonContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
+		rm.cwdResolver = rm.rootResolver
+		return rm
 	}
 
+	rm.rootResolver = createResolverForDir(monorepoCtx.WorkspaceRoot, rm)
+	rm.cwdPackagePath = findCwdPackagePath(monorepoCtx, rootParams.Cwd)
+
+	packagePathsToCreate := collectPackagePathsToCreate(monorepoCtx, followMonorepoPackages, rm.cwdPackagePath)
+	rm.subpackageResolvers = createSubpackageResolvers(monorepoCtx, packagePathsToCreate, rm)
+
+	rm.cwdResolver = findCwdResolver(rm.rootResolver, rm.subpackageResolvers, rm.cwdPackagePath)
+
 	return rm
+}
+
+func detectMonorepoContext(cwd string, followMonorepoPackages FollowMonorepoPackagesValue, excludeFilePatterns []GlobMatcher) *MonorepoContext {
+	if !followMonorepoPackages.IsEnabled() {
+		return nil
+	}
+	monorepoCtx := DetectMonorepo(cwd)
+	if monorepoCtx == nil {
+		return nil
+	}
+	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, excludeFilePatterns)
+	return monorepoCtx
+}
+
+func findCwdPackagePath(monorepoCtx *MonorepoContext, cwd string) string {
+	if monorepoCtx == nil {
+		return ""
+	}
+	normalizedCwd := NormalizePathForInternal(cwd)
+	bestMatch := ""
+
+	for _, pkgPath := range monorepoCtx.PackageToPath {
+		normalizedPkgPath := NormalizePathForInternal(pkgPath)
+		pkgPrefix := StandardiseDirPathInternal(normalizedPkgPath)
+		if normalizedCwd == normalizedPkgPath || strings.HasPrefix(normalizedCwd, pkgPrefix) {
+			if bestMatch == "" || len(normalizedPkgPath) > len(bestMatch) {
+				bestMatch = normalizedPkgPath
+			}
+		}
+	}
+
+	return bestMatch
+}
+
+func collectPackagePathsToCreate(monorepoCtx *MonorepoContext, followMonorepoPackages FollowMonorepoPackagesValue, cwdPackagePath string) map[string]bool {
+	packagePathsToCreate := map[string]bool{}
+
+	for pkgName, pkgPath := range monorepoCtx.PackageToPath {
+		if !followMonorepoPackages.ShouldFollowPackage(pkgName) {
+			continue
+		}
+		packagePathsToCreate[NormalizePathForInternal(pkgPath)] = true
+	}
+
+	// Always keep a resolver for the cwd package when cwd belongs to a workspace package.
+	// This preserves package-local tsconfig/package.json context for cwd files.
+	if cwdPackagePath != "" {
+		packagePathsToCreate[cwdPackagePath] = true
+	}
+
+	return packagePathsToCreate
+}
+
+func createSubpackageResolvers(monorepoCtx *MonorepoContext, packagePathsToCreate map[string]bool, rm *ResolverManager) []SubpackageResolver {
+	subpackageResolvers := []SubpackageResolver{}
+
+	for _, pkgPath := range monorepoCtx.PackageToPath {
+		normalizedPkgPath := NormalizePathForInternal(pkgPath)
+		if !packagePathsToCreate[normalizedPkgPath] {
+			continue
+		}
+		subpackageResolvers = append(subpackageResolvers, SubpackageResolver{
+			PkgPath:  normalizedPkgPath,
+			Resolver: createResolverForDir(pkgPath, rm),
+		})
+	}
+
+	// Sort by path length descending to ensure most specific paths are checked first.
+	slices.SortFunc(subpackageResolvers, func(a, b SubpackageResolver) int {
+		return len(b.PkgPath) - len(a.PkgPath)
+	})
+
+	return subpackageResolvers
+}
+
+func findCwdResolver(rootResolver *ModuleResolver, subpackageResolvers []SubpackageResolver, cwdPackagePath string) *ModuleResolver {
+	if cwdPackagePath == "" {
+		return rootResolver
+	}
+
+	for _, subPkg := range subpackageResolvers {
+		if subPkg.PkgPath == cwdPackagePath {
+			return subPkg.Resolver
+		}
+	}
+
+	return rootResolver
 }
 
 func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
@@ -186,10 +268,19 @@ func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
 }
 
 func (rm *ResolverManager) GetResolverForFile(filePath string) *ModuleResolver {
+	normalizedFilePath := NormalizePathForInternal(filePath)
 	for _, subPkg := range rm.subpackageResolvers {
-		if strings.HasPrefix(filePath, subPkg.PkgPath) {
+		subPkgPrefix := StandardiseDirPathInternal(subPkg.PkgPath)
+		if normalizedFilePath == subPkg.PkgPath || strings.HasPrefix(normalizedFilePath, subPkgPrefix) {
 			return subPkg.Resolver
 		}
+	}
+
+	if rm.monorepoContext != nil && rm.cwdPackagePath != "" {
+		return rm.rootResolver
+	}
+	if rm.cwdResolver != nil {
+		return rm.cwdResolver
 	}
 	return rm.rootResolver
 }
@@ -890,12 +981,18 @@ func (f *ModuleResolver) validateWorkspaceDependency(consumerRoot, targetPkgName
 func (f *ModuleResolver) tryResolveWorkspacePackageImport(request string, root string) (requestMatched bool, resolvedPath string, rtype ResolvedImportType, err *ResolutionError) {
 	// Check if it is a workspace package import (Monorepo support)
 	// Only if manager is present and monorepo is enabled
-	if f.manager == nil || !f.manager.followMonorepoPackages || f.manager.monorepoContext == nil {
+	if f.manager == nil || !f.manager.followMonorepoPackages.IsEnabled() || f.manager.monorepoContext == nil {
 		return false, NotResolvedPath, NotResolvedModule, nil
 	}
 
 	pkgName := GetNodeModuleName(request)
+
+	if !f.manager.followMonorepoPackages.ShouldFollowPackage(pkgName) {
+		return false, NotResolvedPath, NotResolvedModule, nil
+	}
+
 	pkgPath, ok := f.manager.monorepoContext.PackageToPath[pkgName]
+
 	if !ok {
 		return false, NotResolvedPath, NotResolvedModule, nil
 	}
@@ -1094,7 +1191,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	return "", NotResolvedModule, &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages bool, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
 	tsConfigPath := JoinWithCwd(cwd, tsconfigJson)
 	pkgJsonPath := JoinWithCwd(cwd, packageJson)
 
@@ -1105,8 +1202,6 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	if packageJson == "" {
 		pkgJsonPath = JoinWithCwd(cwd, "package.json")
 	}
-
-	pkjJsonDir := filepath.Dir(pkgJsonPath)
 
 	// Let ParseTsConfig read and resolve the tsconfig file. If user provided
 	// an explicit tsconfig path and parsing fails, exit with error to match
@@ -1160,7 +1255,6 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 					&discoveredFiles,
 					&fileImportsArr,
 					&sortedFiles,
-					pkjJsonDir,
 					ignoreTypeImports,
 					skipResolveMissing,
 					i,
@@ -1206,7 +1300,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	return filteredFileImportsArr, filteredFiles, resolverManager
 }
 
-func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, pkgJsonDir string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) {
+func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()
@@ -1227,8 +1321,13 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		}
 
 		nodeModulesList := importsResolver.nodeModules
+
 		if nodeModulesMatchingStrategy == NodeModulesMatchingStrategyRootResolver {
 			nodeModulesList = resolverManager.rootResolver.nodeModules
+		}
+
+		if nodeModulesMatchingStrategy == NodeModulesMatchingStrategyCwdResolver {
+			nodeModulesList = resolverManager.cwdResolver.nodeModules
 		}
 
 		importPath, resolvedType, resolutionErr := importsResolver.ResolveModule(imp.Request, filePath)
@@ -1246,10 +1345,10 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		if isNodeModule && resolutionErr != nil {
 			// Check if it's a followed workspace package, only if not, consider package a node module
 			isFollowedWorkspace := false
-			if importsResolver.manager != nil && importsResolver.manager.followMonorepoPackages && importsResolver.manager.monorepoContext != nil {
+			if importsResolver.manager != nil && importsResolver.manager.followMonorepoPackages.IsEnabled() && importsResolver.manager.monorepoContext != nil {
 
 				name := GetNodeModuleName(moduleName)
-				if _, ok := importsResolver.manager.monorepoContext.PackageToPath[name]; ok {
+				if _, ok := importsResolver.manager.monorepoContext.PackageToPath[name]; ok && importsResolver.manager.followMonorepoPackages.ShouldFollowPackage(name) {
 					isFollowedWorkspace = true
 				}
 			}

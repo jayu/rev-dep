@@ -353,8 +353,8 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.2",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.2.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.3",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.3.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -401,7 +401,8 @@ Here's a comprehensive example showing all available properties:
         "enabled": true,
         "validEntryPoints": ["src/index.ts", "src/app.ts"],
         "ignoreTypeImports": true,
-        "graphExclude": ["**/*.test.*", "**/stories/**/*"]
+        "graphExclude": ["**/*.test.*", "**/stories/**/*"],
+        "autofix": true
       },
       "unusedNodeModulesDetection": {
         "enabled": true,
@@ -417,6 +418,21 @@ Here's a comprehensive example showing all available properties:
         "includeModules": ["lodash", "axios"],
         "excludeModules": ["@types/**"],
         "outputType": "groupByFile"
+      },
+      "unusedExportsDetection": {
+        "enabled": true,
+        "validEntryPoints": ["src/index.ts"],
+        "ignoreTypeExports": true,
+        "graphExclude": ["**/*.stories.tsx"],
+        "autofix": true
+      },
+      "unresolvedImportsDetection": {
+        "enabled": true,
+        "ignore": {
+          "src/index.ts": "legacy-unresolved-module"
+        },
+        "ignoreFiles": ["**/*.generated.ts"],
+        "ignoreImports": ["@internal/dev-only"]
       }
     }
   ]
@@ -442,6 +458,8 @@ Each rule can contain the following properties:
 - **`orphanFilesDetection`** (optional): Orphan files detection configuration  
 - **`unusedNodeModulesDetection`** (optional): Unused node modules detection configuration
 - **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration
+- **`unusedExportsDetection`** (optional): Unused exports detection configuration
+- **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration
 - **`importConventions`** (optional): Array of import convention rules
 
 #### Module Boundary Properties
@@ -469,6 +487,7 @@ Each rule can contain the following properties:
 - **`validEntryPoints`** (optional): Array of valid entry point patterns (eg. ["src/index.ts", "src/main.ts"])
 - **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
 - **`graphExclude`** (optional): File patterns to exclude from graph analysis
+- **`autofix`** (optional): Delete detected orphan files automatically when running `rev-dep config run --fix` (default: false)
 
 **UnusedNodeModulesDetection:**
 - **`enabled`** (required): Enable/disable unused modules detection
@@ -483,7 +502,19 @@ Each rule can contain the following properties:
 - **`enabled`** (required): Enable/disable missing modules detection
 - **`includeModules`** (optional): Module patterns to include in analysis
 - **`excludeModules`** (optional): Module patterns to exclude from analysis
-- **`outputType`** (optional): Output format - "list", "groupByModule", "groupByFile"
+- **`outputType`** (optional): Output format - "list", "groupByModule", "groupByFile", "groupByModuleFilesCount"
+
+**UnusedExportsDetection:**
+- **`enabled`** (required): Enable/disable unused exports detection
+- **`validEntryPoints`** (optional): Glob patterns for files whose exports are never reported as unused (eg. ["index.ts", "src/public-api.ts"])
+- **`ignoreTypeExports`** (optional): Skip `export type` / `export interface` from analysis (default: false)
+- **`graphExclude`** (optional): File patterns to exclude from unused exports analysis
+
+**UnresolvedImportsDetection:**
+- **`enabled`** (required): Enable/disable unresolved imports detection
+- **`ignore`** (optional): Map of file path (relative to rule path directory) to exact import request to suppress
+- **`ignoreFiles`** (optional): File path globs; all unresolved imports from matching files are suppressed
+- **`ignoreImports`** (optional): Import requests to suppress globally in unresolved results
 
 ### Performance Benefits
 

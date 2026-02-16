@@ -47,8 +47,10 @@ var (
 	tsconfigJsonPath       string
 	verboseFlag            bool
 	conditionNames         []string
-	followMonorepoPackages bool
+	followMonorepoPackages []string
 )
+
+const followMonorepoPackagesAllSentinel = "__REV_DEP_FOLLOW_ALL__"
 
 func addSharedFlags(command *cobra.Command) {
 	command.Flags().StringVar(&packageJsonPath, "package-json", "",
@@ -59,8 +61,34 @@ func addSharedFlags(command *cobra.Command) {
 		"Show warnings and verbose output")
 	command.Flags().StringSliceVar(&conditionNames, "condition-names", []string{},
 		"List of conditions for package.json imports resolution (e.g. node, imports, default)")
-	command.Flags().BoolVar(&followMonorepoPackages, "follow-monorepo-packages", false,
-		"Enable resolution of imports from monorepo workspace packages")
+	command.Flags().StringSliceVar(&followMonorepoPackages, "follow-monorepo-packages", []string{},
+		"Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names")
+	command.Flags().Lookup("follow-monorepo-packages").NoOptDefVal = followMonorepoPackagesAllSentinel
+}
+
+func getFollowMonorepoPackagesValue(cmd *cobra.Command) (FollowMonorepoPackagesValue, error) {
+	if !cmd.Flags().Changed("follow-monorepo-packages") {
+		return FollowMonorepoPackagesValue{}, nil
+	}
+
+	if len(followMonorepoPackages) == 0 {
+		return FollowMonorepoPackagesValue{FollowAll: true}, nil
+	}
+
+	trimmedValues := make(map[string]bool, len(followMonorepoPackages))
+	for i, value := range followMonorepoPackages {
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue == "" {
+			return FollowMonorepoPackagesValue{}, fmt.Errorf("invalid --follow-monorepo-packages value at index %d: expected non-empty package name", i)
+		}
+		trimmedValues[trimmedValue] = true
+	}
+
+	if len(trimmedValues) == 1 && trimmedValues[followMonorepoPackagesAllSentinel] {
+		return FollowMonorepoPackagesValue{FollowAll: true}, nil
+	}
+
+	return FollowMonorepoPackagesValue{Packages: trimmedValues}, nil
 }
 
 func logWarning(format string, a ...interface{}) {
@@ -80,7 +108,7 @@ var (
 	resolveCompactSummary bool
 )
 
-func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
 	var absolutePathToEntryPoints []string
 
 	if len(entryPoints) > 0 {
@@ -234,6 +262,10 @@ var resolveCmd = &cobra.Command{
 Helps understand how different parts of your codebase are connected.`,
 	Example: "rev-dep resolve -p src/index.ts -f src/utils/helpers.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		return resolveCmdFn(
 			ResolveAbsoluteCwd(resolveCwd),
 			resolveFile,
@@ -245,7 +277,7 @@ Helps understand how different parts of your codebase are connected.`,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
-			followMonorepoPackages,
+			followValue,
 		)
 	},
 }
@@ -261,7 +293,7 @@ var (
 	entryPointsResultInclude     []string
 )
 
-func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 	notReferencedFiles := GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
@@ -328,6 +360,10 @@ var entryPointsCmd = &cobra.Command{
 Useful for understanding your application's architecture and dependencies.`,
 	Example: "rev-dep entry-points --print-deps-count",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		return entryPointsCmdFn(
 			ResolveAbsoluteCwd(entryPointsCwd),
 			entryPointsIgnoreType,
@@ -339,7 +375,7 @@ Useful for understanding your application's architecture and dependencies.`,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
-			followMonorepoPackages,
+			followValue,
 		)
 	},
 }
@@ -350,7 +386,7 @@ var (
 	circularIgnoreType bool
 )
 
-func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) (int, error) {
+func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) (int, error) {
 	excludeFiles := []string{}
 
 	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
@@ -368,13 +404,17 @@ var circularCmd = &cobra.Command{
 Circular dependencies can cause hard-to-debug issues and should generally be avoided.`,
 	Example: "rev-dep circular --ignore-types-imports",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		count, err := circularCmdFn(
 			ResolveAbsoluteCwd(circularCwd),
 			circularIgnoreType,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
-			followMonorepoPackages,
+			followValue,
 		)
 		if err != nil {
 			return err
@@ -424,6 +464,10 @@ var nodeModulesUsedCmd = &cobra.Command{
 Helps keep track of your project's runtime dependencies.`,
 	Example: "rev-dep node-modules used -p src/index.ts --group-by-module",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		result, _ := NodeModulesCmd(
 			ResolveAbsoluteCwd(nodeModulesCwd),
 			nodeModulesIgnoreType,
@@ -442,7 +486,7 @@ Helps keep track of your project's runtime dependencies.`,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
-			followMonorepoPackages,
+			followValue,
 		)
 
 		fmt.Print(result)
@@ -458,6 +502,10 @@ var nodeModulesUnusedCmd = &cobra.Command{
 to identify potentially unused packages.`,
 	Example: "rev-dep node-modules unused --exclude-modules=@types/*",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		result, count := NodeModulesCmd(
 			ResolveAbsoluteCwd(nodeModulesCwd),
 			nodeModulesIgnoreType,
@@ -476,7 +524,7 @@ to identify potentially unused packages.`,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
-			followMonorepoPackages,
+			followValue,
 		)
 
 		fmt.Print(result)
@@ -496,6 +544,10 @@ var nodeModulesMissingCmd = &cobra.Command{
 in your package.json dependencies.`,
 	Example: "rev-dep node-modules missing --entry-points=src/main.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		result, count := NodeModulesCmd(
 			ResolveAbsoluteCwd(nodeModulesCwd),
 			nodeModulesIgnoreType,
@@ -514,7 +566,7 @@ in your package.json dependencies.`,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
-			followMonorepoPackages,
+			followValue,
 		)
 
 		fmt.Print(result)
@@ -664,7 +716,7 @@ var (
 	filesCount      bool
 )
 
-func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
 	absolutePathToEntryPoint := JoinWithCwd(cwd, entryPoint)
 	excludeFiles := []string{}
 
@@ -697,6 +749,10 @@ var filesCmd = &cobra.Command{
 by the specified entry point.`,
 	Example: "rev-dep files --entry-point src/index.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		return filesCmdFn(
 			ResolveAbsoluteCwd(filesCwd),
 			filesEntryPoint,
@@ -705,7 +761,7 @@ by the specified entry point.`,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
-			followMonorepoPackages,
+			followValue,
 		)
 	},
 }
@@ -715,7 +771,10 @@ var (
 )
 
 var (
-	unresolvedCwd string
+	unresolvedCwd           string
+	unresolvedIgnore        map[string]string
+	unresolvedIgnoreFiles   []string
+	unresolvedIgnoreImports []string
 )
 
 // ---------------- imported-by ----------------
@@ -805,7 +864,7 @@ func linesOfCodeCmdFn(cwd string) error {
 	return nil
 }
 
-func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages bool) error {
+func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
 	excludeFiles := []string{}
 
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
@@ -845,9 +904,7 @@ func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonP
 				// Convert to relative path for output
 				relativePath := strings.TrimPrefix(filePath, cwd)
 				if relativePath != filePath { // Only trim if cwd was actually found
-					if strings.HasPrefix(relativePath, "/") {
-						relativePath = relativePath[1:]
-					}
+					relativePath = strings.TrimPrefix(relativePath, "/")
 				}
 				importingFiles = append(importingFiles, relativePath)
 
@@ -916,6 +973,10 @@ var importedByCmd = &cobra.Command{
 This is useful for understanding the impact of changes to a particular file.`,
 	Example: "rev-dep imported-by --file src/utils/helpers.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		return importedByCmdFn(
 			ResolveAbsoluteCwd(importedByCwd),
 			importedByFile,
@@ -924,7 +985,7 @@ This is useful for understanding the impact of changes to a particular file.`,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
-			followMonorepoPackages,
+			followValue,
 		)
 	},
 }
@@ -935,13 +996,28 @@ var unresolvedCmd = &cobra.Command{
 	Short: "List unresolved imports in the project",
 	Long:  `Detect and list imports that could not be resolved during imports resolution. Groups imports by file.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return unresolvedCmdRun(ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
+
+		opts := &UnresolvedImportsOptions{
+			Enabled:       true,
+			Ignore:        unresolvedIgnore,
+			IgnoreFiles:   unresolvedIgnoreFiles,
+			IgnoreImports: unresolvedIgnoreImports,
+		}
+		if err := validateUnresolvedImportsOptions(opts, "unresolved"); err != nil {
+			return err
+		}
+
+		return unresolvedCmdRun(ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followValue, opts)
 	},
 }
 
 // unresolvedCmdRun is the functional core for the `unresolved` command. It returns an error on failure.
-func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) error {
-	out, err := getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
+func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions) error {
+	out, err := getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, options)
 	if err != nil {
 		return err
 	}
@@ -952,17 +1028,15 @@ func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []st
 }
 
 // getUnresolvedOutput returns formatted unresolved imports grouped by file as a string.
-func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (string, error) {
+func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions) (string, error) {
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
 
-	// Group unresolved imports by file
+	unresolved := DetectUnresolvedImports(minimalTree, map[string]bool{})
+	unresolved = FilterUnresolvedImports(unresolved, options, cwd)
+
 	unresolvedByFile := make(map[string][]string)
-	for filePath, deps := range minimalTree {
-		for _, dep := range deps {
-			if dep.ResolvedType == NotResolvedModule && dep.Request != "" {
-				unresolvedByFile[filePath] = append(unresolvedByFile[filePath], dep.Request)
-			}
-		}
+	for _, u := range unresolved {
+		unresolvedByFile[u.FilePath] = append(unresolvedByFile[u.FilePath], u.Request)
 	}
 
 	// Build output
@@ -1133,6 +1207,12 @@ func init() {
 	addSharedFlags(unresolvedCmd)
 	unresolvedCmd.Flags().StringVarP(&unresolvedCwd, "cwd", "c", currentDir,
 		"Working directory for the command")
+	unresolvedCmd.Flags().StringToStringVar(&unresolvedIgnore, "ignore", map[string]string{},
+		"Map of file path (relative to cwd) to exact import request to ignore (e.g. --ignore src/index.ts=some-module)")
+	unresolvedCmd.Flags().StringSliceVar(&unresolvedIgnoreFiles, "ignore-files", []string{},
+		"File path glob patterns to ignore in unresolved output")
+	unresolvedCmd.Flags().StringSliceVar(&unresolvedIgnoreImports, "ignore-imports", []string{},
+		"Import requests to ignore globally in unresolved output")
 
 	// add commands
 	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, unresolvedCmd, docsCmd, configCmd)
@@ -1144,7 +1224,7 @@ func main() {
 	}
 }
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages bool) (MinimalDependencyTree, []string, *ResolverManager) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) (MinimalDependencyTree, []string, *ResolverManager) {
 	var files []string
 
 	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)
@@ -1168,7 +1248,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, ParseModeBasic, NodeModulesMatchingStrategyRootResolver)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, ParseModeBasic, NodeModulesMatchingStrategyCwdResolver)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

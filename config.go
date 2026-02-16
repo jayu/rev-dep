@@ -56,7 +56,10 @@ type UnusedExportsOptions struct {
 }
 
 type UnresolvedImportsOptions struct {
-	Enabled bool `json:"enabled"`
+	Enabled       bool              `json:"enabled"`
+	Ignore        map[string]string `json:"ignore,omitempty"`
+	IgnoreFiles   []string          `json:"ignoreFiles,omitempty"`
+	IgnoreImports []string          `json:"ignoreImports,omitempty"`
 }
 
 // ImportConventionDomain represents a single domain definition
@@ -73,17 +76,38 @@ type ImportConventionRule struct {
 	Autofix bool
 }
 
+type FollowMonorepoPackagesValue struct {
+	FollowAll bool
+	Packages  map[string]bool
+}
+
+func (f FollowMonorepoPackagesValue) IsEnabled() bool {
+	return f.FollowAll || len(f.Packages) > 0
+}
+
+func (f FollowMonorepoPackagesValue) ShouldFollowAll() bool {
+	return f.FollowAll
+}
+
+func (f FollowMonorepoPackagesValue) ShouldFollowPackage(name string) bool {
+	if f.FollowAll {
+		return true
+	}
+
+	return f.Packages[name]
+}
+
 type Rule struct {
-	Path                        string                     `json:"path"`                             // Required
-	FollowMonorepoPackages      bool                       `json:"followMonorepoPackages,omitempty"` // Default: true
-	ModuleBoundaries            []BoundaryRule             `json:"moduleBoundaries,omitempty"`
-	CircularImportsDetection    *CircularImportsOptions    `json:"circularImportsDetection,omitempty"`
-	OrphanFilesDetection        *OrphanFilesOptions        `json:"orphanFilesDetection,omitempty"`
-	UnusedNodeModulesDetection  *UnusedNodeModulesOptions  `json:"unusedNodeModulesDetection,omitempty"`
-	MissingNodeModulesDetection *MissingNodeModulesOptions `json:"missingNodeModulesDetection,omitempty"`
-	UnusedExportsDetection      *UnusedExportsOptions      `json:"unusedExportsDetection,omitempty"`
-	UnresolvedImportsDetection  *UnresolvedImportsOptions  `json:"unresolvedImportsDetection,omitempty"`
-	ImportConventions           []ImportConventionRule     `json:"-"`
+	Path                        string                      `json:"path"` // Required
+	FollowMonorepoPackages      FollowMonorepoPackagesValue `json:"-"`
+	ModuleBoundaries            []BoundaryRule              `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetection    *CircularImportsOptions     `json:"circularImportsDetection,omitempty"`
+	OrphanFilesDetection        *OrphanFilesOptions         `json:"orphanFilesDetection,omitempty"`
+	UnusedNodeModulesDetection  *UnusedNodeModulesOptions   `json:"unusedNodeModulesDetection,omitempty"`
+	MissingNodeModulesDetection *MissingNodeModulesOptions  `json:"missingNodeModulesDetection,omitempty"`
+	UnusedExportsDetection      *UnusedExportsOptions       `json:"unusedExportsDetection,omitempty"`
+	UnresolvedImportsDetection  *UnresolvedImportsOptions   `json:"unresolvedImportsDetection,omitempty"`
+	ImportConventions           []ImportConventionRule      `json:"-"`
 }
 
 type RevDepConfig struct {
@@ -229,14 +253,23 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 		return nil, err
 	}
 
-	// Set default values for optional fields and process import conventions
+	// Set default values for optional fields and followMonorepoPackages and process import conventions
 	for i := range config.Rules {
-		// Default FollowMonorepoPackages to true if not explicitly set (zero value is false)
 		if rawRules, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRules) {
-			if ruleMap, ok := rawRules[i].(map[string]interface{}); ok {
-				if _, exists := ruleMap["followMonorepoPackages"]; !exists {
-					config.Rules[i].FollowMonorepoPackages = true
+			ruleMap, isRuleMap := rawRules[i].(map[string]interface{})
+			if !isRuleMap {
+				continue
+			}
+
+			rawFollow, exists := ruleMap["followMonorepoPackages"]
+			if !exists {
+				config.Rules[i].FollowMonorepoPackages = FollowMonorepoPackagesValue{FollowAll: true}
+			} else {
+				parsedFollow, err := parseFollowMonorepoPackagesValue(rawFollow)
+				if err != nil {
+					return nil, err
 				}
+				config.Rules[i].FollowMonorepoPackages = parsedFollow
 			}
 		}
 
@@ -365,6 +398,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 	// Validate the path
 	if err := validateRulePath(pathStr); err != nil {
 		return fmt.Errorf("rules[%d].path: %v", index, err)
+	}
+
+	if followMonorepoPackages, exists := rule["followMonorepoPackages"]; exists {
+		if err := validateRawFollowMonorepoPackages(followMonorepoPackages, index); err != nil {
+			return err
+		}
 	}
 
 	// Validate module boundaries if present
@@ -743,6 +782,14 @@ func ValidateConfig(config *RevDepConfig) error {
 		if rule.Path == "" {
 			return fmt.Errorf("rules[%d].path is required", j)
 		}
+		packageIdx := 0
+		for pattern := range rule.FollowMonorepoPackages.Packages {
+			trimmedPattern := strings.TrimSpace(pattern)
+			if trimmedPattern == "" {
+				return fmt.Errorf("rules[%d].followMonorepoPackages[%d] cannot be empty", j, packageIdx)
+			}
+			packageIdx++
+		}
 
 		// Validate module boundaries in rules
 		for k, boundary := range rule.ModuleBoundaries {
@@ -753,7 +800,7 @@ func ValidateConfig(config *RevDepConfig) error {
 
 		// Validate circular imports detection options
 		if rule.CircularImportsDetection != nil {
-			if err := validateCircularImportsOptions(rule.CircularImportsDetection, fmt.Sprintf("rules[%d].circularImportsDetection", j)); err != nil {
+			if err := validateCircularImportsOptions(rule.CircularImportsDetection); err != nil {
 				return err
 			}
 		}
@@ -825,7 +872,7 @@ func validateBoundaryRule(boundary *BoundaryRule, prefix string) error {
 }
 
 // validateCircularImportsOptions validates circular imports detection options
-func validateCircularImportsOptions(opts *CircularImportsOptions, prefix string) error {
+func validateCircularImportsOptions(opts *CircularImportsOptions) error {
 	if !opts.Enabled {
 		return nil
 	}
@@ -920,7 +967,10 @@ func validateRawUnresolvedImportsDetection(unresolved interface{}, ruleIndex int
 	}
 
 	allowedFields := map[string]bool{
-		"enabled": true,
+		"enabled":       true,
+		"ignore":        true,
+		"ignoreFiles":   true,
+		"ignoreImports": true,
 	}
 
 	for field := range unresolvedMap {
@@ -939,6 +989,46 @@ func validateRawUnresolvedImportsDetection(unresolved interface{}, ruleIndex int
 		return fmt.Errorf("rules[%d].unresolvedImportsDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
 	}
 
+	if ignore, exists := unresolvedMap["ignore"]; exists && ignore != nil {
+		ignoreMap, ok := ignore.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignore must be an object, got %T", ruleIndex, ignore)
+		}
+
+		for filePath, request := range ignoreMap {
+			if strings.TrimSpace(filePath) == "" {
+				return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignore contains empty file path", ruleIndex)
+			}
+			if _, ok := request.(string); !ok {
+				return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignore['%s'] must be a string, got %T", ruleIndex, filePath, request)
+			}
+		}
+	}
+
+	if ignoreFiles, exists := unresolvedMap["ignoreFiles"]; exists && ignoreFiles != nil {
+		ignoreFilesArr, ok := ignoreFiles.([]interface{})
+		if !ok {
+			return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignoreFiles must be an array, got %T", ruleIndex, ignoreFiles)
+		}
+		for i, v := range ignoreFilesArr {
+			if _, ok := v.(string); !ok {
+				return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignoreFiles[%d] must be a string, got %T", ruleIndex, i, v)
+			}
+		}
+	}
+
+	if ignoreImports, exists := unresolvedMap["ignoreImports"]; exists && ignoreImports != nil {
+		ignoreImportsArr, ok := ignoreImports.([]interface{})
+		if !ok {
+			return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignoreImports must be an array, got %T", ruleIndex, ignoreImports)
+		}
+		for i, v := range ignoreImportsArr {
+			if _, ok := v.(string); !ok {
+				return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignoreImports[%d] must be a string, got %T", ruleIndex, i, v)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -947,7 +1037,55 @@ func validateUnresolvedImportsOptions(opts *UnresolvedImportsOptions, prefix str
 	if !opts.Enabled {
 		return nil
 	}
+
+	for i, pattern := range opts.IgnoreFiles {
+		if err := validatePattern(pattern); err != nil {
+			return fmt.Errorf("%s.ignoreFiles[%d]: %w", prefix, i, err)
+		}
+	}
+
+	normalizedIgnore := make(map[string]string, len(opts.Ignore))
+	for configuredPath, request := range opts.Ignore {
+		normalizedPath := normalizeUnresolvedIgnoreFilePath(configuredPath)
+		if normalizedPath == "" {
+			return fmt.Errorf("%s.ignore contains empty file path", prefix)
+		}
+
+		if filepath.IsAbs(DenormalizePathForOS(normalizedPath)) {
+			return fmt.Errorf("%s.ignore['%s'] must be a relative path", prefix, configuredPath)
+		}
+
+		if normalizedPath == ".." || strings.HasPrefix(normalizedPath, "../") {
+			return fmt.Errorf("%s.ignore['%s'] must not traverse parent directories", prefix, configuredPath)
+		}
+
+		trimmedRequest := strings.TrimSpace(request)
+		if trimmedRequest == "" {
+			return fmt.Errorf("%s.ignore['%s'] cannot be empty", prefix, configuredPath)
+		}
+
+		normalizedIgnore[normalizedPath] = trimmedRequest
+	}
+	opts.Ignore = normalizedIgnore
+
+	normalizedIgnoredImports := make([]string, 0, len(opts.IgnoreImports))
+	for i, req := range opts.IgnoreImports {
+		trimmedReq := strings.TrimSpace(req)
+		if trimmedReq == "" {
+			return fmt.Errorf("%s.ignoreImports[%d] cannot be empty", prefix, i)
+		}
+		normalizedIgnoredImports = append(normalizedIgnoredImports, trimmedReq)
+	}
+	opts.IgnoreImports = normalizedIgnoredImports
+
 	return nil
+}
+
+func normalizeUnresolvedIgnoreFilePath(path string) string {
+	cleaned := filepath.Clean(DenormalizePathForOS(strings.TrimSpace(path)))
+	normalized := NormalizePathForInternal(cleaned)
+	normalized = strings.TrimPrefix(normalized, "./")
+	return normalized
 }
 
 // validateRawImportConventions validates import conventions structure
@@ -1198,4 +1336,64 @@ func validatePattern(pattern string) error {
 		return fmt.Errorf("pattern '%s' starts with '../' or '..\\', which is not allowed. Use paths that starts with file or directory name", pattern)
 	}
 	return nil
+}
+
+func parseFollowMonorepoPackagesValue(rawValue interface{}) (FollowMonorepoPackagesValue, error) {
+	switch v := rawValue.(type) {
+	case bool:
+		if v {
+			return FollowMonorepoPackagesValue{FollowAll: true}, nil
+		}
+		return FollowMonorepoPackagesValue{}, nil
+	case []interface{}:
+		if len(v) == 0 {
+			return FollowMonorepoPackagesValue{}, fmt.Errorf("followMonorepoPackages must be a boolean or array of strings: array cannot be empty")
+		}
+
+		patterns := make(map[string]bool, len(v))
+		for i, item := range v {
+			pattern, ok := item.(string)
+			if !ok {
+				return FollowMonorepoPackagesValue{}, fmt.Errorf("followMonorepoPackages[%d] must be a string, got %T", i, item)
+			}
+
+			trimmedPattern := strings.TrimSpace(pattern)
+			if trimmedPattern == "" {
+				return FollowMonorepoPackagesValue{}, fmt.Errorf("followMonorepoPackages[%d] cannot be empty", i)
+			}
+
+			patterns[trimmedPattern] = true
+		}
+
+		return FollowMonorepoPackagesValue{Packages: patterns}, nil
+	default:
+		return FollowMonorepoPackagesValue{}, fmt.Errorf("followMonorepoPackages must be a boolean or array of strings, got %T", rawValue)
+	}
+}
+
+func validateRawFollowMonorepoPackages(followMonorepoPackages interface{}, ruleIndex int) error {
+	switch v := followMonorepoPackages.(type) {
+	case bool:
+		return nil
+	case []interface{}:
+		if len(v) == 0 {
+			return fmt.Errorf("rules[%d].followMonorepoPackages must be a boolean or array of strings: array cannot be empty", ruleIndex)
+		}
+
+		for i, item := range v {
+			strValue, ok := item.(string)
+			if !ok {
+				return fmt.Errorf("rules[%d].followMonorepoPackages must be a boolean or array of strings: rules[%d].followMonorepoPackages[%d] is %T", ruleIndex, ruleIndex, i, item)
+			}
+
+			trimmedValue := strings.TrimSpace(strValue)
+			if trimmedValue == "" {
+				return fmt.Errorf("rules[%d].followMonorepoPackages[%d] cannot be empty", ruleIndex, i)
+			}
+		}
+
+		return nil
+	default:
+		return fmt.Errorf("rules[%d].followMonorepoPackages must be a boolean or array of strings, got %T", ruleIndex, followMonorepoPackages)
+	}
 }

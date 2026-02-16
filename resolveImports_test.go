@@ -9,7 +9,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExists(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, false)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDir.ts"]
 	_, fileWithIndexExists := minimalTree["__fixtures__/mockProject/src/fileDirTheSameName/index.ts"]
@@ -28,7 +28,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExistsOutOfCwd(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, false)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDirOutsideCwd.ts"]
 
@@ -43,7 +43,7 @@ func TestShouldResolveImportToFileWhenNodeModuleWithTheSamePrefixExists(t *testi
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, false)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithSamePathAsNodeModule.ts"]
 
@@ -58,7 +58,7 @@ func TestShouldResolveFilesWithAmbiguousImportsByOrderingExtensions(t *testing.T
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, false)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	imports := minimalTree["__fixtures__/ambiguousImports/test.ts"]
 
@@ -79,7 +79,7 @@ func TestParsingTsConfig(t *testing.T) {
 	t.Run("Should not crash on empty config file", func(t *testing.T) {
 		tsConfig := `{}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
@@ -103,7 +103,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
@@ -134,7 +134,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
@@ -169,7 +169,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
@@ -201,7 +201,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
@@ -251,7 +251,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -281,7 +281,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -314,7 +314,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -345,7 +345,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -376,7 +376,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -407,7 +407,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -441,7 +441,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -472,7 +472,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -504,7 +504,7 @@ func TestRelativeImports(t *testing.T) {
 		}`
 		pkgConfig := `{}` // Assuming an empty pkgConfig for this test
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte(pkgConfig),
 			SortedFiles:     filePaths,
@@ -535,7 +535,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -585,7 +585,7 @@ func TestResolveNodeModules(t *testing.T) {
 	ignoreTypeImports := false
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, false)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	nodeModulesImports := minimalTree[cwd+"src/nodeModules.ts"]
 
@@ -655,7 +655,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -685,7 +685,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -716,7 +716,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -744,7 +744,7 @@ func TestModuleSuffixes(t *testing.T) {
 			"compilerOptions": {}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -778,7 +778,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -808,7 +808,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
@@ -966,7 +966,7 @@ func TestSpecialCharactersInAliases(t *testing.T) {
 	}`
 
 	// This should not panic or cause regexp compilation errors
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, tempTsConfig, "", []string{}, false)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, tempTsConfig, "", []string{}, FollowMonorepoPackagesValue{})
 
 	// If we get here without panicking, the test passes
 	// The actual resolution might not find files since these are test aliases,

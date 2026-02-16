@@ -8,7 +8,7 @@ import (
 func TestFindCircularDepsWithTypeImports(t *testing.T) {
 	cwd := "__fixtures__/mockProject/"
 
-	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, false)
+	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
@@ -26,7 +26,7 @@ func TestFindCircularDepsWithTypeImports(t *testing.T) {
 func TestFindCircularDepsWithoutTypeImports(t *testing.T) {
 	cwd := "__fixtures__/mockProject/"
 
-	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, true, []string{}, []string{}, "", "", []string{}, false)
+	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, true, []string{}, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
@@ -43,7 +43,7 @@ func TestFindCircularDepsWithoutTypeImports(t *testing.T) {
 func TestFindMultipleCircularDepsFromSameNode(t *testing.T) {
 	cwd := "__fixtures__/multipleCyclesFromSameNode/"
 
-	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, false)
+	minimalDepsTree, sortedFiles, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 

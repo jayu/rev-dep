@@ -51,12 +51,6 @@ type RuleResult struct {
 	ShouldWarnAboutImportConventionWithPJsonImports bool
 }
 
-// UnresolvedImport represents a single unresolved import detected in a file
-type UnresolvedImport struct {
-	FilePath string
-	Request  string
-}
-
 // ConfigProcessingResult contains the results for processing an entire config
 type ConfigProcessingResult struct {
 	RuleResults            []RuleResult
@@ -109,7 +103,7 @@ func buildDependencyTreeForConfig(
 	ignoreTypeImports := false
 
 	// We always follow monorepo packages for comprehensive analysis
-	followMonorepoPackages := true
+	followMonorepoPackages := FollowMonorepoPackagesValue{FollowAll: true}
 
 	// Skip resolving missing files for performance
 	skipResolveMissing := false
@@ -145,20 +139,25 @@ func filterFilesForRule(
 	fullTree MinimalDependencyTree,
 	rulePath string,
 	cwd string,
-	followMonorepoPackages bool,
+	followMonorepoPackages FollowMonorepoPackagesValue,
+	resolverManager *ResolverManager,
 ) ([]string, MinimalDependencyTree) {
 	normalizedRulePath := normalizeRulePath(filepath.Join(cwd, rulePath))
+	normalizedRulePathWithSlash := StandardiseDirPathInternal(normalizedRulePath)
+	isRuleFile := func(filePath string) bool {
+		return strings.HasPrefix(filePath, normalizedRulePathWithSlash)
+	}
 
 	filesWithinCwd := []string{}
 	subTree := MinimalDependencyTree{}
 
 	for file := range fullTree {
-		if strings.HasPrefix(file, normalizedRulePath) {
+		if isRuleFile(file) {
 			filesWithinCwd = append(filesWithinCwd, file)
 		}
 	}
 
-	if !followMonorepoPackages {
+	if !followMonorepoPackages.IsEnabled() {
 		for _, file := range filesWithinCwd {
 			subTree[file] = fullTree[file]
 		}
@@ -169,9 +168,33 @@ func filterFilesForRule(
 	// Build graph to trace dependencies from other packages
 	graph := buildDepsGraphForMultiple(fullTree, filesWithinCwd, nil, false)
 
+	allowedPackagePathPrefixes := map[string]bool{}
+	if !followMonorepoPackages.ShouldFollowAll() && resolverManager != nil && resolverManager.monorepoContext != nil {
+		for packageName, packagePath := range resolverManager.monorepoContext.PackageToPath {
+			if !followMonorepoPackages.ShouldFollowPackage(packageName) {
+				continue
+			}
+
+			normalizedPackagePath := NormalizePathForInternal(packagePath)
+			allowedPackagePathPrefixes[StandardiseDirPathInternal(normalizedPackagePath)] = true
+		}
+	}
+
 	filteredFiles := make([]string, 0, len(graph.Vertices))
 
 	for vertex := range graph.Vertices {
+		if !followMonorepoPackages.ShouldFollowAll() && !isRuleFile(vertex) {
+			isInAllowedWorkspacePackage := false
+			for packagePathPrefix := range allowedPackagePathPrefixes {
+				if strings.HasPrefix(vertex, packagePathPrefix) {
+					isInAllowedWorkspacePackage = true
+					break
+				}
+			}
+			if !isInAllowedWorkspacePackage {
+				continue
+			}
+		}
 		filteredFiles = append(filteredFiles, vertex)
 		subTree[vertex] = fullTree[vertex]
 	}
@@ -399,18 +422,11 @@ func processRuleChecks(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			var unresolved []UnresolvedImport
-
-			for filePath, deps := range ruleTree {
-				for _, dep := range deps {
-					// NotResolvedModule might be actually a node module, but defined rule path package (eg apps/main-app) not in just in time package (pacakges/shared)
-					// We are not able to detect that during module resolution for config file, becasue we resolve all modules without knowing which workspace contains app and which contains shared code
-					// During rule evaluation we can assume that package.json in rule path is the one that contains node modules for app build from that rule path
-					if dep.ResolvedType == NotResolvedModule && dep.Request != "" && !rulePathNodeModules[dep.Request] {
-						unresolved = append(unresolved, UnresolvedImport{FilePath: filePath, Request: dep.Request})
-					}
-				}
-			}
+			// NotResolvedModule might be actually a node module, but defined rule path package (eg apps/main-app) not in just in time package (pacakges/shared)
+			// We are not able to detect that during module resolution for config file, becasue we resolve all modules without knowing which workspace contains app and which contains shared code
+			// During rule evaluation we can assume that package.json in rule path is the one that contains node modules for app build from that rule path
+			unresolved := DetectUnresolvedImports(ruleTree, rulePathNodeModules)
+			unresolved = FilterUnresolvedImports(unresolved, rule.UnresolvedImportsDetection, fullRulePath)
 
 			mu.Lock()
 			ruleResult.UnresolvedImports = unresolved
@@ -475,7 +491,7 @@ func ProcessConfig(
 			defer wg.Done()
 
 			// Step 3a: Filter files for this rule
-			ruleFiles, ruleTree := filterFilesForRule(fullTree, currentRule.Path, cwd, currentRule.FollowMonorepoPackages)
+			ruleFiles, ruleTree := filterFilesForRule(fullTree, currentRule.Path, cwd, currentRule.FollowMonorepoPackages, resolverManager)
 
 			// Step 3b: Execute enabled checks in parallel
 			ruleResult := processRuleChecks(

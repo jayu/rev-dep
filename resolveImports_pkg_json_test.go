@@ -47,7 +47,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	}`
 
 	t.Run("Should resolve simple import", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -65,7 +65,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve wildcard import", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -83,7 +83,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve deep wildcard import", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -101,7 +101,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve conditional import (default)", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -119,7 +119,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve conditional import (node)", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{"node"}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{"node"}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -137,7 +137,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve nested conditional import (node -> require)", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{"node", "require"}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{"node", "require"}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -165,7 +165,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 		}`
 
 		// Case 1: node first
-		rmNode := NewResolverManager(false, []string{"node", "import"}, RootParams{
+		rmNode := NewResolverManager(FollowMonorepoPackagesValue{}, []string{"node", "import"}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(localPkgJson),
 			SortedFiles:     filePaths,
@@ -178,7 +178,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 		}
 
 		// Case 2: import first
-		rmImport := NewResolverManager(false, []string{"import", "node"}, RootParams{
+		rmImport := NewResolverManager(FollowMonorepoPackagesValue{}, []string{"import", "node"}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(localPkgJson),
 			SortedFiles:     filePaths,
@@ -192,7 +192,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve imports according to specifity", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -210,7 +210,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve root wildcard import", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -245,7 +245,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			}
 		}`
 		// pkgJson maps #simple to index.ts
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(tsConfig),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -264,7 +264,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve package json imports before ts aliases even for ts global wildcard match", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte(`{
 				"compilerOptions": {
 					"paths": {
@@ -294,7 +294,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve pjson import with directory and file swap", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -315,7 +315,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 
 	// TODO examine what happens when this test is run, we don't have any explicit code preventing multiple wildcards
 	t.Run("Should not process import with multiple wildcards", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -330,7 +330,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 	})
 
 	t.Run("Should parse import targets into tree structure", func(t *testing.T) {
-		rm := NewResolverManager(false, []string{"node", "import"}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{"node", "import"}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
@@ -390,7 +390,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(false, []string{}, RootParams{
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
 			TsConfigContent: []byte("{}"),
 			PkgJsonContent:  []byte(pkgJsonWithInvalidTargets),
 			SortedFiles:     filePaths,
@@ -437,7 +437,7 @@ func TestShouldResolvePJsonAliasToExternalModule(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, false)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	imports := minimalTree["__fixtures__/mockProject/index.ts"]
 	aliasedImport := imports[len(imports)-2]
@@ -456,7 +456,7 @@ func TestShouldResolvePJsonAliasToNodeModuleWithSubpath(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, false)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
 
 	imports := minimalTree["__fixtures__/mockProjectSubpath/index.ts"]
 

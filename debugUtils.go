@@ -158,7 +158,18 @@ func StringifyResolverManager(rm *ResolverManager) []byte {
 	}
 
 	b.WriteString("ResolverManager:\n")
-	b.WriteString(fmt.Sprintf("  followMonorepoPackages: %v\n", rm.followMonorepoPackages))
+	followMode := "disabled"
+	if rm.followMonorepoPackages.ShouldFollowAll() {
+		followMode = "all"
+	} else if rm.followMonorepoPackages.IsEnabled() {
+		packages := make([]string, 0, len(rm.followMonorepoPackages.Packages))
+		for packageName := range rm.followMonorepoPackages.Packages {
+			packages = append(packages, packageName)
+		}
+		sort.Strings(packages)
+		followMode = fmt.Sprintf("selective:[%s]", strings.Join(packages, ","))
+	}
+	b.WriteString(fmt.Sprintf("  followMonorepoPackages: %s\n", followMode))
 
 	// conditionNames (sorted)
 	cond := make([]string, len(rm.conditionNames))
@@ -270,6 +281,18 @@ func StringifyResolverManager(rm *ResolverManager) []byte {
 	b.WriteString("  rootResolver:\n")
 	if rm.rootResolver != nil {
 		b.WriteString(stringifyModuleResolver(rm.rootResolver, "    "))
+	} else {
+		b.WriteString("    <nil>\n")
+	}
+
+	// cwdResolver
+	b.WriteString("  cwdResolver:\n")
+	if rm.cwdResolver != nil {
+		if rm.rootResolver != nil && rm.cwdResolver == rm.rootResolver {
+			b.WriteString("    (same as rootResolver)\n")
+		} else {
+			b.WriteString(stringifyModuleResolver(rm.cwdResolver, "    "))
+		}
 	} else {
 		b.WriteString("    <nil>\n")
 	}

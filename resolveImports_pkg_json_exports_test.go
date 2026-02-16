@@ -9,7 +9,7 @@ func TestPackageJsonExportsDifferentSpecificity(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 
 	imports := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
@@ -46,7 +46,7 @@ func TestPackageJsonExportsConditionalExports(t *testing.T) {
 	excludeFiles := []string{}
 
 	// Test with development condition
-	minimalTreeDev, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"development"}, true)
+	minimalTreeDev, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"development"}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsDev := minimalTreeDev["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	conditionalImport := findImportByRequest(importsDev, "exported-package/utils/helper")
@@ -62,7 +62,7 @@ func TestPackageJsonExportsConditionalExports(t *testing.T) {
 	}
 
 	// Test with production condition
-	minimalTreeProd, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"production"}, true)
+	minimalTreeProd, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"production"}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsProd := minimalTreeProd["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	conditionalImportProd := findImportByRequest(importsProd, "exported-package/utils/helper")
@@ -78,7 +78,7 @@ func TestPackageJsonExportsConditionalExports(t *testing.T) {
 	}
 
 	// Test with no condition (should use default)
-	minimalTreeDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTreeDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsDefault := minimalTreeDefault["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	conditionalImportDefault := findImportByRequest(importsDefault, "exported-package/utils/helper")
@@ -99,7 +99,7 @@ func TestPackageJsonExportsBasicWildcard(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 
 	imports := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
@@ -122,7 +122,7 @@ func TestPackageJsonExportsRootWildcard(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 
 	imports := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
@@ -145,7 +145,7 @@ func TestPackageJsonExportsDirectorySwap(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 
 	imports := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
@@ -171,7 +171,7 @@ func TestPackageJsonExportsMultipleWildcardsExclusion(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 
 	imports := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
@@ -202,7 +202,7 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 	excludeFiles := []string{}
 
 	// Test 1: development + node condition
-	minimalTreeDevNode, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"development", "node"}, true)
+	minimalTreeDevNode, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"development", "node"}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsDevNode := minimalTreeDevNode["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	deepDevNodeImport := findImportByRequest(importsDevNode, "exported-package/deep")
@@ -218,7 +218,7 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 	}
 
 	// Test 2: development + default condition (nested)
-	minimalTreeDevDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"development"}, true)
+	minimalTreeDevDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"development"}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsDevDefault := minimalTreeDevDefault["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	deepDevDefaultImport := findImportByRequest(importsDevDefault, "exported-package/deep")
@@ -234,7 +234,7 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 	}
 
 	// Test 3: production + browser condition
-	minimalTreeProdBrowser, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"production", "browser"}, true)
+	minimalTreeProdBrowser, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"production", "browser"}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsProdBrowser := minimalTreeProdBrowser["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	deepProdBrowserImport := findImportByRequest(importsProdBrowser, "exported-package/deep")
@@ -250,7 +250,7 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 	}
 
 	// Test 4: production + default condition (nested)
-	minimalTreeProdDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"production"}, true)
+	minimalTreeProdDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{"production"}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsProdDefault := minimalTreeProdDefault["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	deepProdDefaultImport := findImportByRequest(importsProdDefault, "exported-package/deep")
@@ -266,7 +266,7 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 	}
 
 	// Test 5: default condition (no environment specified)
-	minimalTreeDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTreeDefault, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsDefault := minimalTreeDefault["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	deepDefaultImport := findImportByRequest(importsDefault, "exported-package/deep")
@@ -282,7 +282,7 @@ func TestPackageJsonExportsDeepNestedConditionalExports(t *testing.T) {
 	}
 
 	// Test 6: blocked path in deep nested structure
-	minimalTreeBlocked, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTreeBlocked, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 	importsBlocked := minimalTreeBlocked["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
 	deepBlockedImport := findImportByRequest(importsBlocked, "exported-package/deep/blocked")
@@ -301,7 +301,7 @@ func TestPackageJsonExportsBlockingPaths(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 
 	imports := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/index.ts"]
 
@@ -342,7 +342,7 @@ func TestPackageJsonExportsBaseUrlWildcard(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 
 	// Test: Resolve monorepo package when baseUrl wildcard is configured
 	imports := minimalTree["__fixtures__/mockMonorepo/packages/baseurl-consumer/import-baseurl.ts"]
@@ -364,7 +364,7 @@ func TestPackageJsonExportsNoMain(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, true)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
 
 	// Test 0: Simple import test
 	imports0 := minimalTree["__fixtures__/mockMonorepo/packages/consumer-package/import-no-exports-simple.ts"]

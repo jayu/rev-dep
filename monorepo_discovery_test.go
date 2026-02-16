@@ -207,7 +207,7 @@ func TestPnpmResolution(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(true, []string{"import"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import"}, rootParams, []GlobMatcher{})
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/main.ts"))
 	resolver := manager.GetResolverForFile(appFile)
 

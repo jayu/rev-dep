@@ -79,8 +79,20 @@
           ]
         },
         "followMonorepoPackages": {
-          "type": "boolean",
-          "description": "Whether to follow monorepo packages",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
+            }
+          ],
+          "description": "Whether and which monorepo packages to follow. true=all, false=none, array=specific package names.",
           "default": true
         },
         "moduleBoundaries": {
@@ -380,6 +392,27 @@
         "enabled": {
           "type": "boolean",
           "description": "Enable unresolved imports detection"
+        },
+        "ignore": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map of file path (relative to current working directory) to exact import request to ignore"
+        },
+        "ignoreFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns for files whose unresolved imports should be ignored"
+        },
+        "ignoreImports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Import requests to ignore globally in unresolved imports results"
         }
       }
     },

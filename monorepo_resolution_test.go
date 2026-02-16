@@ -73,7 +73,7 @@ func TestMonorepoResolution(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(true, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/main.ts"))
 
 	// Test 1: Resolve @company/lib-a/utils
@@ -116,6 +116,210 @@ func TestMonorepoResolution(t *testing.T) {
 	}
 }
 
+func TestMonorepoResolutionSelectiveFollow(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-selective")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"package.json": `{
+			"workspaces": ["packages/*", "apps/*"]
+		}`,
+		"packages/lib-a/package.json": `{
+			"name": "@company/lib-a",
+			"version": "1.0.0",
+			"exports": "./src/index.ts"
+		}`,
+		"packages/lib-a/src/index.ts": `export const A = 1;`,
+		"packages/lib-b/package.json": `{
+			"name": "@company/lib-b",
+			"version": "1.0.0",
+			"exports": "./src/index.ts"
+		}`,
+		"packages/lib-b/src/index.ts": `export const B = 2;`,
+		"apps/app-1/package.json": `{
+			"name": "app-1",
+			"dependencies": {
+				"@company/lib-a": "*",
+				"@company/lib-b": "*"
+			}
+		}`,
+		"apps/app-1/src/main.ts": `
+			import { A } from '@company/lib-a';
+			import { B } from '@company/lib-b';
+		`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	cwd := filepath.Join(tmpDir, "apps/app-1")
+	allKeys := []string{}
+	for k := range files {
+		if filepath.Ext(k) == ".ts" || filepath.Ext(k) == ".js" || filepath.Ext(k) == ".json" {
+			allKeys = append(allKeys, filepath.Join(tmpDir, k))
+		}
+	}
+
+	rootParams := RootParams{
+		TsConfigContent: []byte("{}"),
+		PkgJsonContent:  []byte(files["apps/app-1/package.json"]),
+		SortedFiles:     allKeys,
+		Cwd:             cwd,
+	}
+
+	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@company/lib-a": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/main.ts"))
+
+	pathA, rtypeA, errA := resolver.ResolveModule("@company/lib-a", filepath.Join(cwd, "src/main.ts"))
+	if errA != nil {
+		t.Fatalf("Expected @company/lib-a to resolve, got error %v", errA)
+	}
+	if rtypeA != MonorepoModule {
+		t.Fatalf("Expected @company/lib-a to resolve as MonorepoModule, got %v", rtypeA)
+	}
+	expectedA := filepath.Join(tmpDir, "packages/lib-a/src/index.ts")
+	if pathA != expectedA {
+		t.Fatalf("Expected @company/lib-a path %s, got %s", expectedA, pathA)
+	}
+
+	_, _, errB := resolver.ResolveModule("@company/lib-b", filepath.Join(cwd, "src/main.ts"))
+	if errB == nil || *errB != AliasNotResolved {
+		t.Fatalf("Expected @company/lib-b to be unresolved in selective mode, got %v", errB)
+	}
+}
+
+func TestMonorepoResolutionSelectiveFollowDoesNotUseWildcardMatching(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-selective-no-wildcard")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"package.json":                `{ "workspaces": ["packages/*", "apps/*"] }`,
+		"packages/lib-a/package.json": `{ "name": "@company/lib-a", "exports": "./index.ts" }`,
+		"packages/lib-a/index.ts":     `export const A = 1;`,
+		"packages/lib-b/package.json": `{ "name": "@company/lib-b", "exports": "./index.ts" }`,
+		"packages/lib-b/index.ts":     `export const B = 2;`,
+		"apps/app-1/package.json": `{
+			"name": "app-1",
+			"dependencies": { "@company/lib-a": "*", "@company/lib-b": "*" }
+		}`,
+		"apps/app-1/src/main.ts": `import { A } from "@company/lib-a"; import { B } from "@company/lib-b";`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	cwd := filepath.Join(tmpDir, "apps/app-1")
+	allKeys := []string{}
+	for k := range files {
+		if filepath.Ext(k) == ".ts" || filepath.Ext(k) == ".js" || filepath.Ext(k) == ".json" {
+			allKeys = append(allKeys, filepath.Join(tmpDir, k))
+		}
+	}
+
+	rootParams := RootParams{
+		TsConfigContent: []byte("{}"),
+		PkgJsonContent:  []byte(files["apps/app-1/package.json"]),
+		SortedFiles:     allKeys,
+		Cwd:             cwd,
+	}
+
+	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@company/*": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/main.ts"))
+
+	_, _, errA := resolver.ResolveModule("@company/lib-a", filepath.Join(cwd, "src/main.ts"))
+	if errA == nil || *errA != AliasNotResolved {
+		t.Fatalf("Expected @company/lib-a to be unresolved with exact matching, got %v", errA)
+	}
+
+	_, _, errB := resolver.ResolveModule("@company/lib-b", filepath.Join(cwd, "src/main.ts"))
+	if errB == nil || *errB != AliasNotResolved {
+		t.Fatalf("Expected @company/lib-b to be unresolved with exact matching, got %v", errB)
+	}
+}
+
+func TestMonorepoResolutionSelectiveFollow_UsesPackageLocalResolverContext(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-selective-context")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"package.json":                 `{ "workspaces": ["packages/*", "apps/*"] }`,
+		"packages/shared/package.json": `{ "name": "@repo/shared", "exports": "./src/index.ts" }`,
+		"packages/shared/src/index.ts": `export const shared = 1;`,
+		"apps/web/package.json": `{
+			"name": "@repo/web",
+			"dependencies": { "@repo/shared": "*" }
+		}`,
+		"apps/web/tsconfig.json": `{
+			"compilerOptions": {
+				"baseUrl": ".",
+				"paths": {
+					"@app/*": ["src/*"]
+				}
+			}
+		}`,
+		"apps/web/src/index.ts": `import { util } from "@app/util"; import { shared } from "@repo/shared"; export { util, shared };`,
+		"apps/web/src/util.ts":  `export const util = 1;`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	cwd := filepath.Join(tmpDir, "apps/web")
+	allKeys := []string{}
+	for k := range files {
+		if filepath.Ext(k) == ".ts" || filepath.Ext(k) == ".json" {
+			allKeys = append(allKeys, filepath.Join(tmpDir, k))
+		}
+	}
+
+	rootParams := RootParams{
+		TsConfigContent: []byte("{}"),
+		PkgJsonContent:  []byte(files["apps/web/package.json"]),
+		SortedFiles:     allKeys,
+		Cwd:             cwd,
+	}
+
+	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@repo/shared": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	appFile := filepath.Join(cwd, "src/index.ts")
+	resolver := manager.GetResolverForFile(appFile)
+
+	if resolver.resolverRoot != cwd {
+		t.Fatalf("Expected app file resolver root to be %s, got %s", cwd, resolver.resolverRoot)
+	}
+
+	resolvedLocal, localType, localErr := resolver.ResolveModule("@app/util", appFile)
+	if localErr != nil || localType != UserModule {
+		t.Fatalf("Expected @app/util to resolve as UserModule, got type=%v err=%v", localType, localErr)
+	}
+	expectedLocal := filepath.Join(cwd, "src/util.ts")
+	if resolvedLocal != expectedLocal {
+		t.Fatalf("Expected @app/util path %s, got %s", expectedLocal, resolvedLocal)
+	}
+
+	_, monorepoType, monorepoErr := resolver.ResolveModule("@repo/shared", appFile)
+	if monorepoErr != nil || monorepoType != MonorepoModule {
+		t.Fatalf("Expected @repo/shared to resolve as MonorepoModule, got type=%v err=%v", monorepoType, monorepoErr)
+	}
+}
+
 func TestDependencyValidation(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-validation")
 	if err != nil {
@@ -146,7 +350,7 @@ func TestDependencyValidation(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(true, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "index.ts"))
 
 	_, _, resErr := resolver.ResolveModule("@company/secret", filepath.Join(cwd, "index.ts"))
@@ -211,7 +415,7 @@ func TestMonorepoSubpackageExports(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(true, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/index.ts"))
 
 	// Test 1: External import via exports
@@ -297,7 +501,7 @@ func TestMonorepoRelaxedAndAliases(t *testing.T) {
 		Cwd:             appDir,
 	}
 
-	manager := NewResolverManager(true, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
 	resolver := manager.GetResolverForFile(NormalizePathForInternal(filepath.Join(appDir, "src/index.ts")))
 
 	// Test 1: Resolve via alias but should be MonorepoModule
@@ -379,7 +583,7 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(true, []string{"import", "default"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{})
 
 	// Test 1: Resolve @company/common/file-utils from apps/app
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
@@ -476,7 +680,7 @@ func TestMonorepoInternalTsconfigAlias(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(true, []string{"import", "default"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{})
 
 	// Test 1: Resolve @company/common/utils from apps/app
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
@@ -629,7 +833,7 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 			Cwd: appPath,
 		}
 
-		manager := NewResolverManager(true, []string{"import"}, rootParams, []GlobMatcher{})
+		manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import"}, rootParams, []GlobMatcher{})
 		resolver := manager.GetResolverForFile(NormalizePathForInternal(filepath.Join(appPath, "index.ts")))
 
 		path, rtype, resErr := resolver.ResolveModule("@pkg/target", NormalizePathForInternal(filepath.Join(appPath, "index.ts")))
@@ -702,7 +906,7 @@ func TestMonorepoImportAliasToWorkspacePackage(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(true, []string{"import", "default"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{})
 
 	// Test 1: Resolve #common-pkg-file-utils from apps/app
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))

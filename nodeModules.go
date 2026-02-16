@@ -141,7 +141,7 @@ func NodeModulesCmd(
 	packageJson string,
 	tsconfigJson string,
 	conditionNames []string,
-	followMonorepoPackages bool,
+	followMonorepoPackages FollowMonorepoPackagesValue,
 ) (string, int) {
 	cwd := StandardiseDirPath(inputCwd)
 	var absolutePathToEntryPoints []string

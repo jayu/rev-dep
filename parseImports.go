@@ -39,6 +39,7 @@ type NodeModulesMatchingStrategy uint8
 const (
 	NodeModulesMatchingStrategySelfResolver NodeModulesMatchingStrategy = iota
 	NodeModulesMatchingStrategyRootResolver
+	NodeModulesMatchingStrategyCwdResolver
 )
 
 type KeywordInfo struct {

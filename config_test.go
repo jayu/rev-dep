@@ -150,6 +150,14 @@ func TestInitConfigFile(t *testing.T) {
 	if config.Rules[0].MissingNodeModulesDetection == nil || config.Rules[0].MissingNodeModulesDetection.Enabled {
 		t.Errorf("Expected missing node modules detection to be disabled")
 	}
+
+	if config.Rules[0].UnusedExportsDetection == nil || config.Rules[0].UnusedExportsDetection.Enabled {
+		t.Errorf("Expected unused exports detection to be disabled")
+	}
+
+	if config.Rules[0].UnresolvedImportsDetection == nil || config.Rules[0].UnresolvedImportsDetection.Enabled {
+		t.Errorf("Expected unresolved imports detection to be disabled")
+	}
 }
 
 func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {

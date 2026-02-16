@@ -96,7 +96,7 @@ npm install -g rev-dep
 pnpm global add rev-dep
 ```
 
-Create config file for a quick start
+Create config file for a quick start:
 
 ```
 rev-dep config init

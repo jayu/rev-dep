@@ -519,6 +519,12 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 				MissingNodeModulesDetection: &MissingNodeModulesOptions{
 					Enabled: false,
 				},
+				UnusedExportsDetection: &UnusedExportsOptions{
+					Enabled: false,
+				},
+				UnresolvedImportsDetection: &UnresolvedImportsOptions{
+					Enabled: false,
+				},
 			}
 			rules = append(rules, packageRule)
 			createdForMonorepoSubPackage = true
@@ -578,6 +584,12 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 					MissingNodeModulesDetection: &MissingNodeModulesOptions{
 						Enabled: false,
 					},
+					UnusedExportsDetection: &UnusedExportsOptions{
+						Enabled: false,
+					},
+					UnresolvedImportsDetection: &UnresolvedImportsOptions{
+						Enabled: false,
+					},
 				}
 				rules = append(rules, packageRule)
 			}
@@ -604,6 +616,12 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 				Enabled: false,
 			},
 			MissingNodeModulesDetection: &MissingNodeModulesOptions{
+				Enabled: false,
+			},
+			UnusedExportsDetection: &UnusedExportsOptions{
+				Enabled: false,
+			},
+			UnresolvedImportsDetection: &UnresolvedImportsOptions{
 				Enabled: false,
 			},
 		}

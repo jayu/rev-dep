@@ -3,9 +3,9 @@
 </p>
 
 <p align="center">
-  <a href="#capabilities">Capabilities</a>&nbsp;&nbsp;•&nbsp;&nbsp;
-  <a href="#installation">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
-  <a href="#cli-commands-exploratory-analysis">Exploratory Analysis</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#capabilities-">Capabilities</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#exploratory-toolkit-">Exploratory Toolkit</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#cli-reference-">CLI Reference</a>
 </p>
 
@@ -15,13 +15,16 @@
   Enforce dependency graph hygiene and remove unused bits with a very fast CLI.
 </p>
 
+<p align="center">
+<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output"width="400">
+</p>
+
 ---
 
 <img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep"> <img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep"> <img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
 
 
-
-# **About 📣**
+## **About 📣**
 
 As codebases scale, it becomes impossible to maintain a mental map of the dependency graph. **Rev-dep** provides the missing visibility and automation needed to manage large-scale JS/TS projects.
 
@@ -38,21 +41,21 @@ Rev-dep governs of your codebase dependency graph so you can refactor with confi
 ### 🏗️ **First-class monorepo support**
 Designed for modern workspaces (`pnpm`, `yarn`, `npm`). Rev-dep natively resolves `package.json` **exports/imports** maps, TypeScript aliases and traces dependencies across package boundaries.
 
-### 🛡️ ** Config-Based Codebase Governance**
+### 🛡️ **Config-Based Codebase Governance**
 Move beyond passive scanning. Use the configuration engine to enforce **Module Boundaries** and **Import Conventions**. Execute a full suite of hygiene checks (circularity, orphans, unused modules and more) in a **single, parallelized pass** that serves as a high-speed gatekeeper for your CI.
 
-### 🔍 ** Exploratory Toolkit**
+### 🔍 **Exploratory Toolkit**
 CLI toolkit that helps debug issues with dependencies between files. Understand transitive relation between files and fix issues.
 
 ### ⚡ **Built for Speed and CI Efficiency**
-Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **10x-200x faster execution** than alternatives, significantly reducing CI costs and developer wait-states.
+Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **10x-200x faster execution** than alternatives, significantly **reducing CI costs** and developer wait-states.
 
-> **Rev-dep can audit a 500k+ LoC project in under 500ms.**
+> **Rev-dep can audit a 500k+ LoC project in around 500ms.**
 > [See the performance comparison](#performance-comparison)
 
-# Capabilities
+## Capabilities 🚀
 
-## Governance and maintenance (config-based)
+## Governance and maintenance (config-based) 🛡️
 
 Use `rev-dep config run` to execute multiple checks in one pass for all packages.
 
@@ -67,7 +70,7 @@ Available checks:
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
 
-## Exploratory analysis (CLI-based)
+## Exploratory analysis (CLI-based) 🔍
 
 Use CLI commands for ad-hoc dependency exploration:
 
@@ -78,11 +81,31 @@ Use CLI commands for ad-hoc dependency exploration:
 - `circular` - list circular dependency chains.
 - `node-modules` - inspect `used`, `unused`, `missing`, and `installed` node modules.
 - `lines-of-code` - count effective LOC.
-- `list-cwd-files` - list files by include/exclude patterns.
+- `list-cwd-files` - list all source code files in CWD
 
-# **Installation 📦**
+## **Installation 📦**
 
-Install globally to use as a CLI tool:
+**Install locally to set up project check scripts**
+
+```
+yarn add -D rev-dep
+```
+
+```
+npm install -D rev-dep
+```
+
+```
+pnpm add -D rev-dep
+```
+
+Create config file for a quick start:
+
+```
+npx rev-dep config init
+```
+
+**Install globally to use as a CLI tool:**
 
 ```
 yarn global add rev-dep
@@ -96,14 +119,7 @@ npm install -g rev-dep
 pnpm global add rev-dep
 ```
 
-Create config file for a quick start:
-
-```
-rev-dep config init
-```
-
-
-# **Quick Examples ⚡**
+## **Quick Examples 💡**
 
 A few instant-use examples to get a feel for the tool:
 
@@ -128,178 +144,20 @@ rev-dep resolve --file src/utils/math.ts --entry-point src/index.ts
 
 ```
 
-# **Practical Examples 🔧**
-
-
-Practical examples show how to use rev-dep commands to build code quality checks for your project.
-
-### **How to identify where a file is used in the project**
-
-```
-rev-dep resolve --file path/to/file.ts
-```
-
-You’ll see all entry points that implicitly require that file, along with resolution paths.
-
-### **How to check if a file is used**
-
-```
-rev-dep resolve --file path/to/file.ts --compact-summary
-```
-
-Shows how many entry points indirectly depend on the file.
-
-### **How to identify dead files**
-
-```
-rev-dep entry-points
-```
-
-Exclude framework entry points if needed using `--result-exclude`.
-
-For example exclude Next.js valid entry points when using pages router, exclude scripts directory - scripts are valid entry-points and exclude all test files:
-
-```
-rev-dep entry-points --result-exclude "pages/**","scripts/**","**/*.test.*"
-```
-
-### **How to list all files imported by an entry point**
-
-```
-rev-dep files --entry-point path/to/file.ts
-```
-
-Useful for identifying heavy components or unintended dependencies.
-
-### **How to reduce unnecessary imports for an entry point**
-
-1. List all files imported:
-
-   ```
-   rev-dep files --entry-point path/to/entry.ts
-   ```
-2. Identify suspicious files.
-3. Trace why they are included:
-
-   ```
-   rev-dep resolve --file path/to/suspect --entry-points path/to/entry.ts --all
-   ```
-
-### **How to detect circular dependencies**
-
-```
-rev-dep circular
-```
-
-### **How to find unused node modules**
-
-```
-rev-dep node-modules unused
-```
-
-### **How to find missing node modules**
-
-```
-rev-dep node-modules missing
-```
-
-### **How to check node_modules space usage**
-
-```
-rev-dep node-modules dirs-size
-```
-
-## Working with Monorepo
-
-Rev-dep provides first-class support for monorepo projects, enabling accurate dependency analysis across workspace packages.
-
-### followMonorepoPackages Flag
-
-The `--follow-monorepo-packages` flag enables resolution of imports from monorepo workspace packages. By default, this flag is set to `false` to maintain compatibility with single-package projects.
-
-```bash
-# Enable monorepo package resolution
-rev-dep circular --follow-monorepo-packages
-rev-dep resolve --file src/utils.ts --follow-monorepo-packages
-rev-dep entry-points --follow-monorepo-packages
-```
-
-When enabled, rev-dep will:
-
-- **Detect workspace packages** automatically by scanning for monorepo configuration
-- **Resolve imports between packages** within the workspace
-- **Follow package.json exports** for proper module resolution
-
-### Exports Map Support
-
-Rev-dep fully supports the `exports` field in package.json files, which is the standard way to define package entry points in modern Node.js projects.
-
-The exports map support includes:
-
-- **Conditional exports** using conditions like `node`, `import`, `default`, and custom conditions
-- **Wildcard patterns** for flexible subpath mapping
-- **Sugar syntax** for simple main export definitions
-- **Nested conditions** for complex resolution scenarios
-
-### Condition Names Flag
-
-To control which conditional exports are resolved, use the `--condition-names` flag. This allows you to specify the priority of conditions when resolving package exports:
-
-```bash
-# Resolve exports for different environments
-rev-dep circular --condition-names=node,import,default
-rev-dep resolve --file src/utils.ts --condition-names=import,node
-rev-dep entry-points --condition-names=default,node,import
-```
-
-The conditions are processed in the order specified, with the first matching condition being used. Common conditions include:
-- `node` - Node.js environment
-- `import` - ES modules
-- `require` - CommonJS
-- `default` - Fallback condition
-- Custom conditions specific to your project or build tools
-
-Example package.json with exports:
-
-```json
-{
-  "name": "@myorg/utils",
-  "exports": {
-    ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
-    "./helpers": "./dist/helpers.js",
-    "./types/*": "./dist/types/*.d.ts"
-  }
-}
-```
-
-### How It Works
-
-1. **Monorepo Detection**: When `followMonorepoPackages` is enabled, rev-dep scans for workspace configuration (pnpm-workspace.yaml, package.json workspaces, etc.)
-
-2. **Package Resolution**: Imports to workspace packages are resolved using the package's exports configuration, falling back to main/module fields when exports are not defined
-
-3. **Dependency Validation**: The tool validates that cross-package imports are only allowed when the target package is listed in the consumer's dependencies or devDependencies
-
-4. **Path Resolution**: All paths are resolved relative to their respective package roots, ensuring accurate dependency tracking across the entire monorepo
-
-This makes rev-dep particularly effective for large-scale monorepo projects where understanding cross-package dependencies is crucial for maintaining code quality and architecture.
-
-## Config-Based Checks
+## Config-Based Checks 🛡️
 
 Rev-dep provides a configuration system for orchestrating project checks. The config approach is **designed for speed** and is the **preferred way** of implementing project checks because it can execute all checks in a single pass, significantly faster than multiple running individual commands separately.
 
 Available checks are:
 
-- **module boundaries** - check if imports respect module boundaries
-- **import conventions** - enforce syntactic consistency for imports (includes autofix capability)
-- **circular imports** - check if there are circular imports
-- **orphan files** - check if there are orphan/dead files
-- **unused node modules** - check against unused node modules
-- **missing node modules** - check against missing node modules
+- `moduleBoundaries` - enforce architecture boundaries between modules.
+- `importConventions` - enforce import style conventions (offers autofix).
+- `unusedExportsDetection` - detect exports that are never used (offers autofix).
+- `orphanFilesDetection` - detect dead/orphan files (offers autofix).
+- `unusedNodeModulesDetection` - detect dependencies declared but not used.
+- `missingNodeModulesDetection` - detect imports missing from package json.
+- `unresolvedImportsDetection` - detect unresolved import requests.
+- `circularImportsDetection` - detect circular imports.
 
 Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
 
@@ -317,7 +175,7 @@ Behavior of `rev-dep config init`:
 - Monorepo root: Running `rev-dep config init` at the workspace root creates a root rule and a rule for each discovered workspace package.
 - Monorepo workspace package or regular projects: Running `rev-dep config init` inside a directory creates config with a single rule with `path: "."` for this directory.
 
-Run all configured checks:
+Run all configured checks (dry run, not fixes applied yet):
 
 ```bash
 # Execute all rules and checks defined in the config
@@ -340,6 +198,38 @@ rev-dep config run --fix
 ### Configuration Structure
 
 The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) allows you to define multiple rules, each targeting different parts of your codebase with specific checks enabled.
+
+#### Quick Start Configuration
+
+```jsonc
+{
+  "configVersion": "1.3",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.3.schema.json?raw=true",
+  "rules": [
+    {
+      "path": ".",
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true,
+        "validEntryPoints": ["src/index.ts" ]
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "autofix": true,
+        "validEntryPoints": ["src/index.ts"] 
+      },
+      "unusedNodeModulesDetection": { 
+        "enabled": true 
+      },
+      "circularImportsDetection": { 
+        "enabled": true 
+      },
+    }
+  ]
+}
+```
+
+#### Comprehensive Config Example
 
 Here's a comprehensive example showing all available properties:
 
@@ -519,8 +409,164 @@ The configuration approach provides significant performance advantages:
 
 This makes config-based checks faster than running individual commands sequentially, especially for large codebases with multiple sub packages.
 
+## **Exploratory Toolkit 🔧**
 
-# Performance comparison
+Practical examples show how to use rev-dep CLI commands to explore, debug or build code quality checks for your project.
+
+### **How to identify where a file is used in the project**
+
+```
+rev-dep resolve --file path/to/file.ts
+```
+
+You’ll see all entry points that implicitly require that file, along with resolution paths.
+
+### **How to check if a file is used**
+
+```
+rev-dep resolve --file path/to/file.ts --compact-summary
+```
+
+Shows how many entry points indirectly depend on the file.
+
+### **How to identify dead files**
+
+```
+rev-dep entry-points
+```
+
+Exclude framework entry points if needed using `--result-exclude`.
+
+For example exclude Next.js valid entry points when using pages router, exclude scripts directory - scripts are valid entry-points and exclude all test files:
+
+```
+rev-dep entry-points --result-exclude "pages/**","scripts/**","**/*.test.*"
+```
+
+### **How to list all files imported by an entry point**
+
+```
+rev-dep files --entry-point path/to/file.ts
+```
+
+Useful for identifying heavy components or unintended dependencies.
+
+### **How to reduce unnecessary imports for an entry point**
+
+1. List all files imported:
+
+   ```
+   rev-dep files --entry-point path/to/entry.ts
+   ```
+2. Identify suspicious files.
+3. Trace why they are included:
+
+   ```
+   rev-dep resolve --file path/to/suspect --entry-points path/to/entry.ts --all
+   ```
+
+### **How to detect circular dependencies**
+
+```
+rev-dep circular
+```
+
+### **How to find unused node modules**
+
+```
+rev-dep node-modules unused
+```
+
+### **How to find missing node modules**
+
+```
+rev-dep node-modules missing
+```
+
+### **How to check node_modules space usage**
+
+```
+rev-dep node-modules dirs-size
+```
+## Working with Monorepo 🏗️
+
+Rev-dep provides first-class support for monorepo projects, enabling accurate dependency analysis across workspace packages.
+
+### followMonorepoPackages Flag
+
+The `--follow-monorepo-packages` flag enables resolution of imports from monorepo workspace packages. By default, this flag is set to `false` to maintain compatibility with single-package projects.
+
+```bash
+# Enable monorepo package resolution
+rev-dep circular --follow-monorepo-packages
+rev-dep resolve --file src/utils.ts --follow-monorepo-packages
+rev-dep entry-points --follow-monorepo-packages
+```
+
+When enabled, rev-dep will:
+
+- **Detect workspace packages** automatically by scanning for monorepo configuration
+- **Resolve imports between packages** within the workspace
+- **Follow package.json exports** for proper module resolution
+
+### Exports Map Support
+
+Rev-dep fully supports the `exports` field in package.json files, which is the standard way to define package entry points in modern Node.js projects.
+
+The exports map support includes:
+
+- **Conditional exports** using conditions like `node`, `import`, `default`, and custom conditions
+- **Wildcard patterns** for flexible subpath mapping
+- **Sugar syntax** for simple main export definitions
+- **Nested conditions** for complex resolution scenarios
+
+### Condition Names Flag
+
+To control which conditional exports are resolved, use the `--condition-names` flag. This allows you to specify the priority of conditions when resolving package exports:
+
+```bash
+# Resolve exports for different environments
+rev-dep circular --condition-names=node,import,default
+rev-dep resolve --file src/utils.ts --condition-names=import,node
+rev-dep entry-points --condition-names=default,node,import
+```
+
+The conditions are processed in the order specified, with the first matching condition being used. Common conditions include:
+- `node` - Node.js environment
+- `import` - ES modules
+- `require` - CommonJS
+- `default` - Fallback condition
+- Custom conditions specific to your project or build tools
+
+Example package.json with exports:
+
+```json
+{
+  "name": "@myorg/utils",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./helpers": "./dist/helpers.js",
+    "./types/*": "./dist/types/*.d.ts"
+  }
+}
+```
+
+### How It Works
+
+1. **Monorepo Detection**: When `followMonorepoPackages` is enabled, rev-dep scans for workspace configuration (pnpm-workspace.yaml, package.json workspaces, etc.)
+
+2. **Package Resolution**: Imports to workspace packages are resolved using the package's exports configuration, falling back to main/module fields when exports are not defined
+
+3. **Dependency Validation**: The tool validates that cross-package imports are only allowed when the target package is listed in the consumer's dependencies or devDependencies
+
+4. **Path Resolution**: All paths are resolved relative to their respective package roots, ensuring accurate dependency tracking across the entire monorepo
+
+This makes rev-dep particularly effective for large-scale monorepo projects where understanding cross-package dependencies is crucial for maintaining code quality and architecture.
+## Performance comparison ⚡
 
 Rev-dep can perform multiple checks on 500k+ LoC monorepo with several sub-packages in around 500ms.
 
@@ -543,7 +589,7 @@ Here is a performance comparison of specific tasks between rev-dep and alternati
 
 >Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
 
-## Circular check performance comparison
+### Circular check performance comparison
 
 Benchmark performed on TypeScript codebase with `6034` source code files and `518862` lines of code.
 
@@ -564,7 +610,7 @@ Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, t
 
 
 
-# CLI reference 📖
+## CLI reference 📖
 
 <!-- cli-docs-start -->
 
@@ -1103,7 +1149,7 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
 <!-- cli-docs-end -->
 
 
-## Glossary
+## Glossary 📚
 
 Some of the terms used in the problem space that **rev-dep** covers can be confusing.
 Here is a small glossary to help you navigate the concepts.

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -35,6 +36,7 @@ var configRunCmd = &cobra.Command{
 	Short: "Execute all checks defined in (.)rev-dep.config.json(c)",
 	Long:  `Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, node modules) per rule.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		startTime := time.Now()
 		cwd := ResolveAbsoluteCwd(runConfigCwd)
 
 		// Auto-discover config in current working directory
@@ -71,6 +73,8 @@ var configRunCmd = &cobra.Command{
 
 			// Format and print results
 			formatAndPrintConfigResults(result, cwd, runConfigListAll)
+			executionTime := time.Since(startTime)
+			fmt.Printf("\n✨  Done in %dms.\n", executionTime.Milliseconds())
 
 			if result.HasFailures {
 				os.Exit(1)
@@ -632,7 +636,7 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 	config := RevDepConfig{
 		ConfigVersion: currentConfigVersion,
 		Rules:         rules,
-		Schema:        "https://github.com/jayu/rev-dep/blob/module-boundaries/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
+		Schema:        "https://github.com/jayu/rev-dep/blob/master/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
 	}
 
 	// Add schema reference if schema file exists

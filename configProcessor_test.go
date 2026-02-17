@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -294,6 +295,94 @@ func TestFilterFilesForRule_FollowMonorepoPackagesSelective(t *testing.T) {
 
 	if _, ok := ruleTree[disallowedFile]; ok {
 		t.Fatalf("expected disallowed package file to be excluded from ruleTree")
+	}
+}
+
+func TestFilterFilesForRule_WindowsStyleRootPathDot(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-specific regression test")
+	}
+
+	cwd := `C:\repo\`
+	rulePath := `.\`
+	fileA := `C:\repo\src\index.ts`
+	fileB := `C:\repo\src\feature\a.ts`
+	fileOutside := `C:\another-repo\src\outside.ts`
+
+	fullTree := MinimalDependencyTree{
+		fileA:       {},
+		fileB:       {},
+		fileOutside: {},
+	}
+
+	ruleFiles, ruleTree := filterFilesForRule(
+		fullTree,
+		rulePath,
+		cwd,
+		FollowMonorepoPackagesValue{},
+		nil,
+	)
+
+	if !containsString(ruleFiles, fileA) {
+		t.Fatalf("expected fileA to be included for rule path '.', got: %v", ruleFiles)
+	}
+	if !containsString(ruleFiles, fileB) {
+		t.Fatalf("expected fileB to be included for rule path '.', got: %v", ruleFiles)
+	}
+	if containsString(ruleFiles, fileOutside) {
+		t.Fatalf("expected outside file to be excluded, got: %v", ruleFiles)
+	}
+
+	if _, ok := ruleTree[fileA]; !ok {
+		t.Fatalf("expected fileA to be present in ruleTree")
+	}
+	if _, ok := ruleTree[fileB]; !ok {
+		t.Fatalf("expected fileB to be present in ruleTree")
+	}
+	if _, ok := ruleTree[fileOutside]; ok {
+		t.Fatalf("expected outside file to be excluded from ruleTree")
+	}
+}
+
+func TestFilterFilesForRule_RootPathDot(t *testing.T) {
+	cwd := "/repo"
+	rulePath := "."
+	fileA := "/repo/src/index.ts"
+	fileB := "/repo/src/feature/a.ts"
+	fileOutside := "/another-repo/src/outside.ts"
+
+	fullTree := MinimalDependencyTree{
+		fileA:       {},
+		fileB:       {},
+		fileOutside: {},
+	}
+
+	ruleFiles, ruleTree := filterFilesForRule(
+		fullTree,
+		rulePath,
+		cwd,
+		FollowMonorepoPackagesValue{},
+		nil,
+	)
+
+	if !containsString(ruleFiles, fileA) {
+		t.Fatalf("expected fileA to be included for rule path '.', got: %v", ruleFiles)
+	}
+	if !containsString(ruleFiles, fileB) {
+		t.Fatalf("expected fileB to be included for rule path '.', got: %v", ruleFiles)
+	}
+	if containsString(ruleFiles, fileOutside) {
+		t.Fatalf("expected outside file to be excluded, got: %v", ruleFiles)
+	}
+
+	if _, ok := ruleTree[fileA]; !ok {
+		t.Fatalf("expected fileA to be present in ruleTree")
+	}
+	if _, ok := ruleTree[fileB]; !ok {
+		t.Fatalf("expected fileB to be present in ruleTree")
+	}
+	if _, ok := ruleTree[fileOutside]; ok {
+		t.Fatalf("expected outside file to be excluded from ruleTree")
 	}
 }
 

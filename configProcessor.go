@@ -142,10 +142,11 @@ func filterFilesForRule(
 	followMonorepoPackages FollowMonorepoPackagesValue,
 	resolverManager *ResolverManager,
 ) ([]string, MinimalDependencyTree) {
-	normalizedRulePath := normalizeRulePath(filepath.Join(cwd, rulePath))
+	normalizedRulePath := NormalizePathForInternal(filepath.Clean(JoinWithCwd(cwd, rulePath)))
 	normalizedRulePathWithSlash := StandardiseDirPathInternal(normalizedRulePath)
 	isRuleFile := func(filePath string) bool {
-		return strings.HasPrefix(filePath, normalizedRulePathWithSlash)
+		normalizedFilePath := NormalizePathForInternal(filePath)
+		return strings.HasPrefix(normalizedFilePath, normalizedRulePathWithSlash)
 	}
 
 	filesWithinCwd := []string{}
@@ -451,6 +452,7 @@ func ProcessConfig(
 	if err != nil {
 		return nil, err
 	}
+
 	// Step 2: Build dependency tree for config
 	parseMode := ParseModeBasic
 	if anyRuleChecksForUnusedExports(config) {

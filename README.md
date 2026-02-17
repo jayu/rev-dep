@@ -57,7 +57,7 @@ CLI toolkit that helps debug issues with dependencies between files. Understand 
 Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **10x-200x faster execution** than alternatives, significantly **reducing CI costs** and developer wait-states.
 
 > **Rev-dep can audit a 500k+ LoC project in around 500ms.**
-> [See the performance comparison](#performance-comparison)
+> [See the performance comparison](#performance-comparison-)
 
 ## Capabilities 🚀
 

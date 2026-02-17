@@ -18,7 +18,7 @@ func getSortedTreeForPrint(tree MinimalDependencyTree) string {
 		imports := [][]string{}
 
 		for _, imp := range v {
-			imports = append(imports, []string{*imp.ID, imp.Request})
+			imports = append(imports, []string{imp.ID, imp.Request})
 		}
 
 		sort.Slice(imports, func(i, j int) bool {
@@ -69,13 +69,9 @@ func StringifyMinimalDependencyTree(tree MinimalDependencyTree) string {
 			if deps[i].Request != deps[j].Request {
 				return deps[i].Request < deps[j].Request
 			}
-			var idI, idJ string
-			if deps[i].ID != nil {
-				idI = *deps[i].ID
-			}
-			if deps[j].ID != nil {
-				idJ = *deps[j].ID
-			}
+			idI := deps[i].ID
+			idJ := deps[j].ID
+
 			if idI != idJ {
 				return idI < idJ
 			}
@@ -89,13 +85,11 @@ func StringifyMinimalDependencyTree(tree MinimalDependencyTree) string {
 
 		for _, d := range deps {
 			id := "<nil>"
-			if d.ID != nil && *d.ID != "" {
-				id = *d.ID
+			if d.ID != "" {
+				id = d.ID
 			}
-			importKind := "<nil>"
-			if d.ImportKind != nil {
-				importKind = ImportKindToString(*d.ImportKind)
-			}
+			importKind := ImportKindToString(d.ImportKind)
+
 			b.WriteString("  - request: ")
 			b.WriteString(d.Request)
 			b.WriteString("\n")
@@ -164,7 +158,18 @@ func StringifyResolverManager(rm *ResolverManager) []byte {
 	}
 
 	b.WriteString("ResolverManager:\n")
-	b.WriteString(fmt.Sprintf("  followMonorepoPackages: %v\n", rm.followMonorepoPackages))
+	followMode := "disabled"
+	if rm.followMonorepoPackages.ShouldFollowAll() {
+		followMode = "all"
+	} else if rm.followMonorepoPackages.IsEnabled() {
+		packages := make([]string, 0, len(rm.followMonorepoPackages.Packages))
+		for packageName := range rm.followMonorepoPackages.Packages {
+			packages = append(packages, packageName)
+		}
+		sort.Strings(packages)
+		followMode = fmt.Sprintf("selective:[%s]", strings.Join(packages, ","))
+	}
+	b.WriteString(fmt.Sprintf("  followMonorepoPackages: %s\n", followMode))
 
 	// conditionNames (sorted)
 	cond := make([]string, len(rm.conditionNames))
@@ -276,6 +281,18 @@ func StringifyResolverManager(rm *ResolverManager) []byte {
 	b.WriteString("  rootResolver:\n")
 	if rm.rootResolver != nil {
 		b.WriteString(stringifyModuleResolver(rm.rootResolver, "    "))
+	} else {
+		b.WriteString("    <nil>\n")
+	}
+
+	// cwdResolver
+	b.WriteString("  cwdResolver:\n")
+	if rm.cwdResolver != nil {
+		if rm.rootResolver != nil && rm.cwdResolver == rm.rootResolver {
+			b.WriteString("    (same as rootResolver)\n")
+		} else {
+			b.WriteString(stringifyModuleResolver(rm.cwdResolver, "    "))
+		}
 	} else {
 		b.WriteString("    <nil>\n")
 	}

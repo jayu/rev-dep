@@ -75,8 +75,8 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 
 		for _, d := range dep {
 			// Do not follow other modules than user modules and monorepo modules
-			if d.ID != nil && *d.ID != "" && (d.ResolvedType == UserModule || d.ResolvedType == MonorepoModule) {
-				childNode := inner(*d.ID, visited, depth+1, node)
+			if d.ID != "" && (d.ResolvedType == UserModule || d.ResolvedType == MonorepoModule) {
+				childNode := inner(d.ID, visited, depth+1, node)
 				node.Children = append(node.Children, childNode.Path)
 			}
 		}

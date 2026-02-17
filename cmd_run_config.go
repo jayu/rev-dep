@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -27,6 +28,7 @@ var (
 	runConfigCwd     string
 	runConfigListAll bool
 	runConfigFix     bool
+	runConfigRules   []string
 )
 
 var configRunCmd = &cobra.Command{
@@ -34,6 +36,7 @@ var configRunCmd = &cobra.Command{
 	Short: "Execute all checks defined in (.)rev-dep.config.json(c)",
 	Long:  `Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, node modules) per rule.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		startTime := time.Now()
 		cwd := ResolveAbsoluteCwd(runConfigCwd)
 
 		// Auto-discover config in current working directory
@@ -48,6 +51,20 @@ var configRunCmd = &cobra.Command{
 				fmt.Printf("=== Processing config %d ===\n", i+1)
 			}
 
+			if len(runConfigRules) > 0 {
+				var filteredRules []Rule
+				for _, r := range config.Rules {
+					if slices.Contains(runConfigRules, r.Path) {
+						filteredRules = append(filteredRules, r)
+					}
+				}
+
+				if len(filteredRules) == 0 {
+					return fmt.Errorf("none of the requested rules %v found in config", runConfigRules)
+				}
+				config.Rules = filteredRules
+			}
+
 			// Process the config
 			result, err := ProcessConfig(&config, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix)
 			if err != nil {
@@ -56,6 +73,8 @@ var configRunCmd = &cobra.Command{
 
 			// Format and print results
 			formatAndPrintConfigResults(result, cwd, runConfigListAll)
+			executionTime := time.Since(startTime)
+			fmt.Printf("\n✨  Done in %dms.\n", executionTime.Milliseconds())
 
 			if result.HasFailures {
 				os.Exit(1)
@@ -218,17 +237,36 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 						missingToDisplay = missingToDisplay[:maxIssuesToList]
 					}
 
-					for _, missing := range missingToDisplay {
-						// Convert imported from paths to relative paths
-						relativeImportedFrom := make([]string, len(missing.ImportedFrom))
-						for j, path := range missing.ImportedFrom {
-							relativeImportedFrom[j] = getRelativePath(path)
-						}
+					if ruleResult.MissingNodeModulesOutputType != "" {
+						groupByModule := ruleResult.MissingNodeModulesOutputType == "groupByModule"
+						groupByFile := ruleResult.MissingNodeModulesOutputType == "groupByFile"
+						groupByModuleFilesCount := ruleResult.MissingNodeModulesOutputType == "groupByModuleFilesCount"
 
-						if len(relativeImportedFrom) == 1 {
-							fmt.Printf("    - %s (imported from: %s)\n", missing.ModuleName, relativeImportedFrom[0])
-						} else if len(relativeImportedFrom) > 1 {
-							fmt.Printf("    - %s (imported from: %s and %d more files)\n", missing.ModuleName, relativeImportedFrom[0], len(relativeImportedFrom)-1)
+						formatted, _ := formatMissingNodeModulesResults(missingToDisplay, cwd, false, groupByModule, groupByFile, groupByModuleFilesCount)
+						lines := strings.Split(strings.TrimSpace(formatted), "\n")
+						for _, line := range lines {
+							if line == "" {
+								continue
+							}
+							if groupByModuleFilesCount || ruleResult.MissingNodeModulesOutputType == "list" {
+								fmt.Printf("    - %s\n", line)
+							} else {
+								fmt.Printf("    %s\n", line)
+							}
+						}
+					} else {
+						for _, missing := range missingToDisplay {
+							// Convert imported from paths to relative paths
+							relativeImportedFrom := make([]string, len(missing.ImportedFrom))
+							for j, path := range missing.ImportedFrom {
+								relativeImportedFrom[j] = getRelativePath(path)
+							}
+
+							if len(relativeImportedFrom) == 1 {
+								fmt.Printf("    - %s (imported from: %s)\n", missing.ModuleName, relativeImportedFrom[0])
+							} else if len(relativeImportedFrom) > 1 {
+								fmt.Printf("    - %s (imported from: %s and %d more files)\n", missing.ModuleName, relativeImportedFrom[0], len(relativeImportedFrom)-1)
+							}
 						}
 					}
 
@@ -286,6 +324,99 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				} else {
 					fmt.Printf("  ✅ Import Conventions\n")
 				}
+			case "unresolved-imports":
+				if len(ruleResult.UnresolvedImports) > 0 {
+					fmt.Printf("  ❌ Unresolved Imports (%d):\n", len(ruleResult.UnresolvedImports))
+
+					// Sort all results before limiting
+					unresolvedToDisplay := ruleResult.UnresolvedImports
+					slices.SortFunc(unresolvedToDisplay, func(a, b UnresolvedImport) int {
+						if a.FilePath != b.FilePath {
+							return strings.Compare(a.FilePath, b.FilePath)
+						}
+						return strings.Compare(a.Request, b.Request)
+					})
+
+					remaining := 0
+					if !listAll && len(unresolvedToDisplay) > maxIssuesToList {
+						remaining = len(unresolvedToDisplay) - maxIssuesToList
+						unresolvedToDisplay = unresolvedToDisplay[:maxIssuesToList]
+					}
+
+					// Group by file
+					unresolvedByFile := make(map[string][]string)
+					for _, u := range unresolvedToDisplay {
+						unresolvedByFile[u.FilePath] = append(unresolvedByFile[u.FilePath], u.Request)
+					}
+
+					var sortedFilePaths []string
+					for fp := range unresolvedByFile {
+						sortedFilePaths = append(sortedFilePaths, fp)
+					}
+					slices.Sort(sortedFilePaths)
+
+					for _, filePath := range sortedFilePaths {
+						fmt.Printf("    %s\n", getRelativePath(filePath))
+						for _, req := range unresolvedByFile[filePath] {
+							fmt.Printf("     - %s\n", req)
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more unresolved import issues\n", remaining)
+					}
+				} else {
+					fmt.Printf("  ✅ Unresolved Imports\n")
+				}
+			case "unused-exports":
+				if len(ruleResult.UnusedExports) > 0 {
+					fmt.Printf("  ❌ Unused Exports Issues (%d):\n", len(ruleResult.UnusedExports))
+
+					exportsToDisplay := ruleResult.UnusedExports
+
+					// Sort exports by file path and then by export name
+					slices.SortFunc(exportsToDisplay, func(a, b UnusedExport) int {
+						if a.FilePath != b.FilePath {
+							return strings.Compare(a.FilePath, b.FilePath)
+						}
+						return strings.Compare(a.ExportName, b.ExportName)
+					})
+
+					remaining := 0
+					if !listAll && len(exportsToDisplay) > maxIssuesToList {
+						remaining = len(exportsToDisplay) - maxIssuesToList
+						exportsToDisplay = exportsToDisplay[:maxIssuesToList]
+					}
+
+					// Group by file path
+					exportsByFile := make(map[string][]UnusedExport)
+					for _, ue := range exportsToDisplay {
+						exportsByFile[ue.FilePath] = append(exportsByFile[ue.FilePath], ue)
+					}
+
+					var sortedFilePaths []string
+					for filePath := range exportsByFile {
+						sortedFilePaths = append(sortedFilePaths, filePath)
+					}
+					slices.Sort(sortedFilePaths)
+
+					for _, filePath := range sortedFilePaths {
+						fmt.Printf("    %s\n", getRelativePath(filePath))
+						for _, ue := range exportsByFile[filePath] {
+							if ue.IsType {
+								fmt.Printf("     - %s (type)\n", ue.ExportName)
+							} else {
+								fmt.Printf("     - %s\n", ue.ExportName)
+							}
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more unused export issues\n", remaining)
+					}
+				} else {
+					fmt.Printf("  ✅ Unused Exports\n")
+				}
 			}
 		}
 
@@ -309,8 +440,20 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 	}
 
 	// Print autofix summary if any fixes were applied or unfixable issues found
-	if result.FixedFilesCount > 0 || result.FixedImportsCount > 0 {
-		fmt.Printf("✍️ Fixed %d imports in %d files\n", result.FixedImportsCount, result.FixedFilesCount)
+	if result.FixedFilesCount > 0 || result.FixedImportsCount > 0 || result.DeletedFilesCount > 0 {
+		var summary []string
+		if result.FixedImportsCount > 0 || result.FixedFilesCount > 0 {
+			summary = append(summary, fmt.Sprintf("fixed %d imports in %d files", result.FixedImportsCount, result.FixedFilesCount))
+		}
+		if result.DeletedFilesCount > 0 {
+			summary = append(summary, fmt.Sprintf("removed %d orphan files", result.DeletedFilesCount))
+		}
+
+		if len(summary) > 0 {
+			// Capitalize first letter of first summary part
+			summary[0] = strings.ToUpper(summary[0][:1]) + summary[0][1:]
+			fmt.Printf("✍️ %s\n", strings.Join(summary, ", "))
+		}
 	}
 
 	if result.FixableIssuesCount > 0 {
@@ -334,6 +477,7 @@ func init() {
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
+	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")
@@ -344,7 +488,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
-	currentConfigVersion := "1.2"
+	currentConfigVersion := "1.3"
 
 	// Check if any config file already exists
 	existingConfig, err := findConfigFile(cwd)
@@ -377,6 +521,12 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 					Enabled: false,
 				},
 				MissingNodeModulesDetection: &MissingNodeModulesOptions{
+					Enabled: false,
+				},
+				UnusedExportsDetection: &UnusedExportsOptions{
+					Enabled: false,
+				},
+				UnresolvedImportsDetection: &UnresolvedImportsOptions{
 					Enabled: false,
 				},
 			}
@@ -438,6 +588,12 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 					MissingNodeModulesDetection: &MissingNodeModulesOptions{
 						Enabled: false,
 					},
+					UnusedExportsDetection: &UnusedExportsOptions{
+						Enabled: false,
+					},
+					UnresolvedImportsDetection: &UnresolvedImportsOptions{
+						Enabled: false,
+					},
 				}
 				rules = append(rules, packageRule)
 			}
@@ -466,6 +622,12 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 			MissingNodeModulesDetection: &MissingNodeModulesOptions{
 				Enabled: false,
 			},
+			UnusedExportsDetection: &UnusedExportsOptions{
+				Enabled: false,
+			},
+			UnresolvedImportsDetection: &UnresolvedImportsOptions{
+				Enabled: false,
+			},
 		}
 		rules = append(rules, rootRule)
 	}
@@ -474,7 +636,7 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 	config := RevDepConfig{
 		ConfigVersion: currentConfigVersion,
 		Rules:         rules,
-		Schema:        "https://github.com/jayu/rev-dep/blob/module-boundaries/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
+		Schema:        "https://github.com/jayu/rev-dep/blob/master/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
 	}
 
 	// Add schema reference if schema file exists

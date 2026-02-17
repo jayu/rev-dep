@@ -78,6 +78,7 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -86,7 +87,7 @@ func TestUsedNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
@@ -109,6 +110,7 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -117,7 +119,7 @@ func TestUsedNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "6\n"
@@ -139,6 +141,7 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -147,7 +150,7 @@ func TestUsedNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n file.ts\n    ➞ dep4\n    ➞ dep5\n\n\n index.ts\n    ➞ @types/dep-types-2\n    ➞ dep2\n\n\n package.json\n    ➞ dep1\n\n\n tsconfig.json\n    ➞ @types/dep-types-1\n\n"
@@ -169,6 +172,7 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -177,10 +181,40 @@ func TestUsedNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n @types/dep-types-1\n    ➞ tsconfig.json\n\n\n @types/dep-types-2\n    ➞ index.ts\n\n\n dep1\n    ➞ package.json\n\n\n dep2\n    ➞ index.ts\n\n\n dep4\n    ➞ file.ts\n\n\n dep5\n    ➞ file.ts\n\n"
+
+		if result != expected {
+			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
+		}
+	})
+
+	t.Run("should print node modules with files count", func(t *testing.T) {
+		nodeModulesGroupByModuleFilesCount := true
+		result, _ := NodeModulesCmd(
+			nodeModulesCwd,
+			nodeModulesIgnoreType,
+			nodeModulesEntryPoints,
+			nodeModulesCountFlag,
+			nodeModulesListUnused,
+			nodeModulesListMissing,
+			false,
+			false,
+			nodeModulesGroupByModuleFilesCount,
+			nodeModulesPkgJsonFieldsWithBinaries,
+			nodeModulesFilesWithBinaries,
+			nodeModulesFilesWithModules,
+			nodeModulesIncludeModules,
+			nodeModulesExcludeModules,
+			"",
+			"",
+			[]string{},
+			FollowMonorepoPackagesValue{},
+		)
+
+		expected := "@types/dep-types-1 (1 files)\n@types/dep-types-2 (1 files)\ndep1 (1 files)\ndep2 (1 files)\ndep4 (1 files)\ndep5 (1 files)\n"
 
 		if result != expected {
 			t.Errorf("Incorrect modules list '%s'. Expected '%s'", result, expected)
@@ -214,6 +248,7 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -222,7 +257,7 @@ func TestUnusedNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "dep3\n"
@@ -243,6 +278,7 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -251,7 +287,7 @@ func TestUnusedNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "1\n"
@@ -289,6 +325,7 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -297,7 +334,7 @@ func TestMissingNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "dep5\n"
@@ -319,6 +356,7 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -327,7 +365,7 @@ func TestMissingNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "1\n"
@@ -349,6 +387,7 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -357,7 +396,7 @@ func TestMissingNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n file.ts\n    ➞ dep5\n\n"
@@ -379,6 +418,7 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -387,7 +427,7 @@ func TestMissingNodeModules(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n dep5\n    ➞ file.ts\n\n"
@@ -425,6 +465,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -433,7 +474,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n"
@@ -454,6 +495,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -462,7 +504,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n"
@@ -483,6 +525,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -491,7 +534,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n"
@@ -512,6 +555,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -520,7 +564,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n"
@@ -558,6 +602,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -566,7 +611,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -587,6 +632,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -595,7 +641,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -616,6 +662,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -624,7 +671,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -645,6 +692,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -653,7 +701,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -691,6 +739,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -699,7 +748,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-2\ndep4\n"
@@ -720,6 +769,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -728,7 +778,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\ndep1\ndep2\ndep5\n"
@@ -750,6 +800,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -758,7 +809,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "dep3\n"
@@ -780,6 +831,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -788,7 +840,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n"
@@ -810,6 +862,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -818,7 +871,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "dep5\n"
@@ -840,6 +893,7 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -848,7 +902,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n"
@@ -884,6 +938,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -892,7 +947,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
@@ -913,6 +968,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -921,7 +977,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep4\n"
@@ -942,6 +998,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -950,7 +1007,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
@@ -971,6 +1028,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -979,7 +1037,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "\n"
@@ -1000,6 +1058,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -1008,7 +1067,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			"",
 			"",
 			[]string{},
-			false,
+			FollowMonorepoPackagesValue{},
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
@@ -1060,22 +1119,23 @@ func TestTsConfigTypesComplexRealWorld(t *testing.T) {
 	t.Run("should handle complex tsconfig with mixed types", func(t *testing.T) {
 		result, _ := NodeModulesCmd(
 			tsconfigTypesComplexCwd,
-			false,      // ignoreType
-			[]string{}, // entryPoints
-			false,      // countFlag
-			true,       // listUnused
-			false,      // listMissing
-			false,      // groupByModule
-			false,      // groupByFile
-			[]string{}, // pkgJsonFieldsWithBinaries
-			[]string{}, // filesWithBinaries
-			[]string{}, // filesWithModules
-			[]string{}, // modulesToInclude
-			[]string{}, // modulesToExclude
-			"",         // packageJson
-			"",         // tsconfigJson
-			[]string{}, // conditionNames
-			false,      // followMonorepoPackages
+			false,                         // ignoreType
+			[]string{},                    // entryPoints
+			false,                         // countFlag
+			true,                          // listUnused
+			false,                         // listMissing
+			false,                         // groupByModule
+			false,                         // groupByFile
+			false,                         // groupByModuleFilesCount
+			[]string{},                    // pkgJsonFieldsWithBinaries
+			[]string{},                    // filesWithBinaries
+			[]string{},                    // filesWithModules
+			[]string{},                    // modulesToInclude
+			[]string{},                    // modulesToExclude
+			"",                            // packageJson
+			"",                            // tsconfigJson
+			[]string{},                    // conditionNames
+			FollowMonorepoPackagesValue{}, // followMonorepoPackages
 		)
 
 		// This test reproduces the original bug scenario:

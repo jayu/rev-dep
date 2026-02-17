@@ -3,100 +3,115 @@
 </p>
 
 <p align="center">
-  <a href="#key-features-">Key Features</a>&nbsp;&nbsp;•&nbsp;&nbsp;  
-  <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
-  <a href="#practical-examples-">Practical Examples</a>&nbsp;&nbsp;•&nbsp;&nbsp; 
+  <a href="#capabilities-">Capabilities</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#exploratory-toolkit-">Exploratory Toolkit</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#cli-reference-">CLI Reference</a>
 </p>
 
 <p align="center">
-  Dependency analysis and optimization toolkit for modern JavaScript and TypeScript projects.  
+  Dependency analysis and optimization toolkit for modern JavaScript and TypeScript codebases.  
   <br>
-  Trace imports, identify circular dependencies, find unused code, clean node modules — all from a blazing-fast CLI.
+  Enforce dependency graph hygiene and remove unused bits with a very fast CLI.
+</p>
+
+<p align="center">
+<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output"width="400">
 </p>
 
 ---
 
 <img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep"> <img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep"> <img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
 
+## **About 📣**
 
+As codebases scale, maintaining a mental map of dependencies becomes impossible. **Rev-dep** is a high-speed governance engine designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
 
-# **About 📣**
+<p align="center"><b>Think of Rev-dep as a high-speed linter for your dependency graph.</b></p>
 
-Working in large JS/TS projects makes it difficult to answer simple but crucial questions:
+**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks—including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 500ms**.
 
-* Which files depend on this file?
-* Is this file even used?
-* Which files does this entry point import?
-* Do I have circular dependencies?
-* Which packages in node_modules are unused?
-* Which modules take the most disk space?
+### **Automated Codebase Governance**
 
-Rev-dep helps you understand the real structure of your codebase so you can debug issues faster, refactor safely, and keep your dependencies clean.
+Rev-dep moves beyond passive scanning to active enforcement, answering (and failing CI for) the hard questions:
 
-It's particularly useful for JavaScript projects without TypeScript or test coverage — places where answering question "What will break if I change this" is not straightforward  
+* **Architecture Integrity:** "Is my 'Domain A' illegally importing from 'Domain B'?".
+* **Dead Code & Bloat:** "Are these files unreachable, or are these `node_modules` unused?".
+* **Refactoring Safety:** "Which entry points actually use this utility, and are there circular chains?".
+* **Workspace Hygiene:** "Are my imports consistent and are all dependencies declared?".
 
+Rev-dep serves as a **high-speed gatekeeper** for your CI, ensuring your dependency graph remains lean and your architecture stays intact as you iterate.
 
 ## **Why Rev-dep? 🤔**
 
-Rev-dep is designed for **fast iteration** and **minimal, actionable results** — no noise, just answers.
+### 🏗️ **First-class monorepo support**
+Designed for modern workspaces (`pnpm`, `yarn`, `npm`). Rev-dep natively resolves `package.json` **exports/imports** maps, TypeScript aliases and traces dependencies across package boundaries.
 
-### ✅ **Results in milliseconds**
+### 🛡️ **Config-Based Codebase Governance**
+Move beyond passive scanning. Use the configuration engine to enforce **Module Boundaries** and **Import Conventions**. Execute a full suite of hygiene checks (circularity, orphans, unused modules and more) in a **single, parallelized pass** that serves as a high-speed gatekeeper for your CI.
 
-Built in Go for speed. Even on large codebases, rev-dep responds almost instantly.
+### 🔍 **Exploratory Toolkit**
+CLI toolkit that helps debug issues with dependencies between files. Understand transitive relation between files and fix issues.
 
-### ✅ **Actionable, list-based output**
+### ⚡ **Built for Speed and CI Efficiency**
+Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **10x-200x faster execution** than alternatives, significantly **reducing CI costs** and developer wait-states.
 
-You get **exact file paths**, **import chains**, and **clear dependency relationships** — the kind of information you can fix or clean up right away.
+> **Rev-dep can audit a 500k+ LoC project in around 500ms.**
+> [See the performance comparison](#performance-comparison)
 
-### ✅ **Designed for real-world JS/TS with first class monorepo support**
+## Capabilities 🚀
 
-Works with mixed JS/TS projects, path aliases and thousands of files without configuration hassles.
+## Governance and maintenance (config-based) 🛡️
 
-### ✅ **Deep analysis, one CLI**
+Use `rev-dep config run` to execute multiple checks in one pass for all packages.
 
-Unused files, unused or missing dependencies, reverse-imports, entry point detection, node_modules insights, dependency paths — everything in one tool.
+Available checks:
 
+- `moduleBoundaries` - enforce architecture boundaries between modules.
+- `importConventions` - enforce import style conventions (offers autofix).
+- `unusedExportsDetection` - detect exports that are never used (offers autofix).
+- `orphanFilesDetection` - detect dead/orphan files (offers autofix).
+- `unusedNodeModulesDetection` - detect dependencies declared but not used.
+- `missingNodeModulesDetection` - detect imports missing from package json.
+- `unresolvedImportsDetection` - detect unresolved import requests.
+- `circularImportsDetection` - detect circular imports.
 
-### ✅ **Much faster than alternatives**
+## Exploratory analysis (CLI-based) 🔍
 
-Rev-dep outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools. 
+Use CLI commands for ad-hoc dependency exploration:
 
-For large project with 500k+ lines of code and 6k+ source code files get checks as fast as:
+- `entry-points` - discover project entry points.
+- `files` - list dependency tree files for a given entry point.
+- `resolve` - trace dependency paths between files (who imports this file).
+- `imported-by` - list direct importers of a file.
+- `circular` - list circular dependency chains.
+- `node-modules` - inspect `used`, `unused`, `missing`, and `installed` node modules.
+- `lines-of-code` - count effective LOC.
+- `list-cwd-files` - list all source code files in CWD
 
-| Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
-|------|-------|--------------|------|----|
-| Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
-| Find unused files | 588 | knip | 6346 | 11x |
-| Find unused node modules | 594 | knip | 6230 | 10x |
-| Find missing node modules | 553 | knip| 6226 | 11x |
-| List all files imported by an entry point | 229 | madge | 4467 | 20x | 
-| Discover entry points | 323 | madge | 67000 | 207x
-| Resolve dependency path between files | 228 | please suggest | 
-| Count lines of code | 342 | please suggest | 
-| Check node_modules disk usage | 1619 | please suggest | 
-| Analyze node_modules directory sizes | 521 | please suggest | 
+## **Installation 📦**
 
->Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
+**Install locally to set up project check scripts**
 
-# **Key Features 🚀**
+```
+yarn add -D rev-dep
+```
 
-* 🔍 **Reverse dependency lookup** — see all entry points that require a given file
-* 🗂️ **Entry point discovery**
-* 🧹 **Dead file detection**
-* 📦 **Unused / missing / used node modules / dependencies analysis**
-* 🔄 **Circular imports/dependencies detection**
-* 🧭 **Trace all import paths between files**
-* 📁 **List all files imported by any entry point**
-* 📏 **Count actual lines of code (excluding comments and blanks)**
-* 💽 **Node modules disk usage & size analysis**
-* 💡 **Works with both JavaScript and TypeScript**
-* ⚡ **Built for large codebases and monorepos**
-* 🏗️ **Supports TypeScript path aliases and package.json imports and exports map**
+```
+npm install -D rev-dep
+```
 
-# **Installation 📦**
+```
+pnpm add -D rev-dep
+```
 
-Install globally to use as a CLI tool:
+Create config file for a quick start:
+
+```
+npx rev-dep config init
+```
+
+**Install globally to use as a CLI tool:**
 
 ```
 yarn global add rev-dep
@@ -110,8 +125,7 @@ npm install -g rev-dep
 pnpm global add rev-dep
 ```
 
-
-# **Quick Examples ⚡**
+## **Quick Examples 💡**
 
 A few instant-use examples to get a feel for the tool:
 
@@ -136,10 +150,274 @@ rev-dep resolve --file src/utils/math.ts --entry-point src/index.ts
 
 ```
 
-# **Practical Examples 🔧**
+## Config-Based Checks 🛡️
 
+Rev-dep provides a configuration system for orchestrating project checks. The config approach is **designed for speed** and is the **preferred way** of implementing project checks because it can execute all checks in a single pass, significantly faster than multiple running individual commands separately.
 
-Practical examples show how to use rev-dep commands to build code quality checks for your project.
+Available checks are:
+
+- `moduleBoundaries` - enforce architecture boundaries between modules.
+- `importConventions` - enforce import style conventions (offers autofix).
+- `unusedExportsDetection` - detect exports that are never used (offers autofix).
+- `orphanFilesDetection` - detect dead/orphan files (offers autofix).
+- `unusedNodeModulesDetection` - detect dependencies declared but not used.
+- `missingNodeModulesDetection` - detect imports missing from package json.
+- `unresolvedImportsDetection` - detect unresolved import requests.
+- `circularImportsDetection` - detect circular imports.
+
+Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
+
+### Getting Started
+
+Initialize a configuration file in your project:
+
+```bash
+# Create a default configuration file
+rev-dep config init
+```
+
+Behavior of `rev-dep config init`:
+
+- Monorepo root: Running `rev-dep config init` at the workspace root creates a root rule and a rule for each discovered workspace package.
+- Monorepo workspace package or regular projects: Running `rev-dep config init` inside a directory creates config with a single rule with `path: "."` for this directory.
+
+Run all configured checks (dry run, not fixes applied yet):
+
+```bash
+# Execute all rules and checks defined in the config
+rev-dep config run
+```
+
+List all detected issues:
+```bash
+# Lists all detected issues, by default lists first five issues for each check
+rev-dep config run --list-all-issues
+```
+
+Fix all fixable checks: 
+
+```bash
+# Fix checks configured with autofix
+rev-dep config run --fix
+```
+
+### Configuration Structure
+
+The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) allows you to define multiple rules, each targeting different parts of your codebase with specific checks enabled.
+
+#### Quick Start Configuration
+
+```jsonc
+{
+  "configVersion": "1.3",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.3.schema.json?raw=true",
+  "rules": [
+    {
+      "path": ".",
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true,
+        "validEntryPoints": ["src/index.ts" ]
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "autofix": true,
+        "validEntryPoints": ["src/index.ts"] 
+      },
+      "unusedNodeModulesDetection": { 
+        "enabled": true 
+      },
+      "circularImportsDetection": { 
+        "enabled": true 
+      },
+    }
+  ]
+}
+```
+
+#### Comprehensive Config Example
+
+Here's a comprehensive example showing all available properties:
+
+```jsonc
+{
+  "configVersion": "1.3",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.3.schema.json?raw=true", // enables json autocompletion
+  "conditionNames": ["import", "default"],
+  "ignoreFiles": ["**/*.test.*"],
+  "rules": [
+    {
+      "path": ".",
+      "followMonorepoPackages": true,
+      "moduleBoundaries": [
+        {
+          "name": "ui-components",
+          "pattern": "src/components/**/*",
+          "allow": ["src/utils/**/*", "src/types/**/*"],
+          "deny": ["src/api/**/*"]
+        },
+        {
+          "name": "api-layer",
+          "pattern": "src/api/**/*",
+          "allow": ["src/utils/**/*", "src/types/**/*"],
+          "deny": ["src/components/**/*"]
+        }
+      ],
+      "importConventions": [
+        {
+          "rule": "relative-internal-absolute-external",
+          "autofix": true,
+          "domains": [
+            {
+              "path": "src/features/auth",
+              "alias": "@auth",
+              "enabled": true
+            },
+            {
+              "path": "src/shared/ui",
+              "alias": "@ui-kit",
+              "enabled": false // checks disabled for this domain, but alias is still used for absolute imports from other domains
+            }
+          ]
+        }
+      ],
+      "circularImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "validEntryPoints": ["src/index.ts", "src/app.ts"],
+        "ignoreTypeImports": true,
+        "graphExclude": ["**/*.test.*", "**/stories/**/*"],
+        "autofix": true
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["@myorg/**"],
+        "excludeModules": ["@types/**"],
+        "pkgJsonFieldsWithBinaries": ["scripts", "bin"],
+        "filesWithBinaries": ["scripts/check-something.sh"],
+        "filesWithModules": [".storybook/main.ts"],
+        "outputType": "groupByModule"
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["lodash", "axios"],
+        "excludeModules": ["@types/**"],
+        "outputType": "groupByFile"
+      },
+      "unusedExportsDetection": {
+        "enabled": true,
+        "validEntryPoints": ["src/index.ts"],
+        "ignoreTypeExports": true,
+        "graphExclude": ["**/*.stories.tsx"],
+        "autofix": true
+      },
+      "unresolvedImportsDetection": {
+        "enabled": true,
+        "ignore": {
+          "src/index.ts": "legacy-unresolved-module"
+        },
+        "ignoreFiles": ["**/*.generated.ts"],
+        "ignoreImports": ["@internal/dev-only"]
+      }
+    }
+  ]
+}
+```
+
+### Available Properties
+
+#### Root Level Properties
+- **`configVersion`** (required): Configuration version string
+- **`$schema`** (optional): JSON schema reference for validation
+- **`conditionNames`** (optional): Array of condition names for exports resolution
+- **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
+- **`rules`** (required): Array of rule objects
+
+#### Rule Properties
+Each rule can contain the following properties:
+
+- **`path`** (required): Target directory path for this rule (either `.` or path starting with sub directory name)
+- **`followMonorepoPackages`** (optional): Enable monorepo package resolution (default: true)
+- **`moduleBoundaries`** (optional): Array of module boundary rules
+- **`circularImportsDetection`** (optional): Circular import detection configuration
+- **`orphanFilesDetection`** (optional): Orphan files detection configuration  
+- **`unusedNodeModulesDetection`** (optional): Unused node modules detection configuration
+- **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration
+- **`unusedExportsDetection`** (optional): Unused exports detection configuration
+- **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration
+- **`importConventions`** (optional): Array of import convention rules
+
+#### Module Boundary Properties
+- **`name`** (required): Name of the boundary
+- **`pattern`** (required): Glob pattern for files in this boundary
+- **`allow`** (optional): Array of allowed import patterns
+- **`deny`** (optional): Array of denied import patterns (overrides allow)
+
+#### Import Convention Properties
+- **`rule`** (required): Type of the rule, currently only `relative-internal-absolute-external`
+- **`autofix`** (optional): Whether to automatically fix import convention violations (default: false)
+- **`domains`** (required): Array of domain definitions. Can be a string (glob pattern) or an object with:
+  - **`path`** (required): Directory with the domain files
+  - **`alias`** (optional): Alias to be used for absolute imports of code from this domain
+  - **`enabled`** (optional): Set to `false` to skip checks for this domain (default: true)
+
+#### Detection Options Properties
+
+**CircularImportsDetection:**
+- **`enabled`** (required): Enable/disable circular import detection
+- **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
+
+**OrphanFilesDetection:**
+- **`enabled`** (required): Enable/disable orphan files detection
+- **`validEntryPoints`** (optional): Array of valid entry point patterns (eg. ["src/index.ts", "src/main.ts"])
+- **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
+- **`graphExclude`** (optional): File patterns to exclude from graph analysis
+- **`autofix`** (optional): Delete detected orphan files automatically when running `rev-dep config run --fix` (default: false)
+
+**UnusedNodeModulesDetection:**
+- **`enabled`** (required): Enable/disable unused modules detection
+- **`includeModules`** (optional): Module patterns to include in analysis
+- **`excludeModules`** (optional): Module patterns to exclude from analysis
+- **`pkgJsonFieldsWithBinaries`** (optional): Package.json fields containing binary references (eg. lint-staged). Performs plain-text lookup
+- **`filesWithBinaries`** (optional): File patterns to search for binary usage. Performs plain-text lookup
+- **`filesWithModules`** (optional): Non JS/TS file patterns to search for module imports (eg. shell scripts). Performs plain-text lookup
+- **`outputType`** (optional): Output format - "list", "groupByModule", "groupByFile"
+
+**MissingNodeModulesDetection:**
+- **`enabled`** (required): Enable/disable missing modules detection
+- **`includeModules`** (optional): Module patterns to include in analysis
+- **`excludeModules`** (optional): Module patterns to exclude from analysis
+- **`outputType`** (optional): Output format - "list", "groupByModule", "groupByFile", "groupByModuleFilesCount"
+
+**UnusedExportsDetection:**
+- **`enabled`** (required): Enable/disable unused exports detection
+- **`validEntryPoints`** (optional): Glob patterns for files whose exports are never reported as unused (eg. ["index.ts", "src/public-api.ts"])
+- **`ignoreTypeExports`** (optional): Skip `export type` / `export interface` from analysis (default: false)
+- **`graphExclude`** (optional): File patterns to exclude from unused exports analysis
+
+**UnresolvedImportsDetection:**
+- **`enabled`** (required): Enable/disable unresolved imports detection
+- **`ignore`** (optional): Map of file path (relative to rule path directory) to exact import request to suppress
+- **`ignoreFiles`** (optional): File path globs; all unresolved imports from matching files are suppressed
+- **`ignoreImports`** (optional): Import requests to suppress globally in unresolved results
+
+### Performance Benefits
+
+The configuration approach provides significant performance advantages:
+
+- **Single Dependency Tree Build**: Builds one comprehensive dependency tree for all rules
+- **Parallel Rule Execution**: Processes multiple rules simultaneously
+- **Parallel Check Execution**: Runs all enabled checks within each rule in parallel
+- **Optimized File Discovery**: Discovers files once and reuses across all checks
+
+This makes config-based checks faster than running individual commands sequentially, especially for large codebases with multiple sub packages.
+
+## **Exploratory Toolkit 🔧**
+
+Practical examples show how to use rev-dep CLI commands to explore, debug or build code quality checks for your project.
 
 ### **How to identify where a file is used in the project**
 
@@ -216,8 +494,7 @@ rev-dep node-modules missing
 ```
 rev-dep node-modules dirs-size
 ```
-
-## Working with Monorepo
+## Working with Monorepo 🏗️
 
 Rev-dep provides first-class support for monorepo projects, enabling accurate dependency analysis across workspace packages.
 
@@ -295,293 +572,49 @@ Example package.json with exports:
 4. **Path Resolution**: All paths are resolved relative to their respective package roots, ensuring accurate dependency tracking across the entire monorepo
 
 This makes rev-dep particularly effective for large-scale monorepo projects where understanding cross-package dependencies is crucial for maintaining code quality and architecture.
+## Performance comparison ⚡
 
-## Config-Based Checks
+Rev-dep can perform multiple checks on 500k+ LoC monorepo with several sub-packages in around 500ms.
 
-Rev-dep provides a configuration system for orchestrating project checks. The config approach is **designed for speed** and is the **preferred way** of implementing project checks because it can execute all checks in a single pass, significantly faster than multiple running individual commands separately.
+It outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools.
 
-Available checks are:
+Here is a performance comparison of specific tasks between rev-dep and alternatives:
 
-- **module boundaries** - check if imports respect module boundaries
-- **import conventions** - enforce syntactic consistency for imports (includes autofix capability)
-- **circular imports** - check if there are circular imports
-- **orphan files** - check if there are orphan/dead files
-- **unused node modules** - check against unused node modules
-- **missing node modules** - check against missing node modules
+| Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
+|------|-------|--------------|------|----|
+| Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
+| Find unused files | 588 | knip | 6346 | 11x |
+| Find unused node modules | 594 | knip | 6230 | 10x |
+| Find missing node modules | 553 | knip| 6226 | 11x |
+| List all files imported by an entry point | 229 | madge | 4467 | 20x | 
+| Discover entry points | 323 | madge | 67000 | 207x
+| Resolve dependency path between files | 228 | please suggest | 
+| Count lines of code | 342 | please suggest | 
+| Check node_modules disk usage | 1619 | please suggest | 
+| Analyze node_modules directory sizes | 521 | please suggest | 
 
-Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
+>Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
 
-### Getting Started
+### Circular check performance comparison
 
-Initialize a configuration file in your project:
+Benchmark performed on TypeScript codebase with `6034` source code files and `518862` lines of code.
 
-```bash
-# Create a default configuration file
-rev-dep config init
-```
+Benchmark performed on MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of Storage. Power save mode off.
 
-Behavior of `rev-dep config init`:
+Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, taking mean time values as a result. If single run was taking more than 10s, only 1 run was performed.
 
-- Monorepo root: Running `rev-dep config init` at the workspace root creates a root rule and a rule for each discovered workspace package.
-- Monorepo workspace package or regular projects: Running `rev-dep config init` inside a directory creates config with a single rule with `path: "."` for this directory.
+`rev-dep` circular check is **12 times** faster than the fastest alternative❗
 
-Run all configured checks:
-
-```bash
-# Execute all rules and checks defined in the config
-rev-dep config run
-```
-
-List all detected issues:
-```bash
-# Lists all detected issues, by default lists first five issues for each check
-rev-dep config run --list-all-issues
-```
-
-Fix all fixable checks: 
-
-```bash
-# Fix checks configured with autofix
-rev-dep config run --fix
-```
-
-### Configuration Structure
-
-The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) allows you to define multiple rules, each targeting different parts of your codebase with specific checks enabled.
-
-Here's a comprehensive example showing all available properties:
-
-```jsonc
-{
-  "configVersion": "1.2",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.2.schema.json?raw=true", // enables json autocompletion
-  "conditionNames": ["import", "default"],
-  "ignoreFiles": ["**/*.test.*"],
-  "rules": [
-    {
-      "path": ".",
-      "followMonorepoPackages": true,
-      "moduleBoundaries": [
-        {
-          "name": "ui-components",
-          "pattern": "src/components/**/*",
-          "allow": ["src/utils/**/*", "src/types/**/*"],
-          "deny": ["src/api/**/*"]
-        },
-        {
-          "name": "api-layer",
-          "pattern": "src/api/**/*",
-          "allow": ["src/utils/**/*", "src/types/**/*"],
-          "deny": ["src/components/**/*"]
-        }
-      ],
-      "importConventions": [
-        {
-          "rule": "relative-internal-absolute-external",
-          "autofix": true,
-          "domains": [
-            {
-              "path": "src/features/auth",
-              "alias": "@auth",
-              "enabled": true
-            },
-            {
-              "path": "src/shared/ui",
-              "alias": "@ui-kit",
-              "enabled": false // checks disabled for this domain, but alias is still used for absolute imports from other domains
-            }
-          ]
-        }
-      ],
-      "circularImportsDetection": {
-        "enabled": true,
-        "ignoreTypeImports": true
-      },
-      "orphanFilesDetection": {
-        "enabled": true,
-        "validEntryPoints": ["src/index.ts", "src/app.ts"],
-        "ignoreTypeImports": true,
-        "graphExclude": ["**/*.test.*", "**/stories/**/*"]
-      },
-      "unusedNodeModulesDetection": {
-        "enabled": true,
-        "includeModules": ["@myorg/**"],
-        "excludeModules": ["@types/**"],
-        "pkgJsonFieldsWithBinaries": ["scripts", "bin"],
-        "filesWithBinaries": ["scripts/check-something.sh"],
-        "filesWithModules": [".storybook/main.ts"],
-        "outputType": "groupByModule"
-      },
-      "missingNodeModulesDetection": {
-        "enabled": true,
-        "includeModules": ["lodash", "axios"],
-        "excludeModules": ["@types/**"],
-        "outputType": "groupByFile"
-      }
-    }
-  ]
-}
-```
-
-### Available Properties
-
-#### Root Level Properties
-- **`configVersion`** (required): Configuration version string
-- **`$schema`** (optional): JSON schema reference for validation
-- **`conditionNames`** (optional): Array of condition names for exports resolution
-- **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
-- **`rules`** (required): Array of rule objects
-
-#### Rule Properties
-Each rule can contain the following properties:
-
-- **`path`** (required): Target directory path for this rule (either `.` or path starting with sub directory name)
-- **`followMonorepoPackages`** (optional): Enable monorepo package resolution (default: true)
-- **`moduleBoundaries`** (optional): Array of module boundary rules
-- **`circularImportsDetection`** (optional): Circular import detection configuration
-- **`orphanFilesDetection`** (optional): Orphan files detection configuration  
-- **`unusedNodeModulesDetection`** (optional): Unused node modules detection configuration
-- **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration
-- **`importConventions`** (optional): Array of import convention rules
-
-#### Module Boundary Properties
-- **`name`** (required): Name of the boundary
-- **`pattern`** (required): Glob pattern for files in this boundary
-- **`allow`** (optional): Array of allowed import patterns
-- **`deny`** (optional): Array of denied import patterns (overrides allow)
-
-#### Import Convention Properties
-- **`rule`** (required): Type of the rule, currently only `relative-internal-absolute-external`
-- **`autofix`** (optional): Whether to automatically fix import convention violations (default: false)
-- **`domains`** (required): Array of domain definitions. Can be a string (glob pattern) or an object with:
-  - **`path`** (required): Directory with the domain files
-  - **`alias`** (optional): Alias to be used for absolute imports of code from this domain
-  - **`enabled`** (optional): Set to `false` to skip checks for this domain (default: true)
-
-#### Detection Options Properties
-
-**CircularImportsDetection:**
-- **`enabled`** (required): Enable/disable circular import detection
-- **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
-
-**OrphanFilesDetection:**
-- **`enabled`** (required): Enable/disable orphan files detection
-- **`validEntryPoints`** (optional): Array of valid entry point patterns (eg. ["src/index.ts", "src/main.ts"])
-- **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
-- **`graphExclude`** (optional): File patterns to exclude from graph analysis
-
-**UnusedNodeModulesDetection:**
-- **`enabled`** (required): Enable/disable unused modules detection
-- **`includeModules`** (optional): Module patterns to include in analysis
-- **`excludeModules`** (optional): Module patterns to exclude from analysis
-- **`pkgJsonFieldsWithBinaries`** (optional): Package.json fields containing binary references (eg. lint-staged). Performs plain-text lookup
-- **`filesWithBinaries`** (optional): File patterns to search for binary usage. Performs plain-text lookup
-- **`filesWithModules`** (optional): Non JS/TS file patterns to search for module imports (eg. shell scripts). Performs plain-text lookup
-- **`outputType`** (optional): Output format - "list", "groupByModule", "groupByFile"
-
-**MissingNodeModulesDetection:**
-- **`enabled`** (required): Enable/disable missing modules detection
-- **`includeModules`** (optional): Module patterns to include in analysis
-- **`excludeModules`** (optional): Module patterns to exclude from analysis
-- **`outputType`** (optional): Output format - "list", "groupByModule", "groupByFile"
-
-### Performance Benefits
-
-The configuration approach provides significant performance advantages:
-
-- **Single Dependency Tree Build**: Builds one comprehensive dependency tree for all rules
-- **Parallel Rule Execution**: Processes multiple rules simultaneously
-- **Parallel Check Execution**: Runs all enabled checks within each rule in parallel
-- **Optimized File Discovery**: Discovers files once and reuses across all checks
-
-This makes config-based checks faster than running individual commands sequentially, especially for large codebases with multiple sub packages.
+| Tool | Version | Command to Run Circular Check | Time |
+|------|---------|-------------------------------|------|
+| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 2.0.0 | `rev-dep circular` | 397 ms |
+| 🥈 [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-progress  --no-warning` + list of directories with source code  | 4960 ms |
+| 🥉 [dpdm](https://github.com/acrazing/dpdm) | 3.14.0 | `dpdm  --no-warning` + list of directories with source code | 5030 ms |
+| [skott](https://github.com/antoine-coulon/skott) | 0.35.6 | node script using skott `findCircularDependencies` function  | 29575 ms |
+| [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions js,ts,jsx,tsx .` | 69328 ms |
+| [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
 
 
-
-## Reimplemented to achieve 7x-37x speedup
-
-Rev-dep@2.0.0 was reimplemented in Go from scratch to leverage it's concurrency features and better memory management of compiled languages.
-
-As a result v2 is up to 37x faster than v1 and consumes up to 13x less memory.
-
-### Performance comparison
-
-To compare performance rev-dep was benchmarked with hyperfine using 8 runs per test, taking mean time values as a result.
-Benchmark was run on TypeScript codebase with 507658 lines of code and 5977 source code files.
-
-Memory usage on Mac was measure using `/usr/bin/time` utility. Memory usage on Linux was not measured because I could't find reliable way to measure RAM usage on Linux. Subsequent runs had too much fluctuation.
-
-### MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of storage. Power save mode off
-
-| Command                                                      | V1 Time | V2 Time | Time Change | V1 RAM | V2 RAM | RAM Change |
-| ------------------------------------------------------------ | ------- | ------- | ----------- | ------ | ------ | ---------- |
-| List entry-points `rev-dep entry-points`                     | 6500ms  | 347ms   | 19x         | ~680MB | ~51MB  | 13x        |
-| List entry-points with dependent files count `-pdc`          | 8333ms  | 782ms   | 11x         | ~885MB | ~110MB | 8x         |
-| List entry-point files `rev-dep files`                       | 2729ms  | 400ms   | 7x          | ~330MB | ~36MB  | 9x         |
-| Resolve dependency path `rev-dep resolve`                    | 2984ms  | 359ms   | 8x          | ~330MB | ~35MB  | 9x         |
-
-### WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
-
-| Command                                                                 | V1 Time | V2 Time | Time Change |
-| ----------------------------------------------------------------------- | ------- | ------- | ----------- |
-| List entry-points `rev-dep entry-points`                                | 9904ms  | 270ms   | 37x         |
-| List entry-points with dependent files count `--print-deps-count`       | 10562ms | 458ms   | 23x         |
-| List entry-point files `rev-dep files`                                  | 3097ms  | 230ms   | 13x         |
-| Resolve dependency path `rev-dep resolve`                               | 3146ms  | 230ms   | 14x         |
-
-### New features
-
-V2 comes with bunch of new commands
-
-- `circular` - detects circular dependencies in the project
-- `lines-of-code` - counts actual lines of code in the project excluding comments and blank lines
-- `list-cwd-files` - lists all files in the current working directory
-- `node-modules used` - lists all used node modules
-- `node-modules unused` - lists all unused node modules
-- `node-modules missing` - lists all missing node modules
-- `node-modules installed` - lists all installed node modules
-- `node-modules installed-duplicates` - lists all installed node modules that exist in file system with the same version multiple times
-- `node-modules analyze-size` - analyzes size of specific node modules and helps to identify space-hogging dependencies
-- `node-modules dirs-size` - calculates cumulative files size in node_modules directories
-
-### ⚠️ What's not supported
-
-Comparing to previous versions, these tsconfig features are not supported
-
-#### Multiple path aliases
-
-Only first path will be used in resolution.
-
-```json
-// tsconfig.json
-{
-  "paths": {
-    "@/components": ["src/components/*", "src/components2/*"]
-  }
-}
-```
-
-Imports that should resolve to `src/components2/*` will be considered unresolved.
-
-Why it's not supported? I consider this typescript capability as an anti-pattern. It introduces unnecessary ambiguity in module resolution.
-Implementing this would make code more complex, less maintainable and slower.
-
-#### Using rev-dep as node module
-
-Importing rev-dep in JS/TS is no longer supported. Preferred way is to run rev-dep using child process. 
-
-#### Other discrepancies
-
-Any other discrepancies between TypeScript module resolution and rev-dep should be considered as a bug.
-
-### Supported Platforms
-
-- Linux x64
-- MacOS Apple Silicon
-- Windows x64
-
-Go allows for cross-compiling, so I'm happy to build and distribute binaries for other platforms as well.
-Feel free to open an issue if you need support for another platform.
 
 ## CLI reference 📖
 
@@ -1121,26 +1154,8 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
 
 <!-- cli-docs-end -->
 
-## Circular check performance comparison
 
-Benchmark performed on TypeScript codebase with `6034` source code files and `518862` lines of code.
-
-Benchmark performed on MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of Storage. Power save mode off.
-
-Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, taking mean time values as a result. If single run was taking more than 10s, only 1 run was performed.
-
-`rev-dep` circular check is **12 times** faster than the fastest alternative❗
-
-| Tool | Version | Command to Run Circular Check | Time |
-|------|---------|-------------------------------|------|
-| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 2.0.0 | `rev-dep circular` | 397 ms |
-| 🥈 [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-progress  --no-warning` + list of directories with source code  | 4960 ms |
-| 🥉 [dpdm](https://github.com/acrazing/dpdm) | 3.14.0 | `dpdm  --no-warning` + list of directories with source code | 5030 ms |
-| [skott](https://github.com/antoine-coulon/skott) | 0.35.6 | node script using skott `findCircularDependencies` function  | 29575 ms |
-| [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions js,ts,jsx,tsx .` | 69328 ms |
-| [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
-
-## Glossary
+## Glossary 📚
 
 Some of the terms used in the problem space that **rev-dep** covers can be confusing.
 Here is a small glossary to help you navigate the concepts.

@@ -1,0 +1,13 @@
+
+📁 Rule: . (10 files)
+  ❌ Unused Exports Issues (10):
+    src/A.ts
+     - Export1
+     - Export2
+     - Export3
+    src/B.ts
+     - Export1
+     - Export2
+    ... and 5 more unused export issues
+
+❌ Checks failed! See details above.

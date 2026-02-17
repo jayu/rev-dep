@@ -1,0 +1,13 @@
+
+📁 Rule: . (10 files)
+  ❌ Unused Exports Issues (5):
+    src/api/client.ts
+     - fetchData
+    src/components/Button.tsx
+     - Button
+     - ButtonProps (type)
+    src/utils/helpers.ts
+     - formatDate
+     - parseDate
+
+❌ Checks failed! See details above.

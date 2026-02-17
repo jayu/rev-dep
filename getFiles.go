@@ -106,36 +106,38 @@ func GetFiles(directory string, existingFiles []string, parentGlobMatchers []Glo
 	return existingFiles
 }
 
-func GetMissingFile(modulePath string) string {
-	// modulePath can point to directory -> we have to look for index file
-	// or to file without extension -> we have to check all files in directory
-	// dirName := filepath.Dir(modulePath)
-
-	// First we check for file with possible extensions
-	for ext := range allowedExts {
-		filePath := modulePath
-
-		// filePath might be the exact path already
-		if !strings.HasSuffix(modulePath, ext) {
-			filePath = modulePath + ext
-		}
-
-		// modulePath may be internal (forward slashes) or OS-native; try denormalized form for FS checks
-		filePathOs := DenormalizePathForOS(filePath)
-		info, err := os.Stat(filePathOs)
-		if err == nil && !info.IsDir() {
-			return NormalizePathForInternal(filePath)
-		}
+func GetMissingFile(modulePath string, moduleSuffixes []string) string {
+	if len(moduleSuffixes) == 0 {
+		moduleSuffixes = []string{""}
 	}
 
-	// Then we check for directory with index.ts file, it has lower precedence if both exists
-	for ext := range allowedExts {
-		// check directory index; normalize to OS path for Stat
-		filePath := modulePath + "/index" + ext
-		filePathOs := DenormalizePathForOS(filePath)
-		info, err := os.Stat(filePathOs)
-		if err == nil && !info.IsDir() {
-			return NormalizePathForInternal(filePath)
+	for _, suffix := range moduleSuffixes {
+		// First we check for file with possible extensions and this suffix
+		for ext := range allowedExts {
+			filePath := modulePath + suffix
+
+			// filePath might be the exact path already
+			if !strings.HasSuffix(filePath, ext) {
+				filePath = filePath + ext
+			}
+
+			// modulePath may be internal (forward slashes) or OS-native; try denormalized form for FS checks
+			filePathOs := DenormalizePathForOS(filePath)
+			info, err := os.Stat(filePathOs)
+			if err == nil && !info.IsDir() {
+				return NormalizePathForInternal(filePath)
+			}
+		}
+
+		// Then we check for directory with index file and this suffix
+		for ext := range allowedExts {
+			// check directory index; normalize to OS path for Stat
+			filePath := modulePath + "/index" + suffix + ext
+			filePathOs := DenormalizePathForOS(filePath)
+			info, err := os.Stat(filePathOs)
+			if err == nil && !info.IsDir() {
+				return NormalizePathForInternal(filePath)
+			}
 		}
 	}
 

@@ -24,11 +24,15 @@ var browserCmd = &cobra.Command{
 of your project's dependency graph.`,
 	Example: "rev-dep browser --entry-point src/index.ts",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		cwd := ResolveAbsoluteCwd(browserCwd)
 		absolutePathToEntryPoint := JoinWithCwd(cwd, browserEntryPoint)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, browserIgnoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, browserIgnoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue)
 
 		StartServer(minimalTree, absolutePathToEntryPoint, cwd)
 		return nil
@@ -36,11 +40,11 @@ of your project's dependency graph.`,
 }
 
 type MinimalDependencyWithLabels struct {
-	ID                *string            `json:"id"`
+	ID                string             `json:"id"`
 	Request           string             `json:"request"`
 	ResolvedType      ResolvedImportType `json:"resolvedType"`
 	ResolvedTypeLabel string             `json:"resolvedTypeLabel"`
-	ImportKind        *ImportKind        `json:"importKind"`
+	ImportKind        ImportKind         `json:"importKind"`
 	ImportKindLabel   string             `json:"importKindLabel"`
 }
 
@@ -55,11 +59,15 @@ var debugParseFileCmd = &cobra.Command{
 	Short: "Debug: Show parsed imports for a single file",
 	Long:  `Development tool to inspect how the parser processes a specific file.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		cwd := ResolveAbsoluteCwd(debugFileCwd)
 		path := JoinWithCwd(cwd, debugFile)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{path}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{path}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue)
 
 		fmt.Println(path)
 
@@ -71,9 +79,7 @@ var debugParseFileCmd = &cobra.Command{
 				ResolvedType:      dep.ResolvedType,
 				ResolvedTypeLabel: ResolvedImportTypeToString(dep.ResolvedType),
 				ImportKind:        dep.ImportKind,
-			}
-			if dep.ImportKind != nil {
-				depWithLabels.ImportKindLabel = ImportKindToString(*dep.ImportKind)
+				ImportKindLabel:   ImportKindToString(dep.ImportKind),
 			}
 			jsonDep, err := json.MarshalIndent(depWithLabels, "  ", "  ")
 			if err == nil {
@@ -98,10 +104,14 @@ var debugGetTreeCmd = &cobra.Command{
 	Short: "Debug: Show complete dependency tree for analysis",
 	Long:  `Development tool to inspect the complete dependency tree.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
 		cwd := ResolveAbsoluteCwd(debugTreeCwd)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+		minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue)
 
 		treeWithLabels := make(map[string][]MinimalDependencyWithLabels)
 		for key, deps := range minimalTree {
@@ -113,9 +123,7 @@ var debugGetTreeCmd = &cobra.Command{
 					ResolvedType:      dep.ResolvedType,
 					ResolvedTypeLabel: ResolvedImportTypeToString(dep.ResolvedType),
 					ImportKind:        dep.ImportKind,
-				}
-				if dep.ImportKind != nil {
-					dwl.ImportKindLabel = ImportKindToString(*dep.ImportKind)
+					ImportKindLabel:   ImportKindToString(dep.ImportKind),
 				}
 				depsWithLabels = append(depsWithLabels, dwl)
 			}

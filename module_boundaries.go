@@ -53,8 +53,8 @@ func CheckModuleBoundariesFromTree(
 				}
 
 				for _, dep := range fileDeps {
-					if dep.ID != nil && (dep.ResolvedType == UserModule || dep.ResolvedType == MonorepoModule) {
-						resolvedPath := *dep.ID
+					if dep.ID != "" && (dep.ResolvedType == UserModule || dep.ResolvedType == MonorepoModule) {
+						resolvedPath := dep.ID
 
 						// Check if denied
 						if len(boundary.DenyMatchers) > 0 && MatchesAnyGlobMatcher(resolvedPath, boundary.DenyMatchers, false) {

@@ -40,9 +40,13 @@ type RuleResult struct {
 	ModuleBoundaryViolations                        []ModuleBoundaryViolation
 	CircularDependencies                            [][]string
 	OrphanFiles                                     []string
-	UnusedNodeModules                               []string
 	MissingNodeModules                              []MissingNodeModuleResult
+	MissingNodeModulesOutputType                    string
+	UnusedNodeModules                               []string
+	UnusedNodeModulesOutputType                     string
 	ImportConventionViolations                      []ImportConventionViolation
+	UnusedExports                                   []UnusedExport
+	UnresolvedImports                               []UnresolvedImport
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
 }
@@ -53,6 +57,7 @@ type ConfigProcessingResult struct {
 	HasFailures            bool
 	FixedFilesCount        int
 	FixedImportsCount      int
+	DeletedFilesCount      int
 	UnfixableAliasingCount int
 	FixableIssuesCount     int
 }
@@ -75,6 +80,15 @@ func discoverAllFilesForConfig(
 	return files, combinedMatchers, nil
 }
 
+func anyRuleChecksForUnusedExports(config *RevDepConfig) bool {
+	for _, rule := range config.Rules {
+		if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
 // buildDependencyTreeForConfig builds dependency tree for config processing
 func buildDependencyTreeForConfig(
 	allFiles []string,
@@ -83,18 +97,19 @@ func buildDependencyTreeForConfig(
 	cwd string,
 	packageJson string,
 	tsconfigJson string,
+	parseMode ParseMode,
 ) (MinimalDependencyTree, *ResolverManager, error) {
 	// For config processing, we always resolve type imports (we filter later per-check)
 	ignoreTypeImports := false
 
 	// We always follow monorepo packages for comprehensive analysis
-	followMonorepoPackages := true
+	followMonorepoPackages := FollowMonorepoPackagesValue{FollowAll: true}
 
 	// Skip resolving missing files for performance
 	skipResolveMissing := false
 
 	// Parse imports from all files
-	fileImportsArr, _ := ParseImportsFromFiles(allFiles, ignoreTypeImports)
+	fileImportsArr, _ := ParseImportsFromFiles(allFiles, ignoreTypeImports, parseMode)
 
 	slices.Sort(allFiles)
 
@@ -110,6 +125,8 @@ func buildDependencyTreeForConfig(
 		excludePatterns,
 		conditionNames,
 		followMonorepoPackages,
+		parseMode,
+		NodeModulesMatchingStrategySelfResolver,
 	)
 
 	// Transform to minimal dependency tree
@@ -122,20 +139,26 @@ func filterFilesForRule(
 	fullTree MinimalDependencyTree,
 	rulePath string,
 	cwd string,
-	followMonorepoPackages bool,
+	followMonorepoPackages FollowMonorepoPackagesValue,
+	resolverManager *ResolverManager,
 ) ([]string, MinimalDependencyTree) {
-	normalizedRulePath := normalizeRulePath(filepath.Join(cwd, rulePath))
+	normalizedRulePath := NormalizePathForInternal(filepath.Clean(JoinWithCwd(cwd, rulePath)))
+	normalizedRulePathWithSlash := StandardiseDirPathInternal(normalizedRulePath)
+	isRuleFile := func(filePath string) bool {
+		normalizedFilePath := NormalizePathForInternal(filePath)
+		return strings.HasPrefix(normalizedFilePath, normalizedRulePathWithSlash)
+	}
 
 	filesWithinCwd := []string{}
 	subTree := MinimalDependencyTree{}
 
 	for file := range fullTree {
-		if strings.HasPrefix(file, normalizedRulePath) {
+		if isRuleFile(file) {
 			filesWithinCwd = append(filesWithinCwd, file)
 		}
 	}
 
-	if !followMonorepoPackages {
+	if !followMonorepoPackages.IsEnabled() {
 		for _, file := range filesWithinCwd {
 			subTree[file] = fullTree[file]
 		}
@@ -146,9 +169,33 @@ func filterFilesForRule(
 	// Build graph to trace dependencies from other packages
 	graph := buildDepsGraphForMultiple(fullTree, filesWithinCwd, nil, false)
 
+	allowedPackagePathPrefixes := map[string]bool{}
+	if !followMonorepoPackages.ShouldFollowAll() && resolverManager != nil && resolverManager.monorepoContext != nil {
+		for packageName, packagePath := range resolverManager.monorepoContext.PackageToPath {
+			if !followMonorepoPackages.ShouldFollowPackage(packageName) {
+				continue
+			}
+
+			normalizedPackagePath := NormalizePathForInternal(packagePath)
+			allowedPackagePathPrefixes[StandardiseDirPathInternal(normalizedPackagePath)] = true
+		}
+	}
+
 	filteredFiles := make([]string, 0, len(graph.Vertices))
 
 	for vertex := range graph.Vertices {
+		if !followMonorepoPackages.ShouldFollowAll() && !isRuleFile(vertex) {
+			isInAllowedWorkspacePackage := false
+			for packagePathPrefix := range allowedPackagePathPrefixes {
+				if strings.HasPrefix(vertex, packagePathPrefix) {
+					isInAllowedWorkspacePackage = true
+					break
+				}
+			}
+			if !isInAllowedWorkspacePackage {
+				continue
+			}
+		}
 		filteredFiles = append(filteredFiles, vertex)
 		subTree[vertex] = fullTree[vertex]
 	}
@@ -185,6 +232,12 @@ func processRuleChecks(
 	if rule.MissingNodeModulesDetection != nil && rule.MissingNodeModulesDetection.Enabled {
 		enabledChecks = append(enabledChecks, "missing-node-modules")
 	}
+	if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+		enabledChecks = append(enabledChecks, "unused-exports")
+	}
+	if rule.UnresolvedImportsDetection != nil && rule.UnresolvedImportsDetection.Enabled {
+		enabledChecks = append(enabledChecks, "unresolved-imports")
+	}
 	if len(rule.ImportConventions) > 0 {
 		enabledChecks = append(enabledChecks, "import-conventions")
 	}
@@ -204,6 +257,10 @@ func processRuleChecks(
 	if rulePathResolver != nil {
 		rulePathNodeModules = rulePathResolver.nodeModules
 	}
+
+	// Detect module-suffix variants to exclude from orphan/unused-exports detection.
+	// Uses per-file resolver lookup so monorepos with package-level moduleSuffixes work.
+	moduleSuffixVariants := DetectModuleSuffixVariants(ruleFiles, resolverManager)
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -242,6 +299,7 @@ func processRuleChecks(
 				rule.OrphanFilesDetection.GraphExclude,
 				rule.OrphanFilesDetection.IgnoreTypeImports,
 				fullRulePath,
+				moduleSuffixVariants,
 			)
 
 			mu.Lock()
@@ -289,6 +347,9 @@ func processRuleChecks(
 
 			mu.Lock()
 			ruleResult.UnusedNodeModules = unusedModules
+			if rule.UnusedNodeModulesDetection.OutputType != "" {
+				ruleResult.UnusedNodeModulesOutputType = rule.UnusedNodeModulesDetection.OutputType
+			}
 			mu.Unlock()
 		}()
 	}
@@ -307,6 +368,9 @@ func processRuleChecks(
 
 			mu.Lock()
 			ruleResult.MissingNodeModules = missingModules
+			if rule.MissingNodeModulesDetection.OutputType != "" {
+				ruleResult.MissingNodeModulesOutputType = rule.MissingNodeModulesDetection.OutputType
+			}
 			mu.Unlock()
 		}()
 	}
@@ -333,6 +397,44 @@ func processRuleChecks(
 		}()
 	}
 
+	// Unused Exports
+	if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			unusedExports := FindUnusedExports(
+				ruleFiles,
+				ruleTree,
+				rule.UnusedExportsDetection.ValidEntryPoints,
+				rule.UnusedExportsDetection.GraphExclude,
+				rule.UnusedExportsDetection.IgnoreTypeExports,
+				fullRulePath,
+				moduleSuffixVariants,
+			)
+
+			mu.Lock()
+			ruleResult.UnusedExports = unusedExports
+			mu.Unlock()
+		}()
+	}
+
+	// Unresolved Imports
+	if rule.UnresolvedImportsDetection != nil && rule.UnresolvedImportsDetection.Enabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// NotResolvedModule might be actually a node module, but defined rule path package (eg apps/main-app) not in just in time package (pacakges/shared)
+			// We are not able to detect that during module resolution for config file, becasue we resolve all modules without knowing which workspace contains app and which contains shared code
+			// During rule evaluation we can assume that package.json in rule path is the one that contains node modules for app build from that rule path
+			unresolved := DetectUnresolvedImports(ruleTree, rulePathNodeModules)
+			unresolved = FilterUnresolvedImports(unresolved, rule.UnresolvedImportsDetection, fullRulePath)
+
+			mu.Lock()
+			ruleResult.UnresolvedImports = unresolved
+			mu.Unlock()
+		}()
+	}
+
 	wg.Wait()
 	return ruleResult
 }
@@ -350,7 +452,13 @@ func ProcessConfig(
 	if err != nil {
 		return nil, err
 	}
+
 	// Step 2: Build dependency tree for config
+	parseMode := ParseModeBasic
+	if anyRuleChecksForUnusedExports(config) {
+		parseMode = ParseModeDetailed
+	}
+
 	fullTree, resolverManager, err := buildDependencyTreeForConfig(
 		allFiles,
 		excludePatterns,
@@ -358,6 +466,7 @@ func ProcessConfig(
 		cwd,
 		packageJson,
 		tsconfigJson,
+		parseMode,
 	)
 	if err != nil {
 		return nil, err
@@ -384,7 +493,7 @@ func ProcessConfig(
 			defer wg.Done()
 
 			// Step 3a: Filter files for this rule
-			ruleFiles, ruleTree := filterFilesForRule(fullTree, currentRule.Path, cwd, currentRule.FollowMonorepoPackages)
+			ruleFiles, ruleTree := filterFilesForRule(fullTree, currentRule.Path, cwd, currentRule.FollowMonorepoPackages, resolverManager)
 
 			// Step 3b: Execute enabled checks in parallel
 			ruleResult := processRuleChecks(
@@ -406,7 +515,9 @@ func ProcessConfig(
 				len(ruleResult.ModuleBoundaryViolations) > 0 ||
 				len(ruleResult.UnusedNodeModules) > 0 ||
 				len(ruleResult.MissingNodeModules) > 0 ||
-				len(ruleResult.ImportConventionViolations) > 0
+				len(ruleResult.ImportConventionViolations) > 0 ||
+				len(ruleResult.UnusedExports) > 0 ||
+				len(ruleResult.UnresolvedImports) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult
@@ -423,13 +534,52 @@ func ProcessConfig(
 	if fix {
 		changesByFile := make(map[string][]Change)
 
-		for _, ruleResult := range result.RuleResults {
+		for i, ruleResult := range result.RuleResults {
+			ruleCfg := config.Rules[i]
+			of := ruleCfg.OrphanFilesDetection
+			isOrphanFixEnabled := of != nil && of.Enabled && of.Autofix
+
+			// Create a set of orphan files to be deleted by this rule to avoid content fixes on them
+			orphanFilesToDelete := make(map[string]bool)
+			if isOrphanFixEnabled {
+				for _, orphan := range ruleResult.OrphanFiles {
+					orphanFilesToDelete[orphan] = true
+				}
+			}
+
+			// Handle import convention and unused exports fixes as before
 			for _, v := range ruleResult.ImportConventionViolations {
+				if orphanFilesToDelete[v.FilePath] {
+					continue
+				}
 				if v.Fix != nil {
 					changesByFile[v.FilePath] = append(changesByFile[v.FilePath], *v.Fix)
 					result.FixedImportsCount++
 				} else if v.ViolationType == "should-be-aliased" {
 					result.UnfixableAliasingCount++
+				}
+			}
+			for _, v := range ruleResult.UnusedExports {
+				if orphanFilesToDelete[v.FilePath] {
+					continue
+				}
+				if v.Fix != nil {
+					changesByFile[v.FilePath] = append(changesByFile[v.FilePath], *v.Fix)
+					result.FixedImportsCount++
+				}
+			}
+
+			// Handle orphan files autofix: delete files when configured
+			if isOrphanFixEnabled {
+				for _, orphan := range ruleResult.OrphanFiles {
+					osPath := DenormalizePathForOS(orphan)
+					if !filepath.IsAbs(osPath) {
+						osPath = filepath.Join(cwd, osPath)
+					}
+					if err := os.Remove(osPath); err != nil {
+						return result, fmt.Errorf("failed to remove orphan file '%s': %w", osPath, err)
+					}
+					result.DeletedFilesCount++
 				}
 			}
 		}
@@ -438,15 +588,26 @@ func ProcessConfig(
 			if err := ApplyFileChanges(changesByFile); err != nil {
 				return result, fmt.Errorf("failed to apply autofixes: %w", err)
 			}
-			result.FixedFilesCount = len(changesByFile)
+			result.FixedFilesCount += len(changesByFile)
 		}
 	} else {
 		fixableIssuesCount := 0
-		for _, ruleResult := range result.RuleResults {
+		for i, ruleResult := range result.RuleResults {
 			for _, v := range ruleResult.ImportConventionViolations {
 				if v.Fix != nil {
 					fixableIssuesCount++
 				}
+			}
+			for _, v := range ruleResult.UnusedExports {
+				if v.Fix != nil {
+					fixableIssuesCount++
+				}
+			}
+
+			// Add orphan files to fixable count if autofix is enabled for this rule
+			rule := config.Rules[i]
+			if rule.OrphanFilesDetection != nil && rule.OrphanFilesDetection.Enabled && rule.OrphanFilesDetection.Autofix {
+				fixableIssuesCount += len(ruleResult.OrphanFiles)
 			}
 		}
 		result.FixableIssuesCount = fixableIssuesCount

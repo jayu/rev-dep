@@ -3,107 +3,97 @@ package main
 import (
 	"bytes"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"gotest.tools/v3/golden"
 )
 
 func TestConfigOutput_Limiting(t *testing.T) {
-	// Create a temporary directory for testing
-	tempDir, err := os.MkdirTemp("", "rev-dep-output-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	// Create a dummy result with 6 orphan files and 6 module boundary violations
+	cwd, _ := os.Getwd()
 
-	// Create a config that will generate many issues
-	configContent := `{
-		"configVersion": "1.2",
-		"rules": [
+	orphanFiles := []string{
+		"src/orphan1.ts",
+		"src/orphan2.ts",
+		"src/orphan3.ts",
+		"src/orphan4.ts",
+		"src/orphan5.ts",
+		"src/orphan6.ts",
+	}
+
+	moduleBoundaryViolations := []ModuleBoundaryViolation{
+		{FilePath: "src/file1.ts", ImportPath: "src/forbidden.ts", RuleName: "rule", ViolationType: "not_allowed"},
+		{FilePath: "src/file2.ts", ImportPath: "src/forbidden.ts", RuleName: "rule", ViolationType: "not_allowed"},
+		{FilePath: "src/file3.ts", ImportPath: "src/forbidden.ts", RuleName: "rule", ViolationType: "not_allowed"},
+		{FilePath: "src/file4.ts", ImportPath: "src/forbidden.ts", RuleName: "rule", ViolationType: "not_allowed"},
+		{FilePath: "src/file5.ts", ImportPath: "src/forbidden.ts", RuleName: "rule", ViolationType: "not_allowed"},
+		{FilePath: "src/file6.ts", ImportPath: "src/forbidden.ts", RuleName: "rule", ViolationType: "not_allowed"},
+	}
+
+	result := &ConfigProcessingResult{
+		HasFailures: true,
+		RuleResults: []RuleResult{
 			{
-				"path": ".",
-				"orphanFilesDetection": {"enabled": true},
-				"moduleBoundaries": [
-					{
-						"name": "test-boundary",
-						"pattern": "src/**/*",
-						"allow": ["src/utils/**/*"]
-					}
-				]
-			}
-		]
-	}`
-
-	configPath := filepath.Join(tempDir, ".rev-dep.config.jsonc")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write config: %v", err)
+				RulePath:                 ".",
+				FileCount:                10,
+				EnabledChecks:            []string{"orphan-files", "module-boundaries"},
+				OrphanFiles:              orphanFiles,
+				ModuleBoundaryViolations: moduleBoundaryViolations,
+			},
+		},
 	}
 
-	// Create multiple files that will generate issues
-	files := []string{
-		"src/file1.ts",
-		"src/file2.ts",
-		"src/file3.ts",
-		"src/file4.ts",
-		"src/file5.ts",
-		"src/file6.ts",
-		"src/file7.ts",
-		"src/file8.ts",
-	}
-
-	for _, file := range files {
-		fullPath := filepath.Join(tempDir, file)
-		dir := filepath.Dir(fullPath)
-		err = os.MkdirAll(dir, 0755)
-		if err != nil {
-			t.Fatalf("Failed to create directory %s: %v", dir, err)
-		}
-
-		// Create files that import from disallowed locations to generate boundary violations
-		content := `import { something } from '../src/boundary/private';`
-		if file == "src/file1.ts" {
-			content = `// This will be an orphan file - no imports or exports`
-		}
-
-		err = os.WriteFile(fullPath, []byte(content), 0644)
-		if err != nil {
-			t.Fatalf("Failed to write file %s: %v", fullPath, err)
-		}
-	}
-
-	// Create boundary directory structure
-	boundaryDir := filepath.Join(tempDir, "src", "boundary")
-	err = os.MkdirAll(boundaryDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create boundary dir: %v", err)
-	}
-
-	privateFile := filepath.Join(boundaryDir, "private.ts")
-	err = os.WriteFile(privateFile, []byte(`export const something = 'test';`), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write private file: %v", err)
-	}
-
-	// Load and process config
-	configs, err := LoadConfig(tempDir)
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
-
-	result, err := ProcessConfig(&configs[0], tempDir, "", "", false)
-	if err != nil {
-		t.Fatalf("Failed to process config: %v", err)
-	}
-
-	// Test output limiting (default behavior)
+	// Capture output with limiting
 	var buf bytes.Buffer
 	originalStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	// Capture output with limiting (listAll = false)
-	formatAndPrintConfigResults(result, tempDir, false)
+	formatAndPrintConfigResults(result, cwd, false)
+
+	w.Close()
+	os.Stdout = originalStdout
+	buf.ReadFrom(r)
+
+	output := buf.String()
+	golden.Assert(t, output, "config_output_limiting.golden")
+}
+
+func TestConfigOutput_UnusedExports_Sorting(t *testing.T) {
+	// Create a dummy result with unordered unused exports
+	cwd, _ := os.Getwd()
+	fileA := "src/components/Button.tsx"
+	fileB := "src/utils/helpers.ts"
+	fileC := "src/api/client.ts"
+
+	unusedExports := []UnusedExport{
+		{FilePath: fileB, ExportName: "formatDate", IsType: false},
+		{FilePath: fileA, ExportName: "ButtonProps", IsType: true},
+		{FilePath: fileC, ExportName: "fetchData", IsType: false},
+		{FilePath: fileA, ExportName: "Button", IsType: false},
+		{FilePath: fileB, ExportName: "parseDate", IsType: false},
+	}
+
+	result := &ConfigProcessingResult{
+		HasFailures: true,
+		RuleResults: []RuleResult{
+			{
+				RulePath:      ".",
+				FileCount:     10,
+				EnabledChecks: []string{"unused-exports"},
+				UnusedExports: unusedExports,
+			},
+		},
+	}
+
+	// Capture output
+	var buf bytes.Buffer
+	originalStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	formatAndPrintConfigResults(result, cwd, true) // listAvailable = true to see all
 
 	w.Close()
 	os.Stdout = originalStdout
@@ -111,35 +101,63 @@ func TestConfigOutput_Limiting(t *testing.T) {
 
 	output := buf.String()
 
-	// Should show only first 5 issues and mention remaining
-	if strings.Count(output, "- src/file") > 5 {
-		t.Errorf("Expected at most 5 files to be listed, but found: %d", strings.Count(output, "- src/file"))
+	golden.Assert(t, output, "unused_exports_sorting.golden")
+}
+
+func TestConfigOutput_UnusedExports_Limiting(t *testing.T) {
+	// Test that limiting picks the FIRST sorted items
+	cwd, _ := os.Getwd()
+
+	// Generate 10 exports across 3 files
+	// Sorted Order should be:
+	// File A: Export 1, Export 2, Export 3
+	// File B: Export 1, Export 2, Export 3
+	// File C: Export 1, Export 2, Export 3, Export 4
+
+	files := []string{"src/A.ts", "src/B.ts", "src/C.ts"}
+	var unusedExports []UnusedExport
+
+	// Add in reverse order to ensure sorting works
+	for i := len(files) - 1; i >= 0; i-- {
+		// File C will have 4 exports, others 3
+		count := 3
+		if i == 2 {
+			count = 4
+		}
+
+		for j := count; j >= 1; j-- {
+			unusedExports = append(unusedExports, UnusedExport{
+				FilePath:   files[i],
+				ExportName: strings.Repeat("Export", 1) + string(rune('0'+j)), // Export3, Export2...
+				IsType:     false,
+			})
+		}
 	}
 
-	if !strings.Contains(output, "... and") {
-		t.Errorf("Expected output to contain '... and' indicating more issues")
+	result := &ConfigProcessingResult{
+		HasFailures: true,
+		RuleResults: []RuleResult{
+			{
+				RulePath:      ".",
+				FileCount:     10,
+				UnusedExports: unusedExports,
+				EnabledChecks: []string{"unused-exports"},
+			},
+		},
 	}
 
-	// Test full output (listAll = true)
-	buf.Reset()
-	r, w, _ = os.Pipe()
+	// Capture output with limiting (default max is 5)
+	var buf bytes.Buffer
+	originalStdout := os.Stdout
+	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	formatAndPrintConfigResults(result, tempDir, true)
+	formatAndPrintConfigResults(result, cwd, false) // listAll = false
 
 	w.Close()
 	os.Stdout = originalStdout
 	buf.ReadFrom(r)
 
-	fullOutput := buf.String()
-
-	// Should show all issues
-	expectedFileCount := strings.Count(fullOutput, "- src/file")
-	if expectedFileCount < len(files)-1 { // -1 because file1.ts is orphan, not boundary violation
-		t.Errorf("Expected at least %d files to be listed in full output, but found: %d", len(files)-1, expectedFileCount)
-	}
-
-	if strings.Contains(fullOutput, "... and") {
-		t.Errorf("Expected full output to not contain '... and' indicating more issues")
-	}
+	output := buf.String()
+	golden.Assert(t, output, "unused_exports_limiting.golden")
 }

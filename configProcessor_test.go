@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -247,6 +248,142 @@ func TestConfigProcessor_MissingNodeModules(t *testing.T) {
 		t.Errorf("Expected to find non-existent-pkg as missing node module, but got: %v", result.RuleResults)
 	}
 
+}
+
+func TestFilterFilesForRule_FollowMonorepoPackagesSelective(t *testing.T) {
+	cwd := "/repo"
+	rulePath := "packages/consumer"
+	consumerFile := "/repo/packages/consumer/src/index.ts"
+	allowedFile := "/repo/packages/allowed/src/index.ts"
+	disallowedFile := "/repo/packages/disallowed/src/index.ts"
+
+	fullTree := MinimalDependencyTree{
+		consumerFile: {
+			{ID: allowedFile},
+			{ID: disallowedFile},
+		},
+		allowedFile:    {},
+		disallowedFile: {},
+	}
+
+	resolverManager := &ResolverManager{
+		monorepoContext: &MonorepoContext{
+			PackageToPath: map[string]string{
+				"@scope/allowed":    "/repo/packages/allowed",
+				"@scope/disallowed": "/repo/packages/disallowed",
+			},
+		},
+	}
+
+	ruleFiles, ruleTree := filterFilesForRule(
+		fullTree,
+		rulePath,
+		cwd,
+		FollowMonorepoPackagesValue{Packages: map[string]bool{"@scope/allowed": true}},
+		resolverManager,
+	)
+
+	if !containsString(ruleFiles, consumerFile) {
+		t.Fatalf("expected consumer file to be present in ruleFiles: %v", ruleFiles)
+	}
+	if !containsString(ruleFiles, allowedFile) {
+		t.Fatalf("expected allowed package file to be present in ruleFiles: %v", ruleFiles)
+	}
+	if containsString(ruleFiles, disallowedFile) {
+		t.Fatalf("expected disallowed package file to be excluded from ruleFiles: %v", ruleFiles)
+	}
+
+	if _, ok := ruleTree[disallowedFile]; ok {
+		t.Fatalf("expected disallowed package file to be excluded from ruleTree")
+	}
+}
+
+func TestFilterFilesForRule_WindowsStyleRootPathDot(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-specific regression test")
+	}
+
+	cwd := `C:\repo\`
+	rulePath := `.\`
+	fileA := `C:\repo\src\index.ts`
+	fileB := `C:\repo\src\feature\a.ts`
+	fileOutside := `C:\another-repo\src\outside.ts`
+
+	fullTree := MinimalDependencyTree{
+		fileA:       {},
+		fileB:       {},
+		fileOutside: {},
+	}
+
+	ruleFiles, ruleTree := filterFilesForRule(
+		fullTree,
+		rulePath,
+		cwd,
+		FollowMonorepoPackagesValue{},
+		nil,
+	)
+
+	if !containsString(ruleFiles, fileA) {
+		t.Fatalf("expected fileA to be included for rule path '.', got: %v", ruleFiles)
+	}
+	if !containsString(ruleFiles, fileB) {
+		t.Fatalf("expected fileB to be included for rule path '.', got: %v", ruleFiles)
+	}
+	if containsString(ruleFiles, fileOutside) {
+		t.Fatalf("expected outside file to be excluded, got: %v", ruleFiles)
+	}
+
+	if _, ok := ruleTree[fileA]; !ok {
+		t.Fatalf("expected fileA to be present in ruleTree")
+	}
+	if _, ok := ruleTree[fileB]; !ok {
+		t.Fatalf("expected fileB to be present in ruleTree")
+	}
+	if _, ok := ruleTree[fileOutside]; ok {
+		t.Fatalf("expected outside file to be excluded from ruleTree")
+	}
+}
+
+func TestFilterFilesForRule_RootPathDot(t *testing.T) {
+	cwd := "/repo"
+	rulePath := "."
+	fileA := "/repo/src/index.ts"
+	fileB := "/repo/src/feature/a.ts"
+	fileOutside := "/another-repo/src/outside.ts"
+
+	fullTree := MinimalDependencyTree{
+		fileA:       {},
+		fileB:       {},
+		fileOutside: {},
+	}
+
+	ruleFiles, ruleTree := filterFilesForRule(
+		fullTree,
+		rulePath,
+		cwd,
+		FollowMonorepoPackagesValue{},
+		nil,
+	)
+
+	if !containsString(ruleFiles, fileA) {
+		t.Fatalf("expected fileA to be included for rule path '.', got: %v", ruleFiles)
+	}
+	if !containsString(ruleFiles, fileB) {
+		t.Fatalf("expected fileB to be included for rule path '.', got: %v", ruleFiles)
+	}
+	if containsString(ruleFiles, fileOutside) {
+		t.Fatalf("expected outside file to be excluded, got: %v", ruleFiles)
+	}
+
+	if _, ok := ruleTree[fileA]; !ok {
+		t.Fatalf("expected fileA to be present in ruleTree")
+	}
+	if _, ok := ruleTree[fileB]; !ok {
+		t.Fatalf("expected fileB to be present in ruleTree")
+	}
+	if _, ok := ruleTree[fileOutside]; ok {
+		t.Fatalf("expected outside file to be excluded from ruleTree")
+	}
 }
 
 func TestConfigProcessor_MultipleRules(t *testing.T) {

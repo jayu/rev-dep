@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -118,8 +119,8 @@ func TestInitConfigFile(t *testing.T) {
 	}
 
 	config := configs[0]
-	if config.ConfigVersion != "1.2" {
-		t.Errorf("Expected configVersion '1.2', got '%s'", config.ConfigVersion)
+	if config.ConfigVersion != "1.3" {
+		t.Errorf("Expected configVersion '1.3', got '%s'", config.ConfigVersion)
 	}
 
 	if len(config.Rules) != 1 {
@@ -148,6 +149,14 @@ func TestInitConfigFile(t *testing.T) {
 
 	if config.Rules[0].MissingNodeModulesDetection == nil || config.Rules[0].MissingNodeModulesDetection.Enabled {
 		t.Errorf("Expected missing node modules detection to be disabled")
+	}
+
+	if config.Rules[0].UnusedExportsDetection == nil || config.Rules[0].UnusedExportsDetection.Enabled {
+		t.Errorf("Expected unused exports detection to be disabled")
+	}
+
+	if config.Rules[0].UnresolvedImportsDetection == nil || config.Rules[0].UnresolvedImportsDetection.Enabled {
+		t.Errorf("Expected unresolved imports detection to be disabled")
 	}
 }
 
@@ -1760,12 +1769,465 @@ func indexOf(s, substr string) int {
 	return -1
 }
 
+func TestParseConfig_UnusedExportsDetection(t *testing.T) {
+	t.Run("valid config with all options", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": ["src/index.ts", "src/public-api.ts"],
+					"ignoreTypeExports": true,
+					"graphExclude": ["**/*.test.ts", "**/*.spec.ts"]
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		if rule.UnusedExportsDetection == nil {
+			t.Fatal("Expected unusedExportsDetection to be non-nil")
+		}
+		if !rule.UnusedExportsDetection.Enabled {
+			t.Error("Expected enabled to be true")
+		}
+		if len(rule.UnusedExportsDetection.ValidEntryPoints) != 2 {
+			t.Errorf("Expected 2 entry points, got %d", len(rule.UnusedExportsDetection.ValidEntryPoints))
+		}
+		if !rule.UnusedExportsDetection.IgnoreTypeExports {
+			t.Error("Expected ignoreTypeExports to be true")
+		}
+		if len(rule.UnusedExportsDetection.GraphExclude) != 2 {
+			t.Errorf("Expected 2 graphExclude patterns, got %d", len(rule.UnusedExportsDetection.GraphExclude))
+		}
+	})
+
+	t.Run("minimal config", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		if rule.UnusedExportsDetection == nil || !rule.UnusedExportsDetection.Enabled {
+			t.Error("Expected unusedExportsDetection to be enabled")
+		}
+	})
+
+	t.Run("missing enabled field", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "unusedExportsDetection.enabled is required") {
+			t.Errorf("Expected 'enabled is required' error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("unknown field", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"unknownField": "value"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "unknown field 'unknownField'") {
+			t.Errorf("Expected unknown field error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for enabled", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": "yes"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must be a boolean") {
+			t.Errorf("Expected boolean type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for validEntryPoints", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": "not-an-array"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must be an array") {
+			t.Errorf("Expected array type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for ignoreTypeExports", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"ignoreTypeExports": "yes"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must be a boolean") {
+			t.Errorf("Expected boolean type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("invalid graphExclude pattern", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"graphExclude": ["./invalid/**"]
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "starts with './'") {
+			t.Errorf("Expected pattern validation error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("empty validEntryPoints string", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": [""]
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "cannot be empty") {
+			t.Errorf("Expected empty entry point error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("null enabled", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": null
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "cannot be null") {
+			t.Errorf("Expected null error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("not an object", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": "not-object"
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must be an object") {
+			t.Errorf("Expected object type error, got: %s", err.Error())
+		}
+	})
+}
+
+func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
+	t.Run("valid config with all options", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"ignore": {
+						"./src/index.ts": "non-existent-module"
+					},
+					"ignoreFiles": ["**/broken-import.ts"],
+					"ignoreImports": ["non-existent-pkg"]
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		if rule.UnresolvedImportsDetection == nil {
+			t.Fatal("Expected unresolvedImportsDetection to be non-nil")
+		}
+		if !rule.UnresolvedImportsDetection.Enabled {
+			t.Error("Expected enabled to be true")
+		}
+
+		if got := rule.UnresolvedImportsDetection.Ignore["src/index.ts"]; got != "non-existent-module" {
+			t.Errorf("Expected normalized ignore entry for src/index.ts, got %q", got)
+		}
+		if len(rule.UnresolvedImportsDetection.IgnoreFiles) != 1 {
+			t.Errorf("Expected 1 ignoreFiles pattern, got %d", len(rule.UnresolvedImportsDetection.IgnoreFiles))
+		}
+		if len(rule.UnresolvedImportsDetection.IgnoreImports) != 1 {
+			t.Errorf("Expected 1 ignoreImports entry, got %d", len(rule.UnresolvedImportsDetection.IgnoreImports))
+		}
+	})
+
+	t.Run("missing enabled field", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "unresolvedImportsDetection.enabled is required") {
+			t.Errorf("Expected enabled-is-required error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("unknown field", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"unknownField": true
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "unknown field 'unknownField'") {
+			t.Errorf("Expected unknown field error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for ignore", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"ignore": "not-an-object"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "ignore must be an object") {
+			t.Errorf("Expected object type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for ignoreFiles", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"ignoreFiles": "not-an-array"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "ignoreFiles must be an array") {
+			t.Errorf("Expected array type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for ignoreImports", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"ignoreImports": "not-an-array"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "ignoreImports must be an array") {
+			t.Errorf("Expected array type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("invalid ignoreFiles pattern", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"ignoreFiles": ["./invalid/**"]
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "starts with './'") {
+			t.Errorf("Expected pattern validation error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("empty ignore import request in map", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"ignore": {
+						"src/index.ts": ""
+					}
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "cannot be empty") {
+			t.Errorf("Expected empty value error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("ignore map key cannot traverse parent dirs", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"ignore": {
+						"../src/index.ts": "non-existent-module"
+					}
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "must not traverse parent directories") {
+			t.Errorf("Expected parent directory traversal error, got: %s", err.Error())
+		}
+	})
+}
+
 func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
-	// Test cases for single rules with consistent behavior
 	tests := []struct {
-		name     string
-		config   string
-		expected bool
+		name        string
+		config      string
+		expected    FollowMonorepoPackagesValue
+		expectedErr string
 	}{
 		{
 			name: "followMonorepoPackages not set should default to true",
@@ -1777,7 +2239,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 					}
 				]
 			}`,
-			expected: true,
+			expected: FollowMonorepoPackagesValue{FollowAll: true},
 		},
 		{
 			name: "followMonorepoPackages explicitly set to true",
@@ -1790,7 +2252,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 					}
 				]
 			}`,
-			expected: true,
+			expected: FollowMonorepoPackagesValue{FollowAll: true},
 		},
 		{
 			name: "followMonorepoPackages explicitly set to false",
@@ -1803,13 +2265,100 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 					}
 				]
 			}`,
-			expected: false,
+			expected: FollowMonorepoPackagesValue{},
+		},
+		{
+			name: "followMonorepoPackages selective package list",
+			config: `{
+				"configVersion": "1.0",
+				"rules": [
+					{
+						"path": "./src",
+						"followMonorepoPackages": ["pkg-a", "@scope/*"]
+					}
+				]
+			}`,
+			expected: FollowMonorepoPackagesValue{Packages: map[string]bool{"pkg-a": true, "@scope/*": true}},
+		},
+		{
+			name: "followMonorepoPackages rejects mixed array",
+			config: `{
+				"configVersion": "1.0",
+				"rules": [
+					{
+						"path": "./src",
+						"followMonorepoPackages": ["pkg-a", 1]
+					}
+				]
+			}`,
+			expectedErr: "followMonorepoPackages must be a boolean or array of strings",
+		},
+		{
+			name: "followMonorepoPackages rejects empty array",
+			config: `{
+				"configVersion": "1.0",
+				"rules": [
+					{
+						"path": "./src",
+						"followMonorepoPackages": []
+					}
+				]
+			}`,
+			expectedErr: "array cannot be empty",
+		},
+		{
+			name: "followMonorepoPackages rejects invalid type object",
+			config: `{
+				"configVersion": "1.0",
+				"rules": [
+					{
+						"path": "./src",
+						"followMonorepoPackages": {}
+					}
+				]
+			}`,
+			expectedErr: "must be a boolean or array of strings",
+		},
+		{
+			name: "followMonorepoPackages rejects invalid type string",
+			config: `{
+				"configVersion": "1.0",
+				"rules": [
+					{
+						"path": "./src",
+						"followMonorepoPackages": "yes"
+					}
+				]
+			}`,
+			expectedErr: "must be a boolean or array of strings",
+		},
+		{
+			name: "followMonorepoPackages rejects empty string entry",
+			config: `{
+				"configVersion": "1.0",
+				"rules": [
+					{
+						"path": "./src",
+						"followMonorepoPackages": ["pkg-a", " "]
+					}
+				]
+			}`,
+			expectedErr: "cannot be empty",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			configs, err := ParseConfig([]byte(tt.config))
+			if tt.expectedErr != "" {
+				if err == nil {
+					t.Fatalf("Expected error containing %q, got nil", tt.expectedErr)
+				}
+				if !contains(err.Error(), tt.expectedErr) {
+					t.Fatalf("Expected error containing %q, got %q", tt.expectedErr, err.Error())
+				}
+				return
+			}
 			if err != nil {
 				t.Errorf("Expected no error, got %v", err)
 				return
@@ -1827,7 +2376,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			}
 
 			actual := config.Rules[0].FollowMonorepoPackages
-			if actual != tt.expected {
+			if !reflect.DeepEqual(actual, tt.expected) {
 				t.Errorf("Expected FollowMonorepoPackages to be %v, got %v", tt.expected, actual)
 			}
 		})
@@ -1870,17 +2419,17 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 		}
 
 		// First rule should be explicitly false
-		if parsedConfig.Rules[0].FollowMonorepoPackages != false {
+		if !reflect.DeepEqual(parsedConfig.Rules[0].FollowMonorepoPackages, FollowMonorepoPackagesValue{}) {
 			t.Errorf("Expected first rule FollowMonorepoPackages to be false, got %v", parsedConfig.Rules[0].FollowMonorepoPackages)
 		}
 
 		// Second rule should default to true
-		if parsedConfig.Rules[1].FollowMonorepoPackages != true {
+		if !reflect.DeepEqual(parsedConfig.Rules[1].FollowMonorepoPackages, FollowMonorepoPackagesValue{FollowAll: true}) {
 			t.Errorf("Expected second rule FollowMonorepoPackages to be true (default), got %v", parsedConfig.Rules[1].FollowMonorepoPackages)
 		}
 
 		// Third rule should be explicitly true
-		if parsedConfig.Rules[2].FollowMonorepoPackages != true {
+		if !reflect.DeepEqual(parsedConfig.Rules[2].FollowMonorepoPackages, FollowMonorepoPackagesValue{FollowAll: true}) {
 			t.Errorf("Expected third rule FollowMonorepoPackages to be true, got %v", parsedConfig.Rules[2].FollowMonorepoPackages)
 		}
 	})

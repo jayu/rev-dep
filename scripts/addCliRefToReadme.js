@@ -51,6 +51,8 @@ async function generateDocs() {
   }
 }
 
+const followAllToken = "[=__REV_DEP_FOLLOW_ALL__]";
+
 function increaseHeaderLevel(content) {
   // First, replace the deepest headers (#######) to avoid multiple replacements
   // We'll work from deepest to shallowest
@@ -66,7 +68,8 @@ function increaseHeaderLevel(content) {
     // Replace ## with ###
     .replace(/^##\s+(.*$)/gm, '### $1')
     // Replace # with ##
-    .replace(/^#\s+(.*$)/gm, '## $1');
+    .replace(/^#\s+(.*$)/gm, '## $1')
+    .replaceAll(followAllToken, " ".repeat(followAllToken.length));
 }
 
 function cleanContent(content) {

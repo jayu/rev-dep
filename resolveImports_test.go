@@ -425,6 +425,39 @@ func TestResolve(t *testing.T) {
 			t.Errorf("Error during path resolution: %v", err)
 		}
 	})
+
+	t.Run("Should resolve wildcard alias import with explicit extension without duplicating it", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "runtime/helpers/classApplyDescriptorSet.js",
+			cwd + "app/index.ts",
+		}
+		tsConfig := `{
+			"compilerOptions" : {
+				"paths": {
+					"@runtime/helpers/*": ["./runtime/helpers/*.js"]
+				}
+			}
+		}`
+
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("@runtime/helpers/classApplyDescriptorSet.js", cwd+"app/index.ts")
+
+		if resolvedPath != cwd+"runtime/helpers/classApplyDescriptorSet.js" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"runtime/helpers/classApplyDescriptorSet.js", resolvedPath)
+		}
+
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
 }
 
 func TestRelativeImports(t *testing.T) {

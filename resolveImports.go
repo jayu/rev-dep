@@ -643,7 +643,7 @@ func addFilePathToFilesAndExtensions(filePath string, filesAndExtensions *map[st
 	match := extensionRegExp.FindString(filePath)
 
 	if match != "" {
-		base := strings.Replace(filePath, match, "", 1)
+		base := strings.TrimSuffix(filePath, match)
 		baseExt, hasBaseExt := (*filesAndExtensions)[base]
 		if !hasBaseExt || hasExtensionPrecedence(baseExt, match) {
 			// If value is not in the map we have to add it
@@ -671,13 +671,43 @@ func (f *ResolverManager) AddFilePathToFilesAndExtensions(filePath string) {
 	addFilePathToFilesAndExtensions(filePath, f.filesAndExtensions)
 }
 
+func applyWildcardValue(target string, wildcardValue string) string {
+	prefix, suffix, found := strings.Cut(target, "*")
+
+	if !found {
+		return target
+	}
+
+	wildcardValue = strings.TrimSuffix(wildcardValue, suffix)
+
+	return prefix + wildcardValue + suffix
+}
+
 func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path string, err *ResolutionError) {
-	// Strip existing TS extension from modulePath
 	match := extensionRegExp.FindString(modulePath)
 	if match != "" {
+		// Explicit extension import, modulePath contains extension
+		explicitBase := strings.TrimSuffix(modulePath, match)
+		explicitExt, hasExplicitBase := (*f.manager.filesAndExtensions)[explicitBase]
+		if hasExplicitBase && explicitExt == match {
+			return modulePath, nil
+		}
+
+		// Explicit extension import, modulePath contains extension, special-case explicit index imports like ".../dir/index.ts".
+		if strings.HasPrefix(match, "/index") {
+			indexBase := explicitBase + "/index"
+			indexExt, hasIndexBase := (*f.manager.filesAndExtensions)[indexBase]
+			expectedIndexExt := strings.TrimPrefix(match, "/index")
+			if hasIndexBase && indexExt == expectedIndexExt {
+				return modulePath, nil
+			}
+		}
+
+		// For explicit non-TS substitutions (eg .mjs/.cjs), do not try extension fallback.
 		tsSupportedExtension := tsSupportedExtensionRegExp.FindString(match)
 		if tsSupportedExtension == "" {
-			return modulePath, nil
+			e := FileNotFound
+			return modulePath, &e
 		}
 		modulePath = strings.Replace(modulePath, tsSupportedExtension, "", 1)
 	}
@@ -853,7 +883,7 @@ func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string
 					// Extract wildcard value using string slicing
 					if strings.Contains(pattern.key, "*") {
 						wildcardValue := request[len(pattern.prefix) : len(request)-len(pattern.suffix)]
-						resolvedTarget = strings.Replace(resolvedTarget, "*", wildcardValue, 1)
+						resolvedTarget = applyWildcardValue(resolvedTarget, wildcardValue)
 					}
 				}
 				break
@@ -930,7 +960,7 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 			prefix := aliasKey[:wildcardIndex]
 			suffix := aliasKey[wildcardIndex+1:]
 			wildcardValue := request[len(prefix) : len(request)-len(suffix)]
-			resolvedTarget = strings.Replace(alias, "*", wildcardValue, 1)
+			resolvedTarget = applyWildcardValue(alias, wildcardValue)
 		}
 
 		if resolvedTarget == "" {
@@ -1111,7 +1141,7 @@ func (f *ModuleResolver) resolveExportsCached(exports *PackageJsonExports, subpa
 			target := exports.exports[pattern.key]
 			resolved := f.resolveCondition(target)
 			if resolved != "" {
-				return strings.Replace(resolved, "*", wildcardValue, 1)
+				return applyWildcardValue(resolved, wildcardValue)
 			}
 		}
 	}

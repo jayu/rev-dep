@@ -445,6 +445,8 @@ var (
 	nodeModulesVerbose                   bool
 	nodeModulesSizeStats                 bool
 	nodeModulesOptimizeIsolate           bool
+	nodeModulesPrunePatterns             []string
+	nodeModulesPruneDefaults             bool
 )
 
 var nodeModulesCmd = &cobra.Command{
@@ -649,6 +651,30 @@ in the current directory and subdirectories. Sizes will be smaller than actual f
 		result := ModulesDiskSizeCmd(cwd)
 
 		fmt.Println(result)
+		return nil
+	},
+}
+
+var nodeModulesPruneDocsCmd = &cobra.Command{
+	Use:     "prune-docs",
+	Aliases: []string{"remove-docs"},
+	Short:   "Remove markdown/docs-like files from installed node_modules packages",
+	Long: `Removes files from installed node_modules packages based on glob patterns.
+Useful for pruning README/LICENSE/docs files to reduce dependency size.`,
+	Example: `rev-dep node-modules prune-docs --defaults
+rev-dep node-modules prune-docs --patterns "*.md,README.md,docs/**"
+rev-dep node-modules prune-docs --defaults --patterns "*.txt"`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		result, err := NodeModulesPruneDocsCmd(
+			ResolveAbsoluteCwd(nodeModulesCwd),
+			nodeModulesPrunePatterns,
+			nodeModulesPruneDefaults,
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Print(result)
 		return nil
 	},
 }
@@ -1161,9 +1187,16 @@ func init() {
 
 	nodeModulesAnalyzeSize.Flags().StringVarP(&nodeModulesCwd, "cwd", "c", currentDir, "Working directory for the command")
 	nodeModuleDirsSize.Flags().StringVarP(&nodeModulesCwd, "cwd", "c", currentDir, "Working directory for the command")
+	nodeModulesPruneDocsCmd.Flags().StringVarP(&nodeModulesCwd, "cwd", "c", currentDir, "Working directory for the command")
+	nodeModulesPruneDocsCmd.Flags().StringSliceVarP(&nodeModulesPrunePatterns, "patterns", "p", []string{},
+		"Glob patterns (relative to each package root) of files to remove, e.g. \"*.md,README.md,docs/**\"")
+	nodeModulesPruneDocsCmd.Flags().StringSliceVar(&nodeModulesPrunePatterns, "pattern", []string{},
+		"Alias for --patterns")
+	nodeModulesPruneDocsCmd.Flags().BoolVar(&nodeModulesPruneDefaults, "defaults", false,
+		"Use default prune patterns: LICENSE, README.md, docs/**")
 
 	// node modules commands
-	nodeModulesCmd.AddCommand(nodeModulesUsedCmd, nodeModulesUnusedCmd, nodeModulesMissingCmd, nodeModulesInstalledCmd, nodeModulesInstalledDuplicatesCmd, nodeModulesAnalyzeSize, nodeModuleDirsSize)
+	nodeModulesCmd.AddCommand(nodeModulesUsedCmd, nodeModulesUnusedCmd, nodeModulesMissingCmd, nodeModulesInstalledCmd, nodeModulesInstalledDuplicatesCmd, nodeModulesAnalyzeSize, nodeModuleDirsSize, nodeModulesPruneDocsCmd)
 
 	// list-files flags
 	listCwdFilesCmd.Flags().StringVar(&listFilesCwd, "cwd", currentDir,

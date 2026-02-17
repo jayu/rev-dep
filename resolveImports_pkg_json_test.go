@@ -15,6 +15,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 		cwd + "src/specific/file.ts",
 		cwd + "#wildcard/file.js",
 		cwd + "src/dirs/someDir.ts",
+		cwd + "runtime/helpers/classApplyDescriptorSet.js",
 	}
 
 	pkgJson := `{
@@ -97,6 +98,29 @@ func TestResolvePackageJsonImports(t *testing.T) {
 		}
 		if path != cwd+"src/utils.ts" {
 			t.Errorf("Expected %s, got %s", cwd+"src/utils.ts", path)
+		}
+	})
+
+	t.Run("Should resolve wildcard import with explicit extension without duplicating it", func(t *testing.T) {
+		localPkgJson := `{
+			"imports": {
+				"#runtime/helpers/*": "./runtime/helpers/*.js"
+			}
+		}`
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
+			TsConfigContent: []byte("{}"),
+			PkgJsonContent:  []byte(localPkgJson),
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
+		path, _, err := resolver.ResolveModule("#runtime/helpers/classApplyDescriptorSet.js", cwd+"src/main.ts")
+
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", *err)
+		}
+		if path != cwd+"runtime/helpers/classApplyDescriptorSet.js" {
+			t.Errorf("Expected %s, got %s", cwd+"runtime/helpers/classApplyDescriptorSet.js", path)
 		}
 	})
 

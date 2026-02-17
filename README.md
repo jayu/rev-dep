@@ -23,18 +23,24 @@
 
 <img alt="rev-dep version" src="https://img.shields.io/npm/v/rev-dep"> <img alt="rev-dep license" src="https://img.shields.io/npm/l/rev-dep"> <img alt="rev-dep PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square">
 
-
 ## **About 📣**
 
-As codebases scale, it becomes impossible to maintain a mental map of the dependency graph. **Rev-dep** provides the missing visibility and automation needed to manage large-scale JS/TS projects.
+As codebases scale, maintaining a mental map of dependencies becomes impossible. **Rev-dep** is a high-speed governance engine designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
 
-It answers the hard questions that manual inspection can't:
-* **Refactoring Safety:** "If I change this utility, what are all the entry points that actually use it?"
-* **Dead Code:** "Are these 50 files actually unreachable from my main bundle?"
-* **Architecture Integrity:** "Is my 'Domain A' illegally importing from 'Domain B'?"
-* **Dependency Bloat:** "Which `node_modules` are costing us the most disk space?"
+<p align="center"><b>Think of Rev-dep as a high-speed linter for your dependency graph.</b></p>
 
-Rev-dep governs of your codebase dependency graph so you can refactor with confidence, debug faster, and keep your workspace lean.
+**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks—including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 500ms**.
+
+### **Automated Codebase Governance**
+
+Rev-dep moves beyond passive scanning to active enforcement, answering (and failing CI for) the hard questions:
+
+* **Architecture Integrity:** "Is my 'Domain A' illegally importing from 'Domain B'?".
+* **Dead Code & Bloat:** "Are these files unreachable, or are these `node_modules` unused?".
+* **Refactoring Safety:** "Which entry points actually use this utility, and are there circular chains?".
+* **Workspace Hygiene:** "Are my imports consistent and are all dependencies declared?".
+
+Rev-dep serves as a **high-speed gatekeeper** for your CI, ensuring your dependency graph remains lean and your architecture stays intact as you iterate.
 
 ## **Why Rev-dep? 🤔**
 

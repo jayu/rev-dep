@@ -45,7 +45,7 @@ func DetectUnresolvedImports(minimalTree MinimalDependencyTree, ignoredNodeModul
 	unresolved := []UnresolvedImport{}
 	for _, filePath := range filePaths {
 		for _, dep := range minimalTree[filePath] {
-			if dep.ResolvedType == NotResolvedModule && dep.Request != "" && !ignoredNodeModules[dep.Request] {
+			if dep.ResolvedType == NotResolvedModule && dep.Request != "" && !ignoredNodeModules[GetNodeModuleName(dep.Request)] {
 				unresolved = append(unresolved, UnresolvedImport{
 					FilePath: filePath,
 					Request:  dep.Request,

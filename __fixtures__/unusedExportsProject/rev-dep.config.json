@@ -5,7 +5,10 @@
       "path": ".",
       "unusedExportsDetection": {
         "enabled": true,
-        "validEntryPoints": ["**/index.ts"]
+        "validEntryPoints": [
+          "**/index.ts"
+        ],
+        "autofix": true
       }
     }
   ]

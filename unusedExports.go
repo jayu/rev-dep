@@ -27,6 +27,7 @@ func FindUnusedExports(
 	validEntryPoints []string,
 	graphExclude []string,
 	ignoreTypeExports bool,
+	autofix bool,
 	cwd string,
 	moduleSuffixVariants map[string]bool,
 ) []UnusedExport {
@@ -229,30 +230,33 @@ func FindUnusedExports(
 				totalKeywords := len(dep.Keywords.Keywords)
 				unusedCount := len(du.unusedExports)
 
-				if dep.IsLocalExport && dep.ExportBraceStart == 0 {
-					// Strategy 1: Single-declaration — remove "export [default] " prefix
-					if entry.Name == "default" {
-						// For default exports, only safe when followed by a named declaration
-						ue.Fix = computeDefaultExportFix(file, dep)
-					} else {
-						ue.Fix = &Change{
-							Start: int32(dep.ExportKeyStart),
-							End:   int32(dep.ExportDeclStart),
-							Text:  "",
+				// Compute fix if autofix is enabled
+				if autofix {
+					if dep.IsLocalExport && dep.ExportBraceStart == 0 {
+						// Strategy 1: Single-declaration — remove "export [default] " prefix
+						if entry.Name == "default" {
+							// For default exports, only safe when followed by a named declaration
+							ue.Fix = computeDefaultExportFix(file, dep)
+						} else {
+							ue.Fix = &Change{
+								Start: int32(dep.ExportKeyStart),
+								End:   int32(dep.ExportDeclStart),
+								Text:  "",
+							}
 						}
+					} else if dep.ExportBraceStart > 0 && unusedCount == totalKeywords {
+						// Strategy 3: All keywords unused — remove entire statement
+						ue.Fix = computeFullStatementRemoval(file, dep)
+					} else if dep.ExportBraceStart > 0 && unusedCount < totalKeywords {
+						// Strategy 2: Surgical removal — only assign fix to first unused export
+						// to avoid duplicate fixes for same statement
+						ue.Fix = computeSurgicalBraceFix(file, dep, du.unusedExports)
+					} else if !dep.IsLocalExport && dep.ExportBraceStart == 0 && dep.ExportStatementEnd > 0 {
+						// Strategy 4: Named star re-export (export * as X from 'y') — remove entire statement
+						ue.Fix = computeFullStatementRemoval(file, dep)
 					}
-				} else if dep.ExportBraceStart > 0 && unusedCount == totalKeywords {
-					// Strategy 3: All keywords unused — remove entire statement
-					ue.Fix = computeFullStatementRemoval(file, dep)
-				} else if dep.ExportBraceStart > 0 && unusedCount < totalKeywords {
-					// Strategy 2: Surgical removal — only assign fix to first unused export
-					// to avoid duplicate fixes for same statement
-					ue.Fix = computeSurgicalBraceFix(file, dep, du.unusedExports)
-				} else if !dep.IsLocalExport && dep.ExportBraceStart == 0 && dep.ExportStatementEnd > 0 {
-					// Strategy 4: Named star re-export (export * as X from 'y') — remove entire statement
-					ue.Fix = computeFullStatementRemoval(file, dep)
+					// Star re-exports (no keywords) or other cases — Fix remains nil
 				}
-				// Star re-exports (no keywords) or other cases — Fix remains nil
 
 				results = append(results, ue)
 			}

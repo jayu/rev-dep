@@ -53,6 +53,7 @@ type UnusedExportsOptions struct {
 	ValidEntryPoints  []string `json:"validEntryPoints,omitempty"`
 	IgnoreTypeExports bool     `json:"ignoreTypeExports,omitempty"`
 	GraphExclude      []string `json:"graphExclude,omitempty"`
+	Autofix           bool     `json:"autofix,omitempty"`
 }
 
 type UnresolvedImportsOptions struct {
@@ -732,6 +733,7 @@ func validateRawUnusedExportsDetection(unusedExports interface{}, ruleIndex int)
 		"validEntryPoints":  true,
 		"ignoreTypeExports": true,
 		"graphExclude":      true,
+		"autofix":           true,
 	}
 
 	for field := range unusedExportsMap {
@@ -766,6 +768,12 @@ func validateRawUnusedExportsDetection(unusedExports interface{}, ruleIndex int)
 	if ignoreType, exists := unusedExportsMap["ignoreTypeExports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
 			return fmt.Errorf("rules[%d].unusedExportsDetection.ignoreTypeExports must be a boolean, got %T", ruleIndex, ignoreType)
+		}
+	}
+
+	if autofix, exists := unusedExportsMap["autofix"]; exists && autofix != nil {
+		if _, ok := autofix.(bool); !ok {
+			return fmt.Errorf("rules[%d].unusedExportsDetection.autofix must be a boolean, got %T", ruleIndex, autofix)
 		}
 	}
 

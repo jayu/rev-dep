@@ -94,7 +94,7 @@ func TestFindUnusedExports_BasicUnused(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, false, "/src/", nil,
 	)
 
 	if len(results) != 1 {
@@ -125,7 +125,7 @@ func TestFindUnusedExports_AllUsed(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, false, "/src/", nil,
 	)
 
 	if len(results) != 0 {
@@ -146,7 +146,7 @@ func TestFindUnusedExports_DefaultExport(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, false, "/src/", nil,
 	)
 
 	if len(results) != 1 {
@@ -172,7 +172,7 @@ func TestFindUnusedExports_TypeExportWithIgnore(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/types.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, true, "/src/", nil,
+		nil, nil, true, false, "/src/", nil,
 	)
 
 	if len(results) != 1 {
@@ -197,7 +197,7 @@ func TestFindUnusedExports_TypeExportWithoutIgnore(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/types.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, false, "/src/", nil,
 	)
 
 	if len(results) != 1 {
@@ -224,7 +224,7 @@ func TestFindUnusedExports_EntryPoint(t *testing.T) {
 		[]string{"/src/index.ts"},
 		tree,
 		[]string{"**/index.ts"},
-		nil, false, "/src/",
+		nil, false, false, "/src/",
 		nil,
 	)
 
@@ -253,7 +253,8 @@ func TestFindUnusedExports_StarImportMarksAllUsed(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, false, "/src/",
+		nil,
 	)
 
 	if len(results) != 0 {
@@ -280,7 +281,8 @@ func TestFindUnusedExports_SideEffectImportDoesNotMarkUsed(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, false, "/src/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -310,7 +312,7 @@ func TestFindUnusedExports_ReexportMarksSourceUsed(t *testing.T) {
 		[]string{"/src/utils.ts", "/src/index.ts"},
 		tree,
 		[]string{"**/index.ts"},
-		nil, false, "/src/",
+		nil, false, true, "/src/",
 		nil,
 	)
 
@@ -346,7 +348,8 @@ func TestFindUnusedExports_StarReexportMarksAllUsed(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/index.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, true, "/src/",
+		nil,
 	)
 
 	// All exports of utils.ts marked used by star re-export
@@ -374,7 +377,7 @@ func TestFindUnusedExports_GraphExclude(t *testing.T) {
 		tree,
 		nil,
 		[]string{"**/*.spec.ts"},
-		false, "/src/",
+		false, true, "/src/",
 		nil,
 	)
 
@@ -420,17 +423,14 @@ func TestFindUnusedExports_BarrelStarReexportDetailedMode(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/index.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, true, "/src/",
+		nil,
 	)
 
 	// Star re-export marks all source exports as used, so no unused exports.
 	// The barrel file itself should not have `*` reported as unused.
 	if len(results) != 0 {
-		names := make([]string, len(results))
-		for i, r := range results {
-			names[i] = r.FilePath + ":" + r.ExportName
-		}
-		t.Fatalf("Expected 0 unused exports for barrel pattern, got %d: %v", len(results), names)
+		t.Fatalf("Expected 0 unused exports for barrel pattern, got %d", len(results))
 	}
 }
 
@@ -462,16 +462,13 @@ func TestFindUnusedExports_StarAsNameReexport(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/index.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, true, "/src/",
+		nil,
 	)
 
 	// "utils" is imported by consumer → no unused exports
 	if len(results) != 0 {
-		names := make([]string, len(results))
-		for i, r := range results {
-			names[i] = r.FilePath + ":" + r.ExportName
-		}
-		t.Fatalf("Expected 0 unused exports, got %d: %v", len(results), names)
+		t.Fatalf("Expected 0 unused exports, got %d", len(results))
 	}
 }
 
@@ -499,16 +496,13 @@ func TestFindUnusedExports_StarAsNameReexport_Unused(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/index.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, true, "/src/",
+		nil,
 	)
 
 	// "utils" is not imported by anyone → should be reported as unused
 	if len(results) != 1 {
-		names := make([]string, len(results))
-		for i, r := range results {
-			names[i] = r.FilePath + ":" + r.ExportName
-		}
-		t.Fatalf("Expected 1 unused export, got %d: %v", len(results), names)
+		t.Fatalf("Expected 1 unused export, got %d", len(results))
 	}
 	if results[0].ExportName != "utils" {
 		t.Errorf("Expected unused export 'utils', got '%s'", results[0].ExportName)
@@ -521,6 +515,7 @@ func TestFindUnusedExports_StarAsNameReexport_Unused(t *testing.T) {
 func TestFindUnusedExports_StarAsNameReexport_Autofix(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export * as utils from './utils';\nconst other = 1;\n"
 	srcFile := filepath.Join(tmpDir, "index.ts")
@@ -547,7 +542,8 @@ func TestFindUnusedExports_StarAsNameReexport_Autofix(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -589,7 +585,8 @@ func TestFindUnusedExports_DynamicImportMarksAllUsed(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, true, "/src/",
+		nil,
 	)
 
 	if len(results) != 0 {
@@ -620,7 +617,8 @@ func TestFindUnusedExports_SideEffectImportDoesNotMarkUsed_NotDynamic(t *testing
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, true, "/src/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -650,7 +648,8 @@ func TestFindUnusedExports_LocalBraceExportWithAlias(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/dao.ts", "/src/consumer.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, true, "/src/",
+		nil,
 	)
 
 	if len(results) != 0 {
@@ -675,7 +674,8 @@ func TestFindUnusedExports_LocalBraceExportWithAlias_Unused(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/dao.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, true, "/src/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -690,6 +690,7 @@ func TestFindUnusedExports_LocalBraceExportWithAlias_Unused(t *testing.T) {
 // ==================== Autofix Tests ====================
 
 func TestFindUnusedExports_Strategy1_RemoveExportPrefix(t *testing.T) {
+	autofix := true
 	// export const X = 1
 	// ExportKeyStart=0, ExportDeclStart=7 (after "export ")
 	tree := MinimalDependencyTree{
@@ -703,7 +704,8 @@ func TestFindUnusedExports_Strategy1_RemoveExportPrefix(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{"/src/utils.ts"},
 		tree,
-		nil, nil, false, "/src/", nil,
+		nil, nil, false, autofix, "/src/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -724,6 +726,7 @@ func TestFindUnusedExports_Strategy1_DefaultFunction(t *testing.T) {
 	// export default function Fn(){}
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export default function Fn(){}"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -740,7 +743,8 @@ func TestFindUnusedExports_Strategy1_DefaultFunction(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -763,6 +767,7 @@ func TestFindUnusedExports_Strategy1_DefaultFunction(t *testing.T) {
 func TestFindUnusedExports_Strategy1_DefaultIdentifier(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export default MyVariable"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -779,7 +784,8 @@ func TestFindUnusedExports_Strategy1_DefaultIdentifier(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -799,6 +805,7 @@ func TestFindUnusedExports_Strategy1_DefaultIdentifier(t *testing.T) {
 func TestFindUnusedExports_Strategy1_DefaultClass(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export default class MyClass {}"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -815,7 +822,8 @@ func TestFindUnusedExports_Strategy1_DefaultClass(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -835,6 +843,7 @@ func TestFindUnusedExports_Strategy1_DefaultClass(t *testing.T) {
 func TestFindUnusedExports_Strategy1_DefaultAsyncFunction(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export default          async function Fn(){}"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -851,7 +860,8 @@ func TestFindUnusedExports_Strategy1_DefaultAsyncFunction(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -871,6 +881,7 @@ func TestFindUnusedExports_Strategy1_DefaultAsyncFunction(t *testing.T) {
 func TestFindUnusedExports_Strategy1_DefaultObject_Unsafe(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export default {key: 'value'}"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -887,7 +898,8 @@ func TestFindUnusedExports_Strategy1_DefaultObject_Unsafe(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -901,6 +913,7 @@ func TestFindUnusedExports_Strategy1_DefaultObject_Unsafe(t *testing.T) {
 func TestFindUnusedExports_Strategy1_DefaultArray_Unsafe(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export default [1, 2, 3]"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -917,7 +930,8 @@ func TestFindUnusedExports_Strategy1_DefaultArray_Unsafe(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -931,6 +945,7 @@ func TestFindUnusedExports_Strategy1_DefaultArray_Unsafe(t *testing.T) {
 func TestFindUnusedExports_Strategy1_DefaultArrowFn_Unsafe(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export default () => {}"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -947,7 +962,8 @@ func TestFindUnusedExports_Strategy1_DefaultArrowFn_Unsafe(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -962,6 +978,7 @@ func TestFindUnusedExports_Strategy3_AllBraceUnused(t *testing.T) {
 	// Create a temp file for Strategy 3 (reads source file)
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	srcFile := filepath.Join(tmpDir, "utils.ts")
 	os.WriteFile(srcFile, []byte("export { A, B };\nconst other = 1;\n"), 0644)
@@ -978,7 +995,8 @@ func TestFindUnusedExports_Strategy3_AllBraceUnused(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 2 {
@@ -1007,6 +1025,7 @@ func TestFindUnusedExports_Strategy3_AllBraceUnused(t *testing.T) {
 func TestFindUnusedExports_Strategy2_SurgicalRemoval_SingleLine(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	// export { A, B, C }
 	source := "export { A, B, C }"
@@ -1032,7 +1051,8 @@ func TestFindUnusedExports_Strategy2_SurgicalRemoval_SingleLine(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile, filepath.Join(tmpDir, "consumer.ts")},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -1056,6 +1076,7 @@ func TestFindUnusedExports_Strategy2_SurgicalRemoval_SingleLine(t *testing.T) {
 func TestFindUnusedExports_Strategy2_RemoveMiddle(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export { A, B, C }"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -1080,7 +1101,8 @@ func TestFindUnusedExports_Strategy2_RemoveMiddle(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile, filepath.Join(tmpDir, "consumer.ts")},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -1100,6 +1122,7 @@ func TestFindUnusedExports_Strategy2_RemoveMiddle(t *testing.T) {
 func TestFindUnusedExports_Strategy2_RemoveLast(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export { A, B, C }"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -1124,7 +1147,8 @@ func TestFindUnusedExports_Strategy2_RemoveLast(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile, filepath.Join(tmpDir, "consumer.ts")},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -1144,6 +1168,7 @@ func TestFindUnusedExports_Strategy2_RemoveLast(t *testing.T) {
 func TestFindUnusedExports_Strategy2_MultiLine(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export {\n  A,\n  B,\n  C,\n}"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -1169,7 +1194,8 @@ func TestFindUnusedExports_Strategy2_MultiLine(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile, filepath.Join(tmpDir, "consumer.ts")},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -1189,6 +1215,7 @@ func TestFindUnusedExports_Strategy2_MultiLine(t *testing.T) {
 func TestFindUnusedExports_Strategy2_SemicolonPreserved(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export { A, B };"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -1211,7 +1238,8 @@ func TestFindUnusedExports_Strategy2_SemicolonPreserved(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile, filepath.Join(tmpDir, "consumer.ts")},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 1 {
@@ -1232,6 +1260,7 @@ func TestFindUnusedExports_Strategy2_SemicolonPreserved(t *testing.T) {
 func TestFindUnusedExports_Strategy2_RemoveNonConsecutive(t *testing.T) {
 	tmpDir, _ := os.MkdirTemp("", "unused-exports-test")
 	defer os.RemoveAll(tmpDir)
+	autofix := true
 
 	source := "export { A, B, C }"
 	srcFile := filepath.Join(tmpDir, "utils.ts")
@@ -1255,7 +1284,8 @@ func TestFindUnusedExports_Strategy2_RemoveNonConsecutive(t *testing.T) {
 	results := FindUnusedExports(
 		[]string{srcFile, filepath.Join(tmpDir, "consumer.ts")},
 		tree,
-		nil, nil, false, tmpDir+"/", nil,
+		nil, nil, false, autofix, tmpDir+"/",
+		nil,
 	)
 
 	if len(results) != 2 {

@@ -1779,7 +1779,8 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 					"enabled": true,
 					"validEntryPoints": ["src/index.ts", "src/public-api.ts"],
 					"ignoreTypeExports": true,
-					"graphExclude": ["**/*.test.ts", "**/*.spec.ts"]
+					"graphExclude": ["**/*.test.ts", "**/*.spec.ts"],
+					"autofix": true
 				}
 			}]
 		}`
@@ -1804,6 +1805,9 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}
 		if len(rule.UnusedExportsDetection.GraphExclude) != 2 {
 			t.Errorf("Expected 2 graphExclude patterns, got %d", len(rule.UnusedExportsDetection.GraphExclude))
+		}
+		if !rule.UnusedExportsDetection.Autofix {
+			t.Error("Expected autofix to be true")
 		}
 	})
 
@@ -2007,6 +2011,27 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}
 		if !contains(err.Error(), "must be an object") {
 			t.Errorf("Expected object type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("autofix validation", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"autofix": "yes"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "autofix must be a boolean") {
+			t.Errorf("Expected autofix boolean type error, got: %s", err.Error())
 		}
 	})
 }

@@ -408,6 +408,7 @@ func processRuleChecks(
 				rule.UnusedExportsDetection.ValidEntryPoints,
 				rule.UnusedExportsDetection.GraphExclude,
 				rule.UnusedExportsDetection.IgnoreTypeExports,
+				rule.UnusedExportsDetection.Autofix,
 				fullRulePath,
 				moduleSuffixVariants,
 			)

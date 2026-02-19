@@ -131,6 +131,26 @@ func isByteIdentifierChar(char byte) bool {
 	return (char >= 48 && char <= 57) || (char >= 65 && char <= 90) || (char >= 97 && char <= 122) || char == 95
 }
 
+func hasPrefixAt(code []byte, i int, s string) bool {
+	if i < 0 || i+len(s) > len(code) {
+		return false
+	}
+	for j := 0; j < len(s); j++ {
+		if code[i+j] != s[j] {
+			return false
+		}
+	}
+	return true
+}
+
+func hasWordAt(code []byte, i int, s string) bool {
+	if !hasPrefixAt(code, i, s) {
+		return false
+	}
+	end := i + len(s)
+	return end >= len(code) || !isByteIdentifierChar(code[end])
+}
+
 // parseStringLiteral extracts the string literal at position i (' or ")
 func parseStringLiteral(code []byte, i int) (string, int, int, int) {
 	quote := code[i]
@@ -754,11 +774,546 @@ func parseLocalExportKeyword(code []byte, i int) (keyword KeywordInfo, next int)
 	return KeywordInfo{}, i
 }
 
+type parseState struct {
+	code              []byte
+	n                 int
+	ignoreTypeImports bool
+	mode              ParseMode
+	imports           []Import
+}
+
+func (s *parseState) skipDeclareAmbientBlock(i int) (int, bool) {
+	if !hasWordAt(s.code, i, "declare") {
+		return i, false
+	}
+
+	j := i + 7
+	j = skipSpaces(s.code, j)
+	isDeclareBlock := false
+	if hasWordAt(s.code, j, "module") || hasWordAt(s.code, j, "global") || hasWordAt(s.code, j, "namespace") {
+		isDeclareBlock = true
+	}
+	if !isDeclareBlock {
+		return i, false
+	}
+
+	// Find the opening brace and skip to matching closing brace
+	for j < s.n && s.code[j] != '{' {
+		if j+1 < s.n && s.code[j] == '/' && s.code[j+1] == '/' {
+			j = skipLineComment(s.code, j)
+			continue
+		}
+		if j+1 < s.n && s.code[j] == '/' && s.code[j+1] == '*' {
+			j = skipBlockComment(s.code, j)
+			continue
+		}
+		j++
+	}
+	if j < s.n && s.code[j] == '{' {
+		depth := 1
+		j++
+		for j < s.n && depth > 0 {
+			if s.code[j] == '{' {
+				depth++
+			} else if s.code[j] == '}' {
+				depth--
+			} else if s.code[j] == '\'' || s.code[j] == '"' || s.code[j] == '`' {
+				j = skipToStringEnd(s.code, j, s.code[j])
+				if j < s.n {
+					j++ // advance past closing quote
+				}
+				continue
+			} else if j+1 < s.n && s.code[j] == '/' && s.code[j+1] == '/' {
+				j = skipLineComment(s.code, j)
+				continue
+			} else if j+1 < s.n && s.code[j] == '/' && s.code[j+1] == '*' {
+				j = skipBlockComment(s.code, j)
+				continue
+			}
+			j++
+		}
+	}
+
+	return j, true
+}
+
+func (s *parseState) parseImportStatement(i int) (int, bool) {
+	if !hasPrefixAt(s.code, i, "import") {
+		return i, false
+	}
+
+	i += len("import")
+	if i >= s.n {
+		return i, true
+	}
+	if !(isWhiteSpace(s.code[i]) || s.code[i] == '{' || s.code[i] == '"' || s.code[i] == '\'' || s.code[i] == '*' || s.code[i] == '(') {
+		return i, true
+	}
+
+	i = skipSpaces(s.code, i)
+	kind := NotTypeOrMixedImport
+	isWholeStatementType := false
+
+	if bytes.HasPrefix(s.code[i:], []byte("type")) {
+		isTypeKeyword := false
+		if i+4 >= s.n {
+			isTypeKeyword = true
+		} else if !isByteIdentifierChar(s.code[i+4]) {
+			isTypeKeyword = true
+		}
+		if isTypeKeyword {
+			kind = OnlyTypeImport
+			isWholeStatementType = true
+			i += len("type")
+			i = skipSpaces(s.code, i)
+		}
+	}
+
+	if i < s.n && (s.code[i] == '"' || s.code[i] == '\'') {
+		module, next, start, end := parseStringLiteral(s.code, i)
+		if module != "" {
+			s.imports = append(s.imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end)})
+		}
+		return next, true
+	}
+	if i < s.n && s.code[i] == '(' {
+		module, next, start, end := parseExpression(s.code, i)
+		if module != "" {
+			s.imports = append(s.imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
+		}
+		return next, true
+	}
+
+	var detailedKeywords *KeywordMap
+	var detailedNext int
+	if s.mode == ParseModeDetailed {
+		detailedKeywords, detailedNext = parseImportKeywords(s.code, i, isWholeStatementType)
+	}
+
+	if kind == NotTypeOrMixedImport && s.code[i] == '{' {
+		if areAllImportsInBracesTypes(s.code, i) {
+			kind = OnlyTypeImport
+		}
+	}
+	if s.mode == ParseModeDetailed && detailedKeywords != nil {
+		i = detailedNext
+		i = skipSpacesAndComments(s.code, i)
+	}
+
+	foundFrom := false
+	scanStart := i
+	for i < s.n {
+		if hasWordAt(s.code, i, "from") {
+			foundFrom = true
+			break
+		}
+		if i+1 < s.n && s.code[i] == '/' && s.code[i+1] == '/' {
+			i = skipLineComment(s.code, i)
+			continue
+		}
+		if i+1 < s.n && s.code[i] == '/' && s.code[i+1] == '*' {
+			i = skipBlockComment(s.code, i)
+			continue
+		}
+		i++
+	}
+
+	if foundFrom {
+		i += len("from")
+		i = skipSpaces(s.code, i)
+		if i < s.n && (s.code[i] == '"' || s.code[i] == '\'') {
+			module, next, start, end := parseStringLiteral(s.code, i)
+			if module != "" && (!s.ignoreTypeImports || kind == NotTypeOrMixedImport) {
+				imp := Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end)}
+				if s.mode == ParseModeDetailed && detailedKeywords != nil && detailedKeywords.Len() > 0 {
+					imp.Keywords = detailedKeywords
+				}
+				s.imports = append(s.imports, imp)
+			}
+			return next, true
+		}
+		return i, true
+	}
+
+	// Fallback for malformed static imports like `import X form "mod"`.
+	j := scanStart
+	for j < s.n {
+		if j+1 < s.n && s.code[j] == '/' && s.code[j+1] == '/' {
+			j = skipLineComment(s.code, j)
+			continue
+		}
+		if j+1 < s.n && s.code[j] == '/' && s.code[j+1] == '*' {
+			j = skipBlockComment(s.code, j)
+			continue
+		}
+		if s.code[j] == ';' || s.code[j] == '\n' || s.code[j] == '\r' {
+			break
+		}
+		if s.code[j] == '"' || s.code[j] == '\'' {
+			module, next, start, end := parseStringLiteral(s.code, j)
+			if module != "" {
+				imp := Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end)}
+				if s.mode == ParseModeDetailed && detailedKeywords != nil && detailedKeywords.Len() > 0 {
+					imp.Keywords = detailedKeywords
+				}
+				s.imports = append(s.imports, imp)
+			}
+			j = next
+			break
+		}
+		j++
+	}
+	return j, true
+}
+
+func (s *parseState) parseRequireStatement(i int) (int, bool) {
+	if !hasPrefixAt(s.code, i, "require") {
+		return i, false
+	}
+	i += len("require")
+	if i < s.n && (bytes.HasPrefix(s.code[i:], []byte("(")) || skipSpaces(s.code, i) > i) {
+		module, next, start, end := parseExpression(s.code, i)
+		if module != "" {
+			s.imports = append(s.imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
+		}
+		return next, true
+	}
+	return i, true
+}
+
+func (s *parseState) parseExportStatement(i int) (int, bool) {
+	if !hasPrefixAt(s.code, i, "export") {
+		return i, false
+	}
+
+	exportKeyStart := i
+	i += len("export")
+	if i >= s.n || !(isWhiteSpace(s.code[i]) || s.code[i] == '{' || s.code[i] == '*') {
+		return i, true
+	}
+
+	exportKeyEnd := i
+	// Skip whitespace after `export` to find where content starts
+	for exportKeyEnd < s.n && isWhiteSpace(s.code[exportKeyEnd]) {
+		exportKeyEnd++
+	}
+	i = skipSpaces(s.code, i)
+
+	kind := NotTypeOrMixedImport
+	isWholeStatementType := false
+
+	// Save position before consuming * for detailed mode
+	preStarPos := i
+
+	// detect export * as
+	if i < s.n && s.code[i] == '*' {
+		i++
+		i = skipSpaces(s.code, i)
+		if bytes.HasPrefix(s.code[i:], []byte("as")) {
+			i += len("as")
+			i = skipSpaces(s.code, i)
+		}
+	}
+
+	// Check for export namespace/module — skip body (inner exports are namespace members)
+	isExportNamespace := false
+	if hasWordAt(s.code, i, "namespace") {
+		isExportNamespace = true
+	} else if hasWordAt(s.code, i, "module") {
+		// Check it's `export module Foo {`, not `export ... from 'module'`
+		mj := i + 6
+		mj = skipSpacesAndComments(s.code, mj)
+		if mj < s.n && isByteIdentifierChar(s.code[mj]) {
+			isExportNamespace = true
+		}
+	}
+	if isExportNamespace {
+		if s.mode == ParseModeDetailed {
+			kw, _ := parseLocalExportKeyword(s.code, i)
+			if kw.Name != "" {
+				km := &KeywordMap{Keywords: make([]KeywordInfo, 0, 1)}
+				km.Add(kw)
+				s.imports = append(s.imports, Import{
+					Kind:            kind,
+					ResolvedType:    LocalExportDeclaration,
+					Keywords:        km,
+					IsLocalExport:   true,
+					ExportKeyStart:  uint32(exportKeyStart),
+					ExportKeyEnd:    uint32(exportKeyEnd),
+					ExportDeclStart: uint32(exportKeyEnd),
+				})
+			}
+		}
+		// Skip to opening brace and past matching closing brace
+		for i < s.n && s.code[i] != '{' {
+			i++
+		}
+		if i < s.n && s.code[i] == '{' {
+			depth := 1
+			i++
+			for i < s.n && depth > 0 {
+				if s.code[i] == '{' {
+					depth++
+				} else if s.code[i] == '}' {
+					depth--
+				} else if s.code[i] == '\'' || s.code[i] == '"' || s.code[i] == '`' {
+					i = skipToStringEnd(s.code, i, s.code[i])
+					if i < s.n {
+						i++
+					}
+					continue
+				} else if i+1 < s.n && s.code[i] == '/' && s.code[i+1] == '/' {
+					i = skipLineComment(s.code, i)
+					continue
+				} else if i+1 < s.n && s.code[i] == '/' && s.code[i+1] == '*' {
+					i = skipBlockComment(s.code, i)
+					continue
+				}
+				i++
+			}
+		}
+		return i, true
+	}
+
+	// Check for local export keywords that need detailed-mode handling
+	isLocalExportKw := bytes.HasPrefix(s.code[i:], []byte("const")) ||
+		bytes.HasPrefix(s.code[i:], []byte("function")) ||
+		bytes.HasPrefix(s.code[i:], []byte("default")) ||
+		bytes.HasPrefix(s.code[i:], []byte("class")) ||
+		bytes.HasPrefix(s.code[i:], []byte("async")) ||
+		bytes.HasPrefix(s.code[i:], []byte("let")) ||
+		bytes.HasPrefix(s.code[i:], []byte("var")) ||
+		bytes.HasPrefix(s.code[i:], []byte("enum")) ||
+		bytes.HasPrefix(s.code[i:], []byte("interface"))
+
+	if isLocalExportKw {
+		if s.mode == ParseModeDetailed {
+			kw, kwNext := parseLocalExportKeyword(s.code, i)
+			if kw.Name != "" {
+				declStart := exportKeyEnd
+				if kw.Name == "default" {
+					declStart = skipSpacesAndComments(s.code, kwNext)
+				}
+				km := &KeywordMap{Keywords: make([]KeywordInfo, 0, 1)}
+				km.Add(kw)
+				s.imports = append(s.imports, Import{
+					Kind:            kind,
+					ResolvedType:    LocalExportDeclaration,
+					Keywords:        km,
+					IsLocalExport:   true,
+					ExportKeyStart:  uint32(exportKeyStart),
+					ExportKeyEnd:    uint32(exportKeyEnd),
+					ExportDeclStart: uint32(declStart),
+				})
+			}
+		}
+		return i, true
+	}
+
+	// drop processing export statement if followed by "type".
+	if bytes.HasPrefix(s.code[i:], []byte("type")) {
+		isTypeKeyword := false
+		if i+4 >= s.n {
+			isTypeKeyword = true
+		} else if !isByteIdentifierChar(s.code[i+4]) {
+			isTypeKeyword = true
+		}
+
+		if isTypeKeyword {
+			kind = OnlyTypeImport
+			isWholeStatementType = true
+			i += len("type")
+			i = skipSpaces(s.code, i)
+			if !bytes.HasPrefix(s.code[i:], []byte("{")) && !bytes.HasPrefix(s.code[i:], []byte("*")) {
+				// `export type SomeType = ...` is a local export
+				if s.mode == ParseModeDetailed {
+					emitLocalTypeExport := true
+					stmtEnd := i
+					braceDepth, parenDepth, bracketDepth := 0, 0, 0
+					for stmtEnd < s.n {
+						if stmtEnd+1 < s.n && s.code[stmtEnd] == '/' && s.code[stmtEnd+1] == '/' {
+							stmtEnd = skipLineComment(s.code, stmtEnd)
+							continue
+						}
+						if stmtEnd+1 < s.n && s.code[stmtEnd] == '/' && s.code[stmtEnd+1] == '*' {
+							stmtEnd = skipBlockComment(s.code, stmtEnd)
+							continue
+						}
+						if s.code[stmtEnd] == '\'' || s.code[stmtEnd] == '"' || s.code[stmtEnd] == '`' {
+							stmtEnd = skipToStringEnd(s.code, stmtEnd, s.code[stmtEnd])
+							if stmtEnd < s.n {
+								stmtEnd++
+							}
+							continue
+						}
+
+						if s.code[stmtEnd] == '{' {
+							braceDepth++
+						} else if s.code[stmtEnd] == '}' && braceDepth > 0 {
+							braceDepth--
+						} else if s.code[stmtEnd] == '(' {
+							parenDepth++
+						} else if s.code[stmtEnd] == ')' && parenDepth > 0 {
+							parenDepth--
+						} else if s.code[stmtEnd] == '[' {
+							bracketDepth++
+						} else if s.code[stmtEnd] == ']' && bracketDepth > 0 {
+							bracketDepth--
+						}
+
+						if braceDepth == 0 && parenDepth == 0 && bracketDepth == 0 {
+							if s.code[stmtEnd] == ';' {
+								stmtEnd++
+								break
+							}
+							if s.code[stmtEnd] == '\n' || s.code[stmtEnd] == '\r' {
+								break
+							}
+						}
+
+						stmtEnd++
+					}
+
+					nextTopLevel := skipSpacesAndComments(s.code, stmtEnd)
+					if nextTopLevel < s.n &&
+						hasWordAt(s.code, nextTopLevel, "import") {
+						emitLocalTypeExport = false
+					}
+
+					// Parse `type SomeType` - rewind to `type`
+					kw, _ := parseLocalExportKeyword(s.code, i-5) // back to 'type' start
+					if emitLocalTypeExport && kw.Name != "" {
+						km := &KeywordMap{Keywords: make([]KeywordInfo, 0, 1)}
+						km.Add(kw)
+						s.imports = append(s.imports, Import{
+							Kind:            kind,
+							ResolvedType:    LocalExportDeclaration,
+							Keywords:        km,
+							IsLocalExport:   true,
+							ExportKeyStart:  uint32(exportKeyStart),
+							ExportKeyEnd:    uint32(exportKeyEnd),
+							ExportDeclStart: uint32(exportKeyEnd),
+						})
+					}
+					i = stmtEnd
+				}
+				return i, true
+			}
+		}
+	}
+
+	// In detailed mode, parse export keywords for re-exports and local exports
+	var detailedExportKeywords *KeywordMap
+	var detailedBraceStart, detailedBraceEnd int
+	if s.mode == ParseModeDetailed {
+		// Star was consumed above - parse from saved position
+		if preStarPos != i && s.code[preStarPos] == '*' {
+			detailedExportKeywords, _, _, _ = parseExportKeywords(s.code, preStarPos, isWholeStatementType)
+		} else if i < s.n && s.code[i] == '{' {
+			// Brace export: check if re-export or local
+			savedI := i
+			detailedKw, brStart, brEnd, afterKw := parseExportKeywords(s.code, i, isWholeStatementType)
+			checkI := skipSpacesAndComments(s.code, afterKw)
+			if hasWordAt(s.code, checkI, "from") {
+				// This is a re-export, save keywords and continue normal processing below
+				detailedExportKeywords = detailedKw
+				detailedBraceStart = brStart
+				detailedBraceEnd = brEnd
+				i = savedI
+			} else {
+				// This is a local export: `export { A, B }`.
+				// Skip `export type { ... }` local declarations in detailed mode.
+				if !isWholeStatementType && detailedKw != nil && detailedKw.Len() > 0 {
+					stmtEnd := skipOptionalSemicolon(s.code, afterKw)
+					s.imports = append(s.imports, Import{
+						Kind:               kind,
+						ResolvedType:       LocalExportDeclaration,
+						Keywords:           detailedKw,
+						IsLocalExport:      true,
+						ExportKeyStart:     uint32(exportKeyStart),
+						ExportKeyEnd:       uint32(exportKeyEnd),
+						ExportDeclStart:    uint32(exportKeyEnd),
+						ExportBraceStart:   uint32(brStart),
+						ExportBraceEnd:     uint32(brEnd),
+						ExportStatementEnd: uint32(stmtEnd),
+					})
+				}
+				return afterKw, true
+			}
+		}
+	}
+
+	// Check if we have { type A } case in export
+	if kind == NotTypeOrMixedImport && s.code[i] == '{' {
+		if areAllImportsInBracesTypes(s.code, i) {
+			kind = OnlyTypeImport
+		}
+	}
+
+	shouldDropLookingForFrom := false
+	foundFrom := false
+	for i < s.n && !shouldDropLookingForFrom {
+		if hasWordAt(s.code, i, "from") {
+			foundFrom = true
+			break
+		}
+		if i+1 < s.n && s.code[i] == '/' && s.code[i+1] == '/' {
+			i = skipLineComment(s.code, i)
+			continue
+		}
+		if i+1 < s.n && s.code[i] == '/' && s.code[i+1] == '*' {
+			i = skipBlockComment(s.code, i)
+			continue
+		}
+		if hasWordAt(s.code, i, "import") || hasWordAt(s.code, i, "export") || hasWordAt(s.code, i, "require") {
+			shouldDropLookingForFrom = true
+			break
+		}
+		i++
+	}
+
+	if shouldDropLookingForFrom {
+		return i, true
+	}
+
+	if foundFrom {
+		i += len("from")
+		i = skipSpaces(s.code, i)
+		if i < s.n && (s.code[i] == '"' || s.code[i] == '\'') {
+			module, next, start, end := parseStringLiteral(s.code, i)
+			if module != "" {
+				imp := Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end)}
+				if s.mode == ParseModeDetailed {
+					imp.ExportKeyStart = uint32(exportKeyStart)
+					imp.ExportKeyEnd = uint32(exportKeyEnd)
+					imp.ExportDeclStart = uint32(exportKeyEnd)
+					imp.ExportBraceStart = uint32(detailedBraceStart)
+					imp.ExportBraceEnd = uint32(detailedBraceEnd)
+					imp.ExportStatementEnd = uint32(skipOptionalSemicolon(s.code, next))
+					if detailedExportKeywords != nil && detailedExportKeywords.Len() > 0 {
+						imp.Keywords = detailedExportKeywords
+					}
+				}
+				s.imports = append(s.imports, imp)
+			}
+			return next, true
+		}
+	}
+
+	return i, true
+}
+
 // ParseImportsByte parses JS/TS code and extracts all imports/exports
 func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Import {
-	imports := make([]Import, 0, 32)
+	state := parseState{
+		code:              code,
+		n:                 len(code),
+		ignoreTypeImports: ignoreTypeImports,
+		mode:              mode,
+		imports:           make([]Import, 0, 32),
+	}
 	i := 0
-	n := len(code)
+	n := state.n
 	depth := 0 // brace depth: static import/export can only appear at depth 0
 
 	for i < n {
@@ -795,7 +1350,7 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Imp
 					if i < n && code[i] == '(' {
 						module, next, start, end := parseExpression(code, i)
 						if module != "" {
-							imports = append(imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
+							state.imports = append(state.imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
 						}
 						i = next
 					}
@@ -809,7 +1364,7 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Imp
 					if i < n && (code[i] == '(' || skipSpaces(code, i) > i) {
 						module, next, start, end := parseExpression(code, i)
 						if module != "" {
-							imports = append(imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
+							state.imports = append(state.imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
 						}
 						i = next
 					}
@@ -862,441 +1417,38 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Imp
 			continue
 		}
 
-		// Skip declare module/global/namespace blocks — exports inside are ambient declarations
-		if bytes.HasPrefix(code[i:], []byte("declare")) && (i+7 >= n || !isByteIdentifierChar(code[i+7])) {
-			j := i + 7
-			j = skipSpaces(code, j)
-			isDeclareBlock := false
-			if bytes.HasPrefix(code[j:], []byte("module")) && (j+6 >= n || !isByteIdentifierChar(code[j+6])) {
-				isDeclareBlock = true
-			} else if bytes.HasPrefix(code[j:], []byte("global")) && (j+6 >= n || !isByteIdentifierChar(code[j+6])) {
-				isDeclareBlock = true
-			} else if bytes.HasPrefix(code[j:], []byte("namespace")) && (j+9 >= n || !isByteIdentifierChar(code[j+9])) {
-				isDeclareBlock = true
+		switch code[i] {
+		case 'd':
+			if next, ok := state.skipDeclareAmbientBlock(i); ok {
+				i = next
+				continue
 			}
-			if isDeclareBlock {
-				// Find the opening brace and skip to matching closing brace
-				for j < n && code[j] != '{' {
-					if j+1 < n && code[j] == '/' && code[j+1] == '/' {
-						j = skipLineComment(code, j)
-						continue
-					}
-					if j+1 < n && code[j] == '/' && code[j+1] == '*' {
-						j = skipBlockComment(code, j)
-						continue
-					}
-					j++
-				}
-				if j < n && code[j] == '{' {
-					depth := 1
-					j++
-					for j < n && depth > 0 {
-						if code[j] == '{' {
-							depth++
-						} else if code[j] == '}' {
-							depth--
-						} else if code[j] == '\'' || code[j] == '"' || code[j] == '`' {
-							j = skipToStringEnd(code, j, code[j])
-							if j < n {
-								j++ // advance past closing quote
-							}
-							continue
-						} else if j+1 < n && code[j] == '/' && code[j+1] == '/' {
-							j = skipLineComment(code, j)
-							continue
-						} else if j+1 < n && code[j] == '/' && code[j+1] == '*' {
-							j = skipBlockComment(code, j)
-							continue
-						}
-						j++
-					}
-				}
-				i = j
+		case 'i':
+			if next, ok := state.parseImportStatement(i); ok {
+				i = next
+				continue
+			}
+		case 'e':
+			if next, ok := state.parseExportStatement(i); ok {
+				i = next
+				continue
+			}
+		case 'r':
+			if next, ok := state.parseRequireStatement(i); ok {
+				i = next
 				continue
 			}
 		}
 
-		// Detect keywords
-		if bytes.HasPrefix(code[i:], []byte("import")) {
-			i += len("import")
-			if isWhiteSpace(code[i]) || code[i] == '{' || code[i] == '"' || code[i] == '\'' || code[i] == '*' || code[i] == '(' {
-				i = skipSpaces(code, i)
-
-				kind := NotTypeOrMixedImport
-				isWholeStatementType := false
-
-				// Fix: Instead of checking isWhiteSpace(code[i+4]), we check if the next char is NOT an identifier char.
-				// This handles "import type{" correctly while rejecting "import typeScript".
-				if bytes.HasPrefix(code[i:], []byte("type")) {
-					isTypeKeyword := false
-					if i+4 >= n {
-						isTypeKeyword = true
-					} else if !isByteIdentifierChar(code[i+4]) {
-						isTypeKeyword = true
-					}
-
-					if isTypeKeyword {
-						kind = OnlyTypeImport
-						isWholeStatementType = true
-						i += len("type")
-						i = skipSpaces(code, i)
-					}
-				}
-
-				if i < n && (code[i] == '"' || code[i] == '\'') {
-					module, next, start, end := parseStringLiteral(code, i)
-					if module != "" {
-						imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end)})
-					}
-					i = next
-				} else if i < n && code[i] == '(' {
-					// dynamic import
-					module, next, start, end := parseExpression(code, i)
-					if module != "" {
-						imports = append(imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
-					}
-					i = next
-				} else {
-					// static import: find 'from' keyword
-					var detailedKeywords *KeywordMap
-					var detailedNext int
-
-					if mode == ParseModeDetailed {
-						detailedKeywords, detailedNext = parseImportKeywords(code, i, isWholeStatementType)
-					}
-
-					// Check if we have { type A, type B } case (mixed import promoted to type import)
-					if kind == NotTypeOrMixedImport && code[i] == '{' {
-						if areAllImportsInBracesTypes(code, i) {
-							kind = OnlyTypeImport
-						}
-					}
-
-					if mode == ParseModeDetailed && detailedKeywords != nil {
-						// In detailed mode, we already parsed past the keywords; skip to 'from'
-						i = detailedNext
-						i = skipSpacesAndComments(code, i)
-					}
-
-					for i < n && !bytes.HasPrefix(code[i:], []byte("from")) {
-						// Skip comments while looking for 'from'
-						if i+1 < len(code) && code[i] == '/' && code[i+1] == '/' {
-							i = skipLineComment(code, i)
-							continue
-						}
-						if i+1 < len(code) && code[i] == '/' && code[i+1] == '*' {
-							i = skipBlockComment(code, i)
-							continue
-						}
-						i++
-					}
-					if i < n {
-						i += len("from")
-						i = skipSpaces(code, i)
-						if i < n && (code[i] == '"' || code[i] == '\'') {
-							module, next, start, end := parseStringLiteral(code, i)
-							if module != "" {
-								if !ignoreTypeImports || kind == NotTypeOrMixedImport {
-									imp := Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end)}
-									if mode == ParseModeDetailed && detailedKeywords != nil && detailedKeywords.Len() > 0 {
-										imp.Keywords = detailedKeywords
-									}
-									imports = append(imports, imp)
-								}
-							}
-							i = next
-						}
-					}
-				}
-			}
-		} else if bytes.HasPrefix(code[i:], []byte("export")) {
-			exportKeyStart := i
-			i += len("export")
-			if isWhiteSpace(code[i]) || code[i] == '{' || code[i] == '*' {
-				exportKeyEnd := i
-				// Skip whitespace after `export` to find where content starts
-				for exportKeyEnd < n && isWhiteSpace(code[exportKeyEnd]) {
-					exportKeyEnd++
-				}
-				i = skipSpaces(code, i)
-
-				kind := NotTypeOrMixedImport
-				isWholeStatementType := false
-
-				// Save position before consuming * for detailed mode
-				preStarPos := i
-
-				// detect export * as
-				if i < n && code[i] == '*' {
-					i++
-					i = skipSpaces(code, i)
-					if bytes.HasPrefix(code[i:], []byte("as")) {
-						i += len("as")
-						i = skipSpaces(code, i)
-					}
-				}
-
-				// Check for export namespace/module — skip body (inner exports are namespace members)
-				isExportNamespace := false
-				if bytes.HasPrefix(code[i:], []byte("namespace")) && (i+9 >= n || !isByteIdentifierChar(code[i+9])) {
-					isExportNamespace = true
-				} else if bytes.HasPrefix(code[i:], []byte("module")) && (i+6 >= n || !isByteIdentifierChar(code[i+6])) {
-					// Check it's `export module Foo {`, not `export ... from 'module'`
-					mj := i + 6
-					mj = skipSpacesAndComments(code, mj)
-					if mj < n && isByteIdentifierChar(code[mj]) {
-						isExportNamespace = true
-					}
-				}
-				if isExportNamespace {
-					if mode == ParseModeDetailed {
-						kw, _ := parseLocalExportKeyword(code, i)
-						if kw.Name != "" {
-							km := &KeywordMap{Keywords: make([]KeywordInfo, 0, 1)}
-							km.Add(kw)
-							imports = append(imports, Import{
-								Kind:            kind,
-								ResolvedType:    LocalExportDeclaration,
-								Keywords:        km,
-								IsLocalExport:   true,
-								ExportKeyStart:  uint32(exportKeyStart),
-								ExportKeyEnd:    uint32(exportKeyEnd),
-								ExportDeclStart: uint32(exportKeyEnd),
-							})
-						}
-					}
-					// Skip to opening brace and past matching closing brace
-					for i < n && code[i] != '{' {
-						i++
-					}
-					if i < n && code[i] == '{' {
-						depth := 1
-						i++
-						for i < n && depth > 0 {
-							if code[i] == '{' {
-								depth++
-							} else if code[i] == '}' {
-								depth--
-							} else if code[i] == '\'' || code[i] == '"' || code[i] == '`' {
-								i = skipToStringEnd(code, i, code[i])
-								if i < n {
-									i++
-								}
-								continue
-							} else if i+1 < n && code[i] == '/' && code[i+1] == '/' {
-								i = skipLineComment(code, i)
-								continue
-							} else if i+1 < n && code[i] == '/' && code[i+1] == '*' {
-								i = skipBlockComment(code, i)
-								continue
-							}
-							i++
-						}
-					}
-					continue
-				}
-
-				// Check for local export keywords that need detailed-mode handling
-				isLocalExportKw := bytes.HasPrefix(code[i:], []byte("const")) ||
-					bytes.HasPrefix(code[i:], []byte("function")) ||
-					bytes.HasPrefix(code[i:], []byte("default")) ||
-					bytes.HasPrefix(code[i:], []byte("class")) ||
-					bytes.HasPrefix(code[i:], []byte("async")) ||
-					bytes.HasPrefix(code[i:], []byte("let")) ||
-					bytes.HasPrefix(code[i:], []byte("var")) ||
-					bytes.HasPrefix(code[i:], []byte("enum")) ||
-					bytes.HasPrefix(code[i:], []byte("interface"))
-
-				if isLocalExportKw {
-					if mode == ParseModeDetailed {
-						kw, kwNext := parseLocalExportKeyword(code, i)
-						if kw.Name != "" {
-							declStart := exportKeyEnd
-							if kw.Name == "default" {
-								declStart = skipSpacesAndComments(code, kwNext)
-							}
-							km := &KeywordMap{Keywords: make([]KeywordInfo, 0, 1)}
-							km.Add(kw)
-							imports = append(imports, Import{
-								Kind:            kind,
-								ResolvedType:    LocalExportDeclaration,
-								Keywords:        km,
-								IsLocalExport:   true,
-								ExportKeyStart:  uint32(exportKeyStart),
-								ExportKeyEnd:    uint32(exportKeyEnd),
-								ExportDeclStart: uint32(declStart),
-							})
-						}
-					}
-					continue
-				}
-
-				// drop processing export statement if followed by "type".
-				// Fix: Same logic as import type - check boundaries correctly
-				if bytes.HasPrefix(code[i:], []byte("type")) {
-					isTypeKeyword := false
-					if i+4 >= n {
-						isTypeKeyword = true
-					} else if !isByteIdentifierChar(code[i+4]) {
-						isTypeKeyword = true
-					}
-
-					if isTypeKeyword {
-						kind = OnlyTypeImport
-						isWholeStatementType = true
-						i += len("type")
-						i = skipSpaces(code, i)
-						if !bytes.HasPrefix(code[i:], []byte("{")) {
-							// `export type SomeType = ...` is a local export
-							if mode == ParseModeDetailed {
-								// Parse `type SomeType` - rewind to `type`
-								kw, _ := parseLocalExportKeyword(code, i-5) // back to 'type' start
-								if kw.Name != "" {
-									km := &KeywordMap{Keywords: make([]KeywordInfo, 0, 1)}
-									km.Add(kw)
-									imports = append(imports, Import{
-										Kind:            kind,
-										ResolvedType:    LocalExportDeclaration,
-										Keywords:        km,
-										IsLocalExport:   true,
-										ExportKeyStart:  uint32(exportKeyStart),
-										ExportKeyEnd:    uint32(exportKeyEnd),
-										ExportDeclStart: uint32(exportKeyEnd),
-									})
-								}
-							}
-							continue
-						}
-					}
-				}
-
-				// In detailed mode, parse export keywords for re-exports and local exports
-				var detailedExportKeywords *KeywordMap
-				var detailedBraceStart, detailedBraceEnd int
-				if mode == ParseModeDetailed {
-					// Star was consumed above - parse from saved position
-					if preStarPos != i && code[preStarPos] == '*' {
-						detailedExportKeywords, _, _, _ = parseExportKeywords(code, preStarPos, isWholeStatementType)
-					} else if i < n && code[i] == '{' {
-						// Brace export: check if re-export or local
-						savedI := i
-						detailedKw, brStart, brEnd, afterKw := parseExportKeywords(code, i, isWholeStatementType)
-						checkI := skipSpacesAndComments(code, afterKw)
-						if checkI < n && bytes.HasPrefix(code[checkI:], []byte("from")) && (checkI+4 >= n || !isByteIdentifierChar(code[checkI+4])) {
-							// This is a re-export, save keywords and continue normal processing below
-							detailedExportKeywords = detailedKw
-							detailedBraceStart = brStart
-							detailedBraceEnd = brEnd
-							i = savedI
-						} else {
-							// This is a local export: `export { A, B }`
-							if detailedKw != nil && detailedKw.Len() > 0 {
-								stmtEnd := skipOptionalSemicolon(code, afterKw)
-								imports = append(imports, Import{
-									Kind:               kind,
-									ResolvedType:       LocalExportDeclaration,
-									Keywords:           detailedKw,
-									IsLocalExport:      true,
-									ExportKeyStart:     uint32(exportKeyStart),
-									ExportKeyEnd:       uint32(exportKeyEnd),
-									ExportDeclStart:    uint32(exportKeyEnd),
-									ExportBraceStart:   uint32(brStart),
-									ExportBraceEnd:     uint32(brEnd),
-									ExportStatementEnd: uint32(stmtEnd),
-								})
-							}
-							i = afterKw
-							continue
-						}
-					}
-				}
-
-				// Check if we have { type A } case in export
-				if kind == NotTypeOrMixedImport && code[i] == '{' {
-					if areAllImportsInBracesTypes(code, i) {
-						kind = OnlyTypeImport
-					}
-				}
-
-				shouldDropLookingForFrom := false
-				// find from keyword
-				for i < n && !bytes.HasPrefix(code[i:], []byte("from")) && !shouldDropLookingForFrom {
-					// Skip comments while looking for 'from'
-					if i+1 < len(code) && code[i] == '/' && code[i+1] == '/' {
-						i = skipLineComment(code, i)
-						continue
-					}
-					if i+1 < len(code) && code[i] == '/' && code[i+1] == '*' {
-						i = skipBlockComment(code, i)
-						continue
-					}
-
-					if kind != OnlyTypeImport {
-						// skip processing current export if one of the keywords are found
-						if bytes.HasPrefix(code[i:], []byte("import")) && !isByteIdentifierChar(code[i+len("import")]) {
-							shouldDropLookingForFrom = true
-							break
-						}
-						if bytes.HasPrefix(code[i:], []byte("export")) && !isByteIdentifierChar(code[i+len("export")]) {
-							shouldDropLookingForFrom = true
-							break
-						}
-						if bytes.HasPrefix(code[i:], []byte("require")) && !isByteIdentifierChar(code[i+len("require")]) {
-							shouldDropLookingForFrom = true
-							break
-						}
-					}
-					i++
-				}
-
-				if shouldDropLookingForFrom {
-					continue
-				}
-
-				if i < n {
-					i += len("from")
-					i = skipSpaces(code, i)
-					if i < n && (code[i] == '"' || code[i] == '\'') {
-						module, next, start, end := parseStringLiteral(code, i)
-						if module != "" {
-							imp := Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end)}
-							if mode == ParseModeDetailed {
-								imp.ExportKeyStart = uint32(exportKeyStart)
-								imp.ExportKeyEnd = uint32(exportKeyEnd)
-								imp.ExportDeclStart = uint32(exportKeyEnd)
-								imp.ExportBraceStart = uint32(detailedBraceStart)
-								imp.ExportBraceEnd = uint32(detailedBraceEnd)
-								imp.ExportStatementEnd = uint32(skipOptionalSemicolon(code, next))
-								if detailedExportKeywords != nil && detailedExportKeywords.Len() > 0 {
-									imp.Keywords = detailedExportKeywords
-								}
-							}
-							imports = append(imports, imp)
-						}
-						i = next
-					}
-				}
-			}
-		} else if bytes.HasPrefix(code[i:], []byte("require")) {
-			i += len("require")
-			if bytes.HasPrefix(code[i:], []byte("(")) || skipSpaces(code, i) > i {
-				module, next, start, end := parseExpression(code, i)
-				if module != "" {
-					imports = append(imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
-				}
-				i = next
-			}
-		} else {
-			// Track brace depth for non-keyword bytes at depth 0.
-			// Opening braces enter depth > 0, enabling the fast scan path.
-			if code[i] == '{' {
-				depth++
-			}
-			i++
+		// Track brace depth for non-keyword bytes at depth 0.
+		// Opening braces enter depth > 0, enabling the fast scan path.
+		if code[i] == '{' {
+			depth++
 		}
+		i++
 	}
 
-	return imports
+	return state.imports
 }
 
 func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool, mode ParseMode) ([]FileImports, int) {

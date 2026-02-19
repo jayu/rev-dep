@@ -338,6 +338,32 @@ func (ctx *MonorepoContext) GetPackageConfig(packageRoot string) (*PackageJsonCo
 	return &config, nil
 }
 
+// GetDevDependenciesFromConfig extracts dev dependencies from PackageJsonConfig
+func GetDevDependenciesFromConfig(config *PackageJsonConfig) map[string]bool {
+	if config == nil || config.DevDependencies == nil {
+		return make(map[string]bool)
+	}
+
+	result := make(map[string]bool, len(config.DevDependencies))
+	for dep := range config.DevDependencies {
+		result[dep] = true
+	}
+	return result
+}
+
+// GetProductionDependenciesFromConfig extracts production dependencies from PackageJsonConfig
+func GetProductionDependenciesFromConfig(config *PackageJsonConfig) map[string]bool {
+	if config == nil || config.Dependencies == nil {
+		return make(map[string]bool)
+	}
+
+	result := make(map[string]bool, len(config.Dependencies))
+	for dep := range config.Dependencies {
+		result[dep] = true
+	}
+	return result
+}
+
 func (ctx *MonorepoContext) GetPackageExports(packageRoot string, conditionNames []string) (*PackageJsonExports, error) {
 	packageRoot = NormalizePathForInternal(packageRoot)
 	if exports, ok := ctx.PackageExportsCache[packageRoot]; ok {

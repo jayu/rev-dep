@@ -417,6 +417,44 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				} else {
 					fmt.Printf("  ✅ Unused Exports\n")
 				}
+			case "restricted-dev-dependencies-usage":
+				if len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 {
+					fmt.Printf("  ❌ Restricted Dev Dependencies Usage Issues (%d):\n", len(ruleResult.RestrictedDevDependenciesUsageViolations))
+
+					violationsToDisplay := ruleResult.RestrictedDevDependenciesUsageViolations
+					remaining := 0
+					if !listAll && len(violationsToDisplay) > maxIssuesToList {
+						remaining = len(violationsToDisplay) - maxIssuesToList
+						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
+					}
+
+					// Group by dev dependency
+					violationsByDep := make(map[string][]RestrictedDevDependenciesUsageViolation)
+					for _, violation := range violationsToDisplay {
+						violationsByDep[violation.DevDependency] = append(violationsByDep[violation.DevDependency], violation)
+					}
+
+					// Sort dev dependencies for consistent output
+					var sortedDeps []string
+					for dep := range violationsByDep {
+						sortedDeps = append(sortedDeps, dep)
+					}
+					slices.Sort(sortedDeps)
+
+					for _, dep := range sortedDeps {
+						fmt.Printf("    %s\n", dep)
+						depViolations := violationsByDep[dep]
+						for _, violation := range depViolations {
+							fmt.Printf("     - %s (from entry point: %s)\n", getRelativePath(violation.FilePath), getRelativePath(violation.EntryPoint))
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more restricted dev dependencies usage issues\n", remaining)
+					}
+				} else {
+					fmt.Printf("  ✅ Restricted Dev Dependencies Usage\n")
+				}
 			}
 		}
 

@@ -63,6 +63,11 @@ type UnresolvedImportsOptions struct {
 	IgnoreImports []string          `json:"ignoreImports,omitempty"`
 }
 
+type RestrictedDevDependenciesUsageOptions struct {
+	Enabled         bool     `json:"enabled"`
+	ProdEntryPoints []string `json:"prodEntryPoints,omitempty"`
+}
+
 // ImportConventionDomain represents a single domain definition
 type ImportConventionDomain struct {
 	Path    string `json:"path,omitempty"`
@@ -99,16 +104,17 @@ func (f FollowMonorepoPackagesValue) ShouldFollowPackage(name string) bool {
 }
 
 type Rule struct {
-	Path                        string                      `json:"path"` // Required
-	FollowMonorepoPackages      FollowMonorepoPackagesValue `json:"-"`
-	ModuleBoundaries            []BoundaryRule              `json:"moduleBoundaries,omitempty"`
-	CircularImportsDetection    *CircularImportsOptions     `json:"circularImportsDetection,omitempty"`
-	OrphanFilesDetection        *OrphanFilesOptions         `json:"orphanFilesDetection,omitempty"`
-	UnusedNodeModulesDetection  *UnusedNodeModulesOptions   `json:"unusedNodeModulesDetection,omitempty"`
-	MissingNodeModulesDetection *MissingNodeModulesOptions  `json:"missingNodeModulesDetection,omitempty"`
-	UnusedExportsDetection      *UnusedExportsOptions       `json:"unusedExportsDetection,omitempty"`
-	UnresolvedImportsDetection  *UnresolvedImportsOptions   `json:"unresolvedImportsDetection,omitempty"`
-	ImportConventions           []ImportConventionRule      `json:"-"`
+	Path                        string                                 `json:"path"` // Required
+	FollowMonorepoPackages      FollowMonorepoPackagesValue            `json:"-"`
+	ModuleBoundaries            []BoundaryRule                         `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetection    *CircularImportsOptions                `json:"circularImportsDetection,omitempty"`
+	OrphanFilesDetection        *OrphanFilesOptions                    `json:"orphanFilesDetection,omitempty"`
+	UnusedNodeModulesDetection  *UnusedNodeModulesOptions              `json:"unusedNodeModulesDetection,omitempty"`
+	MissingNodeModulesDetection *MissingNodeModulesOptions             `json:"missingNodeModulesDetection,omitempty"`
+	UnusedExportsDetection      *UnusedExportsOptions                  `json:"unusedExportsDetection,omitempty"`
+	UnresolvedImportsDetection  *UnresolvedImportsOptions              `json:"unresolvedImportsDetection,omitempty"`
+	DevDepsUsageOnProdDetection *RestrictedDevDependenciesUsageOptions `json:"devDepsUsageOnProdDetection,omitempty"`
+	ImportConventions           []ImportConventionRule                 `json:"-"`
 }
 
 type RevDepConfig struct {
@@ -126,7 +132,7 @@ var hiddenConfigFileNameJsonc = ".rev-dep.config.jsonc"
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -377,6 +383,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		"missingNodeModulesDetection": true,
 		"unusedExportsDetection":      true,
 		"unresolvedImportsDetection":  true,
+		"devDepsUsageOnProdDetection": true,
 		"importConventions":           true,
 	}
 
@@ -453,6 +460,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 
 	if conventions, exists := rule["importConventions"]; exists {
 		if err := validateRawImportConventions(conventions, index); err != nil {
+			return err
+		}
+	}
+
+	if restrictedDevDeps, exists := rule["devDepsUsageOnProdDetection"]; exists {
+		if err := validateRawRestrictedDevDependenciesUsageDetection(restrictedDevDeps, index); err != nil {
 			return err
 		}
 	}
@@ -848,6 +861,13 @@ func ValidateConfig(config *RevDepConfig) error {
 			}
 		}
 
+		// Validate restricted dev dependencies usage detection options
+		if rule.DevDepsUsageOnProdDetection != nil {
+			if err := validateRestrictedDevDependenciesUsageOptions(rule.DevDepsUsageOnProdDetection, fmt.Sprintf("rules[%d].devDepsUsageOnProdDetection", j)); err != nil {
+				return err
+			}
+		}
+
 		// Validate import conventions
 		if len(rule.ImportConventions) > 0 {
 			// Additional validation can be added here if needed
@@ -1089,11 +1109,64 @@ func validateUnresolvedImportsOptions(opts *UnresolvedImportsOptions, prefix str
 	return nil
 }
 
+// validateRawRestrictedDevDependenciesUsageDetection validates restricted dev dependencies usage detection structure
+func validateRawRestrictedDevDependenciesUsageDetection(restrictedDevDeps interface{}, ruleIndex int) error {
+	restrictedDevDepsMap, ok := restrictedDevDeps.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection must be an object, got %T", ruleIndex, restrictedDevDeps)
+	}
+
+	allowedFields := map[string]bool{
+		"enabled":         true,
+		"prodEntryPoints": true,
+	}
+
+	for field := range restrictedDevDepsMap {
+		if !allowedFields[field] {
+			return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection: unknown field '%s'", ruleIndex, field)
+		}
+	}
+
+	if _, exists := restrictedDevDepsMap["enabled"]; !exists {
+		return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.enabled is required", ruleIndex)
+	}
+
+	if enabled, ok := restrictedDevDepsMap["enabled"]; !ok || enabled == nil {
+		return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.enabled cannot be null", ruleIndex)
+	} else if _, ok := enabled.(bool); !ok {
+		return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+	}
+
+	if entryPoints, exists := restrictedDevDepsMap["prodEntryPoints"]; exists && entryPoints != nil {
+		if _, ok := entryPoints.([]interface{}); !ok {
+			return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.prodEntryPoints must be an array, got %T", ruleIndex, entryPoints)
+		}
+	}
+
+	return nil
+}
+
 func normalizeUnresolvedIgnoreFilePath(path string) string {
 	cleaned := filepath.Clean(DenormalizePathForOS(strings.TrimSpace(path)))
 	normalized := NormalizePathForInternal(cleaned)
 	normalized = strings.TrimPrefix(normalized, "./")
 	return normalized
+}
+
+// validateRestrictedDevDependenciesUsageOptions validates restricted dev dependencies usage options structure
+func validateRestrictedDevDependenciesUsageOptions(opts *RestrictedDevDependenciesUsageOptions, prefix string) error {
+	if !opts.Enabled {
+		return nil
+	}
+
+	// Validate production entry points if provided
+	for i, entryPoint := range opts.ProdEntryPoints {
+		if entryPoint == "" {
+			return fmt.Errorf("%s.prodEntryPoints[%d]: cannot be empty", prefix, i)
+		}
+	}
+
+	return nil
 }
 
 // validateRawImportConventions validates import conventions structure

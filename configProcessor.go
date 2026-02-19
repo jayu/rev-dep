@@ -9,6 +9,13 @@ import (
 	"sync"
 )
 
+// RestrictedDevDependenciesUsageViolation represents a violation where a dev dependency is used in production code
+type RestrictedDevDependenciesUsageViolation struct {
+	DevDependency string `json:"devDependency"`
+	FilePath      string `json:"filePath"`
+	EntryPoint    string `json:"entryPoint"`
+}
+
 // validateRulePathPackageJson checks if package.json exists in the rule path directory
 // and returns true if package.json is missing
 func validateRulePathPackageJson(rulePath, cwd string) bool {
@@ -47,6 +54,7 @@ type RuleResult struct {
 	ImportConventionViolations                      []ImportConventionViolation
 	UnusedExports                                   []UnusedExport
 	UnresolvedImports                               []UnresolvedImport
+	RestrictedDevDependenciesUsageViolations        []RestrictedDevDependenciesUsageViolation
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
 }
@@ -167,6 +175,7 @@ func filterFilesForRule(
 	}
 
 	// Build graph to trace dependencies from other packages
+
 	graph := buildDepsGraphForMultiple(fullTree, filesWithinCwd, nil, false)
 
 	allowedPackagePathPrefixes := map[string]bool{}
@@ -237,6 +246,9 @@ func processRuleChecks(
 	}
 	if rule.UnresolvedImportsDetection != nil && rule.UnresolvedImportsDetection.Enabled {
 		enabledChecks = append(enabledChecks, "unresolved-imports")
+	}
+	if rule.DevDepsUsageOnProdDetection != nil && rule.DevDepsUsageOnProdDetection.Enabled {
+		enabledChecks = append(enabledChecks, "restricted-dev-dependencies-usage")
 	}
 	if len(rule.ImportConventions) > 0 {
 		enabledChecks = append(enabledChecks, "import-conventions")
@@ -436,6 +448,29 @@ func processRuleChecks(
 		}()
 	}
 
+	// Restricted Dev Dependencies Usage
+	if rule.DevDepsUsageOnProdDetection != nil && rule.DevDepsUsageOnProdDetection.Enabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var monorepoContext *MonorepoContext
+			if resolverManager != nil {
+				monorepoContext = resolverManager.monorepoContext
+			}
+
+			violations := FindDevDependenciesInProduction(
+				ruleTree,
+				rule.DevDepsUsageOnProdDetection.ProdEntryPoints,
+				fullRulePath,
+				monorepoContext,
+			)
+
+			mu.Lock()
+			ruleResult.RestrictedDevDependenciesUsageViolations = violations
+			mu.Unlock()
+		}()
+	}
+
 	wg.Wait()
 	return ruleResult
 }
@@ -518,7 +553,8 @@ func ProcessConfig(
 				len(ruleResult.MissingNodeModules) > 0 ||
 				len(ruleResult.ImportConventionViolations) > 0 ||
 				len(ruleResult.UnusedExports) > 0 ||
-				len(ruleResult.UnresolvedImports) > 0
+				len(ruleResult.UnresolvedImports) > 0 ||
+				len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

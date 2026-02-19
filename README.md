@@ -1,3 +1,5 @@
+# Rev-dep
+
 <p align="center">
 <img src="https://github.com/jayu/rev-dep/raw/master/logo.png" width="400" alt="Rev-dep logo">
 </p>
@@ -75,6 +77,7 @@ Available checks:
 - `missingNodeModulesDetection` - detect imports missing from package json.
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
+- `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 
 ## Exploratory analysis (CLI-based) 🔍
 
@@ -164,6 +167,7 @@ Available checks are:
 - `missingNodeModulesDetection` - detect imports missing from package json.
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
+- `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 
 Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
 
@@ -209,8 +213,8 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.3",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.3.schema.json?raw=true",
+  "configVersion": "1.4",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.4.schema.json?raw=true",
   "rules": [
     {
       "path": ".",
@@ -230,6 +234,10 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
       "circularImportsDetection": { 
         "enabled": true 
       },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"]
+      }
     }
   ]
 }
@@ -241,8 +249,8 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.3",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.3.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.4",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.4.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -321,6 +329,10 @@ Here's a comprehensive example showing all available properties:
         },
         "ignoreFiles": ["**/*.generated.ts"],
         "ignoreImports": ["@internal/dev-only"]
+      },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"]
       }
     }
   ]
@@ -348,6 +360,7 @@ Each rule can contain the following properties:
 - **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration
 - **`unusedExportsDetection`** (optional): Unused exports detection configuration
 - **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration
+- **`devDepsUsageOnProdDetection`** (optional): Restricted dev dependencies usage detection configuration
 - **`importConventions`** (optional): Array of import convention rules
 
 #### Module Boundary Properties
@@ -403,6 +416,10 @@ Each rule can contain the following properties:
 - **`ignore`** (optional): Map of file path (relative to rule path directory) to exact import request to suppress
 - **`ignoreFiles`** (optional): File path globs; all unresolved imports from matching files are suppressed
 - **`ignoreImports`** (optional): Import requests to suppress globally in unresolved results
+
+**DevDepsUsageOnProd:**
+- **`enabled`** (required): Enable/disable restricted dev dependencies usage detection
+- **`prodEntryPoints`** (optional): Production entry point patterns to trace dependencies from (eg. ["src/pages/**/*.tsx", "src/main.tsx"])
 
 ### Performance Benefits
 
@@ -583,9 +600,10 @@ Here is a performance comparison of specific tasks between rev-dep and alternati
 | Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
 |------|-------|--------------|------|----|
 | Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
-| Find unused files | 588 | knip | 6346 | 11x |
-| Find unused node modules | 594 | knip | 6230 | 10x |
-| Find missing node modules | 553 | knip| 6226 | 11x |
+| Find unused exports | 303 | knip| 6606 | 22x |
+| Find unused files | 277 | knip | 6596 | 23x |
+| Find unused node modules | 287 | knip | 6572 | 22x |
+| Find missing node modules | 270 | knip| 6568 | 24x |
 | List all files imported by an entry point | 229 | madge | 4467 | 20x | 
 | Discover entry points | 323 | madge | 67000 | 207x
 | Resolve dependency path between files | 228 | please suggest | 
@@ -615,6 +633,35 @@ Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, t
 | [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
 
 
+
+### **How to detect dev dependencies used in production code**
+
+```
+rev-dep config run
+```
+
+When `devDepsUsageOnProdDetection` is enabled in your config, rev-dep will:
+
+1. Trace dependency graphs from your specified production entry points
+2. Identify all files reachable from those entry points
+3. Check if any imported modules are listed in `devDependencies` in package.json
+4. Report violations showing which dev dependencies are used where
+
+**Example Output:**
+```
+❌ Restricted Dev Dependencies Usage Issues (2):
+  lodash (dev dependency)
+     - src/components/Button.tsx (from entry point: src/pages/index.tsx)
+     - src/utils/helpers.ts (from entry point: src/pages/index.tsx)
+  eslint (dev dependency)
+     - src/config/eslint-config.js (from entry point: src/server.ts)
+```
+
+**Important Notes:**
+- Type-only imports (e.g., `import type { ReactNode } from 'react'`) are automatically ignored
+- Only dependencies from `devDependencies` in package.json are flagged
+- Production dependencies from `dependencies` are allowed
+- Helps prevent runtime failures in production builds
 
 ## CLI reference 📖
 

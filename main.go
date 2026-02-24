@@ -52,6 +52,50 @@ var (
 
 const followMonorepoPackagesAllSentinel = "__REV_DEP_FOLLOW_ALL__"
 
+func sanitizeFlagSentinelInHelpOutput(helpOutput string) string {
+	followAllToken := "[=" + followMonorepoPackagesAllSentinel + "]"
+	return strings.ReplaceAll(helpOutput, followAllToken, strings.Repeat(" ", len(followAllToken)))
+}
+
+func installHelpOutputSanitizer(command *cobra.Command) {
+	defaultHelpFunc := command.HelpFunc()
+	defaultUsageFunc := command.UsageFunc()
+
+	command.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		var captured bytes.Buffer
+		originalOut := cmd.OutOrStdout()
+		originalErr := cmd.ErrOrStderr()
+		cmd.SetOut(&captured)
+		cmd.SetErr(&captured)
+		defer func() {
+			cmd.SetOut(originalOut)
+			cmd.SetErr(originalErr)
+		}()
+
+		defaultHelpFunc(cmd, args)
+		fmt.Fprint(originalOut, sanitizeFlagSentinelInHelpOutput(captured.String()))
+	})
+
+	command.SetUsageFunc(func(cmd *cobra.Command) error {
+		var captured bytes.Buffer
+		originalOut := cmd.OutOrStdout()
+		originalErr := cmd.ErrOrStderr()
+		cmd.SetOut(&captured)
+		cmd.SetErr(&captured)
+		defer func() {
+			cmd.SetOut(originalOut)
+			cmd.SetErr(originalErr)
+		}()
+
+		usageErr := defaultUsageFunc(cmd)
+		_, writeErr := fmt.Fprint(originalErr, sanitizeFlagSentinelInHelpOutput(captured.String()))
+		if usageErr != nil {
+			return usageErr
+		}
+		return writeErr
+	})
+}
+
 func addSharedFlags(command *cobra.Command) {
 	command.Flags().StringVar(&packageJsonPath, "package-json", "",
 		"Path to package.json (default: ./package.json)")
@@ -1364,6 +1408,7 @@ func init() {
 
 	// add commands
 	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, unresolvedCmd, docsCmd, configCmd)
+	installHelpOutputSanitizer(rootCmd)
 }
 
 func main() {

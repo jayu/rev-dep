@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -85,4 +86,17 @@ func TestGetFollowMonorepoPackagesValue(t *testing.T) {
 			t.Fatalf("expected %+v, got %+v", expected, got)
 		}
 	})
+}
+
+func TestSanitizeFlagSentinelInHelpOutput(t *testing.T) {
+	rawOutput := "      --follow-monorepo-packages strings[=" + followMonorepoPackagesAllSentinel + "]   test"
+	sanitizedOutput := sanitizeFlagSentinelInHelpOutput(rawOutput)
+
+	if strings.Contains(sanitizedOutput, followMonorepoPackagesAllSentinel) {
+		t.Fatalf("sanitized output should not expose internal sentinel, got:\n%s", sanitizedOutput)
+	}
+
+	if !strings.Contains(sanitizedOutput, "--follow-monorepo-packages strings") {
+		t.Fatalf("sanitized output should keep the flag usage, got:\n%s", sanitizedOutput)
+	}
 }

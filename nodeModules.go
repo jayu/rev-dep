@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -133,6 +134,10 @@ func NodeModulesCmd(
 	groupByModule bool,
 	groupByFile bool,
 	groupByModuleFilesCount bool,
+	groupByEntryPoint bool,
+	groupByEntryPointModulesCount bool,
+	groupByModuleShowEntryPoints bool,
+	groupByModuleEntryPointsCount bool,
 	pkgJsonFieldsWithBinaries []string,
 	filesWithBinaries []string,
 	filesWithModules []string,
@@ -144,19 +149,21 @@ func NodeModulesCmd(
 	followMonorepoPackages FollowMonorepoPackagesValue,
 ) (string, int) {
 	cwd := StandardiseDirPath(inputCwd)
-	var absolutePathToEntryPoints []string
-
-	if len(entryPoints) > 0 {
-		absolutePathToEntryPoints = make([]string, 0, len(entryPoints))
-		for _, entryPoint := range entryPoints {
-			absolutePathToEntryPoints = append(absolutePathToEntryPoints, JoinWithCwd(cwd, entryPoint))
-		}
-	}
+	excludeFiles := []string{}
+	absolutePathToEntryPoints, discoveredFiles := ResolveEntryPointsFromPatterns(cwd, entryPoints, excludeFiles)
 
 	shouldIncludeModule := createShouldModuleByIncluded(modulesToInclude, modulesToExclude)
-	excludeFiles := []string{}
 
-	minimalTree, _, resolverManager := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, absolutePathToEntryPoints, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
+	upfrontFilesList := absolutePathToEntryPoints
+	if len(discoveredFiles) > 0 {
+		upfrontFilesList = discoveredFiles
+	}
+
+	minimalTree, _, resolverManager := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, upfrontFilesList, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
+
+	if len(absolutePathToEntryPoints) == 0 && (groupByEntryPoint || groupByEntryPointModulesCount || groupByModuleShowEntryPoints || groupByModuleEntryPointsCount) {
+		absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
+	}
 
 	resolverForCwd := resolverManager.GetResolverForFile(cwd)
 
@@ -188,7 +195,21 @@ func NodeModulesCmd(
 	}
 
 	usedNodeModules := GetUsedNodeModulesFromTree(minimalTree, cwdNodeModules, cwd, pkgJsonFieldsWithBinaries, filesWithBinaries, filesWithModules, packageJson, tsconfigJson)
-	return formatUsedNodeModulesResult(usedNodeModules, cwd, countFlag, groupByModule, groupByFile, groupByModuleFilesCount, shouldIncludeModule)
+	return formatUsedNodeModulesResult(
+		usedNodeModules,
+		cwd,
+		countFlag,
+		groupByModule,
+		groupByFile,
+		groupByModuleFilesCount,
+		groupByEntryPoint,
+		groupByEntryPointModulesCount,
+		groupByModuleShowEntryPoints,
+		groupByModuleEntryPointsCount,
+		absolutePathToEntryPoints,
+		minimalTree,
+		shouldIncludeModule,
+	)
 }
 
 type MissingNodeModuleResult struct {
@@ -533,7 +554,21 @@ func ParsePackageJson(filePath string, cwd string, ch chan PackageInfo, wg *sync
 	}
 }
 
-func formatUsedNodeModulesResult(usedNodeModules map[string]map[string]bool, cwd string, countFlag bool, groupByModule bool, groupByFile bool, groupByModuleFilesCount bool, shouldIncludeModule func(moduleName string) bool) (string, int) {
+func formatUsedNodeModulesResult(
+	usedNodeModules map[string]map[string]bool,
+	cwd string,
+	countFlag bool,
+	groupByModule bool,
+	groupByFile bool,
+	groupByModuleFilesCount bool,
+	groupByEntryPoint bool,
+	groupByEntryPointModulesCount bool,
+	groupByModuleShowEntryPoints bool,
+	groupByModuleEntryPointsCount bool,
+	absolutePathToEntryPoints []string,
+	minimalTree MinimalDependencyTree,
+	shouldIncludeModule func(moduleName string) bool,
+) (string, int) {
 	usedNodeModulesArr := make([]string, 0, len(usedNodeModules))
 
 	for depName := range usedNodeModules {
@@ -558,6 +593,14 @@ func formatUsedNodeModulesResult(usedNodeModules map[string]map[string]bool, cwd
 		result += getGroupByFileResult(usedNodeModulesArr, usedNodeModules, cwd)
 	} else if groupByModuleFilesCount {
 		result += getGroupByModuleFilesCountResult(usedNodeModulesArr, usedNodeModules)
+	} else if groupByEntryPoint {
+		result += getGroupByEntryPointResult(minimalTree, absolutePathToEntryPoints, usedNodeModules, cwd, shouldIncludeModule)
+	} else if groupByEntryPointModulesCount {
+		result += getGroupByEntryPointModulesCountResult(minimalTree, absolutePathToEntryPoints, usedNodeModules, cwd, shouldIncludeModule)
+	} else if groupByModuleShowEntryPoints {
+		result += getGroupByModuleEntryPointsResult(minimalTree, absolutePathToEntryPoints, usedNodeModules, cwd, shouldIncludeModule)
+	} else if groupByModuleEntryPointsCount {
+		result += getGroupByModuleEntryPointsCountResult(minimalTree, absolutePathToEntryPoints, usedNodeModules, shouldIncludeModule)
 	} else {
 		result += fmt.Sprintln(strings.Join(usedNodeModulesArr, "\n"))
 	}
@@ -713,4 +756,307 @@ func getGroupByModuleFilesCountResult(modulesArr []string, modulesFilesMap map[s
 		result += fmt.Sprintf("%s (%d files)\n", moduleName, filesCount)
 	}
 	return result
+}
+
+func getNodeModulesByEntryPoint(
+	minimalTree MinimalDependencyTree,
+	absolutePathToEntryPoints []string,
+	usedNodeModules map[string]map[string]bool,
+	shouldIncludeModule func(moduleName string) bool,
+) map[string]map[string]bool {
+	grouped := map[string]map[string]bool{}
+
+	// Group-by-entry-point output should be based on explicit entry points only.
+	if len(absolutePathToEntryPoints) == 0 {
+		return grouped
+	}
+
+	entryPoints := make([]string, 0, len(absolutePathToEntryPoints))
+	entryPointsSet := map[string]bool{}
+	for _, entryPointRaw := range absolutePathToEntryPoints {
+		entryPoint := NormalizePathForInternal(entryPointRaw)
+		if _, has := minimalTree[entryPoint]; has {
+			entryPoints = append(entryPoints, entryPoint)
+			entryPointsSet[entryPoint] = true
+			grouped[entryPoint] = map[string]bool{}
+		}
+	}
+
+	if len(entryPoints) == 0 {
+		return grouped
+	}
+
+	graph := buildDepsGraphForMultiple(minimalTree, entryPoints, nil, false)
+
+	moduleToFiles := map[string]map[string]bool{}
+	uniqueFiles := map[string]bool{}
+	for moduleName, filesSet := range usedNodeModules {
+		if !shouldIncludeModule(moduleName) || !isValidNodeModuleName(moduleName) {
+			continue
+		}
+		moduleToFiles[moduleName] = filesSet
+		for filePath := range filesSet {
+			uniqueFiles[filePath] = true
+		}
+	}
+
+	allFiles := make([]string, 0, len(uniqueFiles))
+	for filePath := range uniqueFiles {
+		allFiles = append(allFiles, filePath)
+	}
+
+	fileToEntryPoints := map[string]map[string]bool{}
+	if len(allFiles) > 0 {
+		workers := runtime.NumCPU()
+		if workers < 1 {
+			workers = 1
+		}
+		if workers > len(allFiles) {
+			workers = len(allFiles)
+		}
+
+		chFiles := make(chan string, len(allFiles))
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+
+		resolveEntryPointsForFile := func(filePath string) map[string]bool {
+			res := map[string]bool{}
+			start := graph.Vertices[filePath]
+			if start == nil {
+				return res
+			}
+
+			visited := map[string]bool{}
+			stack := []string{filePath}
+
+			for len(stack) > 0 {
+				last := len(stack) - 1
+				nodePath := stack[last]
+				stack = stack[:last]
+
+				if visited[nodePath] {
+					continue
+				}
+				visited[nodePath] = true
+
+				vertex := graph.Vertices[nodePath]
+				if vertex == nil {
+					continue
+				}
+
+				if len(vertex.Parents) == 0 {
+					if entryPointsSet[nodePath] {
+						res[nodePath] = true
+					}
+					continue
+				}
+
+				for _, parent := range vertex.Parents {
+					stack = append(stack, parent)
+				}
+			}
+
+			return res
+		}
+
+		for i := 0; i < workers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for filePath := range chFiles {
+					entryPointsForFile := resolveEntryPointsForFile(filePath)
+					mu.Lock()
+					fileToEntryPoints[filePath] = entryPointsForFile
+					mu.Unlock()
+				}
+			}()
+		}
+
+		for _, filePath := range allFiles {
+			chFiles <- filePath
+		}
+		close(chFiles)
+		wg.Wait()
+	}
+
+	for moduleName, filesSet := range moduleToFiles {
+		for filePath := range filesSet {
+			entryPointsForFile := fileToEntryPoints[filePath]
+			for entryPoint := range entryPointsForFile {
+				if grouped[entryPoint] == nil {
+					grouped[entryPoint] = map[string]bool{}
+				}
+				grouped[entryPoint][moduleName] = true
+			}
+		}
+	}
+
+	return grouped
+}
+
+func getGroupByEntryPointResult(
+	minimalTree MinimalDependencyTree,
+	absolutePathToEntryPoints []string,
+	usedNodeModules map[string]map[string]bool,
+	cwd string,
+	shouldIncludeModule func(moduleName string) bool,
+) string {
+	usedByEntryPoint := getNodeModulesByEntryPoint(minimalTree, absolutePathToEntryPoints, usedNodeModules, shouldIncludeModule)
+	var b strings.Builder
+
+	entryPoints := make([]string, 0, len(usedByEntryPoint))
+	for entryPoint := range usedByEntryPoint {
+		entryPoints = append(entryPoints, entryPoint)
+	}
+	slices.Sort(entryPoints)
+
+	cwdInternal := NormalizePathForInternal(cwd)
+
+	for _, entryPoint := range entryPoints {
+		modulesSet := usedByEntryPoint[entryPoint]
+		modules := make([]string, 0, len(modulesSet))
+		for moduleName := range modulesSet {
+			modules = append(modules, moduleName)
+		}
+		slices.Sort(modules)
+
+		cleanedEntryPoint := strings.Replace(entryPoint, cwdInternal, "", 1)
+		cleanedEntryPoint = strings.TrimPrefix(cleanedEntryPoint, "/")
+		b.WriteString("\n ")
+		b.WriteString(cleanedEntryPoint)
+		b.WriteString("\n")
+
+		for _, moduleName := range modules {
+			b.WriteString("    ➞ ")
+			b.WriteString(moduleName)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func getGroupByEntryPointModulesCountResult(
+	minimalTree MinimalDependencyTree,
+	absolutePathToEntryPoints []string,
+	usedNodeModules map[string]map[string]bool,
+	cwd string,
+	shouldIncludeModule func(moduleName string) bool,
+) string {
+	usedByEntryPoint := getNodeModulesByEntryPoint(minimalTree, absolutePathToEntryPoints, usedNodeModules, shouldIncludeModule)
+	var b strings.Builder
+
+	entryPoints := make([]string, 0, len(usedByEntryPoint))
+	for entryPoint := range usedByEntryPoint {
+		entryPoints = append(entryPoints, entryPoint)
+	}
+	slices.Sort(entryPoints)
+
+	maxPathLen := 0
+	cleanedPaths := make(map[string]string, len(entryPoints))
+	cwdInternal := NormalizePathForInternal(cwd)
+	for _, entryPoint := range entryPoints {
+		cleanedEntryPoint := strings.Replace(entryPoint, cwdInternal, "", 1)
+		cleanedEntryPoint = strings.TrimPrefix(cleanedEntryPoint, "/")
+		cleanedPaths[entryPoint] = cleanedEntryPoint
+		if len(cleanedEntryPoint) > maxPathLen {
+			maxPathLen = len(cleanedEntryPoint)
+		}
+	}
+
+	for _, entryPoint := range entryPoints {
+		b.WriteString(fmt.Sprintf("%-*s %d\n", maxPathLen, cleanedPaths[entryPoint], len(usedByEntryPoint[entryPoint])))
+	}
+
+	return b.String()
+}
+
+func getEntryPointsByNodeModules(
+	minimalTree MinimalDependencyTree,
+	absolutePathToEntryPoints []string,
+	usedNodeModules map[string]map[string]bool,
+	shouldIncludeModule func(moduleName string) bool,
+) map[string]map[string]bool {
+	modulesByEntryPoint := getNodeModulesByEntryPoint(minimalTree, absolutePathToEntryPoints, usedNodeModules, shouldIncludeModule)
+	entryPointsByModule := map[string]map[string]bool{}
+
+	for entryPoint, modulesSet := range modulesByEntryPoint {
+		for moduleName := range modulesSet {
+			if entryPointsByModule[moduleName] == nil {
+				entryPointsByModule[moduleName] = map[string]bool{}
+			}
+			entryPointsByModule[moduleName][entryPoint] = true
+		}
+	}
+
+	return entryPointsByModule
+}
+
+func getGroupByModuleEntryPointsResult(
+	minimalTree MinimalDependencyTree,
+	absolutePathToEntryPoints []string,
+	usedNodeModules map[string]map[string]bool,
+	cwd string,
+	shouldIncludeModule func(moduleName string) bool,
+) string {
+	entryPointsByModule := getEntryPointsByNodeModules(minimalTree, absolutePathToEntryPoints, usedNodeModules, shouldIncludeModule)
+	modules := make([]string, 0, len(entryPointsByModule))
+	for moduleName := range entryPointsByModule {
+		modules = append(modules, moduleName)
+	}
+	slices.Sort(modules)
+
+	cwdInternal := NormalizePathForInternal(cwd)
+	var b strings.Builder
+
+	for _, moduleName := range modules {
+		b.WriteString("\n ")
+		b.WriteString(moduleName)
+		b.WriteString("\n")
+
+		entryPoints := make([]string, 0, len(entryPointsByModule[moduleName]))
+		for entryPoint := range entryPointsByModule[moduleName] {
+			cleanedEntryPoint := strings.Replace(entryPoint, cwdInternal, "", 1)
+			cleanedEntryPoint = strings.TrimPrefix(cleanedEntryPoint, "/")
+			entryPoints = append(entryPoints, cleanedEntryPoint)
+		}
+		slices.Sort(entryPoints)
+
+		for _, entryPoint := range entryPoints {
+			b.WriteString("    ➞ ")
+			b.WriteString(entryPoint)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func getGroupByModuleEntryPointsCountResult(
+	minimalTree MinimalDependencyTree,
+	absolutePathToEntryPoints []string,
+	usedNodeModules map[string]map[string]bool,
+	shouldIncludeModule func(moduleName string) bool,
+) string {
+	entryPointsByModule := getEntryPointsByNodeModules(minimalTree, absolutePathToEntryPoints, usedNodeModules, shouldIncludeModule)
+	modules := make([]string, 0, len(entryPointsByModule))
+	for moduleName := range entryPointsByModule {
+		modules = append(modules, moduleName)
+	}
+	slices.Sort(modules)
+
+	var b strings.Builder
+	maxModuleLen := 0
+	for _, moduleName := range modules {
+		if len(moduleName) > maxModuleLen {
+			maxModuleLen = len(moduleName)
+		}
+	}
+
+	for _, moduleName := range modules {
+		b.WriteString(fmt.Sprintf("%-*s %d\n", maxModuleLen, moduleName, len(entryPointsByModule[moduleName])))
+	}
+	return b.String()
 }

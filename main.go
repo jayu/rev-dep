@@ -97,10 +97,71 @@ func logWarning(format string, a ...interface{}) {
 	}
 }
 
+func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFiles []string) ([]string, []string) {
+	if len(entryPoints) == 0 {
+		return []string{}, []string{}
+	}
+
+	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)
+	gitIgnoreExcludePatterns := FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
+	allExcludePatterns := append(excludePatterns, gitIgnoreExcludePatterns...)
+
+	absolutePathToEntryPoints := make([]string, 0, len(entryPoints))
+	entryPointsSet := map[string]bool{}
+	hasGlob := false
+
+	for _, entryPoint := range entryPoints {
+		abs := NormalizePathForInternal(JoinWithCwd(cwd, entryPoint))
+		if fileInfo, err := os.Stat(DenormalizePathForOS(abs)); err == nil && !fileInfo.IsDir() {
+			if MatchesAnyGlobMatcher(abs, allExcludePatterns, false) {
+				continue
+			}
+			if !entryPointsSet[abs] {
+				entryPointsSet[abs] = true
+				absolutePathToEntryPoints = append(absolutePathToEntryPoints, abs)
+			}
+			continue
+		}
+
+		if strings.ContainsAny(entryPoint, "*?[]{}") {
+			hasGlob = true
+		} else {
+			if MatchesAnyGlobMatcher(abs, allExcludePatterns, false) {
+				continue
+			}
+			if !entryPointsSet[abs] {
+				entryPointsSet[abs] = true
+				absolutePathToEntryPoints = append(absolutePathToEntryPoints, abs)
+			}
+		}
+	}
+
+	if !hasGlob {
+		slices.Sort(absolutePathToEntryPoints)
+		return absolutePathToEntryPoints, []string{}
+	}
+
+	matchers := CreateGlobMatchers(entryPoints, cwd)
+	allFiles := GetFiles(cwd, []string{}, allExcludePatterns)
+	for _, filePath := range allFiles {
+		if MatchesAnyGlobMatcher(filePath, matchers, false) {
+			normalized := NormalizePathForInternal(filePath)
+			if !entryPointsSet[normalized] {
+				entryPointsSet[normalized] = true
+				absolutePathToEntryPoints = append(absolutePathToEntryPoints, normalized)
+			}
+		}
+	}
+
+	slices.Sort(absolutePathToEntryPoints)
+	return absolutePathToEntryPoints, allFiles
+}
+
 // ---------------- resolve ----------------
 var (
 	resolveCwd            string
 	resolveFile           string
+	resolveModule         string
 	resolveEntryPoints    []string
 	resolveGraphExclude   []string
 	resolveIgnoreType     bool
@@ -108,23 +169,29 @@ var (
 	resolveCompactSummary bool
 )
 
-func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
-	var absolutePathToEntryPoints []string
+func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
+	hasFile := strings.TrimSpace(filePath) != ""
+	hasModule := strings.TrimSpace(moduleName) != ""
 
-	if len(entryPoints) > 0 {
-		absolutePathToEntryPoints = make([]string, 0, len(entryPoints))
-		for _, entryPoint := range entryPoints {
-			absolutePathToEntryPoints = append(absolutePathToEntryPoints, JoinWithCwd(cwd, entryPoint))
-		}
+	if hasFile == hasModule {
+		return fmt.Errorf("exactly one of --file or --module must be provided")
 	}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, absolutePathToEntryPoints, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+	absolutePathToEntryPoints, discoveredFiles := ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
 	if len(absolutePathToEntryPoints) == 0 {
 		absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
 	}
 
-	absolutePathToFilePath := NormalizePathForInternal(JoinWithCwd(cwd, filePath))
+	targetDisplayName := filePath
+	targetNodeOrModuleName := ""
+	if hasFile {
+		targetNodeOrModuleName = NormalizePathForInternal(JoinWithCwd(cwd, filePath))
+	} else {
+		targetNodeOrModuleName = strings.TrimSpace(moduleName)
+		targetDisplayName = targetNodeOrModuleName
+	}
 
 	notFoundCount := 0
 	for _, absolutePathToEntryPoint := range absolutePathToEntryPoints {
@@ -134,21 +201,23 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 		}
 	}
 
-	if _, found := minimalTree[absolutePathToFilePath]; !found {
-		fmt.Printf("Error: Target file '%s' ('%s') not found in dependency tree.\n", filePath, absolutePathToFilePath)
-		fmt.Println("Available files:")
-		count := 0
-		for path := range minimalTree {
-			if count < 10 {
-				cleanPath := strings.TrimPrefix(path, cwd)
-				fmt.Printf("  %s\n", cleanPath)
-				count++
+	if hasFile {
+		if _, found := minimalTree[targetNodeOrModuleName]; !found {
+			fmt.Printf("Error: Target file '%s' ('%s') not found in dependency tree.\n", filePath, targetNodeOrModuleName)
+			fmt.Println("Available files:")
+			count := 0
+			for path := range minimalTree {
+				if count < 10 {
+					cleanPath := strings.TrimPrefix(path, cwd)
+					fmt.Printf("  %s\n", cleanPath)
+					count++
+				}
 			}
+			if len(minimalTree) > 10 {
+				fmt.Printf("  ... and %d more files\n", len(minimalTree)-10)
+			}
+			os.Exit(1)
 		}
-		if len(minimalTree) > 10 {
-			fmt.Printf("  ... and %d more files\n", len(minimalTree)-10)
-		}
-		os.Exit(1)
 	}
 
 	type RootAndResolutionPaths struct {
@@ -167,11 +236,15 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 		// We cannot use multiple entry points here as it will break the reverse resolution.
 		// Reverse resolution which only looks for the first possible path, must have only one entry point
 		// Otherwise it may follow wrong path and not find the result
-		depsGraphsTemp := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, &absolutePathToFilePath, resolveAll)
+		depsGraphsTemp := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, &targetNodeOrModuleName, resolveAll)
 		depsGraph := RootAndResolutionPaths{
 			Root:                 depsGraphsTemp.Roots[absolutePathToEntryPoint],
 			ResolutionPaths:      depsGraphsTemp.ResolutionPaths[absolutePathToEntryPoint],
 			FileOrNodeModuleNode: depsGraphsTemp.FileOrNodeModuleNode,
+		}
+		if hasModule && depsGraph.FileOrNodeModuleNode != nil && depsGraph.FileOrNodeModuleNode.LookedUpNodeModuleImportRequest != "" && len(depsGraph.ResolutionPaths) == 0 {
+			// Mirror previous resolve output expectations when entry point itself imports the target module.
+			depsGraph.ResolutionPaths = [][]string{{absolutePathToEntryPoint}}
 		}
 
 		mu.Lock()
@@ -179,8 +252,13 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 		mu.Unlock()
 
 		// Print this warning only if user provided entry points list
-		if depsGraph.FileOrNodeModuleNode == nil && len(entryPoints) > 0 {
-			logWarning("Error: Could not find target file '%s' in dependency graph.\n", filePath)
+		if len(entryPoints) > 0 {
+			if hasFile && depsGraph.FileOrNodeModuleNode == nil {
+				logWarning("Error: Could not find target file '%s' in dependency graph.\n", filePath)
+			}
+			if hasModule && (depsGraph.FileOrNodeModuleNode == nil || depsGraph.FileOrNodeModuleNode.LookedUpNodeModuleImportRequest == "") {
+				logWarning("Error: Could not find a matching module import in dependency graph.\n")
+			}
 		}
 		wg.Done()
 	}
@@ -221,7 +299,11 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 
 	totalCount := 0
 
-	fmt.Printf("\nDependency paths from entry points to '%s':\n\n", filePath)
+	if hasFile {
+		fmt.Printf("\nDependency paths from entry points to '%s':\n\n", targetDisplayName)
+	} else {
+		fmt.Printf("\nDependency paths from entry points to matching module imports:\n\n")
+	}
 
 	maxPathLen := 0
 
@@ -242,7 +324,15 @@ func resolveCmdFn(cwd, filePath string, entryPoints, graphExclude []string, igno
 				p := PadRight(strings.TrimPrefix(depsGraph.Root.Path, cwd), ' ', maxPathLen)
 				fmt.Println(p, ":", resolvePathsCount)
 			} else {
-				FormatPaths(depsGraph.ResolutionPaths, cwd)
+				if hasModule {
+					additionalItem := ""
+					if depsGraph.FileOrNodeModuleNode != nil {
+						additionalItem = depsGraph.FileOrNodeModuleNode.LookedUpNodeModuleImportRequest
+					}
+					FormatPathsWithAdditionalItem(depsGraph.ResolutionPaths, cwd, additionalItem)
+				} else {
+					FormatPaths(depsGraph.ResolutionPaths, cwd)
+				}
 			}
 		}
 	}
@@ -269,6 +359,7 @@ Helps understand how different parts of your codebase are connected.`,
 		return resolveCmdFn(
 			ResolveAbsoluteCwd(resolveCwd),
 			resolveFile,
+			resolveModule,
 			resolveEntryPoints,
 			resolveGraphExclude,
 			resolveIgnoreType,
@@ -436,6 +527,10 @@ var (
 	nodeModulesGroupByModule             bool
 	nodeModulesGroupByFile               bool
 	nodeModulesGroupByModuleFilesCount   bool
+	nodeModulesGroupByEntryPoint         bool
+	nodeModulesGroupByEntryPointModCount bool
+	nodeModulesGroupByModuleShowEntries  bool
+	nodeModulesGroupByModuleEntriesCount bool
 	nodeModulesPkgJsonFieldsWithBinaries []string
 	nodeModulesFilesWithBinaries         []string
 	nodeModulesFilesWithModules          []string
@@ -480,6 +575,10 @@ Helps keep track of your project's runtime dependencies.`,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			nodeModulesGroupByModuleFilesCount,
+			nodeModulesGroupByEntryPoint,
+			nodeModulesGroupByEntryPointModCount,
+			nodeModulesGroupByModuleShowEntries,
+			nodeModulesGroupByModuleEntriesCount,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -518,6 +617,10 @@ to identify potentially unused packages.`,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			nodeModulesGroupByModuleFilesCount,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -560,6 +663,10 @@ in your package.json dependencies.`,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			nodeModulesGroupByModuleFilesCount,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -1131,18 +1238,18 @@ func init() {
 		"Working directory for the command")
 	resolveCmd.Flags().StringVarP(&resolveFile, "file", "f", "",
 		"Target file to check for dependencies")
+	resolveCmd.Flags().StringVar(&resolveModule, "module", "",
+		"Target node module name to check for dependencies")
 	resolveCmd.Flags().StringSliceVar(&resolveGraphExclude, "graph-exclude", []string{},
 		"Glob patterns to exclude files from dependency analysis")
 	resolveCmd.Flags().StringSliceVarP(&resolveEntryPoints, "entry-points", "p", []string{},
-		"Entry point file(s) to start analysis from (default: auto-detected)")
+		"Entry point file(s) or glob pattern(s) to start analysis from (default: auto-detected)")
 	resolveCmd.Flags().BoolVarP(&resolveIgnoreType, "ignore-type-imports", "t", false,
 		"Exclude type imports from the analysis")
 	resolveCmd.Flags().BoolVarP(&resolveAll, "all", "a", false,
 		"Show all possible resolution paths, not just the first one")
 	resolveCmd.Flags().BoolVar(&resolveCompactSummary, "compact-summary", false,
 		"Display a compact summary of found paths")
-	resolveCmd.MarkFlagRequired("file")
-
 	// entry-points flags
 	addSharedFlags(entryPointsCmd)
 	entryPointsCmd.Flags().StringVarP(&entryPointsCwd, "cwd", "c", currentDir,
@@ -1169,6 +1276,14 @@ func init() {
 
 	// node-modules flags
 	addNodeModulesFlags(nodeModulesUsedCmd, false)
+	nodeModulesUsedCmd.Flags().BoolVar(&nodeModulesGroupByEntryPoint, "group-by-entry-point", false,
+		"Organize output by entry point file path")
+	nodeModulesUsedCmd.Flags().BoolVar(&nodeModulesGroupByEntryPointModCount, "group-by-entry-point-modules-count", false,
+		"Organize output by entry point and show count of unique modules")
+	nodeModulesUsedCmd.Flags().BoolVar(&nodeModulesGroupByModuleShowEntries, "group-by-module-show-entry-points", false,
+		"Organize output by npm package name and list entry points using it")
+	nodeModulesUsedCmd.Flags().BoolVar(&nodeModulesGroupByModuleEntriesCount, "group-by-module-entry-points-count", false,
+		"Organize output by npm package name and show count of entry points using it")
 	addNodeModulesFlags(nodeModulesUnusedCmd, true)
 	nodeModulesUnusedCmd.Flags().BoolVar(&nodeModulesZeroExitCode, "zero-exit-code", false, "Use this flag to always return zero exit code")
 	addNodeModulesFlags(nodeModulesMissingCmd, false)

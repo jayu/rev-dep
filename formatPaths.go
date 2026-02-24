@@ -7,6 +7,10 @@ import (
 
 // formatPaths formats the resolution paths in a nested tree structure
 func FormatPaths(paths [][]string, pathPrefix string) {
+	FormatPathsWithAdditionalItem(paths, pathPrefix, "")
+}
+
+func FormatPathsWithAdditionalItem(paths [][]string, pathPrefix, terminal string) {
 	if len(paths) == 0 {
 		fmt.Println("No paths found.")
 		return
@@ -38,6 +42,10 @@ func FormatPaths(paths [][]string, pathPrefix string) {
 		for depth, file := range path {
 			indent := strings.Repeat(" ", depth)
 			fmt.Printf("%s ➞ %s\n", indent, file)
+		}
+		if terminal != "" {
+			indent := strings.Repeat(" ", len(path))
+			fmt.Printf("%s ➞ %s\n", indent, terminal)
 		}
 		fmt.Println()
 	}

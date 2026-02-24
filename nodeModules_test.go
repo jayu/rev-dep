@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -79,6 +80,10 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -111,6 +116,10 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -141,6 +150,10 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -173,6 +186,10 @@ func TestUsedNodeModules(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -203,6 +220,10 @@ func TestUsedNodeModules(t *testing.T) {
 			false,
 			false,
 			nodeModulesGroupByModuleFilesCount,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -249,6 +270,10 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -278,6 +303,10 @@ func TestUnusedNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -326,6 +355,10 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -356,6 +389,10 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -388,6 +425,10 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -418,6 +459,10 @@ func TestMissingNodeModules(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -466,6 +511,10 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -495,6 +544,10 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -526,6 +579,10 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -555,6 +612,10 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -603,6 +664,10 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -632,6 +697,10 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -663,6 +732,10 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -692,6 +765,10 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -740,6 +817,10 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -769,6 +850,10 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -801,6 +886,10 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -831,6 +920,10 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -863,6 +956,10 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -893,6 +990,10 @@ func TestIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -939,6 +1040,10 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -968,6 +1073,10 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -999,6 +1108,10 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -1029,6 +1142,10 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
 			false,
+			false,
+			false,
+			false,
+			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
 			nodeModulesFilesWithModules,
@@ -1058,6 +1175,10 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			nodeModulesListMissing,
 			nodeModulesGroupByModule,
 			nodeModulesGroupByFile,
+			false,
+			false,
+			false,
+			false,
 			false,
 			nodeModulesPkgJsonFieldsWithBinaries,
 			nodeModulesFilesWithBinaries,
@@ -1127,6 +1248,10 @@ func TestTsConfigTypesComplexRealWorld(t *testing.T) {
 			false,                         // groupByModule
 			false,                         // groupByFile
 			false,                         // groupByModuleFilesCount
+			false,                         // groupByEntryPoint
+			false,                         // groupByEntryPointModulesCount
+			false,                         // groupByModuleShowEntryPoints
+			false,                         // groupByModuleEntryPointsCount
 			[]string{},                    // pkgJsonFieldsWithBinaries
 			[]string{},                    // filesWithBinaries
 			[]string{},                    // filesWithModules
@@ -1148,4 +1273,232 @@ func TestTsConfigTypesComplexRealWorld(t *testing.T) {
 			t.Errorf("Incorrect unused modules list '%s'. Expected '%s'", result, expected)
 		}
 	})
+}
+
+func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "node-modules-group-by-entry-point")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	pkgJsonContent := `{
+  "dependencies": {
+    "dep-a": "1.0.0",
+    "dep-b": "1.0.0",
+    "dep-shared": "1.0.0"
+  }
+}`
+	err = os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(pkgJsonContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write package.json: %v", err)
+	}
+
+	err = os.WriteFile(
+		filepath.Join(tempDir, "entryA.ts"),
+		[]byte(`import "./shared"; import "dep-a"`),
+		0644,
+	)
+	if err != nil {
+		t.Fatalf("Failed to write entryA.ts: %v", err)
+	}
+
+	err = os.WriteFile(
+		filepath.Join(tempDir, "entryB.ts"),
+		[]byte(`import "./shared"; import "dep-b"`),
+		0644,
+	)
+	if err != nil {
+		t.Fatalf("Failed to write entryB.ts: %v", err)
+	}
+
+	err = os.WriteFile(
+		filepath.Join(tempDir, "shared.ts"),
+		[]byte(`import "dep-shared"`),
+		0644,
+	)
+	if err != nil {
+		t.Fatalf("Failed to write shared.ts: %v", err)
+	}
+
+	result, _ := NodeModulesCmd(
+		tempDir,
+		false,
+		[]string{"entryA.ts", "entryB.ts"},
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		true,
+		false,
+		false,
+		false,
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		"",
+		"",
+		[]string{},
+		FollowMonorepoPackagesValue{},
+	)
+
+	expectedGrouped := "\n entryA.ts\n    ➞ dep-a\n    ➞ dep-shared\n\n\n entryB.ts\n    ➞ dep-b\n    ➞ dep-shared\n\n"
+	if result != expectedGrouped {
+		t.Errorf("Incorrect grouped-by-entry-point modules output '%s'. Expected '%s'", result, expectedGrouped)
+	}
+
+	countsResult, _ := NodeModulesCmd(
+		tempDir,
+		false,
+		[]string{"entryA.ts", "entryB.ts"},
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		true,
+		false,
+		false,
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		"",
+		"",
+		[]string{},
+		FollowMonorepoPackagesValue{},
+	)
+
+	lines := strings.Split(strings.TrimSpace(countsResult), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("Expected 2 lines in count output, got %d: %q", len(lines), countsResult)
+	}
+
+	if lines[0] != "entryA.ts 2" || lines[1] != "entryB.ts 2" {
+		t.Errorf("Incorrect grouped-by-entry-point count output '%s'", countsResult)
+	}
+
+	moduleEntryPointsResult, _ := NodeModulesCmd(
+		tempDir,
+		false,
+		[]string{"entryA.ts", "entryB.ts"},
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		true,
+		false,
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		"",
+		"",
+		[]string{},
+		FollowMonorepoPackagesValue{},
+	)
+
+	expectedGroupByModuleEntryPoints := "\n dep-a\n    ➞ entryA.ts\n\n\n dep-b\n    ➞ entryB.ts\n\n\n dep-shared\n    ➞ entryA.ts\n    ➞ entryB.ts\n\n"
+	if moduleEntryPointsResult != expectedGroupByModuleEntryPoints {
+		t.Errorf("Incorrect grouped-by-module entry points output '%s'. Expected '%s'", moduleEntryPointsResult, expectedGroupByModuleEntryPoints)
+	}
+
+	moduleEntryPointsCountResult, _ := NodeModulesCmd(
+		tempDir,
+		false,
+		[]string{"entryA.ts", "entryB.ts"},
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		true,
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		"",
+		"",
+		[]string{},
+		FollowMonorepoPackagesValue{},
+	)
+
+	expectedGroupByModuleEntryPointsCount := "dep-a      1\ndep-b      1\ndep-shared 2\n"
+	if moduleEntryPointsCountResult != expectedGroupByModuleEntryPointsCount {
+		t.Errorf("Incorrect grouped-by-module entry points count output '%s'. Expected '%s'", moduleEntryPointsCountResult, expectedGroupByModuleEntryPointsCount)
+	}
+
+	moduleEntryPointsAutoEntryPointsResult, _ := NodeModulesCmd(
+		tempDir,
+		false,
+		[]string{},
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		true,
+		false,
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		"",
+		"",
+		[]string{},
+		FollowMonorepoPackagesValue{},
+	)
+	if moduleEntryPointsAutoEntryPointsResult != expectedGroupByModuleEntryPoints {
+		t.Errorf("Incorrect grouped-by-module entry points output with auto entry points '%s'. Expected '%s'", moduleEntryPointsAutoEntryPointsResult, expectedGroupByModuleEntryPoints)
+	}
+
+	resultFromGlob, _ := NodeModulesCmd(
+		tempDir,
+		false,
+		[]string{"entry*.ts"},
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+		true,
+		false,
+		false,
+		false,
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		[]string{},
+		"",
+		"",
+		[]string{},
+		FollowMonorepoPackagesValue{},
+	)
+
+	if resultFromGlob != expectedGrouped {
+		t.Errorf("Incorrect grouped-by-entry-point modules output for glob '%s'. Expected '%s'", resultFromGlob, expectedGrouped)
+	}
 }

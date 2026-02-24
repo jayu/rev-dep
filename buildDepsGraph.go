@@ -11,6 +11,19 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 	resolutionPaths := make(map[string][][]string)
 	var fileOrNodeModuleNode *SerializableNode
 	sharedVisited := make(map[string]bool)
+	targetModeIsFile := false
+	targetModuleName := ""
+	targetModuleRequest := ""
+	targetModuleIsPackageName := false
+
+	if filePathOrNodeModuleName != nil {
+		_, targetModeIsFile = deps[*filePathOrNodeModuleName]
+		if !targetModeIsFile {
+			targetModuleRequest = *filePathOrNodeModuleName
+			targetModuleName = GetNodeModuleName(targetModuleRequest)
+			targetModuleIsPackageName = targetModuleName == targetModuleRequest
+		}
+	}
 
 	var inner func(path string, visited map[string]bool, depth int, parent *SerializableNode) *SerializableNode
 	inner = func(path string, visited map[string]bool, depth int, parent *SerializableNode) *SerializableNode {
@@ -74,6 +87,27 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 		}
 
 		for _, d := range dep {
+			if filePathOrNodeModuleName != nil && !targetModeIsFile {
+				if d.ResolvedType == NodeModule || d.ResolvedType == NotResolvedModule {
+					moduleMatched := false
+					if targetModuleIsPackageName {
+						// match package name with package import with or without subpath. eg targetModuleRequest = "lodash" should match both "lodash" and "lodash/map"
+						moduleMatched = GetNodeModuleName(d.Request) == targetModuleName
+					} else {
+						// exact match for full import request. eg targetModuleRequest = "lodash/map" should only match "lodash/map"
+						moduleMatched = d.Request == targetModuleRequest
+					}
+					if moduleMatched {
+						if node.LookedUpNodeModuleImportRequest == "" {
+							node.LookedUpNodeModuleImportRequest = d.Request
+						}
+						if fileOrNodeModuleNode == nil {
+							fileOrNodeModuleNode = node
+						}
+					}
+				}
+			}
+
 			// Do not follow other modules than user modules and monorepo modules
 			if d.ID != "" && (d.ResolvedType == UserModule || d.ResolvedType == MonorepoModule) {
 				childNode := inner(d.ID, visited, depth+1, node)
@@ -87,8 +121,8 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 		// Store vertex
 		vertices[path] = node
 
-		// Check if this is the file we're looking for
-		if filePathOrNodeModuleName != nil && path == *filePathOrNodeModuleName {
+		// File target mode match.
+		if filePathOrNodeModuleName != nil && targetModeIsFile && path == *filePathOrNodeModuleName {
 			fileOrNodeModuleNode = node
 		}
 
@@ -100,7 +134,7 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 		root := inner(entryPoint, sharedVisited, 1, nil)
 		roots[entryPoint] = root
 
-		// Compute resolution paths if a specific file was found for this entry point
+		// Compute resolution paths if a specific target file was found for this entry point
 		if fileOrNodeModuleNode != nil {
 			// Initialize with empty path array for the resolvePathsToRoot function
 			initialPaths := [][]string{{}}
@@ -170,9 +204,10 @@ func ResolvePathsToRoot(node *SerializableNode, vertices map[string]*Serializabl
 
 // SerializableNode represents a node that can be safely JSON marshaled
 type SerializableNode struct {
-	Path     string   `json:"path"`
-	Parents  []string `json:"parents,omitempty"`
-	Children []string `json:"children,omitempty"`
+	Path                            string   `json:"path"`
+	Parents                         []string `json:"parents,omitempty"`
+	Children                        []string `json:"children,omitempty"`
+	LookedUpNodeModuleImportRequest string   `json:"lookedUpNodeModuleImportRequest,omitempty"`
 }
 
 // bst collects a list of all vertices starting from the root SerializableNode

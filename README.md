@@ -1060,7 +1060,7 @@ rev-dep node-modules missing --entry-points=src/main.ts
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -n, --count                                                       Only display the count of modules
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-  -p, --entry-points strings                                        Entry point file(s) or glob pattern(s) to start analysis from (default: auto-detected)
+  -p, --entry-points strings                                        Entry point file(s) to start analysis from (default: auto-detected)
   -e, --exclude-modules strings                                     list of modules to exclude from the output
   -b, --files-with-binaries strings                                 Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings                             Additional files to search for module imports. Use paths relative to cwd
@@ -1137,8 +1137,6 @@ rev-dep node-modules used [flags]
 
 ```
 rev-dep node-modules used -p src/index.ts --group-by-module
-rev-dep node-modules used -p src/index.ts --group-by-entry-point
-rev-dep node-modules used -p src/index.ts --group-by-module-show-entry-points
 ```
 
 #### Options
@@ -1186,7 +1184,6 @@ rev-dep resolve [flags]
 
 ```
 rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
-rev-dep resolve -p src/index.ts --module react
 ```
 
 #### Options
@@ -1196,13 +1193,13 @@ rev-dep resolve -p src/index.ts --module react
       --compact-summary                                             Display a compact summary of found paths
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-  -p, --entry-points strings                                        Entry point file(s) to start analysis from (default: auto-detected)
+  -p, --entry-points strings                                        Entry point file(s) or glob pattern(s) to start analysis from (default: auto-detected)
   -f, --file string                                                 Target file to check for dependencies
-      --module string                                               Target node module name to check for dependencies (use exactly one of --file or --module)
       --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
       --graph-exclude strings                                       Glob patterns to exclude files from dependency analysis
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --module string                                               Target node module name to check for dependencies
       --package-json string                                         Path to package.json (default: ./package.json)
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                                                     Show warnings and verbose output

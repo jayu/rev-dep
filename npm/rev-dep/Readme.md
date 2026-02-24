@@ -1,3 +1,5 @@
+# Rev-dep
+
 <p align="center">
 <img src="https://github.com/jayu/rev-dep/raw/master/logo.png" width="400" alt="Rev-dep logo">
 </p>
@@ -12,11 +14,11 @@
 <p align="center">
   Dependency analysis and optimization toolkit for modern JavaScript and TypeScript codebases.  
   <br>
-  Enforce dependency graph hygiene and remove unused bits with a very fast CLI.
+  Enforce dependency graph hygiene and remove unused code with a very fast CLI.
 </p>
 
 <p align="center">
-<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output"width="400">
+<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output" width="400">
 </p>
 
 ---
@@ -25,7 +27,7 @@
 
 ## **About 📣**
 
-As codebases scale, maintaining a mental map of dependencies becomes impossible. **Rev-dep** is a high-speed governance engine designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
+As codebases scale, maintaining a mental map of dependencies becomes impossible. **Rev-dep** is a high-speed static analysis tool designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
 
 <p align="center"><b>Think of Rev-dep as a high-speed linter for your dependency graph.</b></p>
 
@@ -61,7 +63,7 @@ Implemented in **Go** to eliminate the performance tax of Node-based analysis. B
 
 ## Capabilities 🚀
 
-## Governance and maintenance (config-based) 🛡️
+### Governance and maintenance (config-based) 🛡️
 
 Use `rev-dep config run` to execute multiple checks in one pass for all packages.
 
@@ -75,8 +77,9 @@ Available checks:
 - `missingNodeModulesDetection` - detect imports missing from package json.
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
+- `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 
-## Exploratory analysis (CLI-based) 🔍
+### Exploratory analysis (CLI-based) 🔍
 
 Use CLI commands for ad-hoc dependency exploration:
 
@@ -164,6 +167,7 @@ Available checks are:
 - `missingNodeModulesDetection` - detect imports missing from package json.
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
+- `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 
 Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
 
@@ -209,8 +213,8 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.3",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.3.schema.json?raw=true",
+  "configVersion": "1.4",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.4.schema.json?raw=true",
   "rules": [
     {
       "path": ".",
@@ -230,6 +234,10 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
       "circularImportsDetection": { 
         "enabled": true 
       },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"]
+      }
     }
   ]
 }
@@ -241,8 +249,8 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.3",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.3.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.4",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.4.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -321,6 +329,10 @@ Here's a comprehensive example showing all available properties:
         },
         "ignoreFiles": ["**/*.generated.ts"],
         "ignoreImports": ["@internal/dev-only"]
+      },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"]
       }
     }
   ]
@@ -348,6 +360,7 @@ Each rule can contain the following properties:
 - **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration
 - **`unusedExportsDetection`** (optional): Unused exports detection configuration
 - **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration
+- **`devDepsUsageOnProdDetection`** (optional): Restricted dev dependencies usage detection configuration
 - **`importConventions`** (optional): Array of import convention rules
 
 #### Module Boundary Properties
@@ -403,6 +416,10 @@ Each rule can contain the following properties:
 - **`ignore`** (optional): Map of file path (relative to rule path directory) to exact import request to suppress
 - **`ignoreFiles`** (optional): File path globs; all unresolved imports from matching files are suppressed
 - **`ignoreImports`** (optional): Import requests to suppress globally in unresolved results
+
+**DevDepsUsageOnProd:**
+- **`enabled`** (required): Enable/disable restricted dev dependencies usage detection
+- **`prodEntryPoints`** (optional): Production entry point patterns to trace dependencies from (eg. ["src/pages/**/*.tsx", "src/main.tsx"])
 
 ### Performance Benefits
 
@@ -583,9 +600,10 @@ Here is a performance comparison of specific tasks between rev-dep and alternati
 | Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
 |------|-------|--------------|------|----|
 | Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
-| Find unused files | 588 | knip | 6346 | 11x |
-| Find unused node modules | 594 | knip | 6230 | 10x |
-| Find missing node modules | 553 | knip| 6226 | 11x |
+| Find unused exports | 303 | knip| 6606 | 22x |
+| Find unused files | 277 | knip | 6596 | 23x |
+| Find unused node modules | 287 | knip | 6572 | 22x |
+| Find missing node modules | 270 | knip| 6568 | 24x |
 | List all files imported by an entry point | 229 | madge | 4467 | 20x | 
 | Discover entry points | 323 | madge | 67000 | 207x
 | Resolve dependency path between files | 228 | please suggest | 
@@ -615,6 +633,35 @@ Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, t
 | [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
 
 
+
+### **How to detect dev dependencies used in production code**
+
+```
+rev-dep config run
+```
+
+When `devDepsUsageOnProdDetection` is enabled in your config, rev-dep will:
+
+1. Trace dependency graphs from your specified production entry points
+2. Identify all files reachable from those entry points
+3. Check if any imported modules are listed in `devDependencies` in package.json
+4. Report violations showing which dev dependencies are used where
+
+**Example Output:**
+```
+❌ Restricted Dev Dependencies Usage Issues (2):
+  lodash (dev dependency)
+     - src/components/Button.tsx (from entry point: src/pages/index.tsx)
+     - src/utils/helpers.ts (from entry point: src/pages/index.tsx)
+  eslint (dev dependency)
+     - src/config/eslint-config.js (from entry point: src/server.ts)
+```
+
+**Important Notes:**
+- Type-only imports (e.g., `import type { ReactNode } from 'react'`) are automatically ignored
+- Only dependencies from `devDependencies` in package.json are flagged
+- Production dependencies from `dependencies` are allowed
+- Helps prevent runtime failures in production builds
 
 ## CLI reference 📖
 
@@ -1103,9 +1150,13 @@ rev-dep node-modules used -p src/index.ts --group-by-module
   -b, --files-with-binaries strings                                 Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings                             Additional files to search for module imports. Use paths relative to cwd
       --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --group-by-entry-point                                        Organize output by entry point file path
+      --group-by-entry-point-modules-count                          Organize output by entry point and show count of unique modules
       --group-by-file                                               Organize output by project file path
       --group-by-module                                             Organize output by npm package name
+      --group-by-module-entry-points-count                          Organize output by npm package name and show count of entry points using it
       --group-by-module-files-count                                 Organize output by npm package name and show count of files using it
+      --group-by-module-show-entry-points                           Organize output by npm package name and list entry points using it
   -h, --help                                                        help for used
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
   -i, --include-modules strings                                     list of modules to include in the output
@@ -1142,12 +1193,13 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
       --compact-summary                                             Display a compact summary of found paths
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-  -p, --entry-points strings                                        Entry point file(s) to start analysis from (default: auto-detected)
+  -p, --entry-points strings                                        Entry point file(s) or glob pattern(s) to start analysis from (default: auto-detected)
   -f, --file string                                                 Target file to check for dependencies
       --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
       --graph-exclude strings                                       Glob patterns to exclude files from dependency analysis
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --module string                                               Target node module name to check for dependencies
       --package-json string                                         Path to package.json (default: ./package.json)
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                                                     Show warnings and verbose output

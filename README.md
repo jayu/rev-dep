@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output"width="400">
+<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output" width="400">
 </p>
 
 ---
@@ -27,7 +27,7 @@
 
 ## **About 📣**
 
-As codebases scale, maintaining a mental map of dependencies becomes impossible. **Rev-dep** is a high-speed governance engine designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
+As codebases scale, maintaining a mental map of dependencies becomes impossible. **Rev-dep** is a high-speed static analysis tool designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
 
 <p align="center"><b>Think of Rev-dep as a high-speed linter for your dependency graph.</b></p>
 
@@ -63,7 +63,7 @@ Implemented in **Go** to eliminate the performance tax of Node-based analysis. B
 
 ## Capabilities 🚀
 
-## Governance and maintenance (config-based) 🛡️
+### Governance and maintenance (config-based) 🛡️
 
 Use `rev-dep config run` to execute multiple checks in one pass for all packages.
 
@@ -79,7 +79,7 @@ Available checks:
 - `circularImportsDetection` - detect circular imports.
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 
-## Exploratory analysis (CLI-based) 🔍
+### Exploratory analysis (CLI-based) 🔍
 
 Use CLI commands for ad-hoc dependency exploration:
 

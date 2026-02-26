@@ -78,6 +78,7 @@ Available checks:
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
+- `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
 
 ### Exploratory analysis (CLI-based) 🔍
 
@@ -168,6 +169,7 @@ Available checks are:
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
+- `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
 
 Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
 
@@ -213,8 +215,8 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.4",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.4.schema.json?raw=true",
+  "configVersion": "1.5",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.5.schema.json?raw=true",
   "rules": [
     {
       "path": ".",
@@ -236,7 +238,8 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
       },
       "devDepsUsageOnProdDetection": {
         "enabled": true,
-        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"]
+        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+        "ignoreTypeImports": true
       }
     }
   ]
@@ -249,8 +252,8 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.4",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.4.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.5",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.5.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -332,7 +335,16 @@ Here's a comprehensive example showing all available properties:
       },
       "devDepsUsageOnProdDetection": {
         "enabled": true,
-        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"]
+        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"],
+        "ignoreTypeImports": true
+      },
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["src/server.ts", "src/server/**/*.ts"],
+        "denyFiles": ["**/*.tsx"],
+        "denyModules": ["react", "react-*"],
+        "ignoreMatches": ["src/server/allowed-view.tsx", "react-awsome-lib"],
+        "ignoreTypeImports": true
       }
     }
   ]
@@ -361,6 +373,7 @@ Each rule can contain the following properties:
 - **`unusedExportsDetection`** (optional): Unused exports detection configuration
 - **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration
 - **`devDepsUsageOnProdDetection`** (optional): Restricted dev dependencies usage detection configuration
+- **`restrictedImportsDetection`** (optional): Restrict importing denied files/modules from selected entry points
 - **`importConventions`** (optional): Array of import convention rules
 
 #### Module Boundary Properties
@@ -420,6 +433,15 @@ Each rule can contain the following properties:
 **DevDepsUsageOnProd:**
 - **`enabled`** (required): Enable/disable restricted dev dependencies usage detection
 - **`prodEntryPoints`** (optional): Production entry point patterns to trace dependencies from (eg. ["src/pages/**/*.tsx", "src/main.tsx"])
+- **`ignoreTypeImports`** (optional): Exclude type-only imports from graph traversal and module matching (default: false)
+
+**RestrictedImportsDetection:**
+- **`enabled`** (required): Enable/disable restricted imports detection
+- **`entryPoints`** (required when enabled): Entry point patterns used to build reachable dependency graph
+- **`denyFiles`** (optional): Denied file path patterns (eg. ["**/*.tsx"])
+- **`denyModules`** (optional): Denied module patterns (eg. ["react", "react-*"])
+- **`ignoreMatches`** (optional): File/module patterns to suppress from restricted import results
+- **`ignoreTypeImports`** (optional): Exclude type-only imports from traversal (default: false)
 
 ### Performance Benefits
 
@@ -658,7 +680,7 @@ When `devDepsUsageOnProdDetection` is enabled in your config, rev-dep will:
 ```
 
 **Important Notes:**
-- Type-only imports (e.g., `import type { ReactNode } from 'react'`) are automatically ignored
+- Type-only imports (e.g., `import type { ReactNode } from 'react'`) are ignored when `ignoreTypeImports` is enabled
 - Only dependencies from `devDependencies` in package.json are flagged
 - Production dependencies from `dependencies` are allowed
 - Helps prevent runtime failures in production builds
@@ -722,7 +744,7 @@ Execute all checks defined in (.)rev-dep.config.json(c)
 
 #### Synopsis
 
-Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, node modules) per rule.
+Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, import conventions, node modules, unused exports, unresolved imports, restricted imports and restricted dev deps usage) per rule.
 
 ```
 rev-dep config run [flags]

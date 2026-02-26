@@ -744,7 +744,7 @@ Execute all checks defined in (.)rev-dep.config.json(c)
 
 #### Synopsis
 
-Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, node modules) per rule.
+Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, import conventions, node modules, unused exports, unresolved imports, restricted imports and restricted dev deps usage) per rule.
 
 ```
 rev-dep config run [flags]

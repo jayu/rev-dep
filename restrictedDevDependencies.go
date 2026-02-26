@@ -1,9 +1,12 @@
 package main
 
+import "slices"
+
 // FindDevDependenciesInProduction detects when dev dependencies are used in production entry points
 func FindDevDependenciesInProduction(
 	ruleTree MinimalDependencyTree,
 	validEntryPoints []string,
+	ignoreTypeImports bool,
 	rulePath string,
 	monorepoContext *MonorepoContext,
 ) []RestrictedDevDependenciesUsageViolation {
@@ -24,7 +27,9 @@ func FindDevDependenciesInProduction(
 		}
 	}
 
-	graph := buildDepsGraphForMultiple(ruleTree, prodEntryPoints, nil, false)
+	slices.Sort(prodEntryPoints) // ensure deterministic results
+
+	graph := buildDepsGraphForMultiple(ruleTree, prodEntryPoints, nil, false, ignoreTypeImports)
 
 	// Get dev dependencies from package.json in rule path
 	devDependencies := make(map[string]bool)
@@ -38,31 +43,20 @@ func FindDevDependenciesInProduction(
 
 	// Check each reachable file for dev dependency usage
 	for filePath, vertex := range graph.Vertices {
+		for _, moduleRequest := range vertex.Modules {
+			moduleName := GetNodeModuleName(moduleRequest)
+			if moduleName == "" {
+				continue
+			}
 
-		// Get imports for this file
-		if dependencies, exists := ruleTree[filePath]; exists {
-			for _, dep := range dependencies {
+			if devDependencies[moduleName] {
+				entryPoint := FollowPathToGetEntryPoint(vertex, graph)
 
-				// Skip type-only imports as they don't affect production runtime
-				if dep.ImportKind == OnlyTypeImport {
-					continue
-				}
-
-				// Check if the imported module is a dev dependency
-				moduleName := GetNodeModuleName(dep.Request)
-				if moduleName == "" {
-					continue // Not a node module
-				}
-
-				if devDependencies[moduleName] {
-					entryPoint := FollowPathToGetEntryPoint(vertex, graph)
-
-					violations = append(violations, RestrictedDevDependenciesUsageViolation{
-						DevDependency: moduleName,
-						FilePath:      filePath,
-						EntryPoint:    entryPoint,
-					})
-				}
+				violations = append(violations, RestrictedDevDependenciesUsageViolation{
+					DevDependency: moduleName,
+					FilePath:      filePath,
+					EntryPoint:    entryPoint,
+				})
 			}
 		}
 	}

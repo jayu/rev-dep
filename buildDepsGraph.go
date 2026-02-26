@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 )
 
-func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string, filePathOrNodeModuleName *string, allPaths bool) BuildDepsGraphResultMultiple {
+func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string, filePathOrNodeModuleName *string, allPaths bool, ignoreTypeImports bool) BuildDepsGraphResultMultiple {
 	vertices := make(map[string]*SerializableNode)
 	roots := make(map[string]*SerializableNode)
 	resolutionPaths := make(map[string][][]string)
@@ -86,7 +87,19 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 			node.Parents = []string{parent.Path}
 		}
 
+		nodeModulesSet := map[string]bool{}
 		for _, d := range dep {
+			if ignoreTypeImports && d.ImportKind == OnlyTypeImport {
+				continue
+			}
+
+			if d.ResolvedType == NodeModule || d.ResolvedType == NotResolvedModule {
+				if d.Request != "" {
+					// Dont on purpose, more checks can be done on the actual imported path
+					nodeModulesSet[d.Request] = true
+				}
+			}
+
 			if filePathOrNodeModuleName != nil && !targetModeIsFile {
 				if d.ResolvedType == NodeModule || d.ResolvedType == NotResolvedModule {
 					moduleMatched := false
@@ -113,6 +126,13 @@ func buildDepsGraphForMultiple(deps MinimalDependencyTree, entryPoints []string,
 				childNode := inner(d.ID, visited, depth+1, node)
 				node.Children = append(node.Children, childNode.Path)
 			}
+		}
+		if len(nodeModulesSet) > 0 {
+			node.Modules = make([]string, 0, len(nodeModulesSet))
+			for moduleName := range nodeModulesSet {
+				node.Modules = append(node.Modules, moduleName)
+			}
+			slices.Sort(node.Modules)
 		}
 
 		// Remove from visited set when backtracking to allow revisiting in other branches
@@ -207,6 +227,7 @@ type SerializableNode struct {
 	Path                            string   `json:"path"`
 	Parents                         []string `json:"parents,omitempty"`
 	Children                        []string `json:"children,omitempty"`
+	Modules                         []string `json:"modules,omitempty"`
 	LookedUpNodeModuleImportRequest string   `json:"lookedUpNodeModuleImportRequest,omitempty"`
 }
 

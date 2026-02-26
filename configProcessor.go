@@ -55,6 +55,9 @@ type RuleResult struct {
 	UnusedExports                                   []UnusedExport
 	UnresolvedImports                               []UnresolvedImport
 	RestrictedDevDependenciesUsageViolations        []RestrictedDevDependenciesUsageViolation
+	RestrictedImportsViolations                     []RestrictedImportViolation
+	RestrictedImportsIgnoreTypeImports              bool
+	RestrictedImportsFollowMonorepoPackages         FollowMonorepoPackagesValue
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
 }
@@ -176,7 +179,7 @@ func filterFilesForRule(
 
 	// Build graph to trace dependencies from other packages
 
-	graph := buildDepsGraphForMultiple(fullTree, filesWithinCwd, nil, false)
+	graph := buildDepsGraphForMultiple(fullTree, filesWithinCwd, nil, false, false)
 
 	allowedPackagePathPrefixes := map[string]bool{}
 	if !followMonorepoPackages.ShouldFollowAll() && resolverManager != nil && resolverManager.monorepoContext != nil {
@@ -250,15 +253,23 @@ func processRuleChecks(
 	if rule.DevDepsUsageOnProdDetection != nil && rule.DevDepsUsageOnProdDetection.Enabled {
 		enabledChecks = append(enabledChecks, "restricted-dev-dependencies-usage")
 	}
+	if rule.RestrictedImportsDetection != nil && rule.RestrictedImportsDetection.Enabled {
+		enabledChecks = append(enabledChecks, "restricted-imports")
+	}
 	if len(rule.ImportConventions) > 0 {
 		enabledChecks = append(enabledChecks, "import-conventions")
 	}
 
 	ruleResult := RuleResult{
-		RulePath:       rule.Path,
-		FileCount:      len(ruleFiles),
-		EnabledChecks:  enabledChecks,
-		DependencyTree: fullTree, // Include the full dependency tree for circular dependency formatting
+		RulePath:                                rule.Path,
+		FileCount:                               len(ruleFiles),
+		EnabledChecks:                           enabledChecks,
+		DependencyTree:                          fullTree, // Include the full dependency tree for circular dependency formatting
+		RestrictedImportsFollowMonorepoPackages: rule.FollowMonorepoPackages,
+	}
+
+	if rule.RestrictedImportsDetection != nil {
+		ruleResult.RestrictedImportsIgnoreTypeImports = rule.RestrictedImportsDetection.IgnoreTypeImports
 	}
 
 	fullRulePath := StandardiseDirPath(filepath.Join(cwd, rule.Path))
@@ -461,12 +472,30 @@ func processRuleChecks(
 			violations := FindDevDependenciesInProduction(
 				ruleTree,
 				rule.DevDepsUsageOnProdDetection.ProdEntryPoints,
+				rule.DevDepsUsageOnProdDetection.IgnoreTypeImports,
 				fullRulePath,
 				monorepoContext,
 			)
 
 			mu.Lock()
 			ruleResult.RestrictedDevDependenciesUsageViolations = violations
+			mu.Unlock()
+		}()
+	}
+
+	// Restricted Imports
+	if rule.RestrictedImportsDetection != nil && rule.RestrictedImportsDetection.Enabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			violations := FindRestrictedImports(
+				ruleTree,
+				rule.RestrictedImportsDetection,
+				fullRulePath,
+			)
+
+			mu.Lock()
+			ruleResult.RestrictedImportsViolations = violations
 			mu.Unlock()
 		}()
 	}
@@ -554,7 +583,8 @@ func ProcessConfig(
 				len(ruleResult.ImportConventionViolations) > 0 ||
 				len(ruleResult.UnusedExports) > 0 ||
 				len(ruleResult.UnresolvedImports) > 0 ||
-				len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0
+				len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 ||
+				len(ruleResult.RestrictedImportsViolations) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

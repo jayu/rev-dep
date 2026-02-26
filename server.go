@@ -27,7 +27,7 @@ func getEntryPointFiles(minimalTree MinimalDependencyTree, mainEntryPoint string
 
 		fmt.Println("Request: ", filePath)
 
-		graph := buildDepsGraphForMultiple(minimalTree, []string{filePath}, nil, false)
+		graph := buildDepsGraphForMultiple(minimalTree, []string{filePath}, nil, false, false)
 
 		files := make([]string, 0, len(graph.Vertices))
 
@@ -63,7 +63,7 @@ func explainDependency(minimalTree MinimalDependencyTree, mainEntryPoint string,
 
 		fmt.Printf("Request: filePath=%s; entryPoint=%s\n", filePath, entryPoint)
 
-		graphMultiple := buildDepsGraphForMultiple(minimalTree, []string{entryPoint}, &filePath, false)
+		graphMultiple := buildDepsGraphForMultiple(minimalTree, []string{entryPoint}, &filePath, false, false)
 
 		entryPointResolutionPaths := graphMultiple.ResolutionPaths[entryPoint]
 

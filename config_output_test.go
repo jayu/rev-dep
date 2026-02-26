@@ -161,3 +161,74 @@ func TestConfigOutput_UnusedExports_Limiting(t *testing.T) {
 	output := buf.String()
 	golden.Assert(t, output, "unused_exports_limiting.golden")
 }
+
+func TestConfigOutput_RestrictedImports_GroupByEntryPoint(t *testing.T) {
+	cwd, _ := os.Getwd()
+
+	result := &ConfigProcessingResult{
+		HasFailures: true,
+		RuleResults: []RuleResult{
+			{
+				RulePath:      ".",
+				FileCount:     10,
+				EnabledChecks: []string{"restricted-imports"},
+				RestrictedImportsViolations: []RestrictedImportViolation{
+					{
+						ViolationType: "file",
+						ImporterFile:  "src/server/a.ts",
+						EntryPoint:    "src/server.ts",
+						DeniedFile:    "src/ui/view.tsx",
+					},
+					{
+						ViolationType: "file",
+						ImporterFile:  "src/server/b.ts",
+						EntryPoint:    "src/server.ts",
+						DeniedFile:    "src/ui/view.tsx",
+					},
+					{
+						ViolationType: "module",
+						ImporterFile:  "src/server/a.ts",
+						EntryPoint:    "src/server.ts",
+						DeniedModule:  "react",
+						ImportRequest: "react/jsx-runtime",
+					},
+					{
+						ViolationType: "module",
+						ImporterFile:  "src/worker/a.ts",
+						EntryPoint:    "src/worker.ts",
+						DeniedModule:  "react-dom",
+						ImportRequest: "react-dom/client",
+					},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	originalStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	formatAndPrintConfigResults(result, cwd, true)
+
+	w.Close()
+	os.Stdout = originalStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "src/server.ts") {
+		t.Fatalf("expected grouped output to contain src/server.ts, got:\n%s", output)
+	}
+	if !strings.Contains(output, "src/worker.ts") {
+		t.Fatalf("expected grouped output to contain src/worker.ts, got:\n%s", output)
+	}
+	if !strings.Contains(output, "➞ src/ui/view.tsx") {
+		t.Fatalf("expected grouped file item, got:\n%s", output)
+	}
+	if !strings.Contains(output, "➞ react/jsx-runtime") {
+		t.Fatalf("expected grouped module item, got:\n%s", output)
+	}
+	if strings.Contains(output, "imports denied file") || strings.Contains(output, "imports denied module") {
+		t.Fatalf("expected compact grouped format without importer phrasing, got:\n%s", output)
+	}
+}

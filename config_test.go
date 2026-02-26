@@ -119,8 +119,8 @@ func TestInitConfigFile(t *testing.T) {
 	}
 
 	config := configs[0]
-	if config.ConfigVersion != "1.3" {
-		t.Errorf("Expected configVersion '1.3', got '%s'", config.ConfigVersion)
+	if config.ConfigVersion != "1.5" {
+		t.Errorf("Expected configVersion '1.5', got '%s'", config.ConfigVersion)
 	}
 
 	if len(config.Rules) != 1 {

@@ -34,7 +34,7 @@ var (
 var configRunCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Execute all checks defined in (.)rev-dep.config.json(c)",
-	Long:  `Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, node modules) per rule.`,
+	Long:  `Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, import conventions, node modules, unused exports, unresolved imports, restricted imports and restricted dev deps usage) per rule.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		startTime := time.Now()
 		cwd := ResolveAbsoluteCwd(runConfigCwd)
@@ -455,6 +455,64 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 				} else {
 					fmt.Printf("  ✅ Restricted Dev Dependencies Usage\n")
 				}
+			case "restricted-imports":
+				if len(ruleResult.RestrictedImportsViolations) > 0 {
+					fmt.Printf("  ❌ Restricted Imports Issues (%d):\n", len(ruleResult.RestrictedImportsViolations))
+
+					violationsToDisplay := ruleResult.RestrictedImportsViolations
+					remaining := 0
+					if !listAll && len(violationsToDisplay) > maxIssuesToList {
+						remaining = len(violationsToDisplay) - maxIssuesToList
+						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
+					}
+
+					violationsByEntryPoint := make(map[string][]string)
+					seenByEntryPoint := make(map[string]map[string]bool)
+
+					for _, violation := range violationsToDisplay {
+						entryPoint := getRelativePath(violation.EntryPoint)
+						if _, ok := seenByEntryPoint[entryPoint]; !ok {
+							seenByEntryPoint[entryPoint] = make(map[string]bool)
+						}
+
+						item := ""
+						if violation.ViolationType == "file" {
+							item = getRelativePath(violation.DeniedFile)
+						} else if violation.ImportRequest != "" {
+							item = violation.ImportRequest
+						} else {
+							item = violation.DeniedModule
+						}
+
+						if !seenByEntryPoint[entryPoint][item] {
+							violationsByEntryPoint[entryPoint] = append(violationsByEntryPoint[entryPoint], item)
+							seenByEntryPoint[entryPoint][item] = true
+						}
+					}
+
+					var sortedEntryPoints []string
+					for entryPoint := range violationsByEntryPoint {
+						sortedEntryPoints = append(sortedEntryPoints, entryPoint)
+					}
+					slices.Sort(sortedEntryPoints)
+
+					for _, entryPoint := range sortedEntryPoints {
+						fmt.Printf("    %s\n", entryPoint)
+						items := violationsByEntryPoint[entryPoint]
+						slices.Sort(items)
+						for _, item := range items {
+							fmt.Printf("     ➞ %s\n", item)
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more restricted import issues\n", remaining)
+					}
+
+					printRestrictedImportsResolveHint(ruleResult, cwd)
+				} else {
+					fmt.Printf("  ✅ Restricted Imports\n")
+				}
 			}
 		}
 
@@ -506,6 +564,82 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 	}
 }
 
+func printRestrictedImportsResolveHint(ruleResult RuleResult, cwd string) {
+	absRulePath := filepath.Clean(filepath.Join(cwd, ruleResult.RulePath))
+	ruleCwdArg, err := filepath.Rel(cwd, absRulePath)
+	if err != nil || ruleCwdArg == "" {
+		ruleCwdArg = ruleResult.RulePath
+	}
+	ruleCwdArg = filepath.ToSlash(ruleCwdArg)
+
+	relToRule := func(absPath string) string {
+		if absPath == "" {
+			return absPath
+		}
+		rel, err := filepath.Rel(absRulePath, absPath)
+		if err != nil {
+			return filepath.ToSlash(absPath)
+		}
+		return filepath.ToSlash(rel)
+	}
+
+	resolveExtraFlags := []string{}
+	if ruleResult.RestrictedImportsIgnoreTypeImports {
+		resolveExtraFlags = append(resolveExtraFlags, "--ignore-type-imports")
+	}
+	if ruleResult.RestrictedImportsFollowMonorepoPackages.ShouldFollowAll() {
+		resolveExtraFlags = append(resolveExtraFlags, "--follow-monorepo-packages")
+	} else if len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages) > 0 {
+		pkgs := make([]string, 0, len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages))
+		for pkg := range ruleResult.RestrictedImportsFollowMonorepoPackages.Packages {
+			pkgs = append(pkgs, pkg)
+		}
+		slices.Sort(pkgs)
+		resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--follow-monorepo-packages \"%s\"", strings.Join(pkgs, ",")))
+	}
+	extraFlagsPart := ""
+	if len(resolveExtraFlags) > 0 {
+		extraFlagsPart = " " + strings.Join(resolveExtraFlags, " ")
+	}
+
+	var sampleFileViolation *RestrictedImportViolation
+	var sampleModuleViolation *RestrictedImportViolation
+	for i := range ruleResult.RestrictedImportsViolations {
+		v := &ruleResult.RestrictedImportsViolations[i]
+		if sampleFileViolation == nil && v.ViolationType == "file" && v.DeniedFile != "" {
+			sampleFileViolation = v
+		}
+		if sampleModuleViolation == nil && v.ViolationType == "module" {
+			sampleModuleViolation = v
+		}
+		if sampleFileViolation != nil && sampleModuleViolation != nil {
+			break
+		}
+	}
+
+	fmt.Printf("    Hint: trace resolution paths with `rev-dep resolve` from this rule cwd.\n")
+	if sampleFileViolation != nil {
+		fmt.Printf("    Example: `rev-dep resolve --file %s --entry-points %s --cwd %s%s`\n",
+			relToRule(sampleFileViolation.DeniedFile),
+			relToRule(sampleFileViolation.EntryPoint),
+			ruleCwdArg,
+			extraFlagsPart,
+		)
+	}
+	if sampleModuleViolation != nil {
+		moduleArg := sampleModuleViolation.ImportRequest
+		if moduleArg == "" {
+			moduleArg = sampleModuleViolation.DeniedModule
+		}
+		fmt.Printf("    Example: `rev-dep resolve --module %s --entry-points %s --cwd %s%s`\n",
+			moduleArg,
+			relToRule(sampleModuleViolation.EntryPoint),
+			ruleCwdArg,
+			extraFlagsPart,
+		)
+	}
+}
+
 func init() {
 	// config command
 	configCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")
@@ -526,7 +660,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
-	currentConfigVersion := "1.3"
+	currentConfigVersion := "1.5"
 
 	// Check if any config file already exists
 	existingConfig, err := findConfigFile(cwd)

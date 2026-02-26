@@ -786,7 +786,7 @@ func getNodeModulesByEntryPoint(
 		return grouped
 	}
 
-	graph := buildDepsGraphForMultiple(minimalTree, entryPoints, nil, false)
+	graph := buildDepsGraphForMultiple(minimalTree, entryPoints, nil, false, false)
 
 	moduleToFiles := map[string]map[string]bool{}
 	uniqueFiles := map[string]bool{}

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gobwas/glob"
 	"github.com/tidwall/jsonc"
 )
 
@@ -64,8 +65,18 @@ type UnresolvedImportsOptions struct {
 }
 
 type RestrictedDevDependenciesUsageOptions struct {
-	Enabled         bool     `json:"enabled"`
-	ProdEntryPoints []string `json:"prodEntryPoints,omitempty"`
+	Enabled           bool     `json:"enabled"`
+	ProdEntryPoints   []string `json:"prodEntryPoints,omitempty"`
+	IgnoreTypeImports bool     `json:"ignoreTypeImports,omitempty"`
+}
+
+type RestrictedImportsDetectionOptions struct {
+	Enabled           bool     `json:"enabled"`
+	EntryPoints       []string `json:"entryPoints,omitempty"`
+	DenyFiles         []string `json:"denyFiles,omitempty"`
+	DenyModules       []string `json:"denyModules,omitempty"`
+	IgnoreMatches     []string `json:"ignoreMatches,omitempty"`
+	IgnoreTypeImports bool     `json:"ignoreTypeImports,omitempty"`
 }
 
 // ImportConventionDomain represents a single domain definition
@@ -114,6 +125,7 @@ type Rule struct {
 	UnusedExportsDetection      *UnusedExportsOptions                  `json:"unusedExportsDetection,omitempty"`
 	UnresolvedImportsDetection  *UnresolvedImportsOptions              `json:"unresolvedImportsDetection,omitempty"`
 	DevDepsUsageOnProdDetection *RestrictedDevDependenciesUsageOptions `json:"devDepsUsageOnProdDetection,omitempty"`
+	RestrictedImportsDetection  *RestrictedImportsDetectionOptions     `json:"restrictedImportsDetection,omitempty"`
 	ImportConventions           []ImportConventionRule                 `json:"-"`
 }
 
@@ -132,7 +144,7 @@ var hiddenConfigFileNameJsonc = ".rev-dep.config.jsonc"
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -384,6 +396,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		"unusedExportsDetection":      true,
 		"unresolvedImportsDetection":  true,
 		"devDepsUsageOnProdDetection": true,
+		"restrictedImportsDetection":  true,
 		"importConventions":           true,
 	}
 
@@ -466,6 +479,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 
 	if restrictedDevDeps, exists := rule["devDepsUsageOnProdDetection"]; exists {
 		if err := validateRawRestrictedDevDependenciesUsageDetection(restrictedDevDeps, index); err != nil {
+			return err
+		}
+	}
+
+	if restrictedImports, exists := rule["restrictedImportsDetection"]; exists {
+		if err := validateRawRestrictedImportsDetection(restrictedImports, index); err != nil {
 			return err
 		}
 	}
@@ -868,6 +887,12 @@ func ValidateConfig(config *RevDepConfig) error {
 			}
 		}
 
+		if rule.RestrictedImportsDetection != nil {
+			if err := validateRestrictedImportsDetectionOptions(rule.RestrictedImportsDetection, fmt.Sprintf("rules[%d].restrictedImportsDetection", j)); err != nil {
+				return err
+			}
+		}
+
 		// Validate import conventions
 		if len(rule.ImportConventions) > 0 {
 			// Additional validation can be added here if needed
@@ -1117,8 +1142,9 @@ func validateRawRestrictedDevDependenciesUsageDetection(restrictedDevDeps interf
 	}
 
 	allowedFields := map[string]bool{
-		"enabled":         true,
-		"prodEntryPoints": true,
+		"enabled":           true,
+		"prodEntryPoints":   true,
+		"ignoreTypeImports": true,
 	}
 
 	for field := range restrictedDevDepsMap {
@@ -1143,6 +1169,12 @@ func validateRawRestrictedDevDependenciesUsageDetection(restrictedDevDeps interf
 		}
 	}
 
+	if ignoreType, exists := restrictedDevDepsMap["ignoreTypeImports"]; exists && ignoreType != nil {
+		if _, ok := ignoreType.(bool); !ok {
+			return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.ignoreTypeImports must be a boolean, got %T", ruleIndex, ignoreType)
+		}
+	}
+
 	return nil
 }
 
@@ -1163,6 +1195,105 @@ func validateRestrictedDevDependenciesUsageOptions(opts *RestrictedDevDependenci
 	for i, entryPoint := range opts.ProdEntryPoints {
 		if entryPoint == "" {
 			return fmt.Errorf("%s.prodEntryPoints[%d]: cannot be empty", prefix, i)
+		}
+	}
+
+	return nil
+}
+
+func validateRawRestrictedImportsDetection(restrictedImports interface{}, ruleIndex int) error {
+	restrictedImportsMap, ok := restrictedImports.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("rules[%d].restrictedImportsDetection must be an object, got %T", ruleIndex, restrictedImports)
+	}
+
+	allowedFields := map[string]bool{
+		"enabled":           true,
+		"entryPoints":       true,
+		"denyFiles":         true,
+		"denyModules":       true,
+		"ignoreMatches":     true,
+		"ignoreTypeImports": true,
+	}
+
+	for field := range restrictedImportsMap {
+		if !allowedFields[field] {
+			return fmt.Errorf("rules[%d].restrictedImportsDetection: unknown field '%s'", ruleIndex, field)
+		}
+	}
+
+	if _, exists := restrictedImportsMap["enabled"]; !exists {
+		return fmt.Errorf("rules[%d].restrictedImportsDetection.enabled is required", ruleIndex)
+	}
+
+	if enabled, ok := restrictedImportsMap["enabled"]; !ok || enabled == nil {
+		return fmt.Errorf("rules[%d].restrictedImportsDetection.enabled cannot be null", ruleIndex)
+	} else if _, ok := enabled.(bool); !ok {
+		return fmt.Errorf("rules[%d].restrictedImportsDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+	}
+
+	arrayFields := []string{"entryPoints", "denyFiles", "denyModules", "ignoreMatches"}
+	for _, field := range arrayFields {
+		if value, exists := restrictedImportsMap[field]; exists && value != nil {
+			if _, ok := value.([]interface{}); !ok {
+				return fmt.Errorf("rules[%d].restrictedImportsDetection.%s must be an array, got %T", ruleIndex, field, value)
+			}
+		}
+	}
+
+	if ignoreType, exists := restrictedImportsMap["ignoreTypeImports"]; exists && ignoreType != nil {
+		if _, ok := ignoreType.(bool); !ok {
+			return fmt.Errorf("rules[%d].restrictedImportsDetection.ignoreTypeImports must be a boolean, got %T", ruleIndex, ignoreType)
+		}
+	}
+
+	return nil
+}
+
+func validateRestrictedImportsDetectionOptions(opts *RestrictedImportsDetectionOptions, prefix string) error {
+	if !opts.Enabled {
+		return nil
+	}
+
+	if len(opts.EntryPoints) == 0 {
+		return fmt.Errorf("%s.entryPoints is required when enabled", prefix)
+	}
+
+	if len(opts.DenyFiles) == 0 && len(opts.DenyModules) == 0 {
+		return fmt.Errorf("%s: either denyFiles or denyModules must be provided when enabled", prefix)
+	}
+
+	for i, entryPoint := range opts.EntryPoints {
+		if strings.TrimSpace(entryPoint) == "" {
+			return fmt.Errorf("%s.entryPoints[%d]: cannot be empty", prefix, i)
+		}
+	}
+
+	for i, pattern := range opts.DenyFiles {
+		if strings.TrimSpace(pattern) == "" {
+			return fmt.Errorf("%s.denyFiles[%d]: cannot be empty", prefix, i)
+		}
+		if err := validatePattern(pattern); err != nil {
+			return fmt.Errorf("%s.denyFiles[%d]: %w", prefix, i, err)
+		}
+	}
+
+	for i, pattern := range opts.IgnoreMatches {
+		if strings.TrimSpace(pattern) == "" {
+			return fmt.Errorf("%s.ignoreMatches[%d]: cannot be empty", prefix, i)
+		}
+		if err := validatePattern(pattern); err != nil {
+			return fmt.Errorf("%s.ignoreMatches[%d]: %w", prefix, i, err)
+		}
+	}
+
+	for i, pattern := range opts.DenyModules {
+		trimmed := strings.TrimSpace(pattern)
+		if trimmed == "" {
+			return fmt.Errorf("%s.denyModules[%d]: cannot be empty", prefix, i)
+		}
+		if _, err := glob.Compile(trimmed); err != nil {
+			return fmt.Errorf("%s.denyModules[%d]: invalid glob pattern '%s': %v", prefix, i, trimmed, err)
 		}
 	}
 

@@ -280,7 +280,7 @@ func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude []
 		// We cannot use multiple entry points here as it will break the reverse resolution.
 		// Reverse resolution which only looks for the first possible path, must have only one entry point
 		// Otherwise it may follow wrong path and not find the result
-		depsGraphsTemp := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, &targetNodeOrModuleName, resolveAll)
+		depsGraphsTemp := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, &targetNodeOrModuleName, resolveAll, false)
 		depsGraph := RootAndResolutionPaths{
 			Root:                 depsGraphsTemp.Roots[absolutePathToEntryPoint],
 			ResolutionPaths:      depsGraphsTemp.ResolutionPaths[absolutePathToEntryPoint],
@@ -448,7 +448,7 @@ func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDepen
 
 	maxFilePathLen := 0
 
-	multiGraph := buildDepsGraphForMultiple(minimalTree, notReferencedFiles, nil, false)
+	multiGraph := buildDepsGraphForMultiple(minimalTree, notReferencedFiles, nil, false, false)
 
 	depsCountMeta := make(map[string]int, len(notReferencedFiles))
 
@@ -899,7 +899,7 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJson
 
 	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 
-	depsGraph := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false)
+	depsGraph := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false, false)
 
 	if filesCount {
 		fmt.Println(len(depsGraph.Vertices))

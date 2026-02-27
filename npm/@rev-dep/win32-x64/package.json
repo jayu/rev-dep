@@ -1,6 +1,6 @@
 {
   "name": "@rev-dep/win32-x64",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "description": "The Windows 64-bit binary for rev-dep",
   "repository": {
     "type": "git",

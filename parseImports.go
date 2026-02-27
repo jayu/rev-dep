@@ -151,6 +151,31 @@ func hasWordAt(code []byte, i int, s string) bool {
 	return end >= len(code) || !isByteIdentifierChar(code[end])
 }
 
+func hasStandaloneWordAt(code []byte, i int, word string) bool {
+	if !hasWordAt(code, i, word) {
+		return false
+	}
+	if i == 0 {
+		return true
+	}
+
+	prev := code[i-1]
+	// Reject member access and joined identifiers at immediate boundary.
+	if prev == '.' || isByteIdentifierChar(prev) {
+		return false
+	}
+	// Handle `obj.   import(...)` / `obj.   require(...)`.
+	if prev == ' ' || prev == '\t' {
+		j := i - 1
+		// This loopback is ugly in terms of parser mechanics, but proper parser implementation is slower by 25%, so we keep this workaround.
+		for j >= 0 && (code[j] == ' ' || code[j] == '\t') {
+			j--
+		}
+		return j < 0 || code[j] != '.'
+	}
+	return true
+}
+
 // parseStringLiteral extracts the string literal at position i (' or ")
 func parseStringLiteral(code []byte, i int) (string, int, int, int) {
 	quote := code[i]
@@ -177,10 +202,13 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 	module := make([]byte, 0)
 	moduleStart := -1
 	moduleEnd := -1
+	maxIterations := len(code) + 1
 	j := 0
 	for i < len(code) {
-		if j > 1000 {
-			panic("Too many expression parse iterations")
+		// Guard against malformed input causing unexpectedly long scans.
+		// Return a graceful parse failure instead of panicking.
+		if j > maxIterations {
+			return "", i, 0, 0
 		}
 		j++
 		if code[i] == '(' {
@@ -782,6 +810,22 @@ type parseState struct {
 	imports           []Import
 }
 
+func (s *parseState) hasStandaloneWordAt(i int, word string) bool {
+	return hasStandaloneWordAt(s.code, i, word)
+}
+
+func (s *parseState) isImportKeywordStart(i int) bool {
+	return s.hasStandaloneWordAt(i, "import")
+}
+
+func (s *parseState) isRequireKeywordStart(i int) bool {
+	return s.hasStandaloneWordAt(i, "require")
+}
+
+func (s *parseState) isExportKeywordStart(i int) bool {
+	return s.hasStandaloneWordAt(i, "export")
+}
+
 func (s *parseState) skipDeclareAmbientBlock(i int) (int, bool) {
 	if !hasWordAt(s.code, i, "declare") {
 		return i, false
@@ -838,7 +882,7 @@ func (s *parseState) skipDeclareAmbientBlock(i int) (int, bool) {
 }
 
 func (s *parseState) parseImportStatement(i int) (int, bool) {
-	if !hasPrefixAt(s.code, i, "import") {
+	if !s.isImportKeywordStart(i) {
 		return i, false
 	}
 
@@ -903,7 +947,7 @@ func (s *parseState) parseImportStatement(i int) (int, bool) {
 	foundFrom := false
 	scanStart := i
 	for i < s.n {
-		if hasWordAt(s.code, i, "from") {
+		if s.hasStandaloneWordAt(i, "from") {
 			foundFrom = true
 			break
 		}
@@ -967,7 +1011,7 @@ func (s *parseState) parseImportStatement(i int) (int, bool) {
 }
 
 func (s *parseState) parseRequireStatement(i int) (int, bool) {
-	if !hasPrefixAt(s.code, i, "require") {
+	if !s.isRequireKeywordStart(i) {
 		return i, false
 	}
 	i += len("require")
@@ -982,7 +1026,7 @@ func (s *parseState) parseRequireStatement(i int) (int, bool) {
 }
 
 func (s *parseState) parseExportStatement(i int) (int, bool) {
-	if !hasPrefixAt(s.code, i, "export") {
+	if !s.isExportKeywordStart(i) {
 		return i, false
 	}
 
@@ -1015,13 +1059,19 @@ func (s *parseState) parseExportStatement(i int) (int, bool) {
 		}
 	}
 
-	// Check for export namespace/module — skip body (inner exports are namespace members)
+	// Check for export namespace/module — skip body (inner exports are namespace members).
+	// Also support `export declare namespace/module`.
 	isExportNamespace := false
-	if hasWordAt(s.code, i, "namespace") {
+	namespaceCheckPos := i
+	if hasWordAt(s.code, namespaceCheckPos, "declare") {
+		namespaceCheckPos += len("declare")
+		namespaceCheckPos = skipSpacesAndComments(s.code, namespaceCheckPos)
+	}
+	if hasWordAt(s.code, namespaceCheckPos, "namespace") {
 		isExportNamespace = true
-	} else if hasWordAt(s.code, i, "module") {
+	} else if hasWordAt(s.code, namespaceCheckPos, "module") {
 		// Check it's `export module Foo {`, not `export ... from 'module'`
-		mj := i + 6
+		mj := namespaceCheckPos + len("module")
 		mj = skipSpacesAndComments(s.code, mj)
 		if mj < s.n && isByteIdentifierChar(s.code[mj]) {
 			isExportNamespace = true
@@ -1176,7 +1226,7 @@ func (s *parseState) parseExportStatement(i int) (int, bool) {
 
 					nextTopLevel := skipSpacesAndComments(s.code, stmtEnd)
 					if nextTopLevel < s.n &&
-						hasWordAt(s.code, nextTopLevel, "import") {
+						s.isImportKeywordStart(nextTopLevel) {
 						emitLocalTypeExport = false
 					}
 
@@ -1214,7 +1264,7 @@ func (s *parseState) parseExportStatement(i int) (int, bool) {
 			savedI := i
 			detailedKw, brStart, brEnd, afterKw := parseExportKeywords(s.code, i, isWholeStatementType)
 			checkI := skipSpacesAndComments(s.code, afterKw)
-			if hasWordAt(s.code, checkI, "from") {
+			if s.hasStandaloneWordAt(checkI, "from") {
 				// This is a re-export, save keywords and continue normal processing below
 				detailedExportKeywords = detailedKw
 				detailedBraceStart = brStart
@@ -1253,7 +1303,7 @@ func (s *parseState) parseExportStatement(i int) (int, bool) {
 	shouldDropLookingForFrom := false
 	foundFrom := false
 	for i < s.n && !shouldDropLookingForFrom {
-		if hasWordAt(s.code, i, "from") {
+		if s.hasStandaloneWordAt(i, "from") {
 			foundFrom = true
 			break
 		}
@@ -1265,7 +1315,7 @@ func (s *parseState) parseExportStatement(i int) (int, bool) {
 			i = skipBlockComment(s.code, i)
 			continue
 		}
-		if hasWordAt(s.code, i, "import") || hasWordAt(s.code, i, "export") || hasWordAt(s.code, i, "require") {
+		if s.isImportKeywordStart(i) || s.isExportKeywordStart(i) || s.isRequireKeywordStart(i) {
 			shouldDropLookingForFrom = true
 			break
 		}
@@ -1344,7 +1394,7 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Imp
 				}
 			case 'i':
 				// Check for dynamic import: import(
-				if i+6 < n && code[i+1] == 'm' && code[i+2] == 'p' && code[i+3] == 'o' && code[i+4] == 'r' && code[i+5] == 't' && !isByteIdentifierChar(code[i+6]) {
+				if state.isImportKeywordStart(i) {
 					i += 6
 					i = skipSpaces(code, i)
 					if i < n && code[i] == '(' {
@@ -1359,7 +1409,7 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Imp
 				}
 			case 'r':
 				// Check for require(
-				if i+7 < n && code[i+1] == 'e' && code[i+2] == 'q' && code[i+3] == 'u' && code[i+4] == 'i' && code[i+5] == 'r' && code[i+6] == 'e' && !isByteIdentifierChar(code[i+7]) {
+				if state.isRequireKeywordStart(i) {
 					i += 7
 					if i < n && (code[i] == '(' || skipSpaces(code, i) > i) {
 						module, next, start, end := parseExpression(code, i)

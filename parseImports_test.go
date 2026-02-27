@@ -2546,6 +2546,130 @@ const mod = require('./module')
 	}
 }
 
+func TestMemberImportCallIsNotDynamicImport(t *testing.T) {
+	long := strings.Repeat("x", 5000)
+	code := `
+const Q = {}
+Q.import("` + long + `")
+const m = import('./real-dynamic')
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Request != "./real-dynamic" || !imports[0].IsDynamicImport {
+		t.Fatalf("Expected only dynamic import './real-dynamic', got request=%q dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
+	}
+}
+
+func TestMemberImportCallWithSpacesAfterDotIsNotDynamicImport(t *testing.T) {
+	code := `
+const Module = {}
+Module.   import("./ignored-member-call")
+const m = import('./real-dynamic-spaced')
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Request != "./real-dynamic-spaced" || !imports[0].IsDynamicImport {
+		t.Fatalf("Expected only dynamic import './real-dynamic-spaced', got request=%q dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
+	}
+}
+
+func TestMemberImportCallInsideBlockIsNotDynamicImport(t *testing.T) {
+	long := strings.Repeat("y", 5000)
+	code := `
+function load() {
+	const Q = {}
+	Q.import("` + long + `")
+	return import('./inside')
+}
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Request != "./inside" || !imports[0].IsDynamicImport {
+		t.Fatalf("Expected only dynamic import './inside', got request=%q dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
+	}
+}
+
+func TestMemberRequireCallIsNotDynamicImport(t *testing.T) {
+	long := strings.Repeat("r", 5000)
+	code := `
+const Q = {}
+Q.require("` + long + `")
+const mod = require('./real-require')
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Request != "./real-require" || !imports[0].IsDynamicImport {
+		t.Fatalf("Expected only require './real-require', got request=%q dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
+	}
+}
+
+func TestMemberRequireCallInsideBlockIsNotDynamicImport(t *testing.T) {
+	long := strings.Repeat("z", 5000)
+	code := `
+function load() {
+	const Q = {}
+	Q.require("` + long + `")
+	return require('./inside-require')
+}
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Request != "./inside-require" || !imports[0].IsDynamicImport {
+		t.Fatalf("Expected only require './inside-require', got request=%q dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
+	}
+}
+
+func TestMemberExportCallDoesNotHideRealImport(t *testing.T) {
+	code := `
+const obj = {}
+obj.export("ignored")
+import item from "./real-import-after-member-export"
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Request != "./real-import-after-member-export" {
+		t.Fatalf("Expected import './real-import-after-member-export', got %q", imports[0].Request)
+	}
+}
+
+func TestMemberFromAndTypeDoNotAffectExportAndImportParsing(t *testing.T) {
+	code := `
+const api = {}
+api.from("./fake-member-from")
+api.type("ignored")
+import type { T } from "./types"
+export { B } from "./real-reexport"
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+
+	if len(imports) != 2 {
+		t.Fatalf("Expected 2 imports, got %d", len(imports))
+	}
+	if imports[0].Request != "./types" || imports[0].Kind != OnlyTypeImport {
+		t.Fatalf("Expected first import to be type import './types', got request=%q kind=%v", imports[0].Request, imports[0].Kind)
+	}
+	if imports[1].Request != "./real-reexport" {
+		t.Fatalf("Expected second import to be re-export './real-reexport', got %q", imports[1].Request)
+	}
+}
+
 func TestDeclareModuleExportsIgnored(t *testing.T) {
 	code := `
 import { something } from './real-import'
@@ -2693,6 +2817,127 @@ export function realExport() {}
 	}
 }
 
+func TestExportNamespaceWithTemplatesAndCommentsBodySkipped(t *testing.T) {
+	code := "import { tick } from 'clock-lib';\n" +
+		"import { isHost, sanitize } from '@/runtime/helpers';\n" +
+		"import { Flags } from '@/runtime/flags';\n" +
+		"import type { BridgeFn } from './bridge.types';\n" +
+		"\n" +
+		"export namespace Bridge {\n" +
+		"  export function fire(name: string, payload?: any) {\n" +
+		"    if (Flags.enabled) {\n" +
+		"      const data = payload ? sanitize(payload) : {};\n" +
+		"      // We'll execute a delayed refresh to flush queued events.\n" +
+		"      setTimeout(() => {\n" +
+		"        if (!isHost()) return;\n" +
+		"        window.Client?.('refresh', {\n" +
+		"          at: tick(new Date()),\n" +
+		"        });\n" +
+		"        // Don't change this timeout without validating telemetry behavior.\n" +
+		"      }, 250);\n" +
+		"    }\n" +
+		"  }\n" +
+		"\n" +
+		"  export function launch(id: number) {\n" +
+		"    if (!isHost()) {\n" +
+		"      window.open(\n" +
+		"        `${window.location.href}?launch_id=${id}`,\n" +
+		"        '_blank',\n" +
+		"      );\n" +
+		"      return;\n" +
+		"    }\n" +
+		"    window.Client?.('launch', id);\n" +
+		"  }\n" +
+		"}\n"
+
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	// 4 top-level imports + 1 local export (namespace Intercom).
+	if len(imports) != 5 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v keywords=%v", i, imp.Request, imp.IsLocalExport, imp.Keywords)
+		}
+		t.Fatalf("Expected 5 entries (4 imports + namespace export), got %d", len(imports))
+	}
+
+	if !imports[4].IsLocalExport || imports[4].Keywords == nil || imports[4].Keywords.Keywords[0].Name != "Bridge" {
+		t.Fatalf("Expected last entry to be local namespace export 'Bridge', got %+v", imports[4])
+	}
+
+	for _, imp := range imports {
+		if imp.IsLocalExport && imp.Keywords != nil && len(imp.Keywords.Keywords) > 0 {
+			if imp.Keywords.Keywords[0].Name == "trackEvent" || imp.Keywords.Keywords[0].Name == "openSurvey" {
+				t.Fatalf("Inner namespace exports should not be parsed as top-level exports: %+v", imp)
+			}
+		}
+	}
+}
+
+func TestLargeNamespaceBodyDoesNotLeakInnerExports(t *testing.T) {
+	code := "import { fn } from 'pkg-a';\n" +
+		"import { util } from '@/pkg-b';\n" +
+		"import type { T } from './types';\n" +
+		"\n" +
+		"export namespace Toolkit {\n" +
+		"  export function alpha(id: number) {\n" +
+		"    if (!util()) {\n" +
+		"      window.open(`${window.location.href}?alpha_id=${id}`, '_blank');\n" +
+		"      return;\n" +
+		"    }\n" +
+		"    setTimeout(() => {\n" +
+		"      fn('alpha', { id });\n" +
+		"      // We'll keep this timer for now.\n" +
+		"    }, 100);\n" +
+		"  }\n" +
+		"\n" +
+		"  export function beta(id: number) {\n" +
+		"    if (!util()) {\n" +
+		"      window.open(`${window.location.href}?beta_id=${id}`, '_blank');\n" +
+		"      return;\n" +
+		"    }\n" +
+		"    window.Client?.('beta', id);\n" +
+		"  }\n" +
+		"\n" +
+		"  export function gamma(id: number) {\n" +
+		"    if (!util()) {\n" +
+		"      window.open(`${window.location.href}?gamma_id=${id}`, '_blank');\n" +
+		"      return;\n" +
+		"    }\n" +
+		"    window.Client?.('gamma', id);\n" +
+		"  }\n" +
+		"\n" +
+		"  export function delta(id: number) {\n" +
+		"    if (!util()) {\n" +
+		"      window.open(`${window.location.href}?delta_id=${id}`, '_blank');\n" +
+		"      return;\n" +
+		"    }\n" +
+		"    window.Client?.('delta', id);\n" +
+		"  }\n" +
+		"}\n"
+
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	if len(imports) != 4 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v keywords=%v", i, imp.Request, imp.IsLocalExport, imp.Keywords)
+		}
+		t.Fatalf("Expected 4 entries (3 imports + namespace export), got %d", len(imports))
+	}
+
+	if !imports[3].IsLocalExport || imports[3].Keywords == nil || imports[3].Keywords.Keywords[0].Name != "Toolkit" {
+		t.Fatalf("Expected last entry local namespace export 'Toolkit', got %+v", imports[3])
+	}
+
+	for _, imp := range imports {
+		if imp.IsLocalExport && imp.Keywords != nil && len(imp.Keywords.Keywords) > 0 {
+			switch imp.Keywords.Keywords[0].Name {
+			case "alpha", "beta", "gamma", "delta":
+				t.Fatalf("Inner namespace exports should not be parsed as top-level exports: %+v", imp)
+			}
+		}
+	}
+}
+
 func TestExportNamespaceBasicMode(t *testing.T) {
 	// In basic mode, namespace body should also be skipped (no inner exports parsed)
 	code := `
@@ -2715,6 +2960,69 @@ import { something } from './other'
 
 	if imports[0].Request != "./other" {
 		t.Errorf("Expected import './other', got '%s'", imports[0].Request)
+	}
+}
+
+func TestExportDeclareNamespaceBodySkipped(t *testing.T) {
+	code := `
+export declare namespace SDK {
+  export function inside(): void;
+}
+
+import { real } from './real'
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	// `export declare namespace` is declaration-only here; parser should still not leak
+	// inner exports and should continue parsing subsequent imports.
+	if len(imports) != 1 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v keywords=%v", i, imp.Request, imp.IsLocalExport, imp.Keywords)
+		}
+		t.Fatalf("Expected 1 entry, got %d", len(imports))
+	}
+	if imports[0].Request != "./real" {
+		t.Fatalf("Expected import './real', got %+v", imports[0])
+	}
+
+	for _, imp := range imports {
+		if imp.IsLocalExport && imp.Keywords != nil && len(imp.Keywords.Keywords) > 0 && imp.Keywords.Keywords[0].Name == "inside" {
+			t.Fatalf("Inner declare-namespace export should not be parsed as top-level export: %+v", imp)
+		}
+	}
+}
+
+func TestExportModuleBodySkipped(t *testing.T) {
+	code := `
+export module Legacy {
+  export function run(): void {}
+}
+
+import { modern } from './modern'
+`
+	imports := ParseImportsByte([]byte(code), false, ParseModeDetailed)
+
+	// Expected:
+	// 1) local export module Legacy
+	// 2) import './modern'
+	if len(imports) != 2 {
+		for i, imp := range imports {
+			t.Logf("import[%d]: request=%q isLocal=%v keywords=%v", i, imp.Request, imp.IsLocalExport, imp.Keywords)
+		}
+		t.Fatalf("Expected 2 entries, got %d", len(imports))
+	}
+
+	if !imports[0].IsLocalExport || imports[0].Keywords == nil || imports[0].Keywords.Keywords[0].Name != "Legacy" {
+		t.Fatalf("Expected first entry local export 'Legacy', got %+v", imports[0])
+	}
+	if imports[1].Request != "./modern" {
+		t.Fatalf("Expected second entry import './modern', got %+v", imports[1])
+	}
+
+	for _, imp := range imports {
+		if imp.IsLocalExport && imp.Keywords != nil && len(imp.Keywords.Keywords) > 0 && imp.Keywords.Keywords[0].Name == "run" {
+			t.Fatalf("Inner module export should not be parsed as top-level export: %+v", imp)
+		}
 	}
 }
 
@@ -3311,5 +3619,27 @@ export { setup }
 	}
 	if !requests["./async-iife"] {
 		t.Error("Expected dynamic import './async-iife' inside arrow IIFE")
+	}
+}
+
+func TestImportWordInsideJSXTextDoesNotCreateFakeImport(t *testing.T) {
+	code := `
+import { A } from './a'
+
+function Comp() {
+  return (
+    <Text>
+      Do you want to import your information?
+    </Text>
+  )
+}
+`
+
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+	if len(imports) != 1 {
+		t.Fatalf("Expected exactly 1 import, got %d: %+v", len(imports), imports)
+	}
+	if imports[0].Request != "./a" {
+		t.Fatalf("Expected only './a' import, got %q", imports[0].Request)
 	}
 }

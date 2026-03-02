@@ -12,6 +12,7 @@ func FindOrphanFiles(
 	ignoreTypeImports bool,
 	cwd string,
 	moduleSuffixVariants map[string]bool,
+	additionalEntryPointFiles map[string]bool,
 ) []string {
 	// Create glob matchers for valid entry points and graph exclusions
 	entryPointGlobs := CreateGlobMatchers(validEntryPoints, cwd)
@@ -55,10 +56,12 @@ func FindOrphanFiles(
 		isReferenced := referencedFiles[filePath]
 		isEntryPoint := len(entryPointGlobs) > 0 && MatchesAnyGlobMatcher(filePath, entryPointGlobs, false)
 		isVariant := moduleSuffixVariants != nil && moduleSuffixVariants[filePath]
+		isWorkspaceEntryPoint := additionalEntryPointFiles != nil && additionalEntryPointFiles[filePath]
 
 		// A file is orphan if it's not referenced by other files AND it's not a valid entry point
 		// AND it's not a module-suffix variant (platform-specific sibling)
-		if !isReferenced && !isEntryPoint && !isVariant {
+		// AND it's not a workspace package entry point
+		if !isReferenced && !isEntryPoint && !isVariant && !isWorkspaceEntryPoint {
 			orphanFiles = append(orphanFiles, filePath)
 		}
 	}

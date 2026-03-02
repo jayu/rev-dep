@@ -32,7 +32,7 @@ func TestFindOrphanFiles(t *testing.T) {
 		graphExclude := []string{}
 		ignoreTypeImports := false
 
-		orphanFiles := FindOrphanFiles(minimalTree, validEntryPoints, graphExclude, ignoreTypeImports, testCwd, nil)
+		orphanFiles := FindOrphanFiles(minimalTree, validEntryPoints, graphExclude, ignoreTypeImports, testCwd, nil, nil)
 
 		expected := []string{"src/utils/orphan.ts"}
 		if !slices.Equal(orphanFiles, expected) {
@@ -45,7 +45,7 @@ func TestFindOrphanFiles(t *testing.T) {
 		graphExclude := []string{"src/utils/orphan.ts"}
 		ignoreTypeImports := false
 
-		orphanFiles := FindOrphanFiles(minimalTree, validEntryPoints, graphExclude, ignoreTypeImports, testCwd, nil)
+		orphanFiles := FindOrphanFiles(minimalTree, validEntryPoints, graphExclude, ignoreTypeImports, testCwd, nil, nil)
 
 		// Orphan file should be excluded from results
 		expected := []string{}
@@ -59,7 +59,7 @@ func TestFindOrphanFiles(t *testing.T) {
 		graphExclude := []string{}
 		ignoreTypeImports := false
 
-		orphanFiles := FindOrphanFiles(minimalTree, validEntryPoints, graphExclude, ignoreTypeImports, testCwd, nil)
+		orphanFiles := FindOrphanFiles(minimalTree, validEntryPoints, graphExclude, ignoreTypeImports, testCwd, nil, nil)
 
 		// Orphan file should not be considered orphan since it's a valid entry point
 		expected := []string{}
@@ -82,7 +82,7 @@ func TestFindOrphanFiles(t *testing.T) {
 		graphExclude := []string{}
 		ignoreTypeImports := true
 
-		orphanFiles := FindOrphanFiles(minimalTreeWithTypeImports, validEntryPoints, graphExclude, ignoreTypeImports, testCwd, nil)
+		orphanFiles := FindOrphanFiles(minimalTreeWithTypeImports, validEntryPoints, graphExclude, ignoreTypeImports, testCwd, nil, nil)
 
 		// orphan.ts should be considered orphan since type-only imports are ignored
 		expected := []string{"src/utils/orphan.ts"}
@@ -122,6 +122,7 @@ func TestFindOrphanFiles_ModuleSuffixVariants(t *testing.T) {
 			false,
 			testCwd,
 			variants,
+			nil,
 		)
 
 		expected := []string{"src/button.web.tsx", "src/orphan.ts"}
@@ -145,6 +146,7 @@ func TestFindOrphanFiles_ModuleSuffixVariants(t *testing.T) {
 			[]string{},
 			false,
 			testCwd,
+			nil,
 			nil,
 		)
 

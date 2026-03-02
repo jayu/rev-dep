@@ -174,7 +174,7 @@ func NodeModulesCmd(
 	}
 
 	if listMissing {
-		missingResults := GetMissingNodeModulesFromTree(minimalTree, modulesToInclude, modulesToExclude, cwdNodeModules)
+		missingResults := GetMissingNodeModulesFromTree(minimalTree, modulesToInclude, modulesToExclude, cwdNodeModules, resolverManager)
 		return formatMissingNodeModulesResults(missingResults, cwd, countFlag, groupByModule, groupByFile, groupByModuleFilesCount)
 	}
 
@@ -434,20 +434,25 @@ func GetMissingNodeModulesFromTree(
 	modulesToInclude []string,
 	modulesToExclude []string,
 	workingDirNodeModules map[string]bool,
+	resolverManager *ResolverManager,
 ) []MissingNodeModuleResult {
 	shouldIncludeModule := createShouldModuleByIncluded(modulesToInclude, modulesToExclude)
 	unresolved := map[string]map[string]bool{}
 
 	for filePath, fileDeps := range minimalTree {
+		// In monorepos, each file may belong to a different workspace package with its own
+		// package.json dependencies. Use per-file resolver lookup when available.
+		fileNodeModules := workingDirNodeModules
+		if resolverManager != nil {
+			resolver := resolverManager.GetResolverForFile(filePath)
+			if resolver != nil {
+				fileNodeModules = resolver.nodeModules
+			}
+		}
 		for _, dependency := range fileDeps {
-			// If following monorepo packages is enabled, files in minimal tree might not belong to the cwd.
-			// During resolution, node modules are looked up by package.json that belongs to the file location
-			// To capture missing modules correctly (let's say for `app` that imports `shared` package), meaning
-			// Capture modules declared in `shared` package.json, used by files from `shared`, but bundled by app
-			//
 			if dependency.ResolvedType == NotResolvedModule || dependency.ResolvedType == NodeModule {
 				moduleName := GetNodeModuleName(dependency.Request)
-				if _, exists := workingDirNodeModules[moduleName]; !exists {
+				if _, exists := fileNodeModules[moduleName]; !exists {
 					setFilePathInNodeModuleFilesMap(&unresolved, moduleName, filePath)
 				}
 			}

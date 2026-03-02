@@ -9,6 +9,140 @@ import (
 	"sync"
 )
 
+// getWorkspaceEntryPointFiles computes absolute file paths for workspace package
+// entry points (Main, Module, and root Exports) so they are not flagged as orphans.
+func getWorkspaceEntryPointFiles(resolverManager *ResolverManager) map[string]bool {
+	if resolverManager == nil || resolverManager.monorepoContext == nil {
+		return nil
+	}
+
+	entryPoints := map[string]bool{}
+	ctx := resolverManager.monorepoContext
+
+	for _, packagePath := range ctx.PackageToPath {
+		config, err := ctx.GetPackageConfig(packagePath)
+		if err != nil || config == nil {
+			continue
+		}
+
+		candidates := []string{}
+		if config.Main != "" {
+			candidates = append(candidates, config.Main)
+		}
+		if config.Module != "" {
+			candidates = append(candidates, config.Module)
+		}
+		// Extract file paths from the "." (root) export in the exports field
+		candidates = append(candidates, collectExportsRootPaths(config.Exports)...)
+
+		normalizedPkgPath := NormalizePathForInternal(packagePath)
+
+		for _, candidate := range candidates {
+			resolveEntryPointCandidate(normalizedPkgPath, candidate, entryPoints)
+		}
+	}
+
+	if len(entryPoints) == 0 {
+		return nil
+	}
+	return entryPoints
+}
+
+// resolveEntryPointCandidate resolves a relative entry point path to an absolute
+// file path and adds it to the entryPoints map.
+func resolveEntryPointCandidate(pkgPath string, candidate string, entryPoints map[string]bool) {
+	candidate = strings.TrimPrefix(candidate, "./")
+	absPath := pkgPath + "/" + candidate
+	absPath = NormalizePathForInternal(filepath.Clean(absPath))
+
+	if fileExists(absPath) {
+		entryPoints[absPath] = true
+		return
+	}
+	for _, ext := range []string{".ts", ".tsx", ".js", ".jsx"} {
+		if fileExists(absPath + ext) {
+			entryPoints[absPath+ext] = true
+			return
+		}
+	}
+	for _, ext := range []string{".ts", ".tsx", ".js", ".jsx"} {
+		indexPath := absPath + "/index" + ext
+		if fileExists(indexPath) {
+			entryPoints[indexPath] = true
+			return
+		}
+	}
+}
+
+// collectExportsRootPaths extracts all file path strings from the "." (root)
+// export entry in a package.json exports field. Handles:
+//   - string: "./src/index.ts"
+//   - map with "." key: { ".": "./src/index.ts" } or { ".": { "import": "./src/index.ts" } }
+//   - map without "." (sugar for root): { "import": "./src/index.ts", "types": "./src/index.ts" }
+func collectExportsRootPaths(exports interface{}) []string {
+	if exports == nil {
+		return nil
+	}
+
+	// Direct string export: "exports": "./src/index.ts"
+	if s, ok := exports.(string); ok {
+		return []string{s}
+	}
+
+	exportsMap, ok := exports.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Check if any key starts with "." — if so, only extract from the "." entry
+	hasDotPrefix := false
+	for k := range exportsMap {
+		if strings.HasPrefix(k, ".") {
+			hasDotPrefix = true
+			break
+		}
+	}
+
+	if hasDotPrefix {
+		dotEntry, exists := exportsMap["."]
+		if !exists {
+			return nil
+		}
+		return collectPathsFromExportValue(dotEntry)
+	}
+
+	// No dot prefix — the entire map is the root export (condition map sugar)
+	return collectPathsFromExportValue(exports)
+}
+
+// collectPathsFromExportValue recursively extracts all string file paths from
+// an export value (which may be a string, a condition map, or nested condition maps).
+func collectPathsFromExportValue(value interface{}) []string {
+	if value == nil {
+		return nil
+	}
+	if s, ok := value.(string); ok {
+		if strings.HasPrefix(s, ".") {
+			return []string{s}
+		}
+		return nil
+	}
+	m, ok := value.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	var paths []string
+	for _, v := range m {
+		paths = append(paths, collectPathsFromExportValue(v)...)
+	}
+	return paths
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
 // RestrictedDevDependenciesUsageViolation represents a violation where a dev dependency is used in production code
 type RestrictedDevDependenciesUsageViolation struct {
 	DevDependency string `json:"devDependency"`
@@ -316,6 +450,12 @@ func processRuleChecks(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			// Compute workspace entry points so that package entry files from
+			// followed monorepo packages are not flagged as orphans.
+			var workspaceEntryPoints map[string]bool
+			if rule.FollowMonorepoPackages.IsEnabled() {
+				workspaceEntryPoints = getWorkspaceEntryPointFiles(resolverManager)
+			}
 			orphanFiles := FindOrphanFiles(
 				ruleTree,
 				rule.OrphanFilesDetection.ValidEntryPoints,
@@ -323,6 +463,7 @@ func processRuleChecks(
 				rule.OrphanFilesDetection.IgnoreTypeImports,
 				fullRulePath,
 				moduleSuffixVariants,
+				workspaceEntryPoints,
 			)
 
 			mu.Lock()
@@ -387,6 +528,7 @@ func processRuleChecks(
 				rule.MissingNodeModulesDetection.IncludeModules,
 				rule.MissingNodeModulesDetection.ExcludeModules,
 				rulePathNodeModules,
+				resolverManager,
 			)
 
 			mu.Lock()

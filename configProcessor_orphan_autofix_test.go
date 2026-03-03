@@ -36,11 +36,11 @@ func TestConfigProcessor_OrphanFiles_Autofix(t *testing.T) {
 		Rules: []Rule{
 			{
 				Path: ".",
-				OrphanFilesDetection: &OrphanFilesOptions{
+				OrphanFilesDetections: []*OrphanFilesOptions{{
 					Enabled:          true,
 					ValidEntryPoints: []string{"src/index.ts"},
 					Autofix:          true,
-				},
+				}},
 			},
 		},
 	}
@@ -104,11 +104,11 @@ func TestConfigProcessor_OrphanFiles_NoAutofix(t *testing.T) {
 		Rules: []Rule{
 			{
 				Path: ".",
-				OrphanFilesDetection: &OrphanFilesOptions{
+				OrphanFilesDetections: []*OrphanFilesOptions{{
 					Enabled:          true,
 					ValidEntryPoints: []string{"src/index.ts"},
 					Autofix:          false,
-				},
+				}},
 			},
 		},
 	}
@@ -135,5 +135,72 @@ func TestConfigProcessor_OrphanFiles_NoAutofix(t *testing.T) {
 
 	if _, err := os.Stat(orphanFile); os.IsNotExist(err) {
 		t.Errorf("Orphan file should NOT be removed when autofix is disabled")
+	}
+}
+
+func TestConfigProcessor_OrphanFiles_MultipleDetections_AutofixRespectsReportingInstance(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rev-dep-orphan-multidetection-autofix-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	srcDir := filepath.Join(tempDir, "src")
+	os.MkdirAll(srcDir, 0755)
+
+	entryFile := filepath.Join(srcDir, "index.ts")
+	os.WriteFile(entryFile, []byte("export const a = 1;"), 0644)
+
+	orphanFile := filepath.Join(srcDir, "orphan.ts")
+	os.WriteFile(orphanFile, []byte("export const b = 2;"), 0644)
+
+	config := RevDepConfig{
+		ConfigVersion: "1.6",
+		Rules: []Rule{
+			{
+				Path: ".",
+				OrphanFilesDetections: []*OrphanFilesOptions{
+					{
+						Enabled:          true,
+						ValidEntryPoints: []string{"src/index.ts", "src/orphan.ts"}, // no orphan reported here
+						Autofix:          true,
+					},
+					{
+						Enabled:          true,
+						ValidEntryPoints: []string{"src/index.ts"}, // orphan reported here
+						Autofix:          false,
+					},
+				},
+			},
+		},
+	}
+	// With fix=false, orphan is reported but not suggested as fixable (because reporting detector has autofix=false).
+	result, err := ProcessConfig(&config, tempDir, "", "", false)
+	if err != nil {
+		t.Fatalf("ProcessConfig failed: %v", err)
+	}
+
+	if len(result.RuleResults) != 1 {
+		t.Fatalf("Expected 1 rule result, got %d", len(result.RuleResults))
+	}
+	if len(result.RuleResults[0].OrphanFiles) != 1 {
+		t.Fatalf("Expected exactly 1 orphan file reported, got %d", len(result.RuleResults[0].OrphanFiles))
+	}
+	if result.FixableIssuesCount != 0 {
+		t.Fatalf("Expected 0 fixable issues, got %d", result.FixableIssuesCount)
+	}
+
+	// With fix=true, reported orphan should still NOT be deleted.
+	result, err = ProcessConfig(&config, tempDir, "", "", true)
+	if err != nil {
+		t.Fatalf("ProcessConfig failed: %v", err)
+	}
+
+	if result.DeletedFilesCount != 0 {
+		t.Fatalf("Expected 0 deleted files, got %d", result.DeletedFilesCount)
+	}
+
+	if _, err := os.Stat(orphanFile); os.IsNotExist(err) {
+		t.Fatalf("Orphan file should NOT be removed because reporting detector has autofix=false")
 	}
 }

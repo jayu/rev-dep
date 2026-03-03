@@ -97,3 +97,27 @@ func TestFindRestrictedImports_DenyModulesAndIgnore(t *testing.T) {
 		t.Fatalf("expected request react/jsx-runtime, got %q", v.ImportRequest)
 	}
 }
+
+func TestFindRestrictedImports_GraphExclude(t *testing.T) {
+	ruleTree := MinimalDependencyTree{
+		"/repo/src/server.ts": {
+			{ID: "/repo/src/service.ts", Request: "./service", ResolvedType: UserModule, ImportKind: NotTypeOrMixedImport},
+		},
+		"/repo/src/service.ts": {
+			{ID: "/repo/src/ui/view.tsx", Request: "./ui/view", ResolvedType: UserModule, ImportKind: NotTypeOrMixedImport},
+		},
+		"/repo/src/ui/view.tsx": {},
+	}
+
+	opts := &RestrictedImportsDetectionOptions{
+		Enabled:      true,
+		EntryPoints:  []string{"src/server.ts"},
+		GraphExclude: []string{"src/service.ts"},
+		DenyFiles:    []string{"**/*.tsx"},
+	}
+
+	violations := FindRestrictedImports(ruleTree, opts, "/repo")
+	if len(violations) != 0 {
+		t.Fatalf("expected 0 violations with graphExclude, got %d: %+v", len(violations), violations)
+	}
+}

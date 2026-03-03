@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -230,5 +231,104 @@ func TestConfigOutput_RestrictedImports_GroupByEntryPoint(t *testing.T) {
 	}
 	if strings.Contains(output, "imports denied file") || strings.Contains(output, "imports denied module") {
 		t.Fatalf("expected compact grouped format without importer phrasing, got:\n%s", output)
+	}
+}
+
+func TestPrintRestrictedImportsResolveHint_UsesViolationIgnoreTypeFlag(t *testing.T) {
+	cwd, _ := os.Getwd()
+
+	ruleResult := RuleResult{
+		RulePath: ".",
+		RestrictedImportsViolations: []RestrictedImportViolation{
+			{
+				ViolationType: "file",
+				EntryPoint:    filepath.Join(cwd, "src/entry-file.ts"),
+				DeniedFile:    filepath.Join(cwd, "src/denied-file.ts"),
+				IgnoreType:    false,
+			},
+			{
+				ViolationType: "module",
+				EntryPoint:    filepath.Join(cwd, "src/entry-module.ts"),
+				DeniedModule:  "react",
+				ImportRequest: "react/jsx-runtime",
+				IgnoreType:    true,
+				GraphExclude:  []string{"**/*.stories.tsx"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	originalStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printRestrictedImportsResolveHint(ruleResult, cwd)
+
+	w.Close()
+	os.Stdout = originalStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "resolve --file") {
+		t.Fatalf("expected file example in hint, got:\n%s", output)
+	}
+	if !strings.Contains(output, "resolve --module") {
+		t.Fatalf("expected module example in hint, got:\n%s", output)
+	}
+	if strings.Contains(output, "resolve --file src/denied-file.ts --entry-points src/entry-file.ts --cwd . --ignore-type-imports") {
+		t.Fatalf("expected file example to not include --ignore-type-imports, got:\n%s", output)
+	}
+	if !strings.Contains(output, "resolve --module react/jsx-runtime --entry-points src/entry-module.ts --cwd . --ignore-type-imports") {
+		t.Fatalf("expected module example to include --ignore-type-imports, got:\n%s", output)
+	}
+	if !strings.Contains(output, "--graph-exclude \"**/*.stories.tsx\"") {
+		t.Fatalf("expected module example to include --graph-exclude flag, got:\n%s", output)
+	}
+}
+
+func TestConfigOutput_RestrictedImports_LimitingSortsBeforeTruncation(t *testing.T) {
+	cwd, _ := os.Getwd()
+
+	result := &ConfigProcessingResult{
+		HasFailures: true,
+		RuleResults: []RuleResult{
+			{
+				RulePath:      ".",
+				FileCount:     10,
+				EnabledChecks: []string{"restricted-imports"},
+				RestrictedImportsViolations: []RestrictedImportViolation{
+					// Intentionally unsorted input.
+					{ViolationType: "module", ImporterFile: "src/z.ts", EntryPoint: "src/z-entry.ts", DeniedModule: "react-z", ImportRequest: "react-z"},
+					{ViolationType: "module", ImporterFile: "src/a.ts", EntryPoint: "src/a-entry.ts", DeniedModule: "react-a", ImportRequest: "react-a"},
+					{ViolationType: "module", ImporterFile: "src/b.ts", EntryPoint: "src/b-entry.ts", DeniedModule: "react-b", ImportRequest: "react-b"},
+					{ViolationType: "module", ImporterFile: "src/c.ts", EntryPoint: "src/c-entry.ts", DeniedModule: "react-c", ImportRequest: "react-c"},
+					{ViolationType: "module", ImporterFile: "src/d.ts", EntryPoint: "src/d-entry.ts", DeniedModule: "react-d", ImportRequest: "react-d"},
+					{ViolationType: "module", ImporterFile: "src/e.ts", EntryPoint: "src/e-entry.ts", DeniedModule: "react-e", ImportRequest: "react-e"},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	originalStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	formatAndPrintConfigResults(result, cwd, false)
+
+	w.Close()
+	os.Stdout = originalStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// With sort-before-limit and maxIssuesToList=5, z-entry should be truncated.
+	if strings.Contains(output, "src/z-entry.ts") {
+		t.Fatalf("expected src/z-entry.ts to be excluded by sorted limiting, got:\n%s", output)
+	}
+	if !strings.Contains(output, "src/a-entry.ts") {
+		t.Fatalf("expected src/a-entry.ts to be included, got:\n%s", output)
+	}
+	if !strings.Contains(output, "... and 1 more restricted import issues") {
+		t.Fatalf("expected limiting summary, got:\n%s", output)
 	}
 }

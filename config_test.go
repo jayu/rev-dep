@@ -7,6 +7,13 @@ import (
 	"testing"
 )
 
+func firstDetectionOrNil[T any](items []*T) *T {
+	if len(items) == 0 {
+		return nil
+	}
+	return items[0]
+}
+
 func TestParseConfig_SchemaField(t *testing.T) {
 	configJSON := `{
 		"$schema": "./config-schema/1.0.schema.json",
@@ -119,8 +126,8 @@ func TestInitConfigFile(t *testing.T) {
 	}
 
 	config := configs[0]
-	if config.ConfigVersion != "1.5" {
-		t.Errorf("Expected configVersion '1.5', got '%s'", config.ConfigVersion)
+	if config.ConfigVersion != "1.6" {
+		t.Errorf("Expected configVersion '1.6', got '%s'", config.ConfigVersion)
 	}
 
 	if len(config.Rules) != 1 {
@@ -131,32 +138,40 @@ func TestInitConfigFile(t *testing.T) {
 		t.Errorf("Expected rule path '.', got '%s'", config.Rules[0].Path)
 	}
 
-	if config.Rules[0].CircularImportsDetection == nil || !config.Rules[0].CircularImportsDetection.Enabled {
+	if firstDetectionOrNil(config.Rules[0].CircularImportsDetections) == nil || !firstDetectionOrNil(config.Rules[0].CircularImportsDetections).Enabled {
 		t.Errorf("Expected circular imports detection to be enabled")
 	}
 
-	if config.Rules[0].CircularImportsDetection.IgnoreTypeImports {
+	if firstDetectionOrNil(config.Rules[0].CircularImportsDetections).IgnoreTypeImports {
 		t.Errorf("Expected circular imports detection ignoreTypeImports to be false")
 	}
 
-	if config.Rules[0].OrphanFilesDetection == nil || config.Rules[0].OrphanFilesDetection.Enabled {
+	if firstDetectionOrNil(config.Rules[0].OrphanFilesDetections) == nil || firstDetectionOrNil(config.Rules[0].OrphanFilesDetections).Enabled {
 		t.Errorf("Expected orphan files detection to be disabled")
 	}
 
-	if config.Rules[0].UnusedNodeModulesDetection == nil || config.Rules[0].UnusedNodeModulesDetection.Enabled {
+	if firstDetectionOrNil(config.Rules[0].UnusedNodeModulesDetections) == nil || firstDetectionOrNil(config.Rules[0].UnusedNodeModulesDetections).Enabled {
 		t.Errorf("Expected unused node modules detection to be disabled")
 	}
 
-	if config.Rules[0].MissingNodeModulesDetection == nil || config.Rules[0].MissingNodeModulesDetection.Enabled {
+	if firstDetectionOrNil(config.Rules[0].MissingNodeModulesDetections) == nil || firstDetectionOrNil(config.Rules[0].MissingNodeModulesDetections).Enabled {
 		t.Errorf("Expected missing node modules detection to be disabled")
 	}
 
-	if config.Rules[0].UnusedExportsDetection == nil || config.Rules[0].UnusedExportsDetection.Enabled {
+	if firstDetectionOrNil(config.Rules[0].UnusedExportsDetections) == nil || firstDetectionOrNil(config.Rules[0].UnusedExportsDetections).Enabled {
 		t.Errorf("Expected unused exports detection to be disabled")
 	}
 
-	if config.Rules[0].UnresolvedImportsDetection == nil || config.Rules[0].UnresolvedImportsDetection.Enabled {
-		t.Errorf("Expected unresolved imports detection to be disabled")
+	if firstDetectionOrNil(config.Rules[0].UnresolvedImportsDetections) == nil || !firstDetectionOrNil(config.Rules[0].UnresolvedImportsDetections).Enabled {
+		t.Errorf("Expected unresolved imports detection to be enabled")
+	}
+
+	if firstDetectionOrNil(config.Rules[0].DevDepsUsageOnProdDetections) == nil || firstDetectionOrNil(config.Rules[0].DevDepsUsageOnProdDetections).Enabled {
+		t.Errorf("Expected dev deps usage detection to be disabled")
+	}
+
+	if firstDetectionOrNil(config.Rules[0].RestrictedImportsDetections) == nil || firstDetectionOrNil(config.Rules[0].RestrictedImportsDetections).Enabled {
+		t.Errorf("Expected restricted imports detection to be disabled")
 	}
 }
 
@@ -217,6 +232,15 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	if cfg.Rules[0].Path != "." {
 		t.Fatalf("Expected rule path '.' for sub-package config, got '%s'", cfg.Rules[0].Path)
 	}
+	if firstDetectionOrNil(cfg.Rules[0].UnresolvedImportsDetections) == nil || !firstDetectionOrNil(cfg.Rules[0].UnresolvedImportsDetections).Enabled {
+		t.Fatalf("Expected unresolvedImportsDetection enabled in generated sub-package config")
+	}
+	if firstDetectionOrNil(cfg.Rules[0].DevDepsUsageOnProdDetections) == nil || firstDetectionOrNil(cfg.Rules[0].DevDepsUsageOnProdDetections).Enabled {
+		t.Fatalf("Expected devDepsUsageOnProdDetection disabled in generated sub-package config")
+	}
+	if firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections) == nil || firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections).Enabled {
+		t.Fatalf("Expected restrictedImportsDetection disabled in generated sub-package config")
+	}
 
 	// Now run init at the workspace root and expect multiple rules
 	// Remove config created in package
@@ -235,6 +259,18 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	// rootRules should contain at least the root + discovered package
 	if len(rootRules) < 2 {
 		t.Fatalf("Expected >=2 rules for monorepo root config, got %d", len(rootRules))
+	}
+
+	rootConfigContent, err := os.ReadFile(rootConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read generated root config: %v", err)
+	}
+	rootConfigs, err := ParseConfig(rootConfigContent)
+	if err != nil {
+		t.Fatalf("Failed to parse generated root config: %v", err)
+	}
+	if len(rootConfigs) != 1 || len(rootConfigs[0].Rules) == 0 {
+		t.Fatalf("Expected parsed root config with at least one rule")
 	}
 }
 
@@ -345,19 +381,19 @@ func TestParseConfig_ValidCompleteConfig(t *testing.T) {
 	}
 
 	// Check detection options are properly configured
-	if rule.CircularImportsDetection == nil || !rule.CircularImportsDetection.Enabled || !rule.CircularImportsDetection.IgnoreTypeImports {
+	if firstDetectionOrNil(rule.CircularImportsDetections) == nil || !firstDetectionOrNil(rule.CircularImportsDetections).Enabled || !firstDetectionOrNil(rule.CircularImportsDetections).IgnoreTypeImports {
 		t.Errorf("Circular imports detection not properly configured")
 	}
 
-	if rule.OrphanFilesDetection == nil || !rule.OrphanFilesDetection.Enabled || rule.OrphanFilesDetection.IgnoreTypeImports {
+	if firstDetectionOrNil(rule.OrphanFilesDetections) == nil || !firstDetectionOrNil(rule.OrphanFilesDetections).Enabled || firstDetectionOrNil(rule.OrphanFilesDetections).IgnoreTypeImports {
 		t.Errorf("Orphan files detection not properly configured")
 	}
 
-	if rule.UnusedNodeModulesDetection == nil || !rule.UnusedNodeModulesDetection.Enabled || rule.UnusedNodeModulesDetection.OutputType != "groupByModule" {
+	if firstDetectionOrNil(rule.UnusedNodeModulesDetections) == nil || !firstDetectionOrNil(rule.UnusedNodeModulesDetections).Enabled || firstDetectionOrNil(rule.UnusedNodeModulesDetections).OutputType != "groupByModule" {
 		t.Errorf("Unused node modules detection not properly configured")
 	}
 
-	if rule.MissingNodeModulesDetection == nil || !rule.MissingNodeModulesDetection.Enabled || rule.MissingNodeModulesDetection.OutputType != "groupByFile" {
+	if firstDetectionOrNil(rule.MissingNodeModulesDetections) == nil || !firstDetectionOrNil(rule.MissingNodeModulesDetections).Enabled || firstDetectionOrNil(rule.MissingNodeModulesDetections).OutputType != "groupByFile" {
 		t.Errorf("Missing node modules detection not properly configured")
 	}
 }
@@ -911,19 +947,19 @@ func TestParseConfig_DisabledOptions(t *testing.T) {
 	rule := config.Rules[0]
 
 	// Verify options are parsed but validation is skipped when disabled
-	if rule.CircularImportsDetection == nil || rule.CircularImportsDetection.Enabled {
+	if firstDetectionOrNil(rule.CircularImportsDetections) == nil || firstDetectionOrNil(rule.CircularImportsDetections).Enabled {
 		t.Error("Circular imports detection should be disabled")
 	}
 
-	if rule.OrphanFilesDetection == nil || rule.OrphanFilesDetection.Enabled {
+	if firstDetectionOrNil(rule.OrphanFilesDetections) == nil || firstDetectionOrNil(rule.OrphanFilesDetections).Enabled {
 		t.Error("Orphan files detection should be disabled")
 	}
 
-	if rule.UnusedNodeModulesDetection == nil || rule.UnusedNodeModulesDetection.Enabled {
+	if firstDetectionOrNil(rule.UnusedNodeModulesDetections) == nil || firstDetectionOrNil(rule.UnusedNodeModulesDetections).Enabled {
 		t.Error("Unused node modules detection should be disabled")
 	}
 
-	if rule.MissingNodeModulesDetection == nil || rule.MissingNodeModulesDetection.Enabled {
+	if firstDetectionOrNil(rule.MissingNodeModulesDetections) == nil || firstDetectionOrNil(rule.MissingNodeModulesDetections).Enabled {
 		t.Error("Missing node modules detection should be disabled")
 	}
 }
@@ -1362,9 +1398,9 @@ func TestParseConfigWithComments(t *testing.T) {
 				Rules: []Rule{
 					{
 						Path: "src/**/*",
-						CircularImportsDetection: &CircularImportsOptions{
+						CircularImportsDetections: []*CircularImportsOptions{{
 							Enabled: true,
-						},
+						}},
 					},
 				},
 			},
@@ -1392,10 +1428,10 @@ func TestParseConfigWithComments(t *testing.T) {
 				Rules: []Rule{
 					{
 						Path: "src/**/*",
-						OrphanFilesDetection: &OrphanFilesOptions{
+						OrphanFilesDetections: []*OrphanFilesOptions{{
 							Enabled:          true,
 							ValidEntryPoints: []string{"index.ts"},
-						},
+						}},
 					},
 				},
 			},
@@ -1780,6 +1816,11 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 					"validEntryPoints": ["src/index.ts", "src/public-api.ts"],
 					"ignoreTypeExports": true,
 					"graphExclude": ["**/*.test.ts", "**/*.spec.ts"],
+					"ignore": {
+						"src/types.ts": "B*"
+					},
+					"ignoreFiles": ["**/*.generated.ts"],
+					"ignoreExports": ["default", "unused*"],
 					"autofix": true
 				}
 			}]
@@ -1791,22 +1832,31 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}
 
 		rule := configs[0].Rules[0]
-		if rule.UnusedExportsDetection == nil {
+		if firstDetectionOrNil(rule.UnusedExportsDetections) == nil {
 			t.Fatal("Expected unusedExportsDetection to be non-nil")
 		}
-		if !rule.UnusedExportsDetection.Enabled {
+		if !firstDetectionOrNil(rule.UnusedExportsDetections).Enabled {
 			t.Error("Expected enabled to be true")
 		}
-		if len(rule.UnusedExportsDetection.ValidEntryPoints) != 2 {
-			t.Errorf("Expected 2 entry points, got %d", len(rule.UnusedExportsDetection.ValidEntryPoints))
+		if len(firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints) != 2 {
+			t.Errorf("Expected 2 entry points, got %d", len(firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints))
 		}
-		if !rule.UnusedExportsDetection.IgnoreTypeExports {
+		if !firstDetectionOrNil(rule.UnusedExportsDetections).IgnoreTypeExports {
 			t.Error("Expected ignoreTypeExports to be true")
 		}
-		if len(rule.UnusedExportsDetection.GraphExclude) != 2 {
-			t.Errorf("Expected 2 graphExclude patterns, got %d", len(rule.UnusedExportsDetection.GraphExclude))
+		if len(firstDetectionOrNil(rule.UnusedExportsDetections).GraphExclude) != 2 {
+			t.Errorf("Expected 2 graphExclude patterns, got %d", len(firstDetectionOrNil(rule.UnusedExportsDetections).GraphExclude))
 		}
-		if !rule.UnusedExportsDetection.Autofix {
+		if got := firstDetectionOrNil(rule.UnusedExportsDetections).Ignore["src/types.ts"]; len(got) != 1 || got[0] != "B*" {
+			t.Errorf("Expected normalized ignore entry for src/types.ts, got %#v", got)
+		}
+		if len(firstDetectionOrNil(rule.UnusedExportsDetections).IgnoreFiles) != 1 {
+			t.Errorf("Expected 1 ignoreFiles pattern, got %d", len(firstDetectionOrNil(rule.UnusedExportsDetections).IgnoreFiles))
+		}
+		if len(firstDetectionOrNil(rule.UnusedExportsDetections).IgnoreExports) != 2 {
+			t.Errorf("Expected 2 ignoreExports entries, got %d", len(firstDetectionOrNil(rule.UnusedExportsDetections).IgnoreExports))
+		}
+		if !firstDetectionOrNil(rule.UnusedExportsDetections).Autofix {
 			t.Error("Expected autofix to be true")
 		}
 	})
@@ -1828,7 +1878,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}
 
 		rule := configs[0].Rules[0]
-		if rule.UnusedExportsDetection == nil || !rule.UnusedExportsDetection.Enabled {
+		if firstDetectionOrNil(rule.UnusedExportsDetections) == nil || !firstDetectionOrNil(rule.UnusedExportsDetections).Enabled {
 			t.Error("Expected unusedExportsDetection to be enabled")
 		}
 	})
@@ -2034,6 +2084,90 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 			t.Errorf("Expected autofix boolean type error, got: %s", err.Error())
 		}
 	})
+
+	t.Run("wrong type for ignore", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"ignore": "not-an-object"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "ignore must be an object") {
+			t.Errorf("Expected ignore object type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for ignoreFiles", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"ignoreFiles": "not-an-array"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "ignoreFiles must be an array") {
+			t.Errorf("Expected ignoreFiles array type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("wrong type for ignoreExports", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"ignoreExports": "not-an-array"
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "ignoreExports must be an array") {
+			t.Errorf("Expected ignoreExports array type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("invalid ignoreFiles pattern", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.3",
+			"rules": [{
+				"path": "./src",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"ignoreFiles": ["./invalid/**"]
+				}
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "starts with './'") {
+			t.Errorf("Expected pattern validation error, got: %s", err.Error())
+		}
+	})
 }
 
 func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
@@ -2059,21 +2193,21 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 		}
 
 		rule := configs[0].Rules[0]
-		if rule.UnresolvedImportsDetection == nil {
+		if firstDetectionOrNil(rule.UnresolvedImportsDetections) == nil {
 			t.Fatal("Expected unresolvedImportsDetection to be non-nil")
 		}
-		if !rule.UnresolvedImportsDetection.Enabled {
+		if !firstDetectionOrNil(rule.UnresolvedImportsDetections).Enabled {
 			t.Error("Expected enabled to be true")
 		}
 
-		if got := rule.UnresolvedImportsDetection.Ignore["src/index.ts"]; got != "non-existent-module" {
-			t.Errorf("Expected normalized ignore entry for src/index.ts, got %q", got)
+		if got := firstDetectionOrNil(rule.UnresolvedImportsDetections).Ignore["src/index.ts"]; len(got) != 1 || got[0] != "non-existent-module" {
+			t.Errorf("Expected normalized ignore entry for src/index.ts, got %#v", got)
 		}
-		if len(rule.UnresolvedImportsDetection.IgnoreFiles) != 1 {
-			t.Errorf("Expected 1 ignoreFiles pattern, got %d", len(rule.UnresolvedImportsDetection.IgnoreFiles))
+		if len(firstDetectionOrNil(rule.UnresolvedImportsDetections).IgnoreFiles) != 1 {
+			t.Errorf("Expected 1 ignoreFiles pattern, got %d", len(firstDetectionOrNil(rule.UnresolvedImportsDetections).IgnoreFiles))
 		}
-		if len(rule.UnresolvedImportsDetection.IgnoreImports) != 1 {
-			t.Errorf("Expected 1 ignoreImports entry, got %d", len(rule.UnresolvedImportsDetection.IgnoreImports))
+		if len(firstDetectionOrNil(rule.UnresolvedImportsDetections).IgnoreImports) != 1 {
+			t.Errorf("Expected 1 ignoreImports entry, got %d", len(firstDetectionOrNil(rule.UnresolvedImportsDetections).IgnoreImports))
 		}
 	})
 
@@ -2458,4 +2592,331 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			t.Errorf("Expected third rule FollowMonorepoPackages to be true, got %v", parsedConfig.Rules[2].FollowMonorepoPackages)
 		}
 	})
+}
+
+func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
+	t.Run("inherits merged valid entry points and prod-only entry points", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"prodEntryPoints": ["src/prod.ts", "src/shared.ts"],
+				"devEntryPoints": ["src/dev.ts", "src/shared.ts"],
+				"orphanFilesDetection": {
+					"enabled": true
+				},
+				"unusedExportsDetection": {
+					"enabled": true
+				},
+				"devDepsUsageOnProdDetection": {
+					"enabled": true
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		expectedMerged := []string{"src/prod.ts", "src/shared.ts", "src/dev.ts"}
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints, expectedMerged) {
+			t.Fatalf("unexpected orphanFilesDetection.validEntryPoints: %+v", firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints)
+		}
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints, expectedMerged) {
+			t.Fatalf("unexpected unusedExportsDetection.validEntryPoints: %+v", firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints)
+		}
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.DevDepsUsageOnProdDetections).ProdEntryPoints, []string{"src/prod.ts", "src/shared.ts"}) {
+			t.Fatalf("unexpected devDepsUsageOnProdDetection.prodEntryPoints: %+v", firstDetectionOrNil(rule.DevDepsUsageOnProdDetections).ProdEntryPoints)
+		}
+	})
+
+	t.Run("detector-level arrays override inherited values", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"prodEntryPoints": ["src/prod.ts"],
+				"devEntryPoints": ["src/dev.ts"],
+				"orphanFilesDetection": {
+					"enabled": true,
+					"validEntryPoints": ["src/custom-orphan.ts"]
+				},
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": ["src/custom-unused.ts"]
+				},
+				"devDepsUsageOnProdDetection": {
+					"enabled": true,
+					"prodEntryPoints": ["src/custom-prod.ts"]
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints, []string{"src/custom-orphan.ts"}) {
+			t.Fatalf("unexpected orphan override: %+v", firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints)
+		}
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints, []string{"src/custom-unused.ts"}) {
+			t.Fatalf("unexpected unused exports override: %+v", firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints)
+		}
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.DevDepsUsageOnProdDetections).ProdEntryPoints, []string{"src/custom-prod.ts"}) {
+			t.Fatalf("unexpected prod override: %+v", firstDetectionOrNil(rule.DevDepsUsageOnProdDetections).ProdEntryPoints)
+		}
+	})
+
+	t.Run("explicit empty detector arrays override and disable inheritance", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"prodEntryPoints": ["src/prod.ts"],
+				"devEntryPoints": ["src/dev.ts"],
+				"orphanFilesDetection": {
+					"enabled": true,
+					"validEntryPoints": []
+				},
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": []
+				},
+				"devDepsUsageOnProdDetection": {
+					"enabled": true,
+					"prodEntryPoints": []
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		if len(firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints) != 0 {
+			t.Fatalf("expected empty orphan validEntryPoints, got %+v", firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints)
+		}
+		if len(firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints) != 0 {
+			t.Fatalf("expected empty unusedExports validEntryPoints, got %+v", firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints)
+		}
+		if len(firstDetectionOrNil(rule.DevDepsUsageOnProdDetections).ProdEntryPoints) != 0 {
+			t.Fatalf("expected empty prodEntryPoints, got %+v", firstDetectionOrNil(rule.DevDepsUsageOnProdDetections).ProdEntryPoints)
+		}
+	})
+
+	t.Run("detector-level null values fallback to rule-level defaults", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"prodEntryPoints": ["src/prod.ts"],
+				"devEntryPoints": ["src/dev.ts"],
+				"orphanFilesDetection": {
+					"enabled": true,
+					"validEntryPoints": null
+				},
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": null
+				},
+				"devDepsUsageOnProdDetection": {
+					"enabled": true,
+					"prodEntryPoints": null
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		rule := configs[0].Rules[0]
+		expectedMerged := []string{"src/prod.ts", "src/dev.ts"}
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints, expectedMerged) {
+			t.Fatalf("unexpected orphan fallback: %+v", firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints)
+		}
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints, expectedMerged) {
+			t.Fatalf("unexpected unused exports fallback: %+v", firstDetectionOrNil(rule.UnusedExportsDetections).ValidEntryPoints)
+		}
+		if !reflect.DeepEqual(firstDetectionOrNil(rule.DevDepsUsageOnProdDetections).ProdEntryPoints, []string{"src/prod.ts"}) {
+			t.Fatalf("unexpected prod fallback: %+v", firstDetectionOrNil(rule.DevDepsUsageOnProdDetections).ProdEntryPoints)
+		}
+	})
+}
+
+func TestParseConfig_RuleLevelEntryPointsValidation(t *testing.T) {
+	t.Run("invalid type for rule-level entry points", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"prodEntryPoints": "src/main.ts"
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !contains(err.Error(), "rules[0].prodEntryPoints must be an array") {
+			t.Fatalf("expected prodEntryPoints type error, got: %v", err)
+		}
+	})
+
+	t.Run("empty string in rule-level entry points", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"devEntryPoints": [""]
+			}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !contains(err.Error(), "rules[0].devEntryPoints[0]: cannot be empty") {
+			t.Fatalf("expected devEntryPoints validation error, got: %v", err)
+		}
+	})
+}
+
+func TestParseConfig_IgnoreMapSupportsStringOrArrayValues(t *testing.T) {
+	t.Run("unused exports ignore supports array values", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"ignore": {
+						"src/types.ts": ["B*", "F*"]
+					}
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		got := firstDetectionOrNil(configs[0].Rules[0].UnusedExportsDetections).Ignore["src/types.ts"]
+		if len(got) != 2 || got[0] != "B*" || got[1] != "F*" {
+			t.Fatalf("unexpected normalized ignore for unused exports: %#v", got)
+		}
+	})
+
+	t.Run("unresolved imports ignore supports array values", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"unresolvedImportsDetection": {
+					"enabled": true,
+					"ignore": {
+						"src/index.ts": ["non-existent-*", "missing-*"]
+					}
+				}
+			}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+
+		got := firstDetectionOrNil(configs[0].Rules[0].UnresolvedImportsDetections).Ignore["src/index.ts"]
+		if len(got) != 2 || got[0] != "non-existent-*" || got[1] != "missing-*" {
+			t.Fatalf("unexpected normalized ignore for unresolved imports: %#v", got)
+		}
+	})
+}
+
+func TestParseConfig_DetectorsCanBeArrays(t *testing.T) {
+	configJSON := `{
+		"configVersion": "1.6",
+		"rules": [{
+			"path": ".",
+			"circularImportsDetection": [
+				{"enabled": true, "ignoreTypeImports": true},
+				{"enabled": false}
+			],
+			"orphanFilesDetection": [
+				{"enabled": true, "validEntryPoints": ["src/index.ts"]},
+				{"enabled": true, "validEntryPoints": []}
+			],
+			"unusedNodeModulesDetection": [
+				{"enabled": true, "outputType": "list"},
+				{"enabled": true, "outputType": "groupByModule"}
+			],
+			"missingNodeModulesDetection": [
+				{"enabled": true, "outputType": "list"},
+				{"enabled": true, "outputType": "groupByFile"}
+			],
+			"unusedExportsDetection": [
+				{"enabled": true, "validEntryPoints": ["src/index.ts"]},
+				{"enabled": false}
+			],
+			"unresolvedImportsDetection": [
+				{"enabled": true},
+				{"enabled": false}
+			],
+			"devDepsUsageOnProdDetection": [
+				{"enabled": true, "prodEntryPoints": ["src/main.ts"]},
+				{"enabled": false}
+			],
+			"restrictedImportsDetection": [
+				{"enabled": true, "entryPoints": ["src/main.ts"], "denyFiles": ["**/*.tsx"]},
+				{"enabled": false, "entryPoints": ["src/other.ts"], "denyModules": ["react"]}
+			]
+		}]
+	}`
+
+	configs, err := ParseConfig([]byte(configJSON))
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	rule := configs[0].Rules[0]
+	if len(rule.CircularImportsDetections) != 2 {
+		t.Fatalf("expected 2 circularImportsDetection entries, got %d", len(rule.CircularImportsDetections))
+	}
+	if len(rule.OrphanFilesDetections) != 2 {
+		t.Fatalf("expected 2 orphanFilesDetection entries, got %d", len(rule.OrphanFilesDetections))
+	}
+	if len(rule.UnusedNodeModulesDetections) != 2 {
+		t.Fatalf("expected 2 unusedNodeModulesDetection entries, got %d", len(rule.UnusedNodeModulesDetections))
+	}
+	if len(rule.MissingNodeModulesDetections) != 2 {
+		t.Fatalf("expected 2 missingNodeModulesDetection entries, got %d", len(rule.MissingNodeModulesDetections))
+	}
+	if len(rule.UnusedExportsDetections) != 2 {
+		t.Fatalf("expected 2 unusedExportsDetection entries, got %d", len(rule.UnusedExportsDetections))
+	}
+	if len(rule.UnresolvedImportsDetections) != 2 {
+		t.Fatalf("expected 2 unresolvedImportsDetection entries, got %d", len(rule.UnresolvedImportsDetections))
+	}
+	if len(rule.DevDepsUsageOnProdDetections) != 2 {
+		t.Fatalf("expected 2 devDepsUsageOnProdDetection entries, got %d", len(rule.DevDepsUsageOnProdDetections))
+	}
+	if len(rule.RestrictedImportsDetections) != 2 {
+		t.Fatalf("expected 2 restrictedImportsDetection entries, got %d", len(rule.RestrictedImportsDetections))
+	}
+
+	// Compatibility: single pointer fields still expose first array item.
+	if firstDetectionOrNil(rule.CircularImportsDetections) == nil || !firstDetectionOrNil(rule.CircularImportsDetections).IgnoreTypeImports {
+		t.Fatalf("expected CircularImportsDetection pointer to point to first array item")
+	}
+	if firstDetectionOrNil(rule.RestrictedImportsDetections) == nil || len(firstDetectionOrNil(rule.RestrictedImportsDetections).EntryPoints) != 1 {
+		t.Fatalf("expected RestrictedImportsDetection pointer to point to first array item")
+	}
 }

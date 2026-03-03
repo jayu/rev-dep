@@ -212,6 +212,100 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 		}
 	})
 
+	t.Run("ignore map supports glob paths", func(t *testing.T) {
+		cfg := `{
+			"configVersion": "1.3",
+			"rules": [
+				{
+					"path": ".",
+					"unresolvedImportsDetection": {
+						"enabled": true,
+						"ignore": {
+							"**/broken-import.ts": "non-existent-pkg"
+						}
+					}
+				}
+			]
+		}`
+
+		result := loadAndProcessUnresolvedConfig(t, testCwd, cfg)
+		unresolved := result.RuleResults[0].UnresolvedImports
+		for _, u := range unresolved {
+			if filepath.Base(u.FilePath) == "broken-import.ts" && u.Request == "non-existent-pkg" {
+				t.Fatalf("Expected unresolved import to be suppressed by ignore glob")
+			}
+		}
+	})
+
+	t.Run("ignore map supports glob import values", func(t *testing.T) {
+		cfg := `{
+			"configVersion": "1.3",
+			"rules": [
+				{
+					"path": ".",
+					"unresolvedImportsDetection": {
+						"enabled": true,
+						"ignore": {
+							"src/index.ts": "non-existent-*"
+						}
+					}
+				}
+			]
+		}`
+
+		result := loadAndProcessUnresolvedConfig(t, testCwd, cfg)
+		unresolved := result.RuleResults[0].UnresolvedImports
+		srcIndexPath := filepath.ToSlash(filepath.Join(testCwd, "src", "index.ts"))
+		if hasUnresolvedForFileAndRequest(unresolved, srcIndexPath, "non-existent-module") {
+			t.Fatalf("Expected unresolved import to be suppressed by glob ignore value")
+		}
+	})
+
+	t.Run("ignore map supports array of import globs", func(t *testing.T) {
+		cfg := `{
+			"configVersion": "1.6",
+			"rules": [
+				{
+					"path": ".",
+					"unresolvedImportsDetection": {
+						"enabled": true,
+						"ignore": {
+							"src/index.ts": ["non-existent-*", "missing-*"]
+						}
+					}
+				}
+			]
+		}`
+
+		result := loadAndProcessUnresolvedConfig(t, testCwd, cfg)
+		unresolved := result.RuleResults[0].UnresolvedImports
+		srcIndexPath := filepath.ToSlash(filepath.Join(testCwd, "src", "index.ts"))
+		if hasUnresolvedForFileAndRequest(unresolved, srcIndexPath, "non-existent-module") {
+			t.Fatalf("Expected unresolved import to be suppressed by ignore array value")
+		}
+	})
+
+	t.Run("ignoreImports supports glob", func(t *testing.T) {
+		cfg := `{
+			"configVersion": "1.3",
+			"rules": [
+				{
+					"path": ".",
+					"unresolvedImportsDetection": {
+						"enabled": true,
+						"ignoreImports": ["non-existent-*"]
+					}
+				}
+			]
+		}`
+
+		result := loadAndProcessUnresolvedConfig(t, testCwd, cfg)
+		unresolved := result.RuleResults[0].UnresolvedImports
+		if len(unresolved) != 0 {
+			t.Fatalf("Expected unresolved imports to be suppressed by ignoreImports glob, got %d", len(unresolved))
+		}
+	})
+
 	t.Run("ignoreFiles glob is resolved relative to rule path", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",

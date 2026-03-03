@@ -8,12 +8,14 @@ import (
 )
 
 type RestrictedImportViolation struct {
-	ViolationType string `json:"violationType"`
-	ImporterFile  string `json:"importerFile"`
-	EntryPoint    string `json:"entryPoint"`
-	DeniedFile    string `json:"deniedFile,omitempty"`
-	DeniedModule  string `json:"deniedModule,omitempty"`
-	ImportRequest string `json:"importRequest,omitempty"`
+	ViolationType string   `json:"violationType"`
+	ImporterFile  string   `json:"importerFile"`
+	EntryPoint    string   `json:"entryPoint"`
+	DeniedFile    string   `json:"deniedFile,omitempty"`
+	DeniedModule  string   `json:"deniedModule,omitempty"`
+	ImportRequest string   `json:"importRequest,omitempty"`
+	IgnoreType    bool     `json:"ignoreTypeImports,omitempty"`
+	GraphExclude  []string `json:"-"`
 }
 
 // FindRestrictedImports checks dependency graph reachable from configured entry points
@@ -30,11 +32,14 @@ func FindRestrictedImports(
 		return []RestrictedImportViolation{}
 	}
 
+	excludeMatchers := CreateGlobMatchers(opts.GraphExclude, rulePath)
+	graphTree := filterTreeByGraphExclude(ruleTree, excludeMatchers)
+
 	entryPointMatchers := CreateGlobMatchers(opts.EntryPoints, rulePath)
 	entryPoints := []string{}
 	entryPointSet := map[string]bool{}
 
-	for filePath := range ruleTree {
+	for filePath := range graphTree {
 		if MatchesAnyGlobMatcher(filePath, entryPointMatchers, false) {
 			entryPoints = append(entryPoints, filePath)
 			entryPointSet[filePath] = true
@@ -47,7 +52,7 @@ func FindRestrictedImports(
 
 	slices.Sort(entryPoints) // ensure deterministic results
 
-	graph := buildDepsGraphForMultiple(ruleTree, entryPoints, nil, false, opts.IgnoreTypeImports)
+	graph := buildDepsGraphForMultiple(graphTree, entryPoints, nil, false, opts.IgnoreTypeImports)
 
 	denyFileMatchers := CreateGlobMatchers(opts.DenyFiles, rulePath)
 	ignoreMatchers := CreateGlobMatchers(opts.IgnoreMatches, rulePath)
@@ -78,18 +83,20 @@ func FindRestrictedImports(
 			!matchesIgnoredPattern(filePath, ignoreMatchers) {
 
 			importerFile := ""
-				if len(vertex.Parents) > 0 {
-					importerFile = vertex.Parents[0]
-				}
-				entryPoint := getEntryPoint()
+			if len(vertex.Parents) > 0 {
+				importerFile = vertex.Parents[0]
+			}
+			entryPoint := getEntryPoint()
 
-				dedupeKey := "file|" + entryPoint + "|" + filePath
-				if !seen[dedupeKey] {
-					violations = append(violations, RestrictedImportViolation{
-						ViolationType: "file",
-						ImporterFile:  importerFile,
-						EntryPoint:    entryPoint,
+			dedupeKey := "file|" + entryPoint + "|" + filePath
+			if !seen[dedupeKey] {
+				violations = append(violations, RestrictedImportViolation{
+					ViolationType: "file",
+					ImporterFile:  importerFile,
+					EntryPoint:    entryPoint,
 					DeniedFile:    filePath,
+					IgnoreType:    opts.IgnoreTypeImports,
+					GraphExclude:  append([]string(nil), opts.GraphExclude...),
 				})
 				seen[dedupeKey] = true
 			}
@@ -107,24 +114,26 @@ func FindRestrictedImports(
 			if !matchesAnyModulePattern(denyModuleMatchers, moduleName, moduleRequest) {
 				continue
 			}
-				if matchesIgnoredPattern(moduleName, ignoreMatchers) ||
-					matchesIgnoredPattern(moduleRequest, ignoreMatchers) {
+			if matchesIgnoredPattern(moduleName, ignoreMatchers) ||
+				matchesIgnoredPattern(moduleRequest, ignoreMatchers) {
 				continue
-				}
+			}
 
-				entryPoint := getEntryPoint()
-				item := moduleRequest
-				if item == "" {
-					item = moduleName
-				}
-				dedupeKey := "module|" + entryPoint + "|" + item
-				if !seen[dedupeKey] {
-					violations = append(violations, RestrictedImportViolation{
-						ViolationType: "module",
-						ImporterFile:  filePath,
+			entryPoint := getEntryPoint()
+			item := moduleRequest
+			if item == "" {
+				item = moduleName
+			}
+			dedupeKey := "module|" + entryPoint + "|" + item
+			if !seen[dedupeKey] {
+				violations = append(violations, RestrictedImportViolation{
+					ViolationType: "module",
+					ImporterFile:  filePath,
 					EntryPoint:    entryPoint,
 					DeniedModule:  moduleName,
 					ImportRequest: moduleRequest,
+					IgnoreType:    opts.IgnoreTypeImports,
+					GraphExclude:  append([]string(nil), opts.GraphExclude...),
 				})
 				seen[dedupeKey] = true
 			}
@@ -177,4 +186,28 @@ func matchesAnyModulePattern(matchers []glob.Glob, moduleName string, request st
 
 func matchesIgnoredPattern(candidate string, ignoreMatchers []GlobMatcher) bool {
 	return len(ignoreMatchers) > 0 && MatchesAnyGlobMatcher(candidate, ignoreMatchers, false)
+}
+
+func filterTreeByGraphExclude(tree MinimalDependencyTree, excludeMatchers []GlobMatcher) MinimalDependencyTree {
+	if len(excludeMatchers) == 0 {
+		return tree
+	}
+
+	filtered := make(MinimalDependencyTree, len(tree))
+	for filePath, deps := range tree {
+		if MatchesAnyGlobMatcher(filePath, excludeMatchers, false) {
+			continue
+		}
+
+		filteredDeps := make([]MinimalDependency, 0, len(deps))
+		for _, dep := range deps {
+			if dep.ID != "" && MatchesAnyGlobMatcher(dep.ID, excludeMatchers, false) {
+				continue
+			}
+			filteredDeps = append(filteredDeps, dep)
+		}
+		filtered[filePath] = filteredDeps
+	}
+
+	return filtered
 }

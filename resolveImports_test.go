@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -299,6 +301,39 @@ func TestResolve(t *testing.T) {
 			t.Errorf("Error during path resolution: %v", err)
 		}
 	})
+	t.Run("Should prioritize wildcard path alias over baseUrl wildcard", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "pathsTarget/fileA.ts",
+			cwd + "baseurlTarget/fileA.ts",
+			cwd + "app/index.ts",
+		}
+		tsConfig := `{
+			"compilerOptions" : {
+				"baseUrl": ".",
+				"paths": {
+					"*": ["./pathsTarget/*"]
+				}
+			}
+		}`
+
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
+			TsConfigContent: []byte(tsConfig),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("fileA", cwd+"app/index.ts")
+
+		if resolvedPath != cwd+"pathsTarget/fileA.ts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"pathsTarget/fileA.ts", resolvedPath)
+		}
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
 
 	t.Run("Should resolve non-wildcard alias with file extension", func(t *testing.T) {
 		cwd := "/root/"
@@ -425,6 +460,53 @@ func TestResolve(t *testing.T) {
 			t.Errorf("Error during path resolution: %v", err)
 		}
 	})
+	t.Run("Should resolve .mts files", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/dir/fileA.mts",
+			cwd + "app/index.ts",
+		}
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
+			TsConfigContent: []byte(`{"compilerOptions": {}}`),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA", cwd+"app/index.ts")
+
+		if resolvedPath != cwd+"app/dir/fileA.mts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/dir/fileA.mts", resolvedPath)
+		}
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
+
+	t.Run("Should strip query from import request before resolution", func(t *testing.T) {
+		cwd := "/root/"
+		filePaths := []string{
+			cwd + "app/dir/fileA.ts",
+			cwd + "app/index.ts",
+		}
+		rm := NewResolverManager(FollowMonorepoPackagesValue{}, []string{}, RootParams{
+			TsConfigContent: []byte(`{"compilerOptions": {}}`),
+			PkgJsonContent:  []byte{},
+			SortedFiles:     filePaths,
+			Cwd:             cwd,
+		}, []GlobMatcher{})
+		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
+
+		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA.ts?raw", cwd+"app/index.ts")
+
+		if resolvedPath != cwd+"app/dir/fileA.ts" {
+			t.Errorf("Path not resolved correctly, expected %s, got %s", cwd+"app/dir/fileA.ts", resolvedPath)
+		}
+		if err != nil {
+			t.Errorf("Error during path resolution: %v", err)
+		}
+	})
 
 	t.Run("Should resolve wildcard alias import with explicit extension without duplicating it", func(t *testing.T) {
 		cwd := "/root/"
@@ -458,6 +540,37 @@ func TestResolve(t *testing.T) {
 			t.Errorf("Error during path resolution: %v", err)
 		}
 	})
+}
+
+func TestGetMinimalDepsTreeForCwd_SupportsMtsFiles(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-mts")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.mts"), []byte(`import "./dep.mts"`), 0644); err != nil {
+		t.Fatalf("failed to write index.mts: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "dep.mts"), []byte(`export const a = 1`), 0644); err != nil {
+		t.Fatalf("failed to write dep.mts: %v", err)
+	}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+
+	indexPath := NormalizePathForInternal(filepath.Join(tmpDir, "index.mts"))
+	depPath := NormalizePathForInternal(filepath.Join(tmpDir, "dep.mts"))
+
+	imports, ok := minimalTree[indexPath]
+	if !ok {
+		t.Fatalf("expected %s in minimal tree", indexPath)
+	}
+	if len(imports) == 0 {
+		t.Fatalf("expected imports in %s", indexPath)
+	}
+	if imports[0].ID != depPath {
+		t.Fatalf("expected import to resolve to %s, got %s", depPath, imports[0].ID)
+	}
 }
 
 func TestRelativeImports(t *testing.T) {

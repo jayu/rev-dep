@@ -215,20 +215,20 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.5",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.5.schema.json?raw=true",
+  "configVersion": "1.6",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.6.schema.json?raw=true",
   "rules": [
     {
       "path": ".",
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+      "devEntryPoints": ["scripts/**", "**/*.test.*"],
       "unusedExportsDetection": {
         "enabled": true,
-        "autofix": true,
-        "validEntryPoints": ["src/index.ts" ]
+        "autofix": true
       },
       "orphanFilesDetection": {
         "enabled": true,
-        "autofix": true,
-        "validEntryPoints": ["src/index.ts"] 
+        "autofix": true
       },
       "unusedNodeModulesDetection": { 
         "enabled": true 
@@ -238,7 +238,6 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
       },
       "devDepsUsageOnProdDetection": {
         "enabled": true,
-        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
         "ignoreTypeImports": true
       }
     }
@@ -252,14 +251,16 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.5",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.5.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.6",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.6.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
     {
       "path": ".",
       "followMonorepoPackages": true,
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"],
+      "devEntryPoints": ["scripts/**", "**/*.test.*"],
       "moduleBoundaries": [
         {
           "name": "ui-components",
@@ -298,7 +299,6 @@ Here's a comprehensive example showing all available properties:
       },
       "orphanFilesDetection": {
         "enabled": true,
-        "validEntryPoints": ["src/index.ts", "src/app.ts"],
         "ignoreTypeImports": true,
         "graphExclude": ["**/*.test.*", "**/stories/**/*"],
         "autofix": true
@@ -320,27 +320,32 @@ Here's a comprehensive example showing all available properties:
       },
       "unusedExportsDetection": {
         "enabled": true,
-        "validEntryPoints": ["src/index.ts"],
+        "autofix": true,
         "ignoreTypeExports": true,
         "graphExclude": ["**/*.stories.tsx"],
-        "autofix": true
+        "ignore": {
+          "src/types.ts": "B*",
+          "**/generated/**/*.ts": "*"
+        },
+        "ignoreFiles": ["**/*.generated.ts"],
+        "ignoreExports": ["default", "unused*"],
       },
       "unresolvedImportsDetection": {
         "enabled": true,
         "ignore": {
-          "src/index.ts": "legacy-unresolved-module"
+          "src/index.ts": "legacy-*"
         },
         "ignoreFiles": ["**/*.generated.ts"],
-        "ignoreImports": ["@internal/dev-only"]
+        "ignoreImports": ["@internal/*"]
       },
       "devDepsUsageOnProdDetection": {
         "enabled": true,
-        "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"],
         "ignoreTypeImports": true
       },
       "restrictedImportsDetection": {
         "enabled": true,
         "entryPoints": ["src/server.ts", "src/server/**/*.ts"],
+        "graphExclude": ["some-file-coupling-other-files.ts"],
         "denyFiles": ["**/*.tsx"],
         "denyModules": ["react", "react-*"],
         "ignoreMatches": ["src/server/allowed-view.tsx", "react-awsome-lib"],
@@ -364,16 +369,18 @@ Here's a comprehensive example showing all available properties:
 Each rule can contain the following properties:
 
 - **`path`** (required): Target directory path for this rule (either `.` or path starting with sub directory name)
-- **`followMonorepoPackages`** (optional): Enable monorepo package resolution (default: true)
+- **`followMonorepoPackages`** (optional): Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
+- **`prodEntryPoints`** (optional): Rule-level production entry point patterns for detector defaults
+- **`devEntryPoints`** (optional): Rule-level development entry point patterns for detector defaults
 - **`moduleBoundaries`** (optional): Array of module boundary rules
-- **`circularImportsDetection`** (optional): Circular import detection configuration
-- **`orphanFilesDetection`** (optional): Orphan files detection configuration  
-- **`unusedNodeModulesDetection`** (optional): Unused node modules detection configuration
-- **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration
-- **`unusedExportsDetection`** (optional): Unused exports detection configuration
-- **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration
-- **`devDepsUsageOnProdDetection`** (optional): Restricted dev dependencies usage detection configuration
-- **`restrictedImportsDetection`** (optional): Restrict importing denied files/modules from selected entry points
+- **`circularImportsDetection`** (optional): Circular import detection configuration (single object or array of objects)
+- **`orphanFilesDetection`** (optional): Orphan files detection configuration (single object or array of objects)  
+- **`unusedNodeModulesDetection`** (optional): Unused node modules detection configuration (single object or array of objects)
+- **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration (single object or array of objects)
+- **`unusedExportsDetection`** (optional): Unused exports detection configuration (single object or array of objects)
+- **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration (single object or array of objects)
+- **`devDepsUsageOnProdDetection`** (optional): Restricted dev dependencies usage detection configuration (single object or array of objects)
+- **`restrictedImportsDetection`** (optional): Restrict importing denied files/modules from selected entry points (single object or array of objects)
 - **`importConventions`** (optional): Array of import convention rules
 
 #### Module Boundary Properties
@@ -392,13 +399,17 @@ Each rule can contain the following properties:
 
 #### Detection Options Properties
 
+Each detection property can be configured as:
+- a single object (one detector instance), or
+- an array of objects (multiple detector instances evaluated within the same rule).
+
 **CircularImportsDetection:**
 - **`enabled`** (required): Enable/disable circular import detection
 - **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
 
 **OrphanFilesDetection:**
 - **`enabled`** (required): Enable/disable orphan files detection
-- **`validEntryPoints`** (optional): Array of valid entry point patterns (eg. ["src/index.ts", "src/main.ts"])
+- **`validEntryPoints`** (optional): Array of valid entry point patterns. If omitted, defaults to `prodEntryPoints + devEntryPoints` from rule level.
 - **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
 - **`graphExclude`** (optional): File patterns to exclude from graph analysis
 - **`autofix`** (optional): Delete detected orphan files automatically when running `rev-dep config run --fix` (default: false)
@@ -420,24 +431,29 @@ Each rule can contain the following properties:
 
 **UnusedExportsDetection:**
 - **`enabled`** (required): Enable/disable unused exports detection
-- **`validEntryPoints`** (optional): Glob patterns for files whose exports are never reported as unused (eg. ["index.ts", "src/public-api.ts"])
+- **`validEntryPoints`** (optional): Glob patterns for files whose exports are never reported as unused. If omitted, defaults to `prodEntryPoints + devEntryPoints` from rule level.
 - **`ignoreTypeExports`** (optional): Skip `export type` / `export interface` from analysis (default: false)
 - **`graphExclude`** (optional): File patterns to exclude from unused exports analysis
+- **`ignore`** (optional): Map of file path globs (relative to rule path directory) to export name/specifier glob(s) to suppress; each value can be a string or array of strings
+- **`ignoreFiles`** (optional): File path globs; all unused exports from matching files are suppressed
+- **`ignoreExports`** (optional): Export names/specifiers (or globs) to suppress globally (supports `"default"`)
+- **`autofix`** (optional): Automatically apply fixable unused exports changes when running `rev-dep config run --fix` (default: false)
 
 **UnresolvedImportsDetection:**
 - **`enabled`** (required): Enable/disable unresolved imports detection
-- **`ignore`** (optional): Map of file path (relative to rule path directory) to exact import request to suppress
+- **`ignore`** (optional): Map of file path globs (relative to rule path directory) to import request glob(s) to suppress; each value can be a string or array of strings
 - **`ignoreFiles`** (optional): File path globs; all unresolved imports from matching files are suppressed
-- **`ignoreImports`** (optional): Import requests to suppress globally in unresolved results
+- **`ignoreImports`** (optional): Import requests (or globs) to suppress globally in unresolved results
 
-**DevDepsUsageOnProd:**
+**DevDepsUsageOnProdDetection:**
 - **`enabled`** (required): Enable/disable restricted dev dependencies usage detection
-- **`prodEntryPoints`** (optional): Production entry point patterns to trace dependencies from (eg. ["src/pages/**/*.tsx", "src/main.tsx"])
+- **`prodEntryPoints`** (optional): Production entry point patterns to trace dependencies from. If omitted, defaults to rule-level `prodEntryPoints`.
 - **`ignoreTypeImports`** (optional): Exclude type-only imports from graph traversal and module matching (default: false)
 
 **RestrictedImportsDetection:**
 - **`enabled`** (required): Enable/disable restricted imports detection
-- **`entryPoints`** (required when enabled): Entry point patterns used to build reachable dependency graph
+- **`entryPoints`** (required when enabled): Entry point patterns used to build reachable dependency graph (rule-level entry points are not applied here)
+- **`graphExclude`** (optional): File patterns to exclude from restricted imports graph analysis
 - **`denyFiles`** (optional): Denied file path patterns (eg. ["**/*.tsx"])
 - **`denyModules`** (optional): Denied module patterns (eg. ["react", "react-*"])
 - **`ignoreMatches`** (optional): File/module patterns to suppress from restricted import results

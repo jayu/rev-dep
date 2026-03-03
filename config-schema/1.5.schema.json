@@ -387,6 +387,11 @@
             "pattern": "^(?!\\.{1,2}[\\\\/]).+"
           },
           "description": "Patterns to exclude from unused exports analysis"
+        },
+        "autofix": {
+          "type": "boolean",
+          "description": "Whether to automatically apply fixable unused exports changes",
+          "default": false
         }
       }
     },

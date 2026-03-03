@@ -91,15 +91,16 @@ const (
 	FileNotFound
 )
 
-var SourceExtensions = []string{".d.ts", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"}
+var SourceExtensions = []string{".d.ts", ".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs", ".cjs"}
 
-var extensionRegExp = regexp.MustCompile(`(?:/index)?\.(?:js|jsx|ts|tsx|mjs|mjsx|cjs|d\.ts)$`)
-var tsSupportedExtensionRegExp = regexp.MustCompile(`\.(?:js|jsx|ts|tsx|d\.ts)$`)
+var extensionRegExp = regexp.MustCompile(`(?:/index)?\.(?:js|jsx|ts|tsx|mts|mjs|mjsx|cjs|d\.ts)$`)
+var tsSupportedExtensionRegExp = regexp.MustCompile(`\.(?:js|jsx|ts|tsx|mts|d\.ts)$`)
 
 var extensionToOrder = map[string]int{
-	".d.ts": 7,
-	".ts":   6,
-	".tsx":  5,
+	".d.ts": 8,
+	".ts":   7,
+	".tsx":  6,
+	".mts":  5,
 	".js":   4,
 	".jsx":  3,
 	".mjs":  2,
@@ -467,23 +468,25 @@ func ParseTsConfigContent(tsconfigContent []byte) *TsConfigParsed {
 	if hasBaseUrl {
 		baseUrlAliasKey := "*"
 		baseUrlAliasValue := strings.TrimSuffix(baseUrl, "/") + "/*"
-		tsConfigParsed.aliases[baseUrlAliasKey] = baseUrlAliasValue
+		if _, hasWildcardAlias := tsConfigParsed.aliases[baseUrlAliasKey]; !hasWildcardAlias {
+			tsConfigParsed.aliases[baseUrlAliasKey] = baseUrlAliasValue
 
-		// Create wildcard pattern for baseUrl
-		tsConfigParsed.wildcardPatterns = append(tsConfigParsed.wildcardPatterns, WildcardPattern{
-			key:    baseUrlAliasKey,
-			prefix: "",
-			suffix: "",
-		})
+			// Create wildcard pattern for baseUrl
+			tsConfigParsed.wildcardPatterns = append(tsConfigParsed.wildcardPatterns, WildcardPattern{
+				key:    baseUrlAliasKey,
+				prefix: "",
+				suffix: "",
+			})
 
-		// Keep regex for backward compatibility during transition
-		escapedBaseUrlAliasKey := escapeRegexPattern(baseUrlAliasKey)
-		regExp := regexp.MustCompile(strings.Replace(escapedBaseUrlAliasKey, "*", ".+?", 1))
+			// Keep regex for backward compatibility during transition
+			escapedBaseUrlAliasKey := escapeRegexPattern(baseUrlAliasKey)
+			regExp := regexp.MustCompile(strings.Replace(escapedBaseUrlAliasKey, "*", ".+?", 1))
 
-		tsConfigParsed.aliasesRegexps = append(tsConfigParsed.aliasesRegexps, RegExpArrItem{
-			regExp:   regExp,
-			aliasKey: baseUrlAliasKey,
-		})
+			tsConfigParsed.aliasesRegexps = append(tsConfigParsed.aliasesRegexps, RegExpArrItem{
+				regExp:   regExp,
+				aliasKey: baseUrlAliasKey,
+			})
+		}
 	}
 
 	// Sort regexps as they are matched starting from longest matching prefix
@@ -1150,7 +1153,12 @@ func (f *ModuleResolver) resolveExportsCached(exports *PackageJsonExports, subpa
 }
 
 func (f *ModuleResolver) ResolveModule(request string, filePath string) (path string, rtype ResolvedImportType, err *ResolutionError) {
-	cached, ok := f.aliasesCache[request]
+	requestWithoutQuery := request
+	if idx := strings.Index(requestWithoutQuery, "?"); idx >= 0 {
+		requestWithoutQuery = requestWithoutQuery[:idx]
+	}
+
+	cached, ok := f.aliasesCache[requestWithoutQuery]
 
 	if ok {
 		return cached.Path, cached.Type, nil
@@ -1162,8 +1170,8 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	relativeFileName, _ := filepath.Rel(root, filePath)
 
 	// Relative path
-	if strings.HasPrefix(request, "./") || strings.HasPrefix(request, "../") || request == "." || request == ".." {
-		modulePath = filepath.Join(root, relativeFileName, "../"+request)
+	if strings.HasPrefix(requestWithoutQuery, "./") || strings.HasPrefix(requestWithoutQuery, "../") || requestWithoutQuery == "." || requestWithoutQuery == ".." {
+		modulePath = filepath.Join(root, relativeFileName, "../"+requestWithoutQuery)
 
 		cleanedModulePath := filepath.Clean(modulePath)
 		modulePathInternal := NormalizePathForInternal(cleanedModulePath)
@@ -1175,7 +1183,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 
 	aliasMatchedButFileNotFound := ""
 
-	if requestMatched, resolvedPath, rtype, err := f.tryResolvePackageJsonImport(request, root); requestMatched {
+	if requestMatched, resolvedPath, rtype, err := f.tryResolvePackageJsonImport(requestWithoutQuery, root); requestMatched {
 		if err != nil {
 			// Alias was matched, but path was not resolved
 			aliasMatchedButFileNotFound = resolvedPath
@@ -1188,12 +1196,12 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	// to ensure monorepo packages take precedence over TypeScript aliases
 	// But only if no package.json import was matched
 	if aliasMatchedButFileNotFound == "" {
-		if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(request, root); requestMatched {
+		if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(requestWithoutQuery, root); requestMatched {
 			return resolvedPath, rtype, err
 		}
 	}
 
-	if requestMatched, resolvedPath, rtype, err := f.tryResolveTsAlias(request); requestMatched {
+	if requestMatched, resolvedPath, rtype, err := f.tryResolveTsAlias(requestWithoutQuery); requestMatched {
 		if err != nil && aliasMatchedButFileNotFound == "" {
 			// Alias was matched, but path was not resolved
 			aliasMatchedButFileNotFound = resolvedPath
@@ -1206,7 +1214,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 
 	// Only try workspace package resolution again if we have a different target to resolve
 	// This avoids redundant calls when the target is the same as the original request
-	if aliasMatchedButFileNotFound != "" && aliasMatchedButFileNotFound != request {
+	if aliasMatchedButFileNotFound != "" && aliasMatchedButFileNotFound != requestWithoutQuery {
 		if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(aliasMatchedButFileNotFound, root); requestMatched {
 			return resolvedPath, rtype, err
 		}

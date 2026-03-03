@@ -9,6 +9,7 @@ import (
 var allowedExts = map[string]struct{}{
 	".ts":   {},
 	".tsx":  {},
+	".mts":  {},
 	".js":   {},
 	".jsx":  {},
 	".cjs":  {},

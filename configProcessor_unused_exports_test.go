@@ -6,6 +6,30 @@ import (
 	"testing"
 )
 
+func loadAndProcessUnusedExportsConfig(t *testing.T, testCwd string, cfg string) *ConfigProcessingResult {
+	t.Helper()
+
+	configPath := filepath.Join(testCwd, "unused-exports-config.json")
+	if err := os.WriteFile(configPath, []byte(cfg), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Remove(configPath)
+	})
+
+	configs, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	result, err := ProcessConfig(&configs[0], testCwd, "package.json", "tsconfig.json", false)
+	if err != nil {
+		t.Fatalf("ProcessConfig failed: %v", err)
+	}
+
+	return result
+}
+
 func TestConfigProcessor_UnusedExports(t *testing.T) {
 	currentDir, _ := os.Getwd()
 	testCwd := filepath.Join(currentDir, "__fixtures__/unusedExportsProject")
@@ -88,6 +112,133 @@ func TestConfigProcessor_UnusedExports(t *testing.T) {
 	// Verify there are fixable issues
 	if result.FixableIssuesCount == 0 {
 		t.Error("Expected FixableIssuesCount > 0")
+	}
+}
+
+func TestConfigProcessor_UnusedExports_IgnoreOptions(t *testing.T) {
+	currentDir, _ := os.Getwd()
+	testCwd := filepath.Join(currentDir, "__fixtures__/unusedExportsProject")
+
+	t.Run("ignoreFiles suppresses all exports from matching files", func(t *testing.T) {
+		cfg := `{
+			"configVersion": "1.5",
+			"rules": [{
+				"path": ".",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": ["src/index.ts"],
+					"ignoreFiles": ["**/utils.ts"]
+				}
+			}]
+		}`
+
+		result := loadAndProcessUnusedExportsConfig(t, testCwd, cfg)
+		unused := result.RuleResults[0].UnusedExports
+		for _, item := range unused {
+			if filepath.Base(item.FilePath) == "utils.ts" {
+				t.Fatalf("Expected utils.ts exports to be ignored")
+			}
+		}
+	})
+
+	t.Run("ignore map supports file and export globs", func(t *testing.T) {
+		cfg := `{
+			"configVersion": "1.5",
+			"rules": [{
+				"path": ".",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": ["src/index.ts"],
+					"ignore": {
+						"**/types.ts": "B*"
+					}
+				}
+			}]
+		}`
+
+		result := loadAndProcessUnusedExportsConfig(t, testCwd, cfg)
+		unused := result.RuleResults[0].UnusedExports
+		for _, item := range unused {
+			if filepath.Base(item.FilePath) == "types.ts" && item.ExportName == "Bar" {
+				t.Fatalf("Expected types.ts#Bar to be ignored")
+			}
+		}
+	})
+
+	t.Run("ignore map supports array of export globs", func(t *testing.T) {
+		cfg := `{
+			"configVersion": "1.6",
+			"rules": [{
+				"path": ".",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": ["src/index.ts"],
+					"ignore": {
+						"**/types.ts": ["B*", "F*"]
+					}
+				}
+			}]
+		}`
+
+		result := loadAndProcessUnusedExportsConfig(t, testCwd, cfg)
+		unused := result.RuleResults[0].UnusedExports
+		for _, item := range unused {
+			if filepath.Base(item.FilePath) == "types.ts" && (item.ExportName == "Bar" || item.ExportName == "Foo") {
+				t.Fatalf("Expected types.ts exports Bar/Foo to be ignored via ignore array")
+			}
+		}
+	})
+
+	t.Run("ignoreExports supports globs", func(t *testing.T) {
+		cfg := `{
+			"configVersion": "1.5",
+			"rules": [{
+				"path": ".",
+				"unusedExportsDetection": {
+					"enabled": true,
+					"validEntryPoints": ["src/index.ts"],
+					"ignoreExports": ["unused*", "B*"]
+				}
+			}]
+		}`
+
+		result := loadAndProcessUnusedExportsConfig(t, testCwd, cfg)
+		unused := result.RuleResults[0].UnusedExports
+		if len(unused) != 0 {
+			t.Fatalf("Expected all unused exports to be ignored, got %d", len(unused))
+		}
+	})
+}
+
+func TestConfigProcessor_UnusedExports_MultipleDetections(t *testing.T) {
+	currentDir, _ := os.Getwd()
+	testCwd := filepath.Join(currentDir, "__fixtures__/unusedExportsProject")
+
+	cfg := `{
+		"configVersion": "1.6",
+		"rules": [{
+			"path": ".",
+			"unusedExportsDetection": [
+				{
+					"enabled": true,
+					"validEntryPoints": ["src/index.ts"]
+				},
+				{
+					"enabled": true,
+					"validEntryPoints": ["src/index.ts"],
+					"ignoreExports": ["unusedHelper"]
+				}
+			]
+		}]
+	}`
+
+	result := loadAndProcessUnusedExportsConfig(t, testCwd, cfg)
+	if len(result.RuleResults) != 1 {
+		t.Fatalf("Expected 1 rule result, got %d", len(result.RuleResults))
+	}
+
+	if len(result.RuleResults[0].UnusedExports) == 0 {
+		t.Fatal("Expected unused exports from multiple detection instances")
 	}
 }
 

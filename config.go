@@ -24,6 +24,8 @@ type CircularImportsOptions struct {
 	IgnoreTypeImports bool `json:"ignoreTypeImports"`
 }
 
+func (o *CircularImportsOptions) IsEnabled() bool { return o != nil && o.Enabled }
+
 type OrphanFilesOptions struct {
 	Enabled           bool     `json:"enabled"`
 	ValidEntryPoints  []string `json:"validEntryPoints,omitempty"`
@@ -31,6 +33,8 @@ type OrphanFilesOptions struct {
 	GraphExclude      []string `json:"graphExclude,omitempty"`
 	Autofix           bool     `json:"autofix,omitempty"`
 }
+
+func (o *OrphanFilesOptions) IsEnabled() bool { return o != nil && o.Enabled }
 
 type UnusedNodeModulesOptions struct {
 	Enabled                   bool     `json:"enabled"`
@@ -42,6 +46,8 @@ type UnusedNodeModulesOptions struct {
 	OutputType                string   `json:"outputType,omitempty"` // "list", "groupByModule", "groupByFile"
 }
 
+func (o *UnusedNodeModulesOptions) IsEnabled() bool { return o != nil && o.Enabled }
+
 type MissingNodeModulesOptions struct {
 	Enabled        bool     `json:"enabled"`
 	IncludeModules []string `json:"includeModules,omitempty"`
@@ -49,20 +55,29 @@ type MissingNodeModulesOptions struct {
 	OutputType     string   `json:"outputType,omitempty"` // "list", "groupByModule", "groupByFile", "groupByModuleFilesCount"
 }
 
+func (o *MissingNodeModulesOptions) IsEnabled() bool { return o != nil && o.Enabled }
+
 type UnusedExportsOptions struct {
-	Enabled           bool     `json:"enabled"`
-	ValidEntryPoints  []string `json:"validEntryPoints,omitempty"`
-	IgnoreTypeExports bool     `json:"ignoreTypeExports,omitempty"`
-	GraphExclude      []string `json:"graphExclude,omitempty"`
-	Autofix           bool     `json:"autofix,omitempty"`
+	Enabled           bool               `json:"enabled"`
+	ValidEntryPoints  []string           `json:"validEntryPoints,omitempty"`
+	IgnoreTypeExports bool               `json:"ignoreTypeExports,omitempty"`
+	GraphExclude      []string           `json:"graphExclude,omitempty"`
+	Ignore            FileValueIgnoreMap `json:"ignore,omitempty"`
+	IgnoreFiles       []string           `json:"ignoreFiles,omitempty"`
+	IgnoreExports     []string           `json:"ignoreExports,omitempty"`
+	Autofix           bool               `json:"autofix,omitempty"`
 }
 
+func (o *UnusedExportsOptions) IsEnabled() bool { return o != nil && o.Enabled }
+
 type UnresolvedImportsOptions struct {
-	Enabled       bool              `json:"enabled"`
-	Ignore        map[string]string `json:"ignore,omitempty"`
-	IgnoreFiles   []string          `json:"ignoreFiles,omitempty"`
-	IgnoreImports []string          `json:"ignoreImports,omitempty"`
+	Enabled       bool               `json:"enabled"`
+	Ignore        FileValueIgnoreMap `json:"ignore,omitempty"`
+	IgnoreFiles   []string           `json:"ignoreFiles,omitempty"`
+	IgnoreImports []string           `json:"ignoreImports,omitempty"`
 }
+
+func (o *UnresolvedImportsOptions) IsEnabled() bool { return o != nil && o.Enabled }
 
 type RestrictedDevDependenciesUsageOptions struct {
 	Enabled           bool     `json:"enabled"`
@@ -70,14 +85,19 @@ type RestrictedDevDependenciesUsageOptions struct {
 	IgnoreTypeImports bool     `json:"ignoreTypeImports,omitempty"`
 }
 
+func (o *RestrictedDevDependenciesUsageOptions) IsEnabled() bool { return o != nil && o.Enabled }
+
 type RestrictedImportsDetectionOptions struct {
 	Enabled           bool     `json:"enabled"`
 	EntryPoints       []string `json:"entryPoints,omitempty"`
+	GraphExclude      []string `json:"graphExclude,omitempty"`
 	DenyFiles         []string `json:"denyFiles,omitempty"`
 	DenyModules       []string `json:"denyModules,omitempty"`
 	IgnoreMatches     []string `json:"ignoreMatches,omitempty"`
 	IgnoreTypeImports bool     `json:"ignoreTypeImports,omitempty"`
 }
+
+func (o *RestrictedImportsDetectionOptions) IsEnabled() bool { return o != nil && o.Enabled }
 
 // ImportConventionDomain represents a single domain definition
 type ImportConventionDomain struct {
@@ -115,18 +135,204 @@ func (f FollowMonorepoPackagesValue) ShouldFollowPackage(name string) bool {
 }
 
 type Rule struct {
-	Path                        string                                 `json:"path"` // Required
-	FollowMonorepoPackages      FollowMonorepoPackagesValue            `json:"-"`
-	ModuleBoundaries            []BoundaryRule                         `json:"moduleBoundaries,omitempty"`
-	CircularImportsDetection    *CircularImportsOptions                `json:"circularImportsDetection,omitempty"`
-	OrphanFilesDetection        *OrphanFilesOptions                    `json:"orphanFilesDetection,omitempty"`
-	UnusedNodeModulesDetection  *UnusedNodeModulesOptions              `json:"unusedNodeModulesDetection,omitempty"`
-	MissingNodeModulesDetection *MissingNodeModulesOptions             `json:"missingNodeModulesDetection,omitempty"`
-	UnusedExportsDetection      *UnusedExportsOptions                  `json:"unusedExportsDetection,omitempty"`
-	UnresolvedImportsDetection  *UnresolvedImportsOptions              `json:"unresolvedImportsDetection,omitempty"`
-	DevDepsUsageOnProdDetection *RestrictedDevDependenciesUsageOptions `json:"devDepsUsageOnProdDetection,omitempty"`
-	RestrictedImportsDetection  *RestrictedImportsDetectionOptions     `json:"restrictedImportsDetection,omitempty"`
-	ImportConventions           []ImportConventionRule                 `json:"-"`
+	Path                         string                                   `json:"path"` // Required
+	ProdEntryPoints              []string                                 `json:"prodEntryPoints,omitempty"`
+	DevEntryPoints               []string                                 `json:"devEntryPoints,omitempty"`
+	FollowMonorepoPackages       FollowMonorepoPackagesValue              `json:"-"`
+	ModuleBoundaries             []BoundaryRule                           `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetections    []*CircularImportsOptions                `json:"-"`
+	OrphanFilesDetections        []*OrphanFilesOptions                    `json:"-"`
+	UnusedNodeModulesDetections  []*UnusedNodeModulesOptions              `json:"-"`
+	MissingNodeModulesDetections []*MissingNodeModulesOptions             `json:"-"`
+	UnusedExportsDetections      []*UnusedExportsOptions                  `json:"-"`
+	UnresolvedImportsDetections  []*UnresolvedImportsOptions              `json:"-"`
+	DevDepsUsageOnProdDetections []*RestrictedDevDependenciesUsageOptions `json:"-"`
+	RestrictedImportsDetections  []*RestrictedImportsDetectionOptions     `json:"-"`
+	ImportConventions            []ImportConventionRule                   `json:"-"`
+}
+
+func (r *Rule) getCircularImportsDetections() []*CircularImportsOptions {
+	return r.CircularImportsDetections
+}
+
+func (r *Rule) getOrphanFilesDetections() []*OrphanFilesOptions {
+	return r.OrphanFilesDetections
+}
+
+func (r *Rule) getUnusedNodeModulesDetections() []*UnusedNodeModulesOptions {
+	return r.UnusedNodeModulesDetections
+}
+
+func (r *Rule) getMissingNodeModulesDetections() []*MissingNodeModulesOptions {
+	return r.MissingNodeModulesDetections
+}
+
+func (r *Rule) getUnusedExportsDetections() []*UnusedExportsOptions {
+	return r.UnusedExportsDetections
+}
+
+func (r *Rule) getUnresolvedImportsDetections() []*UnresolvedImportsOptions {
+	return r.UnresolvedImportsDetections
+}
+
+func (r *Rule) getDevDepsUsageOnProdDetections() []*RestrictedDevDependenciesUsageOptions {
+	return r.DevDepsUsageOnProdDetections
+}
+
+func (r *Rule) getRestrictedImportsDetections() []*RestrictedImportsDetectionOptions {
+	return r.RestrictedImportsDetections
+}
+
+func parseOneOrManyObjects[T any](raw json.RawMessage) ([]*T, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+
+	var single T
+	if err := json.Unmarshal(raw, &single); err == nil {
+		item := new(T)
+		*item = single
+		return []*T{item}, nil
+	}
+
+	var many []T
+	if err := json.Unmarshal(raw, &many); err != nil {
+		return nil, err
+	}
+
+	result := make([]*T, 0, len(many))
+	for i := range many {
+		item := new(T)
+		*item = many[i]
+		result = append(result, item)
+	}
+
+	return result, nil
+}
+
+func marshalOneOrManyObjects[T any](items []*T) interface{} {
+	if len(items) == 0 {
+		return nil
+	}
+
+	if len(items) == 1 {
+		return items[0]
+	}
+
+	values := make([]T, 0, len(items))
+	for _, item := range items {
+		if item != nil {
+			values = append(values, *item)
+		}
+	}
+	return values
+}
+
+func (r Rule) MarshalJSON() ([]byte, error) {
+	type ruleWire struct {
+		Path                        string                 `json:"path"`
+		ProdEntryPoints             []string               `json:"prodEntryPoints,omitempty"`
+		DevEntryPoints              []string               `json:"devEntryPoints,omitempty"`
+		ModuleBoundaries            []BoundaryRule         `json:"moduleBoundaries,omitempty"`
+		CircularImportsDetection    interface{}            `json:"circularImportsDetection,omitempty"`
+		OrphanFilesDetection        interface{}            `json:"orphanFilesDetection,omitempty"`
+		UnusedNodeModulesDetection  interface{}            `json:"unusedNodeModulesDetection,omitempty"`
+		MissingNodeModulesDetection interface{}            `json:"missingNodeModulesDetection,omitempty"`
+		UnusedExportsDetection      interface{}            `json:"unusedExportsDetection,omitempty"`
+		UnresolvedImportsDetection  interface{}            `json:"unresolvedImportsDetection,omitempty"`
+		DevDepsUsageOnProdDetection interface{}            `json:"devDepsUsageOnProdDetection,omitempty"`
+		RestrictedImportsDetection  interface{}            `json:"restrictedImportsDetection,omitempty"`
+		ImportConventions           []ImportConventionRule `json:"importConventions,omitempty"`
+	}
+
+	wire := ruleWire{
+		Path:                        r.Path,
+		ProdEntryPoints:             r.ProdEntryPoints,
+		DevEntryPoints:              r.DevEntryPoints,
+		ModuleBoundaries:            r.ModuleBoundaries,
+		CircularImportsDetection:    marshalOneOrManyObjects(r.getCircularImportsDetections()),
+		OrphanFilesDetection:        marshalOneOrManyObjects(r.getOrphanFilesDetections()),
+		UnusedNodeModulesDetection:  marshalOneOrManyObjects(r.getUnusedNodeModulesDetections()),
+		MissingNodeModulesDetection: marshalOneOrManyObjects(r.getMissingNodeModulesDetections()),
+		UnusedExportsDetection:      marshalOneOrManyObjects(r.getUnusedExportsDetections()),
+		UnresolvedImportsDetection:  marshalOneOrManyObjects(r.getUnresolvedImportsDetections()),
+		DevDepsUsageOnProdDetection: marshalOneOrManyObjects(r.getDevDepsUsageOnProdDetections()),
+		RestrictedImportsDetection:  marshalOneOrManyObjects(r.getRestrictedImportsDetections()),
+		ImportConventions:           r.ImportConventions,
+	}
+
+	return json.Marshal(wire)
+}
+
+func (r *Rule) UnmarshalJSON(data []byte) error {
+	type ruleWire struct {
+		Path                        string          `json:"path"`
+		ProdEntryPoints             []string        `json:"prodEntryPoints,omitempty"`
+		DevEntryPoints              []string        `json:"devEntryPoints,omitempty"`
+		ModuleBoundaries            []BoundaryRule  `json:"moduleBoundaries,omitempty"`
+		CircularImportsDetection    json.RawMessage `json:"circularImportsDetection,omitempty"`
+		OrphanFilesDetection        json.RawMessage `json:"orphanFilesDetection,omitempty"`
+		UnusedNodeModulesDetection  json.RawMessage `json:"unusedNodeModulesDetection,omitempty"`
+		MissingNodeModulesDetection json.RawMessage `json:"missingNodeModulesDetection,omitempty"`
+		UnusedExportsDetection      json.RawMessage `json:"unusedExportsDetection,omitempty"`
+		UnresolvedImportsDetection  json.RawMessage `json:"unresolvedImportsDetection,omitempty"`
+		DevDepsUsageOnProdDetection json.RawMessage `json:"devDepsUsageOnProdDetection,omitempty"`
+		RestrictedImportsDetection  json.RawMessage `json:"restrictedImportsDetection,omitempty"`
+	}
+
+	var wire ruleWire
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+
+	circular, err := parseOneOrManyObjects[CircularImportsOptions](wire.CircularImportsDetection)
+	if err != nil {
+		return err
+	}
+	orphan, err := parseOneOrManyObjects[OrphanFilesOptions](wire.OrphanFilesDetection)
+	if err != nil {
+		return err
+	}
+	unusedNodeModules, err := parseOneOrManyObjects[UnusedNodeModulesOptions](wire.UnusedNodeModulesDetection)
+	if err != nil {
+		return err
+	}
+	missingNodeModules, err := parseOneOrManyObjects[MissingNodeModulesOptions](wire.MissingNodeModulesDetection)
+	if err != nil {
+		return err
+	}
+	unusedExports, err := parseOneOrManyObjects[UnusedExportsOptions](wire.UnusedExportsDetection)
+	if err != nil {
+		return err
+	}
+	unresolvedImports, err := parseOneOrManyObjects[UnresolvedImportsOptions](wire.UnresolvedImportsDetection)
+	if err != nil {
+		return err
+	}
+	devDeps, err := parseOneOrManyObjects[RestrictedDevDependenciesUsageOptions](wire.DevDepsUsageOnProdDetection)
+	if err != nil {
+		return err
+	}
+	restrictedImports, err := parseOneOrManyObjects[RestrictedImportsDetectionOptions](wire.RestrictedImportsDetection)
+	if err != nil {
+		return err
+	}
+
+	r.Path = wire.Path
+	r.ProdEntryPoints = wire.ProdEntryPoints
+	r.DevEntryPoints = wire.DevEntryPoints
+	r.ModuleBoundaries = wire.ModuleBoundaries
+
+	r.CircularImportsDetections = circular
+	r.OrphanFilesDetections = orphan
+	r.UnusedNodeModulesDetections = unusedNodeModules
+	r.MissingNodeModulesDetections = missingNodeModules
+	r.UnusedExportsDetections = unusedExports
+	r.UnresolvedImportsDetections = unresolvedImports
+	r.DevDepsUsageOnProdDetections = devDeps
+	r.RestrictedImportsDetections = restrictedImports
+
+	return nil
 }
 
 type RevDepConfig struct {
@@ -144,7 +350,7 @@ var hiddenConfigFileNameJsonc = ".rev-dep.config.jsonc"
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -274,8 +480,8 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 
 	// Set default values for optional fields and followMonorepoPackages and process import conventions
 	for i := range config.Rules {
-		if rawRules, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRules) {
-			ruleMap, isRuleMap := rawRules[i].(map[string]interface{})
+		if rawRulesArray, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRulesArray) {
+			ruleMap, isRuleMap := rawRulesArray[i].(map[string]interface{})
 			if !isRuleMap {
 				continue
 			}
@@ -289,6 +495,26 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 					return nil, err
 				}
 				config.Rules[i].FollowMonorepoPackages = parsedFollow
+			}
+
+			// Apply rule-level entry point inheritance for selected detectors.
+			// Explicit detector arrays (including empty) override rule-level defaults.
+			for _, orphanCfg := range config.Rules[i].getOrphanFilesDetections() {
+				if orphanCfg.ValidEntryPoints == nil {
+					orphanCfg.ValidEntryPoints = mergeAndDedupeEntryPoints(config.Rules[i].ProdEntryPoints, config.Rules[i].DevEntryPoints)
+				}
+			}
+
+			for _, unusedExportsCfg := range config.Rules[i].getUnusedExportsDetections() {
+				if unusedExportsCfg.ValidEntryPoints == nil {
+					unusedExportsCfg.ValidEntryPoints = mergeAndDedupeEntryPoints(config.Rules[i].ProdEntryPoints, config.Rules[i].DevEntryPoints)
+				}
+			}
+
+			for _, devDepsCfg := range config.Rules[i].getDevDepsUsageOnProdDetections() {
+				if devDepsCfg.ProdEntryPoints == nil {
+					devDepsCfg.ProdEntryPoints = cloneStringSlice(config.Rules[i].ProdEntryPoints)
+				}
 			}
 		}
 
@@ -310,6 +536,38 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 	}
 
 	return []RevDepConfig{config}, nil
+}
+
+func cloneStringSlice(input []string) []string {
+	if len(input) == 0 {
+		return nil
+	}
+	return append([]string(nil), input...)
+}
+
+func mergeAndDedupeEntryPoints(prodEntryPoints []string, devEntryPoints []string) []string {
+	if len(prodEntryPoints) == 0 && len(devEntryPoints) == 0 {
+		return nil
+	}
+
+	merged := make([]string, 0, len(prodEntryPoints)+len(devEntryPoints))
+	seen := make(map[string]bool, len(prodEntryPoints)+len(devEntryPoints))
+
+	for _, entryPoint := range prodEntryPoints {
+		if !seen[entryPoint] {
+			seen[entryPoint] = true
+			merged = append(merged, entryPoint)
+		}
+	}
+
+	for _, entryPoint := range devEntryPoints {
+		if !seen[entryPoint] {
+			seen[entryPoint] = true
+			merged = append(merged, entryPoint)
+		}
+	}
+
+	return merged
 }
 
 // validateRulePath validates that a rule path is acceptable
@@ -387,6 +645,8 @@ func validateRawConfig(raw map[string]interface{}) error {
 func validateRawRule(rule map[string]interface{}, index int) error {
 	allowedRuleFields := map[string]bool{
 		"path":                        true,
+		"prodEntryPoints":             true,
+		"devEntryPoints":              true,
 		"followMonorepoPackages":      true,
 		"moduleBoundaries":            true,
 		"circularImportsDetection":    true,
@@ -424,6 +684,14 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 	if followMonorepoPackages, exists := rule["followMonorepoPackages"]; exists {
 		if err := validateRawFollowMonorepoPackages(followMonorepoPackages, index); err != nil {
 			return err
+		}
+	}
+
+	for _, field := range []string{"prodEntryPoints", "devEntryPoints"} {
+		if value, exists := rule[field]; exists && value != nil {
+			if _, ok := value.([]interface{}); !ok {
+				return fmt.Errorf("rules[%d].%s must be an array, got %T", index, field, value)
+			}
 		}
 	}
 
@@ -485,6 +753,35 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 
 	if restrictedImports, exists := rule["restrictedImportsDetection"]; exists {
 		if err := validateRawRestrictedImportsDetection(restrictedImports, index); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateRawDetectionObjectOrArray(
+	raw interface{},
+	ruleIndex int,
+	fieldName string,
+	validateInstance func(map[string]interface{}, string) error,
+) error {
+	if detectionMap, ok := raw.(map[string]interface{}); ok {
+		return validateInstance(detectionMap, fmt.Sprintf("rules[%d].%s", ruleIndex, fieldName))
+	}
+
+	detectionArray, ok := raw.([]interface{})
+	if !ok {
+		return fmt.Errorf("rules[%d].%s must be an object or array of objects, got %T", ruleIndex, fieldName, raw)
+	}
+
+	for i, item := range detectionArray {
+		detectionMap, ok := item.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("rules[%d].%s[%d] must be an object, got %T", ruleIndex, fieldName, i, item)
+		}
+
+		if err := validateInstance(detectionMap, fmt.Sprintf("rules[%d].%s[%d]", ruleIndex, fieldName, i)); err != nil {
 			return err
 		}
 	}
@@ -558,11 +855,10 @@ func validateRawModuleBoundaries(boundaries interface{}, ruleIndex int) error {
 
 // validateRawCircularImportsDetection validates circular imports detection structure
 func validateRawCircularImportsDetection(circular interface{}, ruleIndex int) error {
-	circularMap, ok := circular.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("rules[%d].circularImportsDetection must be an object, got %T", ruleIndex, circular)
-	}
+	return validateRawDetectionObjectOrArray(circular, ruleIndex, "circularImportsDetection", validateRawCircularImportsDetectionInstance)
+}
 
+func validateRawCircularImportsDetectionInstance(circularMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
 		"enabled":           true,
 		"ignoreTypeImports": true,
@@ -570,23 +866,23 @@ func validateRawCircularImportsDetection(circular interface{}, ruleIndex int) er
 
 	for field := range circularMap {
 		if !allowedFields[field] {
-			return fmt.Errorf("rules[%d].circularImportsDetection: unknown field '%s'", ruleIndex, field)
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
 		}
 	}
 
 	if _, exists := circularMap["enabled"]; !exists {
-		return fmt.Errorf("rules[%d].circularImportsDetection.enabled is required", ruleIndex)
+		return fmt.Errorf("%s.enabled is required", prefix)
 	}
 
 	if enabled, ok := circularMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("rules[%d].circularImportsDetection.enabled cannot be null", ruleIndex)
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
 	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("rules[%d].circularImportsDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
 	}
 
 	if ignoreType, exists := circularMap["ignoreTypeImports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
-			return fmt.Errorf("rules[%d].circularImportsDetection.ignoreTypeImports must be a boolean, got %T", ruleIndex, ignoreType)
+			return fmt.Errorf("%s.ignoreTypeImports must be a boolean, got %T", prefix, ignoreType)
 		}
 	}
 
@@ -595,11 +891,10 @@ func validateRawCircularImportsDetection(circular interface{}, ruleIndex int) er
 
 // validateRawOrphanFilesDetection validates orphan files detection structure
 func validateRawOrphanFilesDetection(orphan interface{}, ruleIndex int) error {
-	orphanMap, ok := orphan.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("rules[%d].orphanFilesDetection must be an object, got %T", ruleIndex, orphan)
-	}
+	return validateRawDetectionObjectOrArray(orphan, ruleIndex, "orphanFilesDetection", validateRawOrphanFilesDetectionInstance)
+}
 
+func validateRawOrphanFilesDetectionInstance(orphanMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
 		"enabled":           true,
 		"validEntryPoints":  true,
@@ -610,42 +905,42 @@ func validateRawOrphanFilesDetection(orphan interface{}, ruleIndex int) error {
 
 	for field := range orphanMap {
 		if !allowedFields[field] {
-			return fmt.Errorf("rules[%d].orphanFilesDetection: unknown field '%s'", ruleIndex, field)
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
 		}
 	}
 
 	if _, exists := orphanMap["enabled"]; !exists {
-		return fmt.Errorf("rules[%d].orphanFilesDetection.enabled is required", ruleIndex)
+		return fmt.Errorf("%s.enabled is required", prefix)
 	}
 
 	if enabled, ok := orphanMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("rules[%d].orphanFilesDetection.enabled cannot be null", ruleIndex)
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
 	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("rules[%d].orphanFilesDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
 	}
 
 	// Validate array fields
 	if entryPoints, exists := orphanMap["validEntryPoints"]; exists && entryPoints != nil {
 		if _, ok := entryPoints.([]interface{}); !ok {
-			return fmt.Errorf("rules[%d].orphanFilesDetection.validEntryPoints must be an array, got %T", ruleIndex, entryPoints)
+			return fmt.Errorf("%s.validEntryPoints must be an array, got %T", prefix, entryPoints)
 		}
 	}
 
 	if graphExclude, exists := orphanMap["graphExclude"]; exists && graphExclude != nil {
 		if _, ok := graphExclude.([]interface{}); !ok {
-			return fmt.Errorf("rules[%d].orphanFilesDetection.graphExclude must be an array, got %T", ruleIndex, graphExclude)
+			return fmt.Errorf("%s.graphExclude must be an array, got %T", prefix, graphExclude)
 		}
 	}
 
 	if ignoreType, exists := orphanMap["ignoreTypeImports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
-			return fmt.Errorf("rules[%d].orphanFilesDetection.ignoreTypeImports must be a boolean, got %T", ruleIndex, ignoreType)
+			return fmt.Errorf("%s.ignoreTypeImports must be a boolean, got %T", prefix, ignoreType)
 		}
 	}
 
 	if autofix, exists := orphanMap["autofix"]; exists && autofix != nil {
 		if _, ok := autofix.(bool); !ok {
-			return fmt.Errorf("rules[%d].orphanFilesDetection.autofix must be a boolean, got %T", ruleIndex, autofix)
+			return fmt.Errorf("%s.autofix must be a boolean, got %T", prefix, autofix)
 		}
 	}
 
@@ -654,11 +949,10 @@ func validateRawOrphanFilesDetection(orphan interface{}, ruleIndex int) error {
 
 // validateRawUnusedNodeModulesDetection validates unused node modules detection structure
 func validateRawUnusedNodeModulesDetection(unused interface{}, ruleIndex int) error {
-	unusedMap, ok := unused.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("rules[%d].unusedNodeModulesDetection must be an object, got %T", ruleIndex, unused)
-	}
+	return validateRawDetectionObjectOrArray(unused, ruleIndex, "unusedNodeModulesDetection", validateRawUnusedNodeModulesDetectionInstance)
+}
 
+func validateRawUnusedNodeModulesDetectionInstance(unusedMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
 		"enabled":                   true,
 		"includeModules":            true,
@@ -671,18 +965,18 @@ func validateRawUnusedNodeModulesDetection(unused interface{}, ruleIndex int) er
 
 	for field := range unusedMap {
 		if !allowedFields[field] {
-			return fmt.Errorf("rules[%d].unusedNodeModulesDetection: unknown field '%s'", ruleIndex, field)
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
 		}
 	}
 
 	if _, exists := unusedMap["enabled"]; !exists {
-		return fmt.Errorf("rules[%d].unusedNodeModulesDetection.enabled is required", ruleIndex)
+		return fmt.Errorf("%s.enabled is required", prefix)
 	}
 
 	if enabled, ok := unusedMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("rules[%d].unusedNodeModulesDetection.enabled cannot be null", ruleIndex)
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
 	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("rules[%d].unusedNodeModulesDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
 	}
 
 	// Validate array fields
@@ -690,14 +984,14 @@ func validateRawUnusedNodeModulesDetection(unused interface{}, ruleIndex int) er
 	for _, field := range arrayFields {
 		if value, exists := unusedMap[field]; exists && value != nil {
 			if _, ok := value.([]interface{}); !ok {
-				return fmt.Errorf("rules[%d].unusedNodeModulesDetection.%s must be an array, got %T", ruleIndex, field, value)
+				return fmt.Errorf("%s.%s must be an array, got %T", prefix, field, value)
 			}
 		}
 	}
 
 	if outputType, exists := unusedMap["outputType"]; exists && outputType != nil {
 		if _, ok := outputType.(string); !ok {
-			return fmt.Errorf("rules[%d].unusedNodeModulesDetection.outputType must be a string, got %T", ruleIndex, outputType)
+			return fmt.Errorf("%s.outputType must be a string, got %T", prefix, outputType)
 		}
 	}
 
@@ -706,11 +1000,10 @@ func validateRawUnusedNodeModulesDetection(unused interface{}, ruleIndex int) er
 
 // validateRawMissingNodeModulesDetection validates missing node modules detection structure
 func validateRawMissingNodeModulesDetection(missing interface{}, ruleIndex int) error {
-	missingMap, ok := missing.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("rules[%d].missingNodeModulesDetection must be an object, got %T", ruleIndex, missing)
-	}
+	return validateRawDetectionObjectOrArray(missing, ruleIndex, "missingNodeModulesDetection", validateRawMissingNodeModulesDetectionInstance)
+}
 
+func validateRawMissingNodeModulesDetectionInstance(missingMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
 		"enabled":        true,
 		"includeModules": true,
@@ -720,18 +1013,18 @@ func validateRawMissingNodeModulesDetection(missing interface{}, ruleIndex int) 
 
 	for field := range missingMap {
 		if !allowedFields[field] {
-			return fmt.Errorf("rules[%d].missingNodeModulesDetection: unknown field '%s'", ruleIndex, field)
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
 		}
 	}
 
 	if _, exists := missingMap["enabled"]; !exists {
-		return fmt.Errorf("rules[%d].missingNodeModulesDetection.enabled is required", ruleIndex)
+		return fmt.Errorf("%s.enabled is required", prefix)
 	}
 
 	if enabled, ok := missingMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("rules[%d].missingNodeModulesDetection.enabled cannot be null", ruleIndex)
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
 	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("rules[%d].missingNodeModulesDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
 	}
 
 	// Validate array fields
@@ -739,14 +1032,14 @@ func validateRawMissingNodeModulesDetection(missing interface{}, ruleIndex int) 
 	for _, field := range arrayFields {
 		if value, exists := missingMap[field]; exists && value != nil {
 			if _, ok := value.([]interface{}); !ok {
-				return fmt.Errorf("rules[%d].missingNodeModulesDetection.%s must be an array, got %T", ruleIndex, field, value)
+				return fmt.Errorf("%s.%s must be an array, got %T", prefix, field, value)
 			}
 		}
 	}
 
 	if outputType, exists := missingMap["outputType"]; exists && outputType != nil {
 		if _, ok := outputType.(string); !ok {
-			return fmt.Errorf("rules[%d].missingNodeModulesDetection.outputType must be a string, got %T", ruleIndex, outputType)
+			return fmt.Errorf("%s.outputType must be a string, got %T", prefix, outputType)
 		}
 	}
 
@@ -755,57 +1048,106 @@ func validateRawMissingNodeModulesDetection(missing interface{}, ruleIndex int) 
 
 // validateRawUnusedExportsDetection validates unused exports detection structure
 func validateRawUnusedExportsDetection(unusedExports interface{}, ruleIndex int) error {
-	unusedExportsMap, ok := unusedExports.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("rules[%d].unusedExportsDetection must be an object, got %T", ruleIndex, unusedExports)
-	}
+	return validateRawDetectionObjectOrArray(unusedExports, ruleIndex, "unusedExportsDetection", validateRawUnusedExportsDetectionInstance)
+}
 
+func validateRawUnusedExportsDetectionInstance(unusedExportsMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
 		"enabled":           true,
 		"validEntryPoints":  true,
 		"ignoreTypeExports": true,
 		"graphExclude":      true,
+		"ignore":            true,
+		"ignoreFiles":       true,
+		"ignoreExports":     true,
 		"autofix":           true,
 	}
 
 	for field := range unusedExportsMap {
 		if !allowedFields[field] {
-			return fmt.Errorf("rules[%d].unusedExportsDetection: unknown field '%s'", ruleIndex, field)
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
 		}
 	}
 
 	if _, exists := unusedExportsMap["enabled"]; !exists {
-		return fmt.Errorf("rules[%d].unusedExportsDetection.enabled is required", ruleIndex)
+		return fmt.Errorf("%s.enabled is required", prefix)
 	}
 
 	if enabled, ok := unusedExportsMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("rules[%d].unusedExportsDetection.enabled cannot be null", ruleIndex)
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
 	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("rules[%d].unusedExportsDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
 	}
 
 	// Validate array fields
 	if entryPoints, exists := unusedExportsMap["validEntryPoints"]; exists && entryPoints != nil {
 		if _, ok := entryPoints.([]interface{}); !ok {
-			return fmt.Errorf("rules[%d].unusedExportsDetection.validEntryPoints must be an array, got %T", ruleIndex, entryPoints)
+			return fmt.Errorf("%s.validEntryPoints must be an array, got %T", prefix, entryPoints)
 		}
 	}
 
 	if graphExclude, exists := unusedExportsMap["graphExclude"]; exists && graphExclude != nil {
 		if _, ok := graphExclude.([]interface{}); !ok {
-			return fmt.Errorf("rules[%d].unusedExportsDetection.graphExclude must be an array, got %T", ruleIndex, graphExclude)
+			return fmt.Errorf("%s.graphExclude must be an array, got %T", prefix, graphExclude)
+		}
+	}
+
+	if ignore, exists := unusedExportsMap["ignore"]; exists && ignore != nil {
+		ignoreMap, ok := ignore.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("%s.ignore must be an object, got %T", prefix, ignore)
+		}
+		for filePath, exportName := range ignoreMap {
+			if strings.TrimSpace(filePath) == "" {
+				return fmt.Errorf("%s.ignore contains empty file path", prefix)
+			}
+			switch v := exportName.(type) {
+			case string:
+			case []interface{}:
+				for idx, item := range v {
+					if _, ok := item.(string); !ok {
+						return fmt.Errorf("%s.ignore['%s'][%d] must be a string, got %T", prefix, filePath, idx, item)
+					}
+				}
+			default:
+				return fmt.Errorf("%s.ignore['%s'] must be a string or array of strings, got %T", prefix, filePath, exportName)
+			}
+		}
+	}
+
+	if ignoreFiles, exists := unusedExportsMap["ignoreFiles"]; exists && ignoreFiles != nil {
+		ignoreFilesArr, ok := ignoreFiles.([]interface{})
+		if !ok {
+			return fmt.Errorf("%s.ignoreFiles must be an array, got %T", prefix, ignoreFiles)
+		}
+		for i, v := range ignoreFilesArr {
+			if _, ok := v.(string); !ok {
+				return fmt.Errorf("%s.ignoreFiles[%d] must be a string, got %T", prefix, i, v)
+			}
+		}
+	}
+
+	if ignoreExports, exists := unusedExportsMap["ignoreExports"]; exists && ignoreExports != nil {
+		ignoreExportsArr, ok := ignoreExports.([]interface{})
+		if !ok {
+			return fmt.Errorf("%s.ignoreExports must be an array, got %T", prefix, ignoreExports)
+		}
+		for i, v := range ignoreExportsArr {
+			if _, ok := v.(string); !ok {
+				return fmt.Errorf("%s.ignoreExports[%d] must be a string, got %T", prefix, i, v)
+			}
 		}
 	}
 
 	if ignoreType, exists := unusedExportsMap["ignoreTypeExports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
-			return fmt.Errorf("rules[%d].unusedExportsDetection.ignoreTypeExports must be a boolean, got %T", ruleIndex, ignoreType)
+			return fmt.Errorf("%s.ignoreTypeExports must be a boolean, got %T", prefix, ignoreType)
 		}
 	}
 
 	if autofix, exists := unusedExportsMap["autofix"]; exists && autofix != nil {
 		if _, ok := autofix.(bool); !ok {
-			return fmt.Errorf("rules[%d].unusedExportsDetection.autofix must be a boolean, got %T", ruleIndex, autofix)
+			return fmt.Errorf("%s.autofix must be a boolean, got %T", prefix, autofix)
 		}
 	}
 
@@ -821,6 +1163,9 @@ func ValidateConfig(config *RevDepConfig) error {
 	for j, rule := range config.Rules {
 		if rule.Path == "" {
 			return fmt.Errorf("rules[%d].path is required", j)
+		}
+		if err := validateRuleEntryPoints(&rule, fmt.Sprintf("rules[%d]", j)); err != nil {
+			return err
 		}
 		packageIdx := 0
 		for pattern := range rule.FollowMonorepoPackages.Packages {
@@ -839,56 +1184,88 @@ func ValidateConfig(config *RevDepConfig) error {
 		}
 
 		// Validate circular imports detection options
-		if rule.CircularImportsDetection != nil {
-			if err := validateCircularImportsOptions(rule.CircularImportsDetection); err != nil {
+		for idx, detection := range rule.getCircularImportsDetections() {
+			prefix := fmt.Sprintf("rules[%d].circularImportsDetection", j)
+			if len(rule.getCircularImportsDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateCircularImportsOptions(detection); err != nil {
 				return err
 			}
 		}
 
 		// Validate orphan files detection options
-		if rule.OrphanFilesDetection != nil {
-			if err := validateOrphanFilesOptions(rule.OrphanFilesDetection, fmt.Sprintf("rules[%d].orphanFilesDetection", j)); err != nil {
+		for idx, detection := range rule.getOrphanFilesDetections() {
+			prefix := fmt.Sprintf("rules[%d].orphanFilesDetection", j)
+			if len(rule.getOrphanFilesDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateOrphanFilesOptions(detection, prefix); err != nil {
 				return err
 			}
 		}
 
 		// Validate unused node modules detection options
-		if rule.UnusedNodeModulesDetection != nil {
-			if err := validateUnusedNodeModulesOptions(rule.UnusedNodeModulesDetection, fmt.Sprintf("rules[%d].unusedNodeModulesDetection", j)); err != nil {
+		for idx, detection := range rule.getUnusedNodeModulesDetections() {
+			prefix := fmt.Sprintf("rules[%d].unusedNodeModulesDetection", j)
+			if len(rule.getUnusedNodeModulesDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateUnusedNodeModulesOptions(detection, prefix); err != nil {
 				return err
 			}
 		}
 
 		// Validate missing node modules detection options
-		if rule.MissingNodeModulesDetection != nil {
-			if err := validateMissingNodeModulesOptions(rule.MissingNodeModulesDetection, fmt.Sprintf("rules[%d].missingNodeModulesDetection", j)); err != nil {
+		for idx, detection := range rule.getMissingNodeModulesDetections() {
+			prefix := fmt.Sprintf("rules[%d].missingNodeModulesDetection", j)
+			if len(rule.getMissingNodeModulesDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateMissingNodeModulesOptions(detection, prefix); err != nil {
 				return err
 			}
 		}
 
 		// Validate unused exports detection options
-		if rule.UnusedExportsDetection != nil {
-			if err := validateUnusedExportsOptions(rule.UnusedExportsDetection, fmt.Sprintf("rules[%d].unusedExportsDetection", j)); err != nil {
+		for idx, detection := range rule.getUnusedExportsDetections() {
+			prefix := fmt.Sprintf("rules[%d].unusedExportsDetection", j)
+			if len(rule.getUnusedExportsDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateUnusedExportsOptions(detection, prefix); err != nil {
 				return err
 			}
 		}
 
 		// Validate unresolved imports detection options
-		if rule.UnresolvedImportsDetection != nil {
-			if err := validateUnresolvedImportsOptions(rule.UnresolvedImportsDetection, fmt.Sprintf("rules[%d].unresolvedImportsDetection", j)); err != nil {
+		for idx, detection := range rule.getUnresolvedImportsDetections() {
+			prefix := fmt.Sprintf("rules[%d].unresolvedImportsDetection", j)
+			if len(rule.getUnresolvedImportsDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateUnresolvedImportsOptions(detection, prefix); err != nil {
 				return err
 			}
 		}
 
 		// Validate restricted dev dependencies usage detection options
-		if rule.DevDepsUsageOnProdDetection != nil {
-			if err := validateRestrictedDevDependenciesUsageOptions(rule.DevDepsUsageOnProdDetection, fmt.Sprintf("rules[%d].devDepsUsageOnProdDetection", j)); err != nil {
+		for idx, detection := range rule.getDevDepsUsageOnProdDetections() {
+			prefix := fmt.Sprintf("rules[%d].devDepsUsageOnProdDetection", j)
+			if len(rule.getDevDepsUsageOnProdDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateRestrictedDevDependenciesUsageOptions(detection, prefix); err != nil {
 				return err
 			}
 		}
 
-		if rule.RestrictedImportsDetection != nil {
-			if err := validateRestrictedImportsDetectionOptions(rule.RestrictedImportsDetection, fmt.Sprintf("rules[%d].restrictedImportsDetection", j)); err != nil {
+		for idx, detection := range rule.getRestrictedImportsDetections() {
+			prefix := fmt.Sprintf("rules[%d].restrictedImportsDetection", j)
+			if len(rule.getRestrictedImportsDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateRestrictedImportsDetectionOptions(detection, prefix); err != nil {
 				return err
 			}
 		}
@@ -1009,16 +1386,22 @@ func validateUnusedExportsOptions(opts *UnusedExportsOptions, prefix string) err
 		}
 	}
 
+	normalizedIgnore, normalizedIgnoreExports, err := validateAndNormalizeIgnoreConfig(opts.Ignore, opts.IgnoreFiles, opts.IgnoreExports, prefix, "ignoreExports")
+	if err != nil {
+		return err
+	}
+	opts.Ignore = normalizedIgnore
+	opts.IgnoreExports = normalizedIgnoreExports
+
 	return nil
 }
 
 // validateRawUnresolvedImportsDetection validates raw unresolved imports detection option
 func validateRawUnresolvedImportsDetection(unresolved interface{}, ruleIndex int) error {
-	unresolvedMap, ok := unresolved.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("rules[%d].unresolvedImportsDetection must be an object, got %T", ruleIndex, unresolved)
-	}
+	return validateRawDetectionObjectOrArray(unresolved, ruleIndex, "unresolvedImportsDetection", validateRawUnresolvedImportsDetectionInstance)
+}
 
+func validateRawUnresolvedImportsDetectionInstance(unresolvedMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
 		"enabled":       true,
 		"ignore":        true,
@@ -1028,32 +1411,40 @@ func validateRawUnresolvedImportsDetection(unresolved interface{}, ruleIndex int
 
 	for field := range unresolvedMap {
 		if !allowedFields[field] {
-			return fmt.Errorf("rules[%d].unresolvedImportsDetection: unknown field '%s'", ruleIndex, field)
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
 		}
 	}
 
 	if _, exists := unresolvedMap["enabled"]; !exists {
-		return fmt.Errorf("rules[%d].unresolvedImportsDetection.enabled is required", ruleIndex)
+		return fmt.Errorf("%s.enabled is required", prefix)
 	}
 
 	if enabled, ok := unresolvedMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("rules[%d].unresolvedImportsDetection.enabled cannot be null", ruleIndex)
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
 	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("rules[%d].unresolvedImportsDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
 	}
 
 	if ignore, exists := unresolvedMap["ignore"]; exists && ignore != nil {
 		ignoreMap, ok := ignore.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignore must be an object, got %T", ruleIndex, ignore)
+			return fmt.Errorf("%s.ignore must be an object, got %T", prefix, ignore)
 		}
 
 		for filePath, request := range ignoreMap {
 			if strings.TrimSpace(filePath) == "" {
-				return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignore contains empty file path", ruleIndex)
+				return fmt.Errorf("%s.ignore contains empty file path", prefix)
 			}
-			if _, ok := request.(string); !ok {
-				return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignore['%s'] must be a string, got %T", ruleIndex, filePath, request)
+			switch v := request.(type) {
+			case string:
+			case []interface{}:
+				for idx, item := range v {
+					if _, ok := item.(string); !ok {
+						return fmt.Errorf("%s.ignore['%s'][%d] must be a string, got %T", prefix, filePath, idx, item)
+					}
+				}
+			default:
+				return fmt.Errorf("%s.ignore['%s'] must be a string or array of strings, got %T", prefix, filePath, request)
 			}
 		}
 	}
@@ -1061,11 +1452,11 @@ func validateRawUnresolvedImportsDetection(unresolved interface{}, ruleIndex int
 	if ignoreFiles, exists := unresolvedMap["ignoreFiles"]; exists && ignoreFiles != nil {
 		ignoreFilesArr, ok := ignoreFiles.([]interface{})
 		if !ok {
-			return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignoreFiles must be an array, got %T", ruleIndex, ignoreFiles)
+			return fmt.Errorf("%s.ignoreFiles must be an array, got %T", prefix, ignoreFiles)
 		}
 		for i, v := range ignoreFilesArr {
 			if _, ok := v.(string); !ok {
-				return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignoreFiles[%d] must be a string, got %T", ruleIndex, i, v)
+				return fmt.Errorf("%s.ignoreFiles[%d] must be a string, got %T", prefix, i, v)
 			}
 		}
 	}
@@ -1073,11 +1464,11 @@ func validateRawUnresolvedImportsDetection(unresolved interface{}, ruleIndex int
 	if ignoreImports, exists := unresolvedMap["ignoreImports"]; exists && ignoreImports != nil {
 		ignoreImportsArr, ok := ignoreImports.([]interface{})
 		if !ok {
-			return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignoreImports must be an array, got %T", ruleIndex, ignoreImports)
+			return fmt.Errorf("%s.ignoreImports must be an array, got %T", prefix, ignoreImports)
 		}
 		for i, v := range ignoreImportsArr {
 			if _, ok := v.(string); !ok {
-				return fmt.Errorf("rules[%d].unresolvedImportsDetection.ignoreImports[%d] must be a string, got %T", ruleIndex, i, v)
+				return fmt.Errorf("%s.ignoreImports[%d] must be a string, got %T", prefix, i, v)
 			}
 		}
 	}
@@ -1091,56 +1482,22 @@ func validateUnresolvedImportsOptions(opts *UnresolvedImportsOptions, prefix str
 		return nil
 	}
 
-	for i, pattern := range opts.IgnoreFiles {
-		if err := validatePattern(pattern); err != nil {
-			return fmt.Errorf("%s.ignoreFiles[%d]: %w", prefix, i, err)
-		}
-	}
-
-	normalizedIgnore := make(map[string]string, len(opts.Ignore))
-	for configuredPath, request := range opts.Ignore {
-		normalizedPath := normalizeUnresolvedIgnoreFilePath(configuredPath)
-		if normalizedPath == "" {
-			return fmt.Errorf("%s.ignore contains empty file path", prefix)
-		}
-
-		if filepath.IsAbs(DenormalizePathForOS(normalizedPath)) {
-			return fmt.Errorf("%s.ignore['%s'] must be a relative path", prefix, configuredPath)
-		}
-
-		if normalizedPath == ".." || strings.HasPrefix(normalizedPath, "../") {
-			return fmt.Errorf("%s.ignore['%s'] must not traverse parent directories", prefix, configuredPath)
-		}
-
-		trimmedRequest := strings.TrimSpace(request)
-		if trimmedRequest == "" {
-			return fmt.Errorf("%s.ignore['%s'] cannot be empty", prefix, configuredPath)
-		}
-
-		normalizedIgnore[normalizedPath] = trimmedRequest
+	normalizedIgnore, normalizedIgnoreImports, err := validateAndNormalizeIgnoreConfig(opts.Ignore, opts.IgnoreFiles, opts.IgnoreImports, prefix, "ignoreImports")
+	if err != nil {
+		return err
 	}
 	opts.Ignore = normalizedIgnore
-
-	normalizedIgnoredImports := make([]string, 0, len(opts.IgnoreImports))
-	for i, req := range opts.IgnoreImports {
-		trimmedReq := strings.TrimSpace(req)
-		if trimmedReq == "" {
-			return fmt.Errorf("%s.ignoreImports[%d] cannot be empty", prefix, i)
-		}
-		normalizedIgnoredImports = append(normalizedIgnoredImports, trimmedReq)
-	}
-	opts.IgnoreImports = normalizedIgnoredImports
+	opts.IgnoreImports = normalizedIgnoreImports
 
 	return nil
 }
 
 // validateRawRestrictedDevDependenciesUsageDetection validates restricted dev dependencies usage detection structure
 func validateRawRestrictedDevDependenciesUsageDetection(restrictedDevDeps interface{}, ruleIndex int) error {
-	restrictedDevDepsMap, ok := restrictedDevDeps.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection must be an object, got %T", ruleIndex, restrictedDevDeps)
-	}
+	return validateRawDetectionObjectOrArray(restrictedDevDeps, ruleIndex, "devDepsUsageOnProdDetection", validateRawRestrictedDevDependenciesUsageDetectionInstance)
+}
 
+func validateRawRestrictedDevDependenciesUsageDetectionInstance(restrictedDevDepsMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
 		"enabled":           true,
 		"prodEntryPoints":   true,
@@ -1149,40 +1506,96 @@ func validateRawRestrictedDevDependenciesUsageDetection(restrictedDevDeps interf
 
 	for field := range restrictedDevDepsMap {
 		if !allowedFields[field] {
-			return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection: unknown field '%s'", ruleIndex, field)
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
 		}
 	}
 
 	if _, exists := restrictedDevDepsMap["enabled"]; !exists {
-		return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.enabled is required", ruleIndex)
+		return fmt.Errorf("%s.enabled is required", prefix)
 	}
 
 	if enabled, ok := restrictedDevDepsMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.enabled cannot be null", ruleIndex)
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
 	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
 	}
 
 	if entryPoints, exists := restrictedDevDepsMap["prodEntryPoints"]; exists && entryPoints != nil {
 		if _, ok := entryPoints.([]interface{}); !ok {
-			return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.prodEntryPoints must be an array, got %T", ruleIndex, entryPoints)
+			return fmt.Errorf("%s.prodEntryPoints must be an array, got %T", prefix, entryPoints)
 		}
 	}
 
 	if ignoreType, exists := restrictedDevDepsMap["ignoreTypeImports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
-			return fmt.Errorf("rules[%d].devDepsUsageOnProdDetection.ignoreTypeImports must be a boolean, got %T", ruleIndex, ignoreType)
+			return fmt.Errorf("%s.ignoreTypeImports must be a boolean, got %T", prefix, ignoreType)
 		}
 	}
 
 	return nil
 }
 
-func normalizeUnresolvedIgnoreFilePath(path string) string {
-	cleaned := filepath.Clean(DenormalizePathForOS(strings.TrimSpace(path)))
-	normalized := NormalizePathForInternal(cleaned)
-	normalized = strings.TrimPrefix(normalized, "./")
-	return normalized
+func validateAndNormalizeIgnoreConfig(ignore FileValueIgnoreMap, ignoreFiles []string, ignoreValues []string, prefix string, ignoreValuesFieldName string) (FileValueIgnoreMap, []string, error) {
+	for i, pattern := range ignoreFiles {
+		if err := validatePattern(pattern); err != nil {
+			return nil, nil, fmt.Errorf("%s.ignoreFiles[%d]: %w", prefix, i, err)
+		}
+		if _, err := glob.Compile(NormalizeGlobPattern(pattern)); err != nil {
+			return nil, nil, fmt.Errorf("%s.ignoreFiles[%d] has invalid glob pattern '%s': %v", prefix, i, pattern, err)
+		}
+	}
+
+	normalizedIgnore := make(FileValueIgnoreMap, len(ignore))
+	for configuredPath, valuePatterns := range ignore {
+		normalizedPath := normalizeIgnoreFilePath(configuredPath)
+		if normalizedPath == "" {
+			return nil, nil, fmt.Errorf("%s.ignore contains empty file path", prefix)
+		}
+
+		if filepath.IsAbs(DenormalizePathForOS(normalizedPath)) {
+			return nil, nil, fmt.Errorf("%s.ignore['%s'] must be a relative path", prefix, configuredPath)
+		}
+
+		if normalizedPath == ".." || strings.HasPrefix(normalizedPath, "../") {
+			return nil, nil, fmt.Errorf("%s.ignore['%s'] must not traverse parent directories", prefix, configuredPath)
+		}
+
+		if _, err := glob.Compile(NormalizeGlobPattern(normalizedPath)); err != nil {
+			return nil, nil, fmt.Errorf("%s.ignore['%s'] has invalid file glob pattern: %v", prefix, configuredPath, err)
+		}
+
+		if len(valuePatterns) == 0 {
+			return nil, nil, fmt.Errorf("%s.ignore['%s'] cannot be empty", prefix, configuredPath)
+		}
+
+		normalizedValuePatterns := make([]string, 0, len(valuePatterns))
+		for valueIdx, valuePattern := range valuePatterns {
+			trimmedValuePattern := strings.TrimSpace(valuePattern)
+			if trimmedValuePattern == "" {
+				return nil, nil, fmt.Errorf("%s.ignore['%s'][%d] cannot be empty", prefix, configuredPath, valueIdx)
+			}
+			if _, err := glob.Compile(trimmedValuePattern); err != nil {
+				return nil, nil, fmt.Errorf("%s.ignore['%s'][%d] has invalid value glob pattern '%s': %v", prefix, configuredPath, valueIdx, trimmedValuePattern, err)
+			}
+			normalizedValuePatterns = append(normalizedValuePatterns, trimmedValuePattern)
+		}
+
+		normalizedIgnore[normalizedPath] = normalizedValuePatterns
+	}
+
+	normalizedIgnoreValues := make([]string, 0, len(ignoreValues))
+	for i, valuePattern := range ignoreValues {
+		trimmedValuePattern := strings.TrimSpace(valuePattern)
+		if trimmedValuePattern == "" {
+			return nil, nil, fmt.Errorf("%s.%s[%d] cannot be empty", prefix, ignoreValuesFieldName, i)
+		}
+		if _, err := glob.Compile(trimmedValuePattern); err != nil {
+			return nil, nil, fmt.Errorf("%s.%s[%d] has invalid glob pattern '%s': %v", prefix, ignoreValuesFieldName, i, trimmedValuePattern, err)
+		}
+		normalizedIgnoreValues = append(normalizedIgnoreValues, trimmedValuePattern)
+	}
+
+	return normalizedIgnore, normalizedIgnoreValues, nil
 }
 
 // validateRestrictedDevDependenciesUsageOptions validates restricted dev dependencies usage options structure
@@ -1202,14 +1615,14 @@ func validateRestrictedDevDependenciesUsageOptions(opts *RestrictedDevDependenci
 }
 
 func validateRawRestrictedImportsDetection(restrictedImports interface{}, ruleIndex int) error {
-	restrictedImportsMap, ok := restrictedImports.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("rules[%d].restrictedImportsDetection must be an object, got %T", ruleIndex, restrictedImports)
-	}
+	return validateRawDetectionObjectOrArray(restrictedImports, ruleIndex, "restrictedImportsDetection", validateRawRestrictedImportsDetectionInstance)
+}
 
+func validateRawRestrictedImportsDetectionInstance(restrictedImportsMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
 		"enabled":           true,
 		"entryPoints":       true,
+		"graphExclude":      true,
 		"denyFiles":         true,
 		"denyModules":       true,
 		"ignoreMatches":     true,
@@ -1218,32 +1631,32 @@ func validateRawRestrictedImportsDetection(restrictedImports interface{}, ruleIn
 
 	for field := range restrictedImportsMap {
 		if !allowedFields[field] {
-			return fmt.Errorf("rules[%d].restrictedImportsDetection: unknown field '%s'", ruleIndex, field)
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
 		}
 	}
 
 	if _, exists := restrictedImportsMap["enabled"]; !exists {
-		return fmt.Errorf("rules[%d].restrictedImportsDetection.enabled is required", ruleIndex)
+		return fmt.Errorf("%s.enabled is required", prefix)
 	}
 
 	if enabled, ok := restrictedImportsMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("rules[%d].restrictedImportsDetection.enabled cannot be null", ruleIndex)
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
 	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("rules[%d].restrictedImportsDetection.enabled must be a boolean, got %T", ruleIndex, enabled)
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
 	}
 
-	arrayFields := []string{"entryPoints", "denyFiles", "denyModules", "ignoreMatches"}
+	arrayFields := []string{"entryPoints", "graphExclude", "denyFiles", "denyModules", "ignoreMatches"}
 	for _, field := range arrayFields {
 		if value, exists := restrictedImportsMap[field]; exists && value != nil {
 			if _, ok := value.([]interface{}); !ok {
-				return fmt.Errorf("rules[%d].restrictedImportsDetection.%s must be an array, got %T", ruleIndex, field, value)
+				return fmt.Errorf("%s.%s must be an array, got %T", prefix, field, value)
 			}
 		}
 	}
 
 	if ignoreType, exists := restrictedImportsMap["ignoreTypeImports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
-			return fmt.Errorf("rules[%d].restrictedImportsDetection.ignoreTypeImports must be a boolean, got %T", ruleIndex, ignoreType)
+			return fmt.Errorf("%s.ignoreTypeImports must be a boolean, got %T", prefix, ignoreType)
 		}
 	}
 
@@ -1284,6 +1697,12 @@ func validateRestrictedImportsDetectionOptions(opts *RestrictedImportsDetectionO
 		}
 		if err := validatePattern(pattern); err != nil {
 			return fmt.Errorf("%s.ignoreMatches[%d]: %w", prefix, i, err)
+		}
+	}
+
+	for i, pattern := range opts.GraphExclude {
+		if err := validatePattern(pattern); err != nil {
+			return fmt.Errorf("%s.graphExclude[%d]: %w", prefix, i, err)
 		}
 	}
 
@@ -1547,6 +1966,22 @@ func validatePattern(pattern string) error {
 	if len(pattern) >= 3 && pattern[0] == '.' && pattern[1] == '.' && (pattern[2] == '/' || pattern[2] == '\\') {
 		return fmt.Errorf("pattern '%s' starts with '../' or '..\\', which is not allowed. Use paths that starts with file or directory name", pattern)
 	}
+	return nil
+}
+
+func validateRuleEntryPoints(rule *Rule, prefix string) error {
+	for i, entryPoint := range rule.ProdEntryPoints {
+		if entryPoint == "" {
+			return fmt.Errorf("%s.prodEntryPoints[%d]: cannot be empty", prefix, i)
+		}
+	}
+
+	for i, entryPoint := range rule.DevEntryPoints {
+		if entryPoint == "" {
+			return fmt.Errorf("%s.devEntryPoints[%d]: cannot be empty", prefix, i)
+		}
+	}
+
 	return nil
 }
 

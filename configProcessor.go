@@ -47,6 +47,7 @@ type RuleResult struct {
 	ModuleBoundaryViolations                        []ModuleBoundaryViolation
 	CircularDependencies                            [][]string
 	OrphanFiles                                     []string
+	OrphanFilesAutofixable                          []string
 	MissingNodeModules                              []MissingNodeModuleResult
 	MissingNodeModulesOutputType                    string
 	UnusedNodeModules                               []string
@@ -56,7 +57,6 @@ type RuleResult struct {
 	UnresolvedImports                               []UnresolvedImport
 	RestrictedDevDependenciesUsageViolations        []RestrictedDevDependenciesUsageViolation
 	RestrictedImportsViolations                     []RestrictedImportViolation
-	RestrictedImportsIgnoreTypeImports              bool
 	RestrictedImportsFollowMonorepoPackages         FollowMonorepoPackagesValue
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
@@ -93,7 +93,20 @@ func discoverAllFilesForConfig(
 
 func anyRuleChecksForUnusedExports(config *RevDepConfig) bool {
 	for _, rule := range config.Rules {
-		if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+		if anyEnabled(rule.getUnusedExportsDetections()) {
+			return true
+		}
+	}
+	return false
+}
+
+type enabledOption interface {
+	IsEnabled() bool
+}
+
+func anyEnabled[T enabledOption](items []T) bool {
+	for _, item := range items {
+		if item.IsEnabled() {
 			return true
 		}
 	}
@@ -229,31 +242,31 @@ func processRuleChecks(
 	enabledChecks := []string{}
 
 	// Check which detections are enabled
-	if rule.CircularImportsDetection != nil && rule.CircularImportsDetection.Enabled {
+	if anyEnabled(rule.getCircularImportsDetections()) {
 		enabledChecks = append(enabledChecks, "circular-imports")
 	}
-	if rule.OrphanFilesDetection != nil && rule.OrphanFilesDetection.Enabled {
+	if anyEnabled(rule.getOrphanFilesDetections()) {
 		enabledChecks = append(enabledChecks, "orphan-files")
 	}
 	if len(rule.ModuleBoundaries) > 0 {
 		enabledChecks = append(enabledChecks, "module-boundaries")
 	}
-	if rule.UnusedNodeModulesDetection != nil && rule.UnusedNodeModulesDetection.Enabled {
+	if anyEnabled(rule.getUnusedNodeModulesDetections()) {
 		enabledChecks = append(enabledChecks, "unused-node-modules")
 	}
-	if rule.MissingNodeModulesDetection != nil && rule.MissingNodeModulesDetection.Enabled {
+	if anyEnabled(rule.getMissingNodeModulesDetections()) {
 		enabledChecks = append(enabledChecks, "missing-node-modules")
 	}
-	if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+	if anyEnabled(rule.getUnusedExportsDetections()) {
 		enabledChecks = append(enabledChecks, "unused-exports")
 	}
-	if rule.UnresolvedImportsDetection != nil && rule.UnresolvedImportsDetection.Enabled {
+	if anyEnabled(rule.getUnresolvedImportsDetections()) {
 		enabledChecks = append(enabledChecks, "unresolved-imports")
 	}
-	if rule.DevDepsUsageOnProdDetection != nil && rule.DevDepsUsageOnProdDetection.Enabled {
+	if anyEnabled(rule.getDevDepsUsageOnProdDetections()) {
 		enabledChecks = append(enabledChecks, "restricted-dev-dependencies-usage")
 	}
-	if rule.RestrictedImportsDetection != nil && rule.RestrictedImportsDetection.Enabled {
+	if anyEnabled(rule.getRestrictedImportsDetections()) {
 		enabledChecks = append(enabledChecks, "restricted-imports")
 	}
 	if len(rule.ImportConventions) > 0 {
@@ -266,10 +279,6 @@ func processRuleChecks(
 		EnabledChecks:                           enabledChecks,
 		DependencyTree:                          fullTree, // Include the full dependency tree for circular dependency formatting
 		RestrictedImportsFollowMonorepoPackages: rule.FollowMonorepoPackages,
-	}
-
-	if rule.RestrictedImportsDetection != nil {
-		ruleResult.RestrictedImportsIgnoreTypeImports = rule.RestrictedImportsDetection.IgnoreTypeImports
 	}
 
 	fullRulePath := StandardiseDirPath(filepath.Join(cwd, rule.Path))
@@ -289,7 +298,7 @@ func processRuleChecks(
 	var mu sync.Mutex
 
 	// Circular Dependencies
-	if rule.CircularImportsDetection != nil && rule.CircularImportsDetection.Enabled {
+	if anyEnabled(rule.getCircularImportsDetections()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -299,11 +308,17 @@ func processRuleChecks(
 			copy(sortedRuleFiles, ruleFiles)
 			slices.Sort(sortedRuleFiles)
 
-			circularDeps := FindCircularDependencies(
-				ruleTree,
-				sortedRuleFiles,
-				rule.CircularImportsDetection.IgnoreTypeImports,
-			)
+			circularDeps := make([][]string, 0)
+			for _, detection := range rule.getCircularImportsDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				circularDeps = append(circularDeps, FindCircularDependencies(
+					ruleTree,
+					sortedRuleFiles,
+					detection.IgnoreTypeImports,
+				)...)
+			}
 
 			mu.Lock()
 			ruleResult.CircularDependencies = circularDeps
@@ -312,21 +327,43 @@ func processRuleChecks(
 	}
 
 	// Orphan Files
-	if rule.OrphanFilesDetection != nil && rule.OrphanFilesDetection.Enabled {
+	if anyEnabled(rule.getOrphanFilesDetections()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			orphanFiles := FindOrphanFiles(
-				ruleTree,
-				rule.OrphanFilesDetection.ValidEntryPoints,
-				rule.OrphanFilesDetection.GraphExclude,
-				rule.OrphanFilesDetection.IgnoreTypeImports,
-				fullRulePath,
-				moduleSuffixVariants,
-			)
+			orphanSet := map[string]bool{}
+			orphanAutofixSet := map[string]bool{}
+			orphanFiles := make([]string, 0)
+			orphanFilesAutofixable := make([]string, 0)
+			for _, detection := range rule.getOrphanFilesDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				found := FindOrphanFiles(
+					ruleTree,
+					detection.ValidEntryPoints,
+					detection.GraphExclude,
+					detection.IgnoreTypeImports,
+					fullRulePath,
+					moduleSuffixVariants,
+				)
+				for _, file := range found {
+					if !orphanSet[file] {
+						orphanSet[file] = true
+						orphanFiles = append(orphanFiles, file)
+					}
+					if detection.Autofix && !orphanAutofixSet[file] {
+						orphanAutofixSet[file] = true
+						orphanFilesAutofixable = append(orphanFilesAutofixable, file)
+					}
+				}
+			}
+			slices.Sort(orphanFiles)
+			slices.Sort(orphanFilesAutofixable)
 
 			mu.Lock()
 			ruleResult.OrphanFiles = orphanFiles
+			ruleResult.OrphanFilesAutofixable = orphanFilesAutofixable
 			mu.Unlock()
 		}()
 	}
@@ -350,49 +387,76 @@ func processRuleChecks(
 	}
 
 	// Unused Node Modules
-	if rule.UnusedNodeModulesDetection != nil && rule.UnusedNodeModulesDetection.Enabled {
+	if anyEnabled(rule.getUnusedNodeModulesDetections()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			unusedModules := GetUnusedNodeModulesFromTree(
-				ruleTree,
-				rulePathNodeModules,
-				// likely should be rulePath
-				fullRulePath,
-				rule.UnusedNodeModulesDetection.PkgJsonFieldsWithBinaries,
-				rule.UnusedNodeModulesDetection.FilesWithBinaries,
-				rule.UnusedNodeModulesDetection.FilesWithModules,
-				"", // use empty path so it is discovered in fullRulePath
-				"", // use empty path so it is discovered in fullRulePath
-				rule.UnusedNodeModulesDetection.IncludeModules,
-				rule.UnusedNodeModulesDetection.ExcludeModules,
-			)
+			unusedSet := map[string]bool{}
+			unusedModules := make([]string, 0)
+			outputType := ""
+			for _, detection := range rule.getUnusedNodeModulesDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				found := GetUnusedNodeModulesFromTree(
+					ruleTree,
+					rulePathNodeModules,
+					fullRulePath,
+					detection.PkgJsonFieldsWithBinaries,
+					detection.FilesWithBinaries,
+					detection.FilesWithModules,
+					"", // use empty path so it is discovered in fullRulePath
+					"", // use empty path so it is discovered in fullRulePath
+					detection.IncludeModules,
+					detection.ExcludeModules,
+				)
+				for _, moduleName := range found {
+					if !unusedSet[moduleName] {
+						unusedSet[moduleName] = true
+						unusedModules = append(unusedModules, moduleName)
+					}
+				}
+				if outputType == "" && detection.OutputType != "" {
+					outputType = detection.OutputType
+				}
+			}
+			slices.Sort(unusedModules)
 
 			mu.Lock()
 			ruleResult.UnusedNodeModules = unusedModules
-			if rule.UnusedNodeModulesDetection.OutputType != "" {
-				ruleResult.UnusedNodeModulesOutputType = rule.UnusedNodeModulesDetection.OutputType
+			if outputType != "" {
+				ruleResult.UnusedNodeModulesOutputType = outputType
 			}
 			mu.Unlock()
 		}()
 	}
 
 	// Missing Node Modules
-	if rule.MissingNodeModulesDetection != nil && rule.MissingNodeModulesDetection.Enabled {
+	if anyEnabled(rule.getMissingNodeModulesDetections()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			missingModules := GetMissingNodeModulesFromTree(
-				ruleTree,
-				rule.MissingNodeModulesDetection.IncludeModules,
-				rule.MissingNodeModulesDetection.ExcludeModules,
-				rulePathNodeModules,
-			)
+			missingModules := make([]MissingNodeModuleResult, 0)
+			outputType := ""
+			for _, detection := range rule.getMissingNodeModulesDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				missingModules = append(missingModules, GetMissingNodeModulesFromTree(
+					ruleTree,
+					detection.IncludeModules,
+					detection.ExcludeModules,
+					rulePathNodeModules,
+				)...)
+				if outputType == "" && detection.OutputType != "" {
+					outputType = detection.OutputType
+				}
+			}
 
 			mu.Lock()
 			ruleResult.MissingNodeModules = missingModules
-			if rule.MissingNodeModulesDetection.OutputType != "" {
-				ruleResult.MissingNodeModulesOutputType = rule.MissingNodeModulesDetection.OutputType
+			if outputType != "" {
+				ruleResult.MissingNodeModulesOutputType = outputType
 			}
 			mu.Unlock()
 		}()
@@ -421,20 +485,28 @@ func processRuleChecks(
 	}
 
 	// Unused Exports
-	if rule.UnusedExportsDetection != nil && rule.UnusedExportsDetection.Enabled {
+	if anyEnabled(rule.getUnusedExportsDetections()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			unusedExports := FindUnusedExports(
-				ruleFiles,
-				ruleTree,
-				rule.UnusedExportsDetection.ValidEntryPoints,
-				rule.UnusedExportsDetection.GraphExclude,
-				rule.UnusedExportsDetection.IgnoreTypeExports,
-				rule.UnusedExportsDetection.Autofix,
-				fullRulePath,
-				moduleSuffixVariants,
-			)
+			unusedExports := make([]UnusedExport, 0)
+			for _, detection := range rule.getUnusedExportsDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				found := FindUnusedExports(
+					ruleFiles,
+					ruleTree,
+					detection.ValidEntryPoints,
+					detection.GraphExclude,
+					detection.IgnoreTypeExports,
+					detection.Autofix,
+					fullRulePath,
+					moduleSuffixVariants,
+				)
+				found = FilterUnusedExports(found, detection, fullRulePath)
+				unusedExports = append(unusedExports, found...)
+			}
 
 			mu.Lock()
 			ruleResult.UnusedExports = unusedExports
@@ -443,15 +515,22 @@ func processRuleChecks(
 	}
 
 	// Unresolved Imports
-	if rule.UnresolvedImportsDetection != nil && rule.UnresolvedImportsDetection.Enabled {
+	if anyEnabled(rule.getUnresolvedImportsDetections()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			// NotResolvedModule might be actually a node module, but defined rule path package (eg apps/main-app) not in just in time package (pacakges/shared)
 			// We are not able to detect that during module resolution for config file, becasue we resolve all modules without knowing which workspace contains app and which contains shared code
 			// During rule evaluation we can assume that package.json in rule path is the one that contains node modules for app build from that rule path
-			unresolved := DetectUnresolvedImports(ruleTree, rulePathNodeModules)
-			unresolved = FilterUnresolvedImports(unresolved, rule.UnresolvedImportsDetection, fullRulePath)
+			unresolved := make([]UnresolvedImport, 0)
+			for _, detection := range rule.getUnresolvedImportsDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				found := DetectUnresolvedImports(ruleTree, rulePathNodeModules)
+				found = FilterUnresolvedImports(found, detection, fullRulePath)
+				unresolved = append(unresolved, found...)
+			}
 
 			mu.Lock()
 			ruleResult.UnresolvedImports = unresolved
@@ -460,7 +539,7 @@ func processRuleChecks(
 	}
 
 	// Restricted Dev Dependencies Usage
-	if rule.DevDepsUsageOnProdDetection != nil && rule.DevDepsUsageOnProdDetection.Enabled {
+	if anyEnabled(rule.getDevDepsUsageOnProdDetections()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -469,13 +548,19 @@ func processRuleChecks(
 				monorepoContext = resolverManager.monorepoContext
 			}
 
-			violations := FindDevDependenciesInProduction(
-				ruleTree,
-				rule.DevDepsUsageOnProdDetection.ProdEntryPoints,
-				rule.DevDepsUsageOnProdDetection.IgnoreTypeImports,
-				fullRulePath,
-				monorepoContext,
-			)
+			violations := make([]RestrictedDevDependenciesUsageViolation, 0)
+			for _, detection := range rule.getDevDepsUsageOnProdDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				violations = append(violations, FindDevDependenciesInProduction(
+					ruleTree,
+					detection.ProdEntryPoints,
+					detection.IgnoreTypeImports,
+					fullRulePath,
+					monorepoContext,
+				)...)
+			}
 
 			mu.Lock()
 			ruleResult.RestrictedDevDependenciesUsageViolations = violations
@@ -484,15 +569,21 @@ func processRuleChecks(
 	}
 
 	// Restricted Imports
-	if rule.RestrictedImportsDetection != nil && rule.RestrictedImportsDetection.Enabled {
+	if anyEnabled(rule.getRestrictedImportsDetections()) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			violations := FindRestrictedImports(
-				ruleTree,
-				rule.RestrictedImportsDetection,
-				fullRulePath,
-			)
+			violations := make([]RestrictedImportViolation, 0)
+			for _, detection := range rule.getRestrictedImportsDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				violations = append(violations, FindRestrictedImports(
+					ruleTree,
+					detection,
+					fullRulePath,
+				)...)
+			}
 
 			mu.Lock()
 			ruleResult.RestrictedImportsViolations = violations
@@ -603,13 +694,18 @@ func ProcessConfig(
 
 		for i, ruleResult := range result.RuleResults {
 			ruleCfg := config.Rules[i]
-			of := ruleCfg.OrphanFilesDetection
-			isOrphanFixEnabled := of != nil && of.Enabled && of.Autofix
+			isOrphanFixEnabled := false
+			for _, orphanCfg := range ruleCfg.getOrphanFilesDetections() {
+				if orphanCfg.Enabled && orphanCfg.Autofix {
+					isOrphanFixEnabled = true
+					break
+				}
+			}
 
 			// Create a set of orphan files to be deleted by this rule to avoid content fixes on them
 			orphanFilesToDelete := make(map[string]bool)
 			if isOrphanFixEnabled {
-				for _, orphan := range ruleResult.OrphanFiles {
+				for _, orphan := range ruleResult.OrphanFilesAutofixable {
 					orphanFilesToDelete[orphan] = true
 				}
 			}
@@ -638,7 +734,7 @@ func ProcessConfig(
 
 			// Handle orphan files autofix: delete files when configured
 			if isOrphanFixEnabled {
-				for _, orphan := range ruleResult.OrphanFiles {
+				for _, orphan := range ruleResult.OrphanFilesAutofixable {
 					osPath := DenormalizePathForOS(orphan)
 					if !filepath.IsAbs(osPath) {
 						osPath = filepath.Join(cwd, osPath)
@@ -673,8 +769,15 @@ func ProcessConfig(
 
 			// Add orphan files to fixable count if autofix is enabled for this rule
 			rule := config.Rules[i]
-			if rule.OrphanFilesDetection != nil && rule.OrphanFilesDetection.Enabled && rule.OrphanFilesDetection.Autofix {
-				fixableIssuesCount += len(ruleResult.OrphanFiles)
+			isOrphanFixEnabled := false
+			for _, orphanCfg := range rule.getOrphanFilesDetections() {
+				if orphanCfg.Enabled && orphanCfg.Autofix {
+					isOrphanFixEnabled = true
+					break
+				}
+			}
+			if isOrphanFixEnabled {
+				fixableIssuesCount += len(ruleResult.OrphanFilesAutofixable)
 			}
 		}
 		result.FixableIssuesCount = fixableIssuesCount

@@ -460,6 +460,37 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 					fmt.Printf("  ❌ Restricted Imports Issues (%d):\n", len(ruleResult.RestrictedImportsViolations))
 
 					violationsToDisplay := ruleResult.RestrictedImportsViolations
+					slices.SortFunc(violationsToDisplay, func(a, b RestrictedImportViolation) int {
+						if a.EntryPoint != b.EntryPoint {
+							return strings.Compare(a.EntryPoint, b.EntryPoint)
+						}
+						if a.ViolationType != b.ViolationType {
+							return strings.Compare(a.ViolationType, b.ViolationType)
+						}
+
+						aItem := a.DeniedFile
+						if a.ViolationType == "module" {
+							if a.ImportRequest != "" {
+								aItem = a.ImportRequest
+							} else {
+								aItem = a.DeniedModule
+							}
+						}
+						bItem := b.DeniedFile
+						if b.ViolationType == "module" {
+							if b.ImportRequest != "" {
+								bItem = b.ImportRequest
+							} else {
+								bItem = b.DeniedModule
+							}
+						}
+						if aItem != bItem {
+							return strings.Compare(aItem, bItem)
+						}
+
+						return strings.Compare(a.ImporterFile, b.ImporterFile)
+					})
+
 					remaining := 0
 					if !listAll && len(violationsToDisplay) > maxIssuesToList {
 						remaining = len(violationsToDisplay) - maxIssuesToList
@@ -583,23 +614,30 @@ func printRestrictedImportsResolveHint(ruleResult RuleResult, cwd string) {
 		return filepath.ToSlash(rel)
 	}
 
-	resolveExtraFlags := []string{}
-	if ruleResult.RestrictedImportsIgnoreTypeImports {
-		resolveExtraFlags = append(resolveExtraFlags, "--ignore-type-imports")
-	}
-	if ruleResult.RestrictedImportsFollowMonorepoPackages.ShouldFollowAll() {
-		resolveExtraFlags = append(resolveExtraFlags, "--follow-monorepo-packages")
-	} else if len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages) > 0 {
-		pkgs := make([]string, 0, len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages))
-		for pkg := range ruleResult.RestrictedImportsFollowMonorepoPackages.Packages {
-			pkgs = append(pkgs, pkg)
+	getResolveExtraFlagsPart := func(violation *RestrictedImportViolation) string {
+		resolveExtraFlags := []string{}
+		if violation != nil && violation.IgnoreType {
+			resolveExtraFlags = append(resolveExtraFlags, "--ignore-type-imports")
 		}
-		slices.Sort(pkgs)
-		resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--follow-monorepo-packages \"%s\"", strings.Join(pkgs, ",")))
-	}
-	extraFlagsPart := ""
-	if len(resolveExtraFlags) > 0 {
-		extraFlagsPart = " " + strings.Join(resolveExtraFlags, " ")
+		if violation != nil && len(violation.GraphExclude) > 0 {
+			for _, pattern := range violation.GraphExclude {
+				resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--graph-exclude %q", pattern))
+			}
+		}
+		if ruleResult.RestrictedImportsFollowMonorepoPackages.ShouldFollowAll() {
+			resolveExtraFlags = append(resolveExtraFlags, "--follow-monorepo-packages")
+		} else if len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages) > 0 {
+			pkgs := make([]string, 0, len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages))
+			for pkg := range ruleResult.RestrictedImportsFollowMonorepoPackages.Packages {
+				pkgs = append(pkgs, pkg)
+			}
+			slices.Sort(pkgs)
+			resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--follow-monorepo-packages \"%s\"", strings.Join(pkgs, ",")))
+		}
+		if len(resolveExtraFlags) == 0 {
+			return ""
+		}
+		return " " + strings.Join(resolveExtraFlags, " ")
 	}
 
 	var sampleFileViolation *RestrictedImportViolation
@@ -623,7 +661,7 @@ func printRestrictedImportsResolveHint(ruleResult RuleResult, cwd string) {
 			relToRule(sampleFileViolation.DeniedFile),
 			relToRule(sampleFileViolation.EntryPoint),
 			ruleCwdArg,
-			extraFlagsPart,
+			getResolveExtraFlagsPart(sampleFileViolation),
 		)
 	}
 	if sampleModuleViolation != nil {
@@ -635,7 +673,7 @@ func printRestrictedImportsResolveHint(ruleResult RuleResult, cwd string) {
 			moduleArg,
 			relToRule(sampleModuleViolation.EntryPoint),
 			ruleCwdArg,
-			extraFlagsPart,
+			getResolveExtraFlagsPart(sampleModuleViolation),
 		)
 	}
 }
@@ -660,7 +698,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
-	currentConfigVersion := "1.5"
+	currentConfigVersion := "1.6"
 
 	// Check if any config file already exists
 	existingConfig, err := findConfigFile(cwd)
@@ -682,25 +720,31 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 		if StandardiseDirPath(cwd) != StandardiseDirPath(monorepoCtx.WorkspaceRoot) {
 			packageRule := Rule{
 				Path: ".",
-				CircularImportsDetection: &CircularImportsOptions{
+				CircularImportsDetections: []*CircularImportsOptions{{
 					Enabled:           true,
 					IgnoreTypeImports: false,
-				},
-				OrphanFilesDetection: &OrphanFilesOptions{
+				}},
+				OrphanFilesDetections: []*OrphanFilesOptions{{
 					Enabled: false,
-				},
-				UnusedNodeModulesDetection: &UnusedNodeModulesOptions{
+				}},
+				UnusedNodeModulesDetections: []*UnusedNodeModulesOptions{{
 					Enabled: false,
-				},
-				MissingNodeModulesDetection: &MissingNodeModulesOptions{
+				}},
+				MissingNodeModulesDetections: []*MissingNodeModulesOptions{{
 					Enabled: false,
-				},
-				UnusedExportsDetection: &UnusedExportsOptions{
+				}},
+				UnusedExportsDetections: []*UnusedExportsOptions{{
 					Enabled: false,
-				},
-				UnresolvedImportsDetection: &UnresolvedImportsOptions{
+				}},
+				UnresolvedImportsDetections: []*UnresolvedImportsOptions{{
+					Enabled: true,
+				}},
+				DevDepsUsageOnProdDetections: []*RestrictedDevDependenciesUsageOptions{{
 					Enabled: false,
-				},
+				}},
+				RestrictedImportsDetections: []*RestrictedImportsDetectionOptions{{
+					Enabled: false,
+				}},
 			}
 			rules = append(rules, packageRule)
 			createdForMonorepoSubPackage = true
@@ -715,6 +759,12 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 						Allow:   []string{"packages/**/*"},
 					},
 				},
+				OrphanFilesDetections: []*OrphanFilesOptions{{
+					Enabled: false,
+				}},
+				UnusedExportsDetections: []*UnusedExportsOptions{{
+					Enabled: false,
+				}},
 			}
 			rules = append(rules, rootRule)
 
@@ -747,25 +797,31 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 			for _, relPath := range packagePaths {
 				packageRule := Rule{
 					Path: relPath,
-					CircularImportsDetection: &CircularImportsOptions{
+					CircularImportsDetections: []*CircularImportsOptions{{
 						Enabled:           true,
 						IgnoreTypeImports: false,
-					},
-					OrphanFilesDetection: &OrphanFilesOptions{
+					}},
+					OrphanFilesDetections: []*OrphanFilesOptions{{
 						Enabled: false,
-					},
-					UnusedNodeModulesDetection: &UnusedNodeModulesOptions{
+					}},
+					UnusedNodeModulesDetections: []*UnusedNodeModulesOptions{{
 						Enabled: false,
-					},
-					MissingNodeModulesDetection: &MissingNodeModulesOptions{
+					}},
+					MissingNodeModulesDetections: []*MissingNodeModulesOptions{{
 						Enabled: false,
-					},
-					UnusedExportsDetection: &UnusedExportsOptions{
+					}},
+					UnusedExportsDetections: []*UnusedExportsOptions{{
 						Enabled: false,
-					},
-					UnresolvedImportsDetection: &UnresolvedImportsOptions{
+					}},
+					UnresolvedImportsDetections: []*UnresolvedImportsOptions{{
+						Enabled: true,
+					}},
+					DevDepsUsageOnProdDetections: []*RestrictedDevDependenciesUsageOptions{{
 						Enabled: false,
-					},
+					}},
+					RestrictedImportsDetections: []*RestrictedImportsDetectionOptions{{
+						Enabled: false,
+					}},
 				}
 				rules = append(rules, packageRule)
 			}
@@ -781,25 +837,31 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 					Allow:   []string{"src/**/*"},
 				},
 			},
-			CircularImportsDetection: &CircularImportsOptions{
+			CircularImportsDetections: []*CircularImportsOptions{{
 				Enabled:           true,
 				IgnoreTypeImports: false,
-			},
-			OrphanFilesDetection: &OrphanFilesOptions{
+			}},
+			OrphanFilesDetections: []*OrphanFilesOptions{{
 				Enabled: false,
-			},
-			UnusedNodeModulesDetection: &UnusedNodeModulesOptions{
+			}},
+			UnusedNodeModulesDetections: []*UnusedNodeModulesOptions{{
 				Enabled: false,
-			},
-			MissingNodeModulesDetection: &MissingNodeModulesOptions{
+			}},
+			MissingNodeModulesDetections: []*MissingNodeModulesOptions{{
 				Enabled: false,
-			},
-			UnusedExportsDetection: &UnusedExportsOptions{
+			}},
+			UnusedExportsDetections: []*UnusedExportsOptions{{
 				Enabled: false,
-			},
-			UnresolvedImportsDetection: &UnresolvedImportsOptions{
+			}},
+			UnresolvedImportsDetections: []*UnresolvedImportsOptions{{
+				Enabled: true,
+			}},
+			DevDepsUsageOnProdDetections: []*RestrictedDevDependenciesUsageOptions{{
 				Enabled: false,
-			},
+			}},
+			RestrictedImportsDetections: []*RestrictedImportsDetectionOptions{{
+				Enabled: false,
+			}},
 		}
 		rules = append(rules, rootRule)
 	}

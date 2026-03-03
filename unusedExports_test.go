@@ -1311,11 +1311,68 @@ func TestFindUnusedExports_Strategy2_RemoveNonConsecutive(t *testing.T) {
 	}
 }
 
+func TestFilterUnusedExports(t *testing.T) {
+	cwd := "/project/"
+	unused := []UnusedExport{
+		{FilePath: "/project/src/utils.ts", ExportName: "unusedHelper"},
+		{FilePath: "/project/src/types.ts", ExportName: "Bar"},
+		{FilePath: "/project/src/defaultExport.ts", ExportName: "default"},
+	}
+
+	t.Run("ignoreFiles supports globs", func(t *testing.T) {
+		opts := &UnusedExportsOptions{
+			Enabled:     true,
+			IgnoreFiles: []string{"**/utils.ts"},
+		}
+
+		filtered := FilterUnusedExports(unused, opts, cwd)
+		if len(filtered) != 2 {
+			t.Fatalf("Expected 2 exports after ignoreFiles filtering, got %d", len(filtered))
+		}
+		for _, item := range filtered {
+			if item.FilePath == "/project/src/utils.ts" {
+				t.Fatalf("Expected utils.ts export to be filtered out")
+			}
+		}
+	})
+
+	t.Run("ignore map supports key and value globs", func(t *testing.T) {
+		opts := &UnusedExportsOptions{
+			Enabled: true,
+			Ignore: FileValueIgnoreMap{
+				"**/types.ts": []string{"B*"},
+			},
+		}
+
+		filtered := FilterUnusedExports(unused, opts, cwd)
+		for _, item := range filtered {
+			if item.FilePath == "/project/src/types.ts" && item.ExportName == "Bar" {
+				t.Fatalf("Expected types.ts#Bar to be filtered out by ignore map")
+			}
+		}
+	})
+
+	t.Run("ignoreExports supports globs and default export", func(t *testing.T) {
+		opts := &UnusedExportsOptions{
+			Enabled:       true,
+			IgnoreExports: []string{"unused*", "default"},
+		}
+
+		filtered := FilterUnusedExports(unused, opts, cwd)
+		if len(filtered) != 1 {
+			t.Fatalf("Expected 1 export after ignoreExports filtering, got %d", len(filtered))
+		}
+		if filtered[0].ExportName != "Bar" {
+			t.Fatalf("Expected only Bar to remain, got %s", filtered[0].ExportName)
+		}
+	})
+}
+
 func TestAnyRuleChecksForUnusedExports(t *testing.T) {
 	t.Run("returns false with no unused exports", func(t *testing.T) {
 		config := &RevDepConfig{
 			Rules: []Rule{
-				{Path: ".", CircularImportsDetection: &CircularImportsOptions{Enabled: true}},
+				{Path: ".", CircularImportsDetections: []*CircularImportsOptions{{Enabled: true}}},
 			},
 		}
 		if anyRuleChecksForUnusedExports(config) {
@@ -1326,7 +1383,7 @@ func TestAnyRuleChecksForUnusedExports(t *testing.T) {
 	t.Run("returns true with unused exports enabled", func(t *testing.T) {
 		config := &RevDepConfig{
 			Rules: []Rule{
-				{Path: ".", UnusedExportsDetection: &UnusedExportsOptions{Enabled: true}},
+				{Path: ".", UnusedExportsDetections: []*UnusedExportsOptions{{Enabled: true}}},
 			},
 		}
 		if !anyRuleChecksForUnusedExports(config) {
@@ -1337,7 +1394,7 @@ func TestAnyRuleChecksForUnusedExports(t *testing.T) {
 	t.Run("returns false with unused exports disabled", func(t *testing.T) {
 		config := &RevDepConfig{
 			Rules: []Rule{
-				{Path: ".", UnusedExportsDetection: &UnusedExportsOptions{Enabled: false}},
+				{Path: ".", UnusedExportsDetections: []*UnusedExportsOptions{{Enabled: false}}},
 			},
 		}
 		if anyRuleChecksForUnusedExports(config) {

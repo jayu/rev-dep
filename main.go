@@ -1180,7 +1180,7 @@ var unresolvedCmd = &cobra.Command{
 
 		opts := &UnresolvedImportsOptions{
 			Enabled:       true,
-			Ignore:        unresolvedIgnore,
+			Ignore:        stringMapToFileValueIgnoreMap(unresolvedIgnore),
 			IgnoreFiles:   unresolvedIgnoreFiles,
 			IgnoreImports: unresolvedIgnoreImports,
 		}
@@ -1190,6 +1190,17 @@ var unresolvedCmd = &cobra.Command{
 
 		return unresolvedCmdRun(ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followValue, opts)
 	},
+}
+
+func stringMapToFileValueIgnoreMap(input map[string]string) FileValueIgnoreMap {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make(FileValueIgnoreMap, len(input))
+	for filePath, value := range input {
+		out[filePath] = []string{value}
+	}
+	return out
 }
 
 // unresolvedCmdRun is the functional core for the `unresolved` command. It returns an error on failure.

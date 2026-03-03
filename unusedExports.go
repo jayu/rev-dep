@@ -266,6 +266,25 @@ func FindUnusedExports(
 	return results
 }
 
+func FilterUnusedExports(unusedExports []UnusedExport, opts *UnusedExportsOptions, cwd string) []UnusedExport {
+	if opts == nil {
+		return unusedExports
+	}
+
+	ignoreMatcher := newFileValueIgnoreMatcher(opts.Ignore, opts.IgnoreFiles, opts.IgnoreExports, cwd)
+
+	filtered := make([]UnusedExport, 0, len(unusedExports))
+	for _, unusedExport := range unusedExports {
+		if ignoreMatcher.shouldIgnore(unusedExport.FilePath, unusedExport.ExportName) {
+			continue
+		}
+
+		filtered = append(filtered, unusedExport)
+	}
+
+	return filtered
+}
+
 // computeFullStatementRemoval computes fix for removing an entire export statement (Strategy 3)
 func computeFullStatementRemoval(filePath string, dep *MinimalDependency) *Change {
 	source, err := os.ReadFile(filePath)

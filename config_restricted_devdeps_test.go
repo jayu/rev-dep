@@ -21,11 +21,11 @@ func TestParseConfig_DevDepsUsageOnProdDetection_IgnoreTypeImports(t *testing.T)
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		opts := configs[0].Rules[0].DevDepsUsageOnProdDetection
-		if opts == nil || !opts.Enabled {
+		detections := configs[0].Rules[0].DevDepsUsageOnProdDetections
+		if len(detections) == 0 || detections[0] == nil || !detections[0].Enabled {
 			t.Fatalf("expected devDepsUsageOnProdDetection to be enabled")
 		}
-		if !opts.IgnoreTypeImports {
+		if !detections[0].IgnoreTypeImports {
 			t.Fatalf("expected ignoreTypeImports=true")
 		}
 	})

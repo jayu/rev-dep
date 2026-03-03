@@ -187,7 +187,12 @@ func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatter
 			continue
 		}
 
-		if strings.HasSuffix(pattern, "/**") {
+		if strings.HasSuffix(pattern, "/**/*") {
+			positive = append(positive, positivePattern{
+				basePath: strings.TrimSuffix(pattern, "/**/*"),
+				isDeep:   true,
+			})
+		} else if strings.HasSuffix(pattern, "/**") {
 			positive = append(positive, positivePattern{
 				basePath: strings.TrimSuffix(pattern, "/**"),
 				isDeep:   true,

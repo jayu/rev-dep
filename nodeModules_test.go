@@ -1502,3 +1502,60 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		t.Errorf("Incorrect grouped-by-entry-point modules output for glob '%s'. Expected '%s'", resultFromGlob, expectedGrouped)
 	}
 }
+
+// TestGetMissingNodeModulesFromTree_PnpmWorkspace verifies that workspace-specific
+// dependencies are not falsely flagged as missing in a pnpm strict node_modules layout.
+//
+// In pnpm monorepos each workspace package has its own node_modules/ directory.
+// The root node_modules/ only contains root-level dependencies, so checking only
+// the root resolver produces false positives for every workspace dependency.
+// The fix is per-file resolver lookup in GetMissingNodeModulesFromTree.
+func TestGetMissingNodeModulesFromTree_PnpmWorkspace(t *testing.T) {
+	workspaceFilePath := "/workspace/packages/llm-clients/src/index.ts"
+
+	tree := MinimalDependencyTree{
+		workspaceFilePath: {
+			// @ai-sdk/cerebras is declared in the workspace package.json and installed
+			// in packages/llm-clients/node_modules/ — not in root node_modules/.
+			{Request: "@ai-sdk/cerebras", ResolvedType: NodeModule},
+			// some-root-dep IS in root node_modules/ so it should never be flagged.
+			{Request: "some-root-dep", ResolvedType: NodeModule},
+		},
+	}
+
+	rootResolver := &ModuleResolver{
+		nodeModules: map[string]bool{
+			"some-root-dep": true,
+			// @ai-sdk/cerebras intentionally absent — pnpm strict layout
+		},
+	}
+	workspaceResolver := &ModuleResolver{
+		nodeModules: map[string]bool{
+			"@ai-sdk/cerebras": true,
+			"some-root-dep":    true,
+		},
+	}
+
+	rm := &ResolverManager{
+		rootResolver: rootResolver,
+		subpackageResolvers: []SubpackageResolver{
+			{PkgPath: "/workspace/packages/llm-clients", Resolver: workspaceResolver},
+		},
+	}
+
+	t.Run("workspace dependency not flagged as missing with per-file resolver", func(t *testing.T) {
+		results := GetMissingNodeModulesFromTree(tree, nil, nil, rootResolver.nodeModules, rm)
+		if len(results) != 0 {
+			t.Errorf("expected no missing modules, got: %v", results)
+		}
+	})
+
+	t.Run("workspace dependency falsely flagged without per-file resolver (regression guard)", func(t *testing.T) {
+		// Passing nil resolverManager replicates the old behavior: only root nodeModules
+		// are consulted, producing a false positive for @ai-sdk/cerebras.
+		results := GetMissingNodeModulesFromTree(tree, nil, nil, rootResolver.nodeModules, nil)
+		if len(results) != 1 || results[0].ModuleName != "@ai-sdk/cerebras" {
+			t.Errorf("expected @ai-sdk/cerebras to be falsely flagged (regression guard), got: %v", results)
+		}
+	})
+}

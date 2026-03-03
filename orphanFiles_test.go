@@ -156,3 +156,52 @@ func TestFindOrphanFiles_ModuleSuffixVariants(t *testing.T) {
 		}
 	})
 }
+
+// TestFindOrphanFiles_WorkspaceEntryPoints verifies that workspace package entry
+// point files are not falsely flagged as orphans in a pnpm monorepo.
+//
+// When followMonorepoPackages is enabled, files like packages/llm-clients/src/index.ts
+// are reachable only via cross-package imports. Without the additionalEntryPointFiles
+// exclusion they appear unreferenced and get flagged as orphans.
+func TestFindOrphanFiles_WorkspaceEntryPoints(t *testing.T) {
+	testCwd := "/workspace"
+
+	// index.ts is the workspace package entry point — not directly imported within
+	// the scanned tree but reachable from outside via package exports.
+	minimalTree := MinimalDependencyTree{
+		"/workspace/packages/llm-clients/src/index.ts":   {},
+		"/workspace/packages/llm-clients/src/internal.ts": {},
+	}
+
+	// internal.ts is referenced by index.ts (so not orphan regardless).
+	minimalTree["/workspace/packages/llm-clients/src/index.ts"] = []MinimalDependency{
+		{ID: "/workspace/packages/llm-clients/src/internal.ts", ResolvedType: UserModule},
+	}
+
+	workspaceEntryPoints := map[string]bool{
+		"/workspace/packages/llm-clients/src/index.ts": true,
+	}
+
+	t.Run("workspace entry point not flagged as orphan with additionalEntryPointFiles", func(t *testing.T) {
+		orphans := FindOrphanFiles(minimalTree, []string{}, []string{}, false, testCwd, nil, workspaceEntryPoints)
+		for _, o := range orphans {
+			if o == "/workspace/packages/llm-clients/src/index.ts" {
+				t.Errorf("index.ts should not be flagged as orphan — it is a workspace entry point")
+			}
+		}
+	})
+
+	t.Run("workspace entry point falsely flagged without additionalEntryPointFiles (regression guard)", func(t *testing.T) {
+		orphans := FindOrphanFiles(minimalTree, []string{}, []string{}, false, testCwd, nil, nil)
+		found := false
+		for _, o := range orphans {
+			if o == "/workspace/packages/llm-clients/src/index.ts" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected index.ts to be falsely flagged as orphan (regression guard), got: %v", orphans)
+		}
+	})
+}

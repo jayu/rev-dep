@@ -328,6 +328,27 @@ func TestPackageJsonExportsBlockingPaths(t *testing.T) {
 	}
 }
 
+func TestPackageJsonExportsResolvesSelfImportInWorkspacePackage(t *testing.T) {
+	cwd := "__fixtures__/mockMonorepo/packages/exported-package/"
+	ignoreTypeImports := true
+	excludeFiles := []string{}
+
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{FollowAll: true})
+
+	imports := minimalTree["__fixtures__/mockMonorepo/packages/exported-package/src/self-import-via-exports.ts"]
+	selfImport := findImportByRequest(imports, "exported-package/utils/helper")
+
+	if selfImport == nil {
+		t.Fatalf("Expected self import for 'exported-package/utils/helper' not found")
+	}
+	if selfImport.ResolvedType != MonorepoModule {
+		t.Fatalf("Expected self import type to be MonorepoModule, got '%s'", ResolvedImportTypeToString(selfImport.ResolvedType))
+	}
+	if selfImport.ID != "__fixtures__/mockMonorepo/packages/exported-package/src/utils/helper.ts" {
+		t.Fatalf("Expected self import ID to be the resolved path, got '%s'", selfImport.ID)
+	}
+}
+
 // Helper function to find import by request
 func findImportByRequest(imports []MinimalDependency, request string) *MinimalDependency {
 	for _, imp := range imports {

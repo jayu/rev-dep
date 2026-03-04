@@ -9,4 +9,5 @@
 /packages/exported-package/blocked/something.ts
 /packages/exported-package/src/blocked/other.ts
 /packages/exported-package/src/features/private-internal-utils.ts
+/packages/exported-package/src/self-import-via-exports.ts
 /packages/no-exports-package/utils/index.ts

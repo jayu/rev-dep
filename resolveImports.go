@@ -995,11 +995,19 @@ func (f *ModuleResolver) validateWorkspaceDependency(consumerRoot, targetPkgName
 		return false
 	}
 
+	normalizedConsumerRoot := NormalizePathForInternal(consumerRoot)
+	if targetPkgPath, ok := f.manager.monorepoContext.PackageToPath[targetPkgName]; ok {
+		// Allow same-package imports by package name (self-reference), even without explicit self-dependency.
+		if NormalizePathForInternal(targetPkgPath) == normalizedConsumerRoot {
+			return true
+		}
+	}
+
 	// Check if we're at root level
-	if consumerRoot == f.manager.monorepoContext.WorkspaceRoot {
+	if normalizedConsumerRoot == NormalizePathForInternal(f.manager.monorepoContext.WorkspaceRoot) {
 		return true
 	}
-	consumerConfig, err := f.manager.monorepoContext.GetPackageConfig(consumerRoot)
+	consumerConfig, err := f.manager.monorepoContext.GetPackageConfig(normalizedConsumerRoot)
 	if err != nil {
 		return false
 	}

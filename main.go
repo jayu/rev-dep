@@ -527,7 +527,12 @@ func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPat
 	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 	cycles := FindCircularDependencies(minimalTree, files, ignoreType)
 
-	fmt.Fprint(os.Stderr, FormatCircularDependencies(cycles, cwd, minimalTree))
+	formatted := FormatCircularDependencies(cycles, cwd, minimalTree)
+	if len(cycles) > 0 {
+		fmt.Fprint(os.Stderr, formatted)
+	} else {
+		fmt.Fprint(os.Stdout, formatted)
+	}
 
 	return len(cycles), nil
 }

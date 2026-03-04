@@ -84,7 +84,7 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 func formatCircularDependencies(cycles [][]string, pathPrefix string, deps MinimalDependencyTree, includeHeader bool, baseIndentation int) string {
 	if len(cycles) == 0 {
 		if includeHeader {
-			return fmt.Sprintln("No circular dependencies found! ")
+			return fmt.Sprintln("✅ No circular dependencies found! ")
 		}
 		return ""
 	}

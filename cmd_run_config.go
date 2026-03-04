@@ -29,7 +29,7 @@ var (
 	runConfigListAll bool
 	runConfigFix     bool
 	runConfigRules   []string
-	runConfigJSON    bool
+	runConfigFormat  string
 )
 
 var configRunCmd = &cobra.Command{
@@ -46,7 +46,7 @@ var configRunCmd = &cobra.Command{
 			return fmt.Errorf("Could not load configuration from %s:\n%v", filepath.Join(cwd, configFileName), err)
 		}
 
-		if runConfigJSON {
+		if runConfigFormat == "json" {
 			return runConfigWithJSONOutput(configs, cwd)
 		}
 
@@ -654,7 +654,7 @@ func init() {
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
-	configRunCmd.Flags().BoolVar(&runConfigJSON, "json", false, "Output results as JSON")
+	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
 
 	// config init command

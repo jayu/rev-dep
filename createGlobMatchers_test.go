@@ -139,3 +139,31 @@ func TestGlobMatchingShouldNotMatch(t *testing.T) {
 		}
 	})
 }
+
+func TestGlobMatchingWithRootAnchoredPattern(t *testing.T) {
+	t.Run("Root-anchored /node_modules should match root directory contents", func(t *testing.T) {
+		root := "/fs/root/"
+		pattern := "/node_modules"
+		filePath := "/fs/root/node_modules/pkg/index.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" not matching path "%s"`, pattern, filePath)
+		}
+	})
+
+	t.Run("Root-anchored /node_modules should not match nested directory", func(t *testing.T) {
+		root := "/fs/root/"
+		pattern := "/node_modules"
+		filePath := "/fs/root/sub/node_modules/pkg/index.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if matches {
+			t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, pattern, filePath)
+		}
+	})
+}

@@ -12,6 +12,7 @@ type GlobMatcher struct {
 	inputString                        string
 	shouldMatchAnyFileOrDirWithPattern bool
 	patternRoot                        string
+	isAnchoredToPatternRoot            bool
 	isAdditional                       bool
 }
 
@@ -24,12 +25,21 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 	}
 
 	for _, excludePattern := range patterns {
+		isAnchoredToPatternRoot := strings.HasPrefix(excludePattern, "/")
+		if isAnchoredToPatternRoot {
+			excludePattern = strings.TrimPrefix(excludePattern, "/")
+		}
+
 		// .gitignore for entries without `/` or `*` - so effectively plain text names, matches directories of files with that exact name. We want to align with .gitignore behavior
 		shouldMatchAnyFileOrDirWithPattern := !strings.Contains(excludePattern, "/") && !strings.Contains(excludePattern, "*")
 
 		if strings.HasSuffix(excludePattern, "/") && !strings.Contains(excludePattern, "*") {
 			// in gitignore entry with `/` suffix matches whole directory recursively
-			excludePattern = "**" + excludePattern + "**"
+			if isAnchoredToPatternRoot {
+				excludePattern = excludePattern + "**"
+			} else {
+				excludePattern = "**" + excludePattern + "**"
+			}
 
 		}
 
@@ -40,6 +50,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 			globPattern:                        glob.MustCompile(patternNorm),
 			inputString:                        patternNorm,
 			patternRoot:                        patternRootNorm,
+			isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
 			shouldMatchAnyFileOrDirWithPattern: shouldMatchAnyFileOrDirWithPattern,
 			isAdditional:                       false,
 		}
@@ -53,6 +64,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 				globPattern:                        glob.MustCompile(additionalPattern),
 				inputString:                        additionalPattern,
 				patternRoot:                        patternRootNorm,
+				isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
 				shouldMatchAnyFileOrDirWithPattern: false,
 				isAdditional:                       true,
 			}
@@ -84,7 +96,15 @@ func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) 
 			}
 			return true
 		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && (strings.Contains(fileWithoutPrefix, "/"+matcher.inputString+"/") || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/")) {
+		if matcher.shouldMatchAnyFileOrDirWithPattern && matcher.isAnchoredToPatternRoot && strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/") {
+			// anchored patterns (e.g. /node_modules) should only match at this matcher root
+			if debug {
+				fmt.Println(fileWithoutPrefix, "return matches anchored directory", matcher.inputString)
+			}
+
+			return true
+		}
+		if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && (strings.Contains(fileWithoutPrefix, "/"+matcher.inputString+"/") || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/")) {
 			// matches directory with name exactly as the pattern
 			if debug {
 				fmt.Println(fileWithoutPrefix, "return matches directory", matcher.inputString)

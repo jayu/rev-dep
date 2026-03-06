@@ -866,6 +866,7 @@ func initConfigFile(cwd string) error {
 // ---------------- JSON output types ----------------
 
 type jsonOutput struct {
+	Version     string           `json:"version"`
 	HasFailures bool             `json:"hasFailures"`
 	Rules       []jsonRuleResult `json:"rules"`
 	FixSummary  jsonFixSummary   `json:"fixSummary"`
@@ -963,7 +964,8 @@ type jsonRestrictedImportIssue struct {
 
 func runConfigWithJSONOutput(configs []RevDepConfig, cwd string) error {
 	output := jsonOutput{
-		Rules: []jsonRuleResult{},
+		Version: "1.0",
+		Rules:   []jsonRuleResult{},
 	}
 
 	for _, config := range configs {

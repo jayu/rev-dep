@@ -21,7 +21,8 @@ func captureJSONOutput(t *testing.T, result *ConfigProcessingResult, cwd string)
 	}
 
 	output := jsonOutput{
-		Rules: []jsonRuleResult{},
+		Version: "1.0",
+		Rules:   []jsonRuleResult{},
 	}
 	if result.HasFailures {
 		output.HasFailures = true
@@ -65,6 +66,9 @@ func TestJSONOutput_AllChecksPassing(t *testing.T) {
 
 	output := captureJSONOutput(t, result, cwd)
 
+	if output.Version != "1.0" {
+		t.Errorf("expected version '1.0', got '%s'", output.Version)
+	}
 	if output.HasFailures {
 		t.Error("expected hasFailures to be false")
 	}

@@ -17,6 +17,7 @@ const settings = {
     { name: "imported-by" },
     { name: "lines-of-code" },
     { name: "list-cwd-files" },
+    { name: "unresolved" },
     {
       name: "node-modules",
       subcommands: [

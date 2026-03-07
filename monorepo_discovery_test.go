@@ -924,3 +924,107 @@ func TestPnpmTakesPrecedenceOverPackageJson(t *testing.T) {
 		t.Errorf("Did not expect to find @pkgjson/only from package.json workspaces when pnpm-workspace.yaml is present")
 	}
 }
+
+// TestPnpmWorkspaceDeepGlobStarStar verifies that /**/* glob patterns in
+// pnpm-workspace.yaml are recognised as deep patterns. This was a real-world
+// root cause: repos using /**/* instead of /** had zero subpackage resolvers
+// discovered, making the per-file resolver lookup a no-op and causing all
+// workspace dependencies to be falsely flagged as missing.
+func TestPnpmWorkspaceDeepGlobStarStar(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-deep-glob")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		// pnpm-workspace.yaml using /**/* (not /**)
+		"pnpm-workspace.yaml": `packages:
+  - 'packages/**/*'
+`,
+		"package.json":                           `{}`,
+		"packages/apps/app1/package.json":        `{ "name": "@scope/app1", "version": "1.0.0" }`,
+		"packages/libs/shared/package.json":      `{ "name": "@scope/shared", "version": "1.0.0" }`,
+		"packages/libs/nested/deep/package.json": `{ "name": "@scope/deep", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
+	}
+
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+
+	expected := []string{"@scope/app1", "@scope/shared", "@scope/deep"}
+	for _, pkg := range expected {
+		if _, ok := monorepoCtx.PackageToPath[pkg]; !ok {
+			t.Errorf("Expected to find package %s with /**/* glob pattern, but didn't", pkg)
+		}
+	}
+
+	if len(monorepoCtx.PackageToPath) != len(expected) {
+		t.Errorf("Expected %d packages, got %d: %v", len(expected), len(monorepoCtx.PackageToPath), monorepoCtx.PackageToPath)
+	}
+}
+
+// TestPnpmWorkspaceMiddleDeepThenSingleStar verifies support for patterns like
+// "path/**/otherPath/*", where recursive matching is followed by immediate children.
+func TestPnpmWorkspaceMiddleDeepThenSingleStar(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-middle-deep-single-star")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"pnpm-workspace.yaml": `packages:
+  - 'packages/**/plugin-workspace/*'
+`,
+		"package.json": `{}`,
+
+		"packages/desktop/package.json": `{ "name": "@repo/desktop", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-a/package.json": `{ "name": "@repo/plugin-a", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-b/package.json": `{ "name": "@repo/plugin-b", "version": "1.0.0" }`,
+
+		"packages/other/nested/plugin-workspace/plugin-c/package.json": `{ "name": "@repo/plugin-c", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create dir %s: %v", filepath.Dir(fullPath), err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", fullPath, err)
+		}
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
+	}
+
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+
+	expected := []string{
+		"@repo/plugin-a",
+		"@repo/plugin-b",
+		"@repo/plugin-c",
+	}
+
+	for _, pkgName := range expected {
+		if _, ok := monorepoCtx.PackageToPath[pkgName]; !ok {
+			t.Errorf("Expected to discover package %s with packages/**/plugin-workspace/* pattern", pkgName)
+		}
+	}
+
+	if _, ok := monorepoCtx.PackageToPath["@repo/desktop"]; ok {
+		t.Errorf("Did not expect to discover @repo/desktop for packages/**/plugin-workspace/* pattern")
+	}
+}

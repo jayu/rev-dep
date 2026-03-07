@@ -33,6 +33,28 @@ type MonorepoContext struct {
 	PackageExportsCache map[string]*PackageJsonExports
 }
 
+func containsGlobMeta(s string) bool {
+	return strings.ContainsAny(s, "*?[]{}")
+}
+
+func getStaticPrefixBeforeGlob(pattern string) string {
+	if pattern == "" {
+		return ""
+	}
+	parts := strings.Split(pattern, "/")
+	staticParts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" || containsGlobMeta(part) {
+			break
+		}
+		staticParts = append(staticParts, part)
+	}
+	if len(staticParts) == 0 {
+		return ""
+	}
+	return strings.Join(staticParts, "/")
+}
+
 func NewMonorepoContext(root string) *MonorepoContext {
 	return &MonorepoContext{
 		WorkspaceRoot:       root,
@@ -163,9 +185,12 @@ func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatc
 	}
 
 	type positivePattern struct {
-		basePath string
-		isDeep   bool
-		isDir    bool
+		basePath    string
+		isDeep      bool
+		isDir       bool
+		isComplex   bool
+		complexRoot string
+		complexGlob glob.Glob
 	}
 
 	var positive []positivePattern
@@ -193,15 +218,44 @@ func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatc
 			continue
 		}
 
-		if strings.HasSuffix(pattern, "/**") {
+		if pattern == "**" || pattern == "**/*" {
+			positive = append(positive, positivePattern{
+				basePath: "",
+				isDeep:   true,
+			})
+			continue
+		}
+
+		// Pattern handling strategy:
+		// 1) Fast-path common workspace shapes (*, path/*, path/**, path/**/*)
+		//    to avoid per-candidate glob matching overhead.
+		// 2) Fallback to compiled glob for complex patterns (for example path/**/other/*),
+		//    scanning from the static prefix before the first glob segment.
+		if strings.HasSuffix(pattern, "/**/*") && !containsGlobMeta(strings.TrimSuffix(pattern, "/**/*")) {
+			positive = append(positive, positivePattern{
+				basePath: strings.TrimSuffix(pattern, "/**/*"),
+				isDeep:   true,
+			})
+		} else if strings.HasSuffix(pattern, "/**") && !containsGlobMeta(strings.TrimSuffix(pattern, "/**")) {
 			positive = append(positive, positivePattern{
 				basePath: strings.TrimSuffix(pattern, "/**"),
 				isDeep:   true,
 			})
-		} else if strings.HasSuffix(pattern, "/*") {
+		} else if strings.HasSuffix(pattern, "/*") && !containsGlobMeta(strings.TrimSuffix(pattern, "/*")) {
 			positive = append(positive, positivePattern{
 				basePath: strings.TrimSuffix(pattern, "/*"),
 				isDir:    true,
+			})
+		} else if containsGlobMeta(pattern) {
+			normalizedPattern := NormalizeGlobPattern(pattern)
+			compiledPattern, err := glob.Compile(normalizedPattern, '/')
+			if err != nil {
+				continue
+			}
+			positive = append(positive, positivePattern{
+				isComplex:   true,
+				complexRoot: getStaticPrefixBeforeGlob(normalizedPattern),
+				complexGlob: compiledPattern,
 			})
 		} else {
 			positive = append(positive, positivePattern{
@@ -215,7 +269,21 @@ func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatc
 	for _, pos := range positive {
 		fullBasePath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), DenormalizePathForOS(pos.basePath))
 
-		if pos.isDeep {
+		if pos.isComplex {
+			complexRootPath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), DenormalizePathForOS(pos.complexRoot))
+			complexCandidates := make(map[string]bool)
+			ctx.walkForPackagesWithWorkerPool(complexRootPath, allExcludePatterns, complexCandidates)
+			for candidatePath := range complexCandidates {
+				relToWorkspace, err := filepath.Rel(ctx.WorkspaceRoot, candidatePath)
+				if err != nil {
+					continue
+				}
+				relToWorkspace = NormalizePathForInternal(relToWorkspace)
+				if pos.complexGlob.Match(relToWorkspace) {
+					candidateDirs[candidatePath] = true
+				}
+			}
+		} else if pos.isDeep {
 			// Recursive walk for ** patterns (can include nested workspace packages)
 			ctx.walkForPackagesWithWorkerPool(fullBasePath, allExcludePatterns, candidateDirs)
 		} else if pos.isDir {

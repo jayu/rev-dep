@@ -177,7 +177,7 @@ func detectMonorepoContext(cwd string, followMonorepoPackages FollowMonorepoPack
 	if monorepoCtx == nil {
 		return nil
 	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, excludeFilePatterns)
+	monorepoCtx.FindWorkspacePackages(excludeFilePatterns)
 	return monorepoCtx
 }
 

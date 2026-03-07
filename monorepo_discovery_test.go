@@ -36,7 +36,7 @@ func TestPnpmWorkspaceParsing(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
 	}
 
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
 
 	expectedPackages := []string{
 		"@pnpm/pkg-a",
@@ -76,7 +76,7 @@ func TestNpmWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via npm workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
 
 	expected := []string{"@npm/a", "@npm/b"}
 	for _, pkg := range expected {
@@ -113,7 +113,7 @@ func TestYarnWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via yarn workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
 
 	expected := []string{"@yarn/x", "@yarn/y"}
 	for _, pkg := range expected {
@@ -148,7 +148,7 @@ func TestBunWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via bun workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
 
 	if _, ok := monorepoCtx.PackageToPath["bun-lib-1"]; !ok {
 		t.Errorf("Expected to find bun-lib-1")
@@ -225,6 +225,289 @@ func TestPnpmResolution(t *testing.T) {
 	}
 }
 
+func TestPnpmWorkspaceRecursiveGlobDiscoversNestedPackages(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-recursive-workspace")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"pnpm-workspace.yaml": `packages:
+  - 'packages/**'
+`,
+		"package.json":                  `{}`,
+		"packages/desktop/package.json": `{ "name": "@repo/desktop", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-a/package.json": `{ "name": "@repo/plugin-a", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-b/package.json": `{ "name": "@repo/plugin-b", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create dir %s: %v", filepath.Dir(fullPath), err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", fullPath, err)
+		}
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
+	}
+
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+
+	expected := []string{
+		"@repo/desktop",
+		"@repo/plugin-a",
+		"@repo/plugin-b",
+	}
+
+	for _, pkgName := range expected {
+		if _, ok := monorepoCtx.PackageToPath[pkgName]; !ok {
+			t.Errorf("Expected to discover package %s with packages/** workspace glob", pkgName)
+		}
+	}
+}
+
+func TestPnpmWorkspaceSingleStarDoesNotDiscoverNestedPackages(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-single-star-workspace")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"pnpm-workspace.yaml": `packages:
+  - 'packages/*'
+`,
+		"package.json":                  `{}`,
+		"packages/desktop/package.json": `{ "name": "@repo/desktop", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-a/package.json": `{ "name": "@repo/plugin-a", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-b/package.json": `{ "name": "@repo/plugin-b", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create dir %s: %v", filepath.Dir(fullPath), err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", fullPath, err)
+		}
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
+	}
+
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+
+	if _, ok := monorepoCtx.PackageToPath["@repo/desktop"]; !ok {
+		t.Fatalf("Expected to discover direct package with packages/* workspace glob")
+	}
+	if _, ok := monorepoCtx.PackageToPath["@repo/plugin-a"]; ok {
+		t.Errorf("Did not expect to discover nested package @repo/plugin-a with packages/* workspace glob")
+	}
+	if _, ok := monorepoCtx.PackageToPath["@repo/plugin-b"]; ok {
+		t.Errorf("Did not expect to discover nested package @repo/plugin-b with packages/* workspace glob")
+	}
+}
+
+func TestNpmWorkspaceRecursiveGlobDiscoversNestedPackages(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-npm-recursive-workspace")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"package.json": `{
+			"workspaces": ["packages/**"]
+		}`,
+		"packages/desktop/package.json":                           `{ "name": "@repo/desktop", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-a/package.json": `{ "name": "@repo/plugin-a", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-b/package.json": `{ "name": "@repo/plugin-b", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create dir %s: %v", filepath.Dir(fullPath), err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", fullPath, err)
+		}
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via npm workspaces")
+	}
+
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+
+	expected := []string{
+		"@repo/desktop",
+		"@repo/plugin-a",
+		"@repo/plugin-b",
+	}
+
+	for _, pkgName := range expected {
+		if _, ok := monorepoCtx.PackageToPath[pkgName]; !ok {
+			t.Errorf("Expected to discover package %s with packages/** workspace glob", pkgName)
+		}
+	}
+}
+
+func TestYarnWorkspaceRecursiveGlobDiscoversNestedPackages(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-yarn-recursive-workspace")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"package.json": `{
+			"workspaces": ["packages/**"]
+		}`,
+		"packages/desktop/package.json":                           `{ "name": "@repo/desktop", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-a/package.json": `{ "name": "@repo/plugin-a", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-b/package.json": `{ "name": "@repo/plugin-b", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create dir %s: %v", filepath.Dir(fullPath), err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", fullPath, err)
+		}
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via yarn workspaces")
+	}
+
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+
+	expected := []string{
+		"@repo/desktop",
+		"@repo/plugin-a",
+		"@repo/plugin-b",
+	}
+
+	for _, pkgName := range expected {
+		if _, ok := monorepoCtx.PackageToPath[pkgName]; !ok {
+			t.Errorf("Expected to discover package %s with packages/** workspace glob", pkgName)
+		}
+	}
+}
+
+func TestFindWorkspacePackagesSkipsGitIgnoredDirectories(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-gitignore-skip")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"pnpm-workspace.yaml": `packages:
+  - 'packages/**'
+`,
+		"package.json":                  `{}`,
+		".gitignore":                    "plugin-workspace\n",
+		"packages/desktop/package.json": `{ "name": "@repo/desktop", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-a/package.json": `{ "name": "@repo/plugin-a", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create dir %s: %v", filepath.Dir(fullPath), err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", fullPath, err)
+		}
+	}
+
+	// Ensure gitignore scan stops at a repository boundary.
+	if err := os.Mkdir(filepath.Join(tmpDir, ".git"), 0755); err != nil {
+		t.Fatalf("Failed to create .git dir: %v", err)
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
+	}
+
+	// Pass no custom excludes - FindWorkspacePackages should still honor .gitignore.
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+
+	if _, ok := monorepoCtx.PackageToPath["@repo/desktop"]; !ok {
+		t.Fatalf("Expected non-ignored package @repo/desktop to be discovered")
+	}
+	if _, ok := monorepoCtx.PackageToPath["@repo/plugin-a"]; ok {
+		t.Errorf("Did not expect gitignored package @repo/plugin-a to be discovered")
+	}
+}
+
+func TestFindWorkspacePackagesSkipsNestedGitIgnoredDirectories(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-nested-gitignore-skip")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	files := map[string]string{
+		"pnpm-workspace.yaml": `packages:
+  - 'packages/**'
+`,
+		"package.json":                                            `{}`,
+		"packages/desktop/package.json":                           `{ "name": "@repo/desktop", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/.gitignore":            "plugin-b\n",
+		"packages/desktop/plugin-workspace/plugin-a/package.json": `{ "name": "@repo/plugin-a", "version": "1.0.0" }`,
+		"packages/desktop/plugin-workspace/plugin-b/package.json": `{ "name": "@repo/plugin-b", "version": "1.0.0" }`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create dir %s: %v", filepath.Dir(fullPath), err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write file %s: %v", fullPath, err)
+		}
+	}
+
+	// Ensure gitignore scan stops at a repository boundary.
+	if err := os.Mkdir(filepath.Join(tmpDir, ".git"), 0755); err != nil {
+		t.Fatalf("Failed to create .git dir: %v", err)
+	}
+
+	monorepoCtx := DetectMonorepo(tmpDir)
+	if monorepoCtx == nil {
+		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
+	}
+
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+
+	if _, ok := monorepoCtx.PackageToPath["@repo/desktop"]; !ok {
+		t.Fatalf("Expected package @repo/desktop to be discovered")
+	}
+	if _, ok := monorepoCtx.PackageToPath["@repo/plugin-a"]; !ok {
+		t.Fatalf("Expected non-ignored nested package @repo/plugin-a to be discovered")
+	}
+	if _, ok := monorepoCtx.PackageToPath["@repo/plugin-b"]; ok {
+		t.Errorf("Did not expect nested gitignored package @repo/plugin-b to be discovered")
+	}
+}
+
 func TestPnpmWorkspaceEmptyShouldNotDetectMonorepo(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "rev-dep-pnpm-empty")
 	if err != nil {
@@ -266,7 +549,7 @@ func TestFindWorkspacePackages(t *testing.T) {
 	//     lib1/package.json
 	//     lib1/node_modules/pkg/package.json (should be ignored)
 	//     lib2/package.json
-	//     lib2/internal/lib2-internal/package.json (recursion should stop at lib2)
+	//     lib2/internal/lib2-internal/package.json (should be discovered via libs/**)
 	//   tools/
 	//     tool1/package.json
 	//   ignored/
@@ -288,6 +571,8 @@ func TestFindWorkspacePackages(t *testing.T) {
 	}
 
 	writeFile(`{"name": "root", "workspaces": ["apps/*", "libs/**", "tools/tool1", "!**/ignored/**"]}`, "package.json")
+	writeFile("node_modules\n", ".gitignore")
+	mkdir(".git")
 
 	mkdir("apps", "app1")
 	writeFile(`{"name": "@app/app1"}`, "apps", "app1", "package.json")
@@ -315,14 +600,15 @@ func TestFindWorkspacePackages(t *testing.T) {
 
 	excludeMatchers := CreateGlobMatchers([]string{"**/ignored/**"}, root)
 
-	ctx.FindWorkspacePackages(root, excludeMatchers)
+	ctx.FindWorkspacePackages(excludeMatchers)
 
 	expectedPackages := map[string]string{
-		"@app/app1":   NormalizePathForInternal(filepath.Join(root, "apps", "app1")),
-		"@app/app2":   NormalizePathForInternal(filepath.Join(root, "apps", "app2")),
-		"@lib/lib1":   NormalizePathForInternal(filepath.Join(root, "libs", "lib1")),
-		"@lib/lib2":   NormalizePathForInternal(filepath.Join(root, "libs", "lib2")),
-		"@tool/tool1": NormalizePathForInternal(filepath.Join(root, "tools", "tool1")),
+		"@app/app1":          NormalizePathForInternal(filepath.Join(root, "apps", "app1")),
+		"@app/app2":          NormalizePathForInternal(filepath.Join(root, "apps", "app2")),
+		"@lib/lib1":          NormalizePathForInternal(filepath.Join(root, "libs", "lib1")),
+		"@lib/lib2":          NormalizePathForInternal(filepath.Join(root, "libs", "lib2")),
+		"@lib/lib2-internal": NormalizePathForInternal(filepath.Join(root, "libs", "lib2", "internal", "lib2-internal")),
+		"@tool/tool1":        NormalizePathForInternal(filepath.Join(root, "tools", "tool1")),
 	}
 
 	if len(ctx.PackageToPath) != len(expectedPackages) {
@@ -335,9 +621,9 @@ func TestFindWorkspacePackages(t *testing.T) {
 		}
 	}
 
-	// Verify that lib2-internal was NOT found because recursion stopped at lib2
-	if _, ok := ctx.PackageToPath["@lib/lib2-internal"]; ok {
-		t.Errorf("Recursion did NOT stop at lib2; found lib2-internal")
+	// Verify that lib2-internal was found because libs/** is recursive
+	if _, ok := ctx.PackageToPath["@lib/lib2-internal"]; !ok {
+		t.Errorf("Expected nested package @lib/lib2-internal to be discovered for libs/**")
 	}
 
 	// Verify that ignored/pkg was NOT found because of exclude patterns
@@ -375,7 +661,7 @@ func TestFindWorkspacePackagesSingleStarAtRoot(t *testing.T) {
 
 	ctx := NewMonorepoContext(root)
 
-	ctx.FindWorkspacePackages(root, []GlobMatcher{})
+	ctx.FindWorkspacePackages([]GlobMatcher{})
 
 	expectedPackages := []string{"@pkg/a", "@pkg/b"}
 	var gotPackages []string
@@ -413,7 +699,7 @@ func TestWorkspaceRootExclusion(t *testing.T) {
 	writeFile(`{"name": "@pkg/a"}`, "packages", "a", "package.json")
 
 	ctx := NewMonorepoContext(root)
-	ctx.FindWorkspacePackages(root, []GlobMatcher{})
+	ctx.FindWorkspacePackages([]GlobMatcher{})
 
 	// Assert root package is NOT in the map
 	if _, ok := ctx.PackageToPath["@pkg/root"]; ok {
@@ -573,7 +859,7 @@ func TestWorkspacesArrayAndPackagesObject(t *testing.T) {
 	if monorepoArray.WorkspaceRoot != NormalizePathForInternal(arrayRoot) {
 		t.Errorf("Expected workspace root %s, got %s", NormalizePathForInternal(arrayRoot), monorepoArray.WorkspaceRoot)
 	}
-	monorepoArray.FindWorkspacePackages(monorepoArray.WorkspaceRoot, []GlobMatcher{})
+	monorepoArray.FindWorkspacePackages([]GlobMatcher{})
 	if _, ok := monorepoArray.PackageToPath["@arr/pkg"]; !ok {
 		t.Errorf("Expected to find @arr/pkg in array-style workspaces")
 	}
@@ -586,7 +872,7 @@ func TestWorkspacesArrayAndPackagesObject(t *testing.T) {
 	if monorepoObj.WorkspaceRoot != NormalizePathForInternal(objRoot) {
 		t.Errorf("Expected workspace root %s, got %s", NormalizePathForInternal(objRoot), monorepoObj.WorkspaceRoot)
 	}
-	monorepoObj.FindWorkspacePackages(monorepoObj.WorkspaceRoot, []GlobMatcher{})
+	monorepoObj.FindWorkspacePackages([]GlobMatcher{})
 	if _, ok := monorepoObj.PackageToPath["@obj/pkg"]; !ok {
 		t.Errorf("Expected to find @obj/pkg in object-with-packages-style workspaces")
 	}
@@ -628,7 +914,7 @@ func TestPnpmTakesPrecedenceOverPackageJson(t *testing.T) {
 		t.Fatalf("Expected monorepo root %s, got %s", NormalizePathForInternal(tmpDir), monorepoCtx.WorkspaceRoot)
 	}
 
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
 
 	// Since pnpm-workspace.yaml is present at repo root, it should take precedence and only packages/* should be used
 	if _, ok := monorepoCtx.PackageToPath["@pnpm/only"]; !ok {

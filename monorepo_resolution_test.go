@@ -810,7 +810,7 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo")
 	}
-	monorepoCtx.FindWorkspacePackages(monorepoCtx.WorkspaceRoot, []GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
 
 	// Verify target is found
 	if _, ok := monorepoCtx.PackageToPath["@pkg/target"]; !ok {

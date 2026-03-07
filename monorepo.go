@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gobwas/glob"
 	"github.com/tidwall/jsonc"
@@ -109,7 +111,11 @@ func hasValidWorkspaces(pkgJson map[string]interface{}) bool {
 	return false
 }
 
-func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatterns []GlobMatcher) {
+func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatcher) {
+	// Always honor .gitignore when discovering workspace packages.
+	gitIgnoreExcludePatterns := FindAndProcessGitIgnoreFilesUpToRepoRoot(ctx.WorkspaceRoot)
+	allExcludePatterns := append(append([]GlobMatcher{}, excludeFilePatterns...), gitIgnoreExcludePatterns...)
+
 	// Prefer pnpm workspace file (supports plural/singular and .yml/.yaml), fall back to package.json workspaces
 	var patterns []string
 	// support both .yaml and .yml; only singular filename is documented, prefer it
@@ -210,8 +216,8 @@ func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatter
 		fullBasePath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), DenormalizePathForOS(pos.basePath))
 
 		if pos.isDeep {
-			// Recursive walk, stop at package.json
-			ctx.walkForPackages(fullBasePath, excludeFilePatterns, candidateDirs)
+			// Recursive walk for ** patterns (can include nested workspace packages)
+			ctx.walkForPackagesWithWorkerPool(fullBasePath, allExcludePatterns, candidateDirs)
 		} else if pos.isDir {
 			// One star: check immediate subdirectories
 			entries, err := os.ReadDir(fullBasePath)
@@ -221,6 +227,9 @@ func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatter
 			for _, entry := range entries {
 				if entry.IsDir() {
 					dirPath := filepath.Join(fullBasePath, entry.Name())
+					if len(allExcludePatterns) > 0 && MatchesAnyGlobMatcher(dirPath, allExcludePatterns, false) {
+						continue
+					}
 					if _, err := os.Stat(filepath.Join(dirPath, "package.json")); err == nil {
 						candidateDirs[NormalizePathForInternal(dirPath)] = true
 					}
@@ -228,6 +237,9 @@ func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatter
 			}
 		} else {
 			// Direct path
+			if len(allExcludePatterns) > 0 && MatchesAnyGlobMatcher(fullBasePath, allExcludePatterns, false) {
+				continue
+			}
 			if _, err := os.Stat(filepath.Join(fullBasePath, "package.json")); err == nil {
 				candidateDirs[NormalizePathForInternal(fullBasePath)] = true
 			}
@@ -259,41 +271,99 @@ func (ctx *MonorepoContext) FindWorkspacePackages(root string, excludeFilePatter
 	}
 }
 
-func (ctx *MonorepoContext) walkForPackages(basePath string, excludeFilePatterns []GlobMatcher, candidateDirs map[string]bool) {
-	entries, err := os.ReadDir(basePath)
-	if err != nil {
-		return
+func (ctx *MonorepoContext) walkForPackagesWithWorkerPool(basePath string, excludeFilePatterns []GlobMatcher, candidateDirs map[string]bool) {
+	type workspaceScanItem struct {
+		dirPath      string
+		excludeGlobs []GlobMatcher
 	}
 
-	hasPkgJson := false
-	for _, entry := range entries {
-		if !entry.IsDir() && entry.Name() == "package.json" {
-			hasPkgJson = true
-			break
+	workerCount := min(max(runtime.GOMAXPROCS(0), 2), 16)
+
+	var candidateDirsMu sync.Mutex
+	addCandidateDir := func(path string) {
+		candidateDirsMu.Lock()
+		candidateDirs[NormalizePathForInternal(path)] = true
+		candidateDirsMu.Unlock()
+	}
+
+	var queueMu sync.Mutex
+	queueCond := sync.NewCond(&queueMu)
+	queue := []workspaceScanItem{{
+		dirPath:      basePath,
+		excludeGlobs: excludeFilePatterns,
+	}}
+	pending := 1
+
+	worker := func() {
+		for {
+			queueMu.Lock()
+			for len(queue) == 0 && pending > 0 {
+				queueCond.Wait()
+			}
+			if pending == 0 {
+				queueMu.Unlock()
+				return
+			}
+			currentItem := queue[0]
+			queue = queue[1:]
+			queueMu.Unlock()
+
+			entries, err := os.ReadDir(currentItem.dirPath)
+			subDirs := make([]workspaceScanItem, 0, len(entries))
+			if err == nil {
+				for _, entry := range entries {
+					if entry.IsDir() {
+						if entry.Name() == ".git" {
+							continue
+						}
+						dirPath := filepath.Join(currentItem.dirPath, entry.Name())
+						if len(currentItem.excludeGlobs) > 0 && MatchesAnyGlobMatcher(dirPath, currentItem.excludeGlobs, false) {
+							continue
+						}
+
+						childExcludeGlobs := currentItem.excludeGlobs
+						gitignoreFile, gitignoreError := os.ReadFile(filepath.Join(dirPath, ".gitignore"))
+						if gitignoreError == nil {
+							nestedGitignorePatterns := parseGitIgnore(string(gitignoreFile), dirPath)
+							if len(nestedGitignorePatterns) > 0 {
+								childExcludeGlobs = append(append([]GlobMatcher{}, currentItem.excludeGlobs...), nestedGitignorePatterns...)
+							}
+						}
+
+						subDirs = append(subDirs, workspaceScanItem{
+							dirPath:      dirPath,
+							excludeGlobs: childExcludeGlobs,
+						})
+						continue
+					}
+					if entry.Name() == "package.json" {
+						// For recursive workspace globs (/**), include this directory as a package
+						// and continue traversing to discover nested workspace packages too.
+						addCandidateDir(currentItem.dirPath)
+					}
+				}
+			}
+
+			queueMu.Lock()
+			pending--
+			if len(subDirs) > 0 {
+				queue = append(queue, subDirs...)
+				pending += len(subDirs)
+			}
+			queueCond.Broadcast()
+			queueMu.Unlock()
 		}
 	}
 
-	if hasPkgJson {
-		// Stop recursing in this branch
-		candidateDirs[NormalizePathForInternal(basePath)] = true
-		return
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			worker()
+		}()
 	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			name := entry.Name()
-			if name == ".git" || name == ".idea" || name == ".vscode" || name == "node_modules" {
-				continue
-			}
-
-			dirPath := filepath.Join(basePath, name)
-			if MatchesAnyGlobMatcher(dirPath, excludeFilePatterns, false) {
-				continue
-			}
-
-			ctx.walkForPackages(dirPath, excludeFilePatterns, candidateDirs)
-		}
-	}
+	wg.Wait()
 }
 
 func (ctx *MonorepoContext) processPossiblePackage(path string) {

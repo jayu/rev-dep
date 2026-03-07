@@ -770,7 +770,7 @@ func initConfigFileCore(cwd string) (string, []Rule, bool, error) {
 
 			// Find workspace packages
 			excludePatterns := CreateGlobMatchers([]string{}, cwd)
-			monorepoCtx.FindWorkspacePackages(cwd, excludePatterns)
+			monorepoCtx.FindWorkspacePackages(excludePatterns)
 
 			// Collect and sort package paths
 			var packagePaths []string

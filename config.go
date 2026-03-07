@@ -336,11 +336,12 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 }
 
 type RevDepConfig struct {
-	ConfigVersion  string   `json:"configVersion"` // Required
-	Schema         string   `json:"$schema,omitempty"`
-	ConditionNames []string `json:"conditionNames,omitempty"`
-	IgnoreFiles    []string `json:"ignoreFiles,omitempty"`
-	Rules          []Rule   `json:"rules"`
+	ConfigVersion         string   `json:"configVersion"` // Required
+	Schema                string   `json:"$schema,omitempty"`
+	ConditionNames        []string `json:"conditionNames,omitempty"`
+	CustomAssetExtensions []string `json:"customAssetExtensions,omitempty"`
+	IgnoreFiles           []string `json:"ignoreFiles,omitempty"`
+	Rules                 []Rule   `json:"rules"`
 }
 
 var configFileName = "rev-dep.config.json"
@@ -604,11 +605,12 @@ func normalizeRulePath(path string) string {
 // validateRawConfig validates field names and basic structure before typed parsing
 func validateRawConfig(raw map[string]interface{}) error {
 	allowedRootFields := map[string]bool{
-		"$schema":        true,
-		"configVersion":  true,
-		"conditionNames": true,
-		"ignoreFiles":    true,
-		"rules":          true,
+		"$schema":               true,
+		"configVersion":         true,
+		"conditionNames":        true,
+		"customAssetExtensions": true,
+		"ignoreFiles":           true,
+		"rules":                 true,
 	}
 
 	for field := range raw {
@@ -620,6 +622,18 @@ func validateRawConfig(raw map[string]interface{}) error {
 	rules, ok := raw["rules"]
 	if !ok {
 		return fmt.Errorf("rules field is required")
+	}
+
+	if customAssetExtensions, exists := raw["customAssetExtensions"]; exists && customAssetExtensions != nil {
+		extensionsArray, ok := customAssetExtensions.([]interface{})
+		if !ok {
+			return fmt.Errorf("customAssetExtensions must be an array, got %T", customAssetExtensions)
+		}
+		for i, extension := range extensionsArray {
+			if _, ok := extension.(string); !ok {
+				return fmt.Errorf("customAssetExtensions[%d] must be a string, got %T", i, extension)
+			}
+		}
 	}
 
 	rulesArray, ok := rules.([]interface{})
@@ -1158,6 +1172,10 @@ func validateRawUnusedExportsDetectionInstance(unusedExportsMap map[string]inter
 func ValidateConfig(config *RevDepConfig) error {
 	if config.ConfigVersion == "" {
 		return fmt.Errorf("configVersion is required")
+	}
+
+	if err := validateCustomAssetExtensions(config.CustomAssetExtensions, "customAssetExtensions"); err != nil {
+		return err
 	}
 
 	for j, rule := range config.Rules {

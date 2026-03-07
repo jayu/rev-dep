@@ -11,7 +11,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExists(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDir.ts"]
 	_, fileWithIndexExists := minimalTree["__fixtures__/mockProject/src/fileDirTheSameName/index.ts"]
@@ -30,7 +30,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExistsOutOfCwd(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDirOutsideCwd.ts"]
 
@@ -45,7 +45,7 @@ func TestShouldResolveImportToFileWhenNodeModuleWithTheSamePrefixExists(t *testi
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithSamePathAsNodeModule.ts"]
 
@@ -60,7 +60,7 @@ func TestShouldResolveFilesWithAmbiguousImportsByOrderingExtensions(t *testing.T
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/ambiguousImports/test.ts"]
 
@@ -556,7 +556,7 @@ func TestGetMinimalDepsTreeForCwd_SupportsMtsFiles(t *testing.T) {
 		t.Fatalf("failed to write dep.mts: %v", err)
 	}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	indexPath := NormalizePathForInternal(filepath.Join(tmpDir, "index.mts"))
 	depPath := NormalizePathForInternal(filepath.Join(tmpDir, "dep.mts"))
@@ -731,7 +731,7 @@ func TestResolveNodeModules(t *testing.T) {
 	ignoreTypeImports := false
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	nodeModulesImports := minimalTree[cwd+"src/nodeModules.ts"]
 
@@ -1112,7 +1112,7 @@ func TestSpecialCharactersInAliases(t *testing.T) {
 	}`
 
 	// This should not panic or cause regexp compilation errors
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, tempTsConfig, "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, tempTsConfig, "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	// If we get here without panicking, the test passes
 	// The actual resolution might not find files since these are test aliases,

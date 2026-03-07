@@ -7,14 +7,16 @@ import (
 )
 
 var allowedExts = map[string]struct{}{
-	".ts":   {},
-	".tsx":  {},
-	".mts":  {},
-	".js":   {},
-	".jsx":  {},
-	".cjs":  {},
-	".mjs":  {},
-	".mjsx": {},
+	".ts":     {},
+	".tsx":    {},
+	".mts":    {},
+	".js":     {},
+	".jsx":    {},
+	".cjs":    {},
+	".mjs":    {},
+	".mjsx":   {},
+	".vue":    {},
+	".svelte": {},
 }
 
 func hasCorrectExtension(name string) bool {

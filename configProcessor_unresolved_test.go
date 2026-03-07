@@ -326,4 +326,38 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 			t.Fatalf("Expected unresolved import to be suppressed with rule-relative ignoreFiles glob, got %d", len(unresolved))
 		}
 	})
+
+	t.Run("customAssetExtensions suppresses unresolved imports for custom assets", func(t *testing.T) {
+		customImporterPath := filepath.Join(testCwd, "src", "custom-asset-import.ts")
+		customAssetPath := filepath.Join(testCwd, "src", "logo.custom")
+
+		if err := os.WriteFile(customImporterPath, []byte("import logo from './logo.custom';\nconsole.log(logo);\n"), 0644); err != nil {
+			t.Fatalf("Failed to write custom importer fixture: %v", err)
+		}
+		if err := os.WriteFile(customAssetPath, []byte("asset"), 0644); err != nil {
+			t.Fatalf("Failed to write custom asset fixture: %v", err)
+		}
+		t.Cleanup(func() {
+			_ = os.Remove(customImporterPath)
+			_ = os.Remove(customAssetPath)
+		})
+
+		cfg := `{
+			"configVersion": "1.6",
+			"customAssetExtensions": ["custom"],
+			"rules": [
+				{
+					"path": ".",
+					"unresolvedImportsDetection": { "enabled": true }
+				}
+			]
+		}`
+
+		result := loadAndProcessUnresolvedConfig(t, testCwd, cfg)
+		unresolved := result.RuleResults[0].UnresolvedImports
+		customImporterInternalPath := filepath.ToSlash(filepath.Join(testCwd, "src", "custom-asset-import.ts"))
+		if hasUnresolvedForFileAndRequest(unresolved, customImporterInternalPath, "./logo.custom") {
+			t.Fatalf("Expected unresolved custom asset import to be suppressed by customAssetExtensions")
+		}
+	})
 }

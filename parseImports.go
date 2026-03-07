@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -1530,7 +1531,14 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool, mode Pars
 				return
 			}
 
-			imports := ParseImportsByte(fileContent, ignoreTypeImports, mode)
+			parseContent := fileContent
+			if strings.HasSuffix(path, ".vue") {
+				parseContent = normalizeVueSFCForParsing(fileContent)
+			} else if strings.HasSuffix(path, ".svelte") {
+				parseContent = normalizeSvelteForParsing(fileContent)
+			}
+
+			imports := ParseImportsByte(parseContent, ignoreTypeImports, mode)
 
 			mu.Lock()
 			results = append(results, FileImports{
@@ -1543,4 +1551,266 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool, mode Pars
 
 	wg.Wait()
 	return results, errCount
+}
+
+// SFC normalization for import parsing:
+//   - Build a same-size masked buffer (spaces/newlines) to preserve byte offsets.
+//   - Copy only contents of <script...>...</script> blocks.
+//   - Use a case-insensitive ASCII scanner (single pass, no full lowercase copy)
+//     to keep allocations and CPU overhead low on large files.
+const scriptCloseTagLen = len("</script>")
+
+func toASCIILower(b byte) byte {
+	if b >= 'A' && b <= 'Z' {
+		return b + ('a' - 'A')
+	}
+	return b
+}
+
+func isIdentifierCharForTagAttr(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '-' || b == '_' || b == ':'
+}
+
+func isIdentifierCharForCode(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == '$'
+}
+
+func hasASCIIWordAt(code []byte, i int, word string) bool {
+	if i < 0 || i+len(word) > len(code) {
+		return false
+	}
+	for j := 0; j < len(word); j++ {
+		if toASCIILower(code[i+j]) != word[j] {
+			return false
+		}
+	}
+	return true
+}
+
+func isScriptOpenTagAt(code []byte, i int) bool {
+	// "<script"
+	if i+7 > len(code) || code[i] != '<' {
+		return false
+	}
+	if !hasASCIIWordAt(code, i+1, "script") {
+		return false
+	}
+	// Reject longer tag names like "<scripture".
+	if i+7 < len(code) {
+		next := code[i+7]
+		if isIdentifierCharForTagAttr(next) {
+			return false
+		}
+	}
+	return true
+}
+
+func isScriptCloseTagAt(code []byte, i int) bool {
+	// "</script>"
+	if i+scriptCloseTagLen > len(code) || code[i] != '<' || code[i+1] != '/' {
+		return false
+	}
+	return hasASCIIWordAt(code, i+2, "script") && code[i+8] == '>'
+}
+
+func findScriptCloseTag(code []byte, from int) int {
+	for i := from; i < len(code); i++ {
+		if code[i] == '<' && isScriptCloseTagAt(code, i) {
+			return i
+		}
+	}
+	return -1
+}
+
+func newMaskedCodeBuffer(code []byte) []byte {
+	masked := make([]byte, len(code))
+	for i, b := range code {
+		if b == '\n' || b == '\r' {
+			masked[i] = b
+			continue
+		}
+		masked[i] = ' '
+	}
+	return masked
+}
+
+func findTagEnd(code []byte, from int) int {
+	for i := from; i < len(code); i++ {
+		if code[i] == '>' {
+			return i
+		}
+	}
+	return -1
+}
+
+// normalizeVueSFCForParsing keeps only <script> section contents and masks
+// everything else with spaces/newlines, preserving byte offsets.
+func normalizeVueSFCForParsing(code []byte) []byte {
+	masked := newMaskedCodeBuffer(code)
+
+	for i := 0; i < len(code); i++ {
+		if code[i] != '<' || !isScriptOpenTagAt(code, i) {
+			continue
+		}
+
+		tagEnd := findTagEnd(code, i+7)
+		if tagEnd == -1 {
+			break
+		}
+
+		contentStart := tagEnd + 1
+		contentEnd := findScriptCloseTag(code, contentStart)
+		if contentEnd == -1 {
+			break
+		}
+
+		copy(masked[contentStart:contentEnd], code[contentStart:contentEnd])
+		i = contentEnd + scriptCloseTagLen - 1
+	}
+
+	return masked
+}
+
+func isSvelteModuleScriptTag(code []byte, openStart int, tagEnd int) bool {
+	i := openStart + 7
+	for i < tagEnd {
+		// skip whitespace
+		for i < tagEnd && isWhiteSpace(code[i]) {
+			i++
+		}
+		if i >= tagEnd {
+			break
+		}
+
+		nameStart := i
+		for i < tagEnd && isIdentifierCharForTagAttr(code[i]) {
+			i++
+		}
+		nameEnd := i
+		if nameStart == nameEnd {
+			i++
+			continue
+		}
+
+		for i < tagEnd && isWhiteSpace(code[i]) {
+			i++
+		}
+		if i >= tagEnd || code[i] != '=' {
+			continue
+		}
+		i++ // '='
+		for i < tagEnd && isWhiteSpace(code[i]) {
+			i++
+		}
+		if i >= tagEnd {
+			break
+		}
+
+		valueStart := i
+		valueEnd := i
+		if code[i] == '"' || code[i] == '\'' {
+			quote := code[i]
+			valueStart = i + 1
+			i++
+			for i < tagEnd && code[i] != quote {
+				i++
+			}
+			valueEnd = i
+			if i < tagEnd {
+				i++
+			}
+		} else {
+			for i < tagEnd && !isWhiteSpace(code[i]) && code[i] != '>' {
+				i++
+			}
+			valueEnd = i
+		}
+
+		if nameEnd-nameStart == len("context") && valueEnd-valueStart == len("module") &&
+			hasASCIIWordAt(code, nameStart, "context") && hasASCIIWordAt(code, valueStart, "module") {
+			return true
+		}
+	}
+	return false
+}
+
+func skipSpacesInRange(code []byte, from int, end int) int {
+	i := from
+	for i < end && isWhiteSpace(code[i]) {
+		i++
+	}
+	return i
+}
+
+func replaceSvelteExportLetInRange(code []byte, start int, end int) {
+	// Replace `export ... let` keyword pair with a non-keyword while preserving byte length.
+	// This prevents Svelte component props (`export let`) from being interpreted as JS exports.
+	for i := start; i+len("export") <= end; i++ {
+		if !hasASCIIWordAt(code, i, "export") {
+			continue
+		}
+		if i > start && isIdentifierCharForCode(code[i-1]) {
+			continue
+		}
+		exportEnd := i + len("export")
+		if exportEnd < end && isIdentifierCharForCode(code[exportEnd]) {
+			continue
+		}
+
+		j := skipSpacesInRange(code, exportEnd, end)
+		if j+len("let") > end || !hasASCIIWordAt(code, j, "let") {
+			continue
+		}
+		if j > start && isIdentifierCharForCode(code[j-1]) {
+			continue
+		}
+		letEnd := j + len("let")
+		if letEnd < end && isIdentifierCharForCode(code[letEnd]) {
+			continue
+		}
+
+		// Keep the same byte width as "export".
+		code[i] = 'e'
+		code[i+1] = 'x'
+		code[i+2] = 'p'
+		code[i+3] = 'o'
+		code[i+4] = 'r'
+		code[i+5] = 'x'
+	}
+}
+
+// normalizeSvelteForParsing keeps only <script> section contents and masks
+// everything else with spaces/newlines, preserving byte offsets.
+// Additionally it neutralizes `export let` inside instance scripts so Svelte props
+// are not interpreted as ESM exports by the generic JS/TS parser.
+func normalizeSvelteForParsing(code []byte) []byte {
+	masked := newMaskedCodeBuffer(code)
+
+	for i := 0; i < len(code); i++ {
+		if code[i] != '<' || !isScriptOpenTagAt(code, i) {
+			continue
+		}
+
+		tagEnd := findTagEnd(code, i+7)
+		if tagEnd == -1 {
+			break
+		}
+
+		isModuleScript := isSvelteModuleScriptTag(code, i, tagEnd)
+
+		contentStart := tagEnd + 1
+		contentEnd := findScriptCloseTag(code, contentStart)
+		if contentEnd == -1 {
+			break
+		}
+
+		copy(masked[contentStart:contentEnd], code[contentStart:contentEnd])
+		if !isModuleScript {
+			replaceSvelteExportLetInRange(masked, contentStart, contentEnd)
+		}
+
+		i = contentEnd + scriptCloseTagLen - 1
+	}
+
+	return masked
 }

@@ -1,0 +1,9 @@
+{
+  "name": "svelte-config-processor-project",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "svelte": "^4.2.0"
+  }
+}

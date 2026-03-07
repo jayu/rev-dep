@@ -311,6 +311,7 @@ func TestParseConfig_ValidCompleteConfig(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
 		"conditionNames": ["node", "imports"],
+		"customAssetExtensions": ["glb", "mp3"],
 		"ignoreFiles": ["dist/**/*", "build/**/*"],
 		"rules": [
 			{
@@ -366,6 +367,9 @@ func TestParseConfig_ValidCompleteConfig(t *testing.T) {
 
 	if len(config.IgnoreFiles) != 2 || config.IgnoreFiles[0] != "dist/**/*" || config.IgnoreFiles[1] != "build/**/*" {
 		t.Errorf("Unexpected ignoreFiles: %v", config.IgnoreFiles)
+	}
+	if len(config.CustomAssetExtensions) != 2 || config.CustomAssetExtensions[0] != "glb" || config.CustomAssetExtensions[1] != "mp3" {
+		t.Errorf("Unexpected customAssetExtensions: %v", config.CustomAssetExtensions)
 	}
 
 	rule := config.Rules[0]
@@ -533,6 +537,91 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseConfig_CustomAssetExtensionsValidation(t *testing.T) {
+	t.Run("wrong type for customAssetExtensions", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"customAssetExtensions": "not-an-array",
+			"rules": [{"path": "."}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "customAssetExtensions must be an array") {
+			t.Errorf("Expected customAssetExtensions array type error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("empty customAssetExtensions entry is rejected", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"customAssetExtensions": [""],
+			"rules": [{"path": "."}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "customAssetExtensions[0] cannot be empty") {
+			t.Errorf("Expected empty customAssetExtensions entry error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("dot-prefixed customAssetExtensions entry is rejected", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"customAssetExtensions": [".mp3"],
+			"rules": [{"path": "."}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "customAssetExtensions[0] must not start with '.'") {
+			t.Errorf("Expected dot-prefix customAssetExtensions entry error, got: %s", err.Error())
+		}
+	})
+
+	t.Run("extension containing dot is accepted", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"customAssetExtensions": ["d.ts"],
+			"rules": [{"path": "."}]
+		}`
+
+		configs, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if len(configs) != 1 {
+			t.Fatalf("Expected 1 config, got: %d", len(configs))
+		}
+		if len(configs[0].CustomAssetExtensions) != 1 || configs[0].CustomAssetExtensions[0] != "d.ts" {
+			t.Fatalf("Expected customAssetExtensions to contain d.ts, got: %v", configs[0].CustomAssetExtensions)
+		}
+	})
+
+	t.Run("extension with leading or trailing spaces is rejected", func(t *testing.T) {
+		configJSON := `{
+			"configVersion": "1.6",
+			"customAssetExtensions": ["  mp3  "],
+			"rules": [{"path": "."}]
+		}`
+
+		_, err := ParseConfig([]byte(configJSON))
+		if err == nil {
+			t.Fatal("Expected error, got nil")
+		}
+		if !contains(err.Error(), "customAssetExtensions[0] must not have leading or trailing spaces") {
+			t.Errorf("Expected spacing validation error, got: %s", err.Error())
+		}
+	})
 }
 
 func TestParseConfig_InvalidTypes(t *testing.T) {

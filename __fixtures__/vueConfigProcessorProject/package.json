@@ -1,0 +1,9 @@
+{
+  "name": "vue-config-processor-project",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "vue": "^3.4.0"
+  }
+}

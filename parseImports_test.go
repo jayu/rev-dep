@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -2217,6 +2218,102 @@ func BenchmarkParseImportsDetailedMode600Loc(b *testing.B) {
 
 	for b.Loop() {
 		ParseImportsByte(fixtureContent, true, ParseModeDetailed)
+	}
+}
+
+func TestParseImportsFromVueSFC(t *testing.T) {
+	tmpDir := t.TempDir()
+	vuePath := filepath.Join(tmpDir, "App.vue")
+
+	vueContent := `<template>
+  import Fake from "from-template"
+</template>
+<script setup lang="ts">
+import { greet } from "./utils"
+</script>
+<style scoped>
+.a { color: red; }
+</style>
+`
+
+	if err := os.WriteFile(vuePath, []byte(vueContent), 0644); err != nil {
+		t.Fatalf("Failed to write Vue fixture: %v", err)
+	}
+
+	results, errCount := ParseImportsFromFiles([]string{NormalizePathForInternal(vuePath)}, false, ParseModeBasic)
+	if errCount != 0 {
+		t.Fatalf("Expected errCount=0, got %d", errCount)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Expected one file result, got %d", len(results))
+	}
+
+	imports := results[0].Imports
+	if len(imports) != 1 {
+		t.Fatalf("Expected one parsed import from script block, got %d", len(imports))
+	}
+	if imports[0].Request != "./utils" {
+		t.Fatalf("Expected './utils', got %q", imports[0].Request)
+	}
+}
+
+func TestParseImportsFromSvelte(t *testing.T) {
+	tmpDir := t.TempDir()
+	sveltePath := filepath.Join(tmpDir, "App.svelte")
+
+	svelteContent := `<script context="module" lang="ts">
+export const fromModule = 1
+import { moduleUtil } from "./module-util"
+</script>
+
+<script lang="ts">
+  export
+    let title = "Hello"
+  import { greet } from "./utils"
+</script>
+
+<div>{title} {moduleUtil} {greet}</div>
+`
+
+	if err := os.WriteFile(sveltePath, []byte(svelteContent), 0644); err != nil {
+		t.Fatalf("Failed to write Svelte fixture: %v", err)
+	}
+
+	results, errCount := ParseImportsFromFiles([]string{NormalizePathForInternal(sveltePath)}, false, ParseModeDetailed)
+	if errCount != 0 {
+		t.Fatalf("Expected errCount=0, got %d", errCount)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Expected one file result, got %d", len(results))
+	}
+
+	imports := results[0].Imports
+	contentBytes := []byte(svelteContent)
+	requests := map[string]bool{}
+	instanceLetExportFound := false
+	for _, imp := range imports {
+		if imp.Request != "" {
+			requests[imp.Request] = true
+		}
+		if imp.IsLocalExport {
+			start := int(imp.ExportDeclStart)
+			for start < len(contentBytes) && isWhiteSpace(contentBytes[start]) {
+				start++
+			}
+			if start+3 <= len(contentBytes) && string(contentBytes[start:start+3]) == "let" {
+				instanceLetExportFound = true
+			}
+		}
+	}
+
+	if !requests["./module-util"] {
+		t.Fatalf("Expected import './module-util' to be parsed, got %+v", requests)
+	}
+	if !requests["./utils"] {
+		t.Fatalf("Expected import './utils' to be parsed, got %+v", requests)
+	}
+	if instanceLetExportFound {
+		t.Fatalf("Did not expect local export from Svelte instance 'export let', got %+v", imports)
 	}
 }
 

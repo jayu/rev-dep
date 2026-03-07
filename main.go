@@ -222,7 +222,7 @@ func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude []
 	}
 
 	absolutePathToEntryPoints, discoveredFiles := ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude)
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	if len(absolutePathToEntryPoints) == 0 {
 		absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
@@ -429,7 +429,7 @@ var (
 )
 
 func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	notReferencedFiles := GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
 
@@ -524,7 +524,7 @@ var (
 func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) (int, error) {
 	excludeFiles := []string{}
 
-	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 	cycles := FindCircularDependencies(minimalTree, files, ignoreType)
 
 	formatted := FormatCircularDependencies(cycles, cwd, minimalTree)
@@ -902,7 +902,7 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJson
 	absolutePathToEntryPoint := JoinWithCwd(cwd, entryPoint)
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	depsGraph := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false, false)
 
@@ -953,10 +953,11 @@ var (
 )
 
 var (
-	unresolvedCwd           string
-	unresolvedIgnore        map[string]string
-	unresolvedIgnoreFiles   []string
-	unresolvedIgnoreImports []string
+	unresolvedCwd                   string
+	unresolvedIgnore                map[string]string
+	unresolvedIgnoreFiles           []string
+	unresolvedIgnoreImports         []string
+	unresolvedCustomAssetExtensions []string
 )
 
 // ---------------- imported-by ----------------
@@ -1049,7 +1050,7 @@ func linesOfCodeCmdFn(cwd string) error {
 func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	absolutePathToFilePath := NormalizePathForInternal(JoinWithCwd(cwd, filePath))
 
@@ -1192,8 +1193,11 @@ var unresolvedCmd = &cobra.Command{
 		if err := validateUnresolvedImportsOptions(opts, "unresolved"); err != nil {
 			return err
 		}
+		if err := validateCustomAssetExtensions(unresolvedCustomAssetExtensions, "unresolved.customAssetExtensions"); err != nil {
+			return err
+		}
 
-		return unresolvedCmdRun(ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followValue, opts)
+		return unresolvedCmdRun(ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followValue, opts, unresolvedCustomAssetExtensions)
 	},
 }
 
@@ -1209,8 +1213,8 @@ func stringMapToFileValueIgnoreMap(input map[string]string) FileValueIgnoreMap {
 }
 
 // unresolvedCmdRun is the functional core for the `unresolved` command. It returns an error on failure.
-func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions) error {
-	out, err := getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, options)
+func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions, customAssetExtensions []string) error {
+	out, err := getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions)
 	if err != nil {
 		return err
 	}
@@ -1221,8 +1225,8 @@ func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []st
 }
 
 // getUnresolvedOutput returns formatted unresolved imports grouped by file as a string.
-func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions) (string, error) {
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages)
+func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions, customAssetExtensions []string) (string, error) {
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions)
 
 	unresolved := DetectUnresolvedImports(minimalTree, map[string]bool{})
 	unresolved = FilterUnresolvedImports(unresolved, options, cwd)
@@ -1421,6 +1425,8 @@ func init() {
 		"File path glob patterns to ignore in unresolved output")
 	unresolvedCmd.Flags().StringSliceVar(&unresolvedIgnoreImports, "ignore-imports", []string{},
 		"Import requests to ignore globally in unresolved output")
+	unresolvedCmd.Flags().StringSliceVar(&unresolvedCustomAssetExtensions, "custom-asset-extensions", []string{},
+		"Additional asset extensions treated as resolvable (e.g. glb,mp3)")
 
 	// add commands
 	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, unresolvedCmd, docsCmd, configCmd)
@@ -1433,7 +1439,7 @@ func main() {
 	}
 }
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) (MinimalDependencyTree, []string, *ResolverManager) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, customAssetExtensions []string) (MinimalDependencyTree, []string, *ResolverManager) {
 	var files []string
 
 	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)
@@ -1457,7 +1463,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, ParseModeBasic, NodeModulesMatchingStrategyCwdResolver)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, customAssetExtensions, ParseModeBasic, NodeModulesMatchingStrategyCwdResolver)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

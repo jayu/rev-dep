@@ -91,20 +91,22 @@ const (
 	FileNotFound
 )
 
-var SourceExtensions = []string{".d.ts", ".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs", ".cjs"}
+var SourceExtensions = []string{".d.ts", ".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"}
 
-var extensionRegExp = regexp.MustCompile(`(?:/index)?\.(?:js|jsx|ts|tsx|mts|mjs|mjsx|cjs|d\.ts)$`)
+var extensionRegExp = regexp.MustCompile(`(?:/index)?\.(?:js|jsx|ts|tsx|mts|mjs|mjsx|cjs|vue|svelte|d\.ts)$`)
 var tsSupportedExtensionRegExp = regexp.MustCompile(`\.(?:js|jsx|ts|tsx|mts|d\.ts)$`)
 
 var extensionToOrder = map[string]int{
-	".d.ts": 8,
-	".ts":   7,
-	".tsx":  6,
-	".mts":  5,
-	".js":   4,
-	".jsx":  3,
-	".mjs":  2,
-	".cjs":  1,
+	".d.ts":   8,
+	".ts":     7,
+	".tsx":    6,
+	".mts":    5,
+	".js":     4,
+	".jsx":    3,
+	".mjs":    2,
+	".cjs":    1,
+	".vue":    1,
+	".svelte": 1,
 }
 
 type SubpackageResolver struct {
@@ -1237,7 +1239,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	return "", NotResolvedModule, &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, customAssetExtensions []string, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
 	tsConfigPath := JoinWithCwd(cwd, tsconfigJson)
 	pkgJsonPath := JoinWithCwd(cwd, packageJson)
 
@@ -1285,6 +1287,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	ch_idx := make(chan int)
+	assetExtensionsSet := createAssetExtensionsSet(customAssetExtensions)
 
 	// Limit concurrency to avoid memory spikes
 	maxConcurrency := runtime.GOMAXPROCS(0) * 2
@@ -1309,6 +1312,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 					ch_idx,
 					BuiltInModules,
 					excludeFilePatterns,
+					assetExtensionsSet,
 					parseMode,
 					nodeModulesMatchingStrategy,
 				)
@@ -1346,7 +1350,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	return filteredFileImportsArr, filteredFiles, resolverManager
 }
 
-func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) {
+func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []GlobMatcher, assetExtensionsSet map[string]bool, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()
@@ -1473,7 +1477,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 								logWarning("could not read resolved file '%s' imported from '%s'", missingFilePath, filePath)
 							}
 						}
-					} else if isAssetPath(modulePath) {
+					} else if isAssetPath(modulePath, assetExtensionsSet) {
 						_, err := os.Stat(modulePath)
 						if err == nil {
 							mu.Lock()
@@ -1562,7 +1566,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 	wg.Done()
 }
 
-var assetExtensions = []string{"json", "png", "jpeg", "webp", "jpg", "svg", "gif", "ttf", "otf", "woff", "woff2", "css", "scss"}
+var defaultAssetExtensions = []string{"json", "png", "jpeg", "webp", "jpg", "svg", "gif", "ttf", "otf", "woff", "woff2", "css", "scss", "yml", "yaml"}
 
 // DetectModuleSuffixVariants identifies files that are platform-specific variants
 // created by moduleSuffixes (e.g., button.android.tsx when button.ios.tsx is the
@@ -1620,11 +1624,40 @@ func DetectModuleSuffixVariants(files []string, resolverManager *ResolverManager
 	return variants
 }
 
-func isAssetPath(filePath string) bool {
-	for _, ext := range assetExtensions {
-		if strings.HasSuffix(filePath, "."+ext) {
-			return true
+func createAssetExtensionsSet(customAssetExtensions []string) map[string]bool {
+	extensions := make(map[string]bool, len(defaultAssetExtensions)+len(customAssetExtensions))
+	for _, ext := range defaultAssetExtensions {
+		extensions[ext] = true
+	}
+	for _, ext := range customAssetExtensions {
+		extensions[ext] = true
+	}
+	return extensions
+}
+
+func validateCustomAssetExtensions(customAssetExtensions []string, prefix string) error {
+	for i, extension := range customAssetExtensions {
+		if extension == "" {
+			return fmt.Errorf("%s[%d] cannot be empty", prefix, i)
+		}
+		if extension != strings.TrimSpace(extension) {
+			return fmt.Errorf("%s[%d] must not have leading or trailing spaces", prefix, i)
+		}
+		if strings.HasPrefix(extension, ".") {
+			return fmt.Errorf("%s[%d] must not start with '.'", prefix, i)
 		}
 	}
-	return false
+	return nil
+}
+
+func isAssetPath(filePath string, assetExtensionsSet map[string]bool) bool {
+	if len(assetExtensionsSet) == 0 {
+		return false
+	}
+	lastDot := strings.LastIndex(filePath, ".")
+	if lastDot == -1 || lastDot == len(filePath)-1 {
+		return false
+	}
+	ext := strings.ToLower(filePath[lastDot+1:])
+	return assetExtensionsSet[ext]
 }

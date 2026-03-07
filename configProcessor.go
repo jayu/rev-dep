@@ -121,6 +121,7 @@ func buildDependencyTreeForConfig(
 	cwd string,
 	packageJson string,
 	tsconfigJson string,
+	customAssetExtensions []string,
 	parseMode ParseMode,
 ) (MinimalDependencyTree, *ResolverManager, error) {
 	// For config processing, we always resolve type imports (we filter later per-check)
@@ -149,6 +150,7 @@ func buildDependencyTreeForConfig(
 		excludePatterns,
 		conditionNames,
 		followMonorepoPackages,
+		customAssetExtensions,
 		parseMode,
 		NodeModulesMatchingStrategySelfResolver,
 	)
@@ -622,6 +624,7 @@ func ProcessConfig(
 		cwd,
 		packageJson,
 		tsconfigJson,
+		config.CustomAssetExtensions,
 		parseMode,
 	)
 	if err != nil {

@@ -362,6 +362,7 @@ Here's a comprehensive example showing all available properties:
 - **`configVersion`** (required): Configuration version string
 - **`$schema`** (optional): JSON schema reference for validation
 - **`conditionNames`** (optional): Array of condition names for exports resolution
+- **`customAssetExtensions`** (optional): Additional asset extensions treated as resolvable imports (e.g. `["glb", "mp3"]`). Default list covers common extensions for fonts, images, config files.
 - **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
 - **`rules`** (required): Array of rule objects
 

@@ -40,6 +40,21 @@
         ]
       ]
     },
+    "customAssetExtensions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^.].*"
+      },
+      "description": "Additional asset extensions treated as resolvable imports",
+      "examples": [
+        [
+          "glb",
+          "mp3"
+        ]
+      ]
+    },
     "ignoreFiles": {
       "type": "array",
       "items": {

@@ -461,7 +461,7 @@ func TestShouldResolvePJsonAliasToExternalModule(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/index.ts"]
 	aliasedImport := imports[len(imports)-2]
@@ -480,7 +480,7 @@ func TestShouldResolvePJsonAliasToNodeModuleWithSubpath(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{})
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProjectSubpath/index.ts"]
 

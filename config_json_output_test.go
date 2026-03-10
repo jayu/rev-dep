@@ -59,7 +59,7 @@ func TestJSONOutput_AllChecksPassing(t *testing.T) {
 			{
 				RulePath:      "src/",
 				FileCount:     42,
-				EnabledChecks: []string{"circular-imports", "orphan-files", "module-boundaries", "unused-node-modules", "missing-node-modules", "import-conventions", "unresolved-imports", "unused-exports", "restricted-dev-dependencies-usage", "restricted-imports"},
+				EnabledChecks: []string{"circular-imports", "orphan-files", "module-boundaries", "unused-node-modules", "missing-node-modules", "import-conventions", "unresolved-imports", "unused-exports", "dev-deps-usage-on-prod", "restricted-imports"},
 			},
 		},
 	}
@@ -133,7 +133,7 @@ func TestJSONOutput_WithFailures(t *testing.T) {
 					"unresolved-imports",
 					"unused-node-modules",
 					"missing-node-modules",
-					"restricted-dev-dependencies-usage",
+					"dev-deps-usage-on-prod",
 					"restricted-imports",
 				},
 				CircularDependencies: [][]string{

@@ -26,16 +26,11 @@ func TestParseConfig_SchemaField(t *testing.T) {
 		]
 	}`
 
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
-	if len(configs) != 1 {
-		t.Errorf("Expected 1 config, got %d", len(configs))
-	}
-
-	config := configs[0]
 	if config.ConfigVersion != "1.0" {
 		t.Errorf("Expected configVersion '1.0', got '%s'", config.ConfigVersion)
 	}
@@ -116,16 +111,11 @@ func TestInitConfigFile(t *testing.T) {
 		t.Fatalf("Failed to read config file: %v", err)
 	}
 
-	configs, err := ParseConfig(content)
+	config, err := ParseConfig(content)
 	if err != nil {
 		t.Errorf("Failed to parse generated config: %v", err)
 	}
 
-	if len(configs) != 1 {
-		t.Errorf("Expected 1 config, got %d", len(configs))
-	}
-
-	config := configs[0]
 	if config.ConfigVersion != "1.6" {
 		t.Errorf("Expected configVersion '1.6', got '%s'", config.ConfigVersion)
 	}
@@ -218,14 +208,11 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read generated config: %v", err)
 	}
-	configs, err := ParseConfig(content)
+	config, err := ParseConfig(content)
 	if err != nil {
 		t.Fatalf("Failed to parse generated config: %v", err)
 	}
-	if len(configs) != 1 {
-		t.Fatalf("Expected 1 config, got %d", len(configs))
-	}
-	cfg := configs[0]
+	cfg := config
 	if len(cfg.Rules) != 1 {
 		t.Fatalf("Expected 1 rule for sub-package config, got %d (rules: %v)", len(cfg.Rules), rules)
 	}
@@ -265,11 +252,11 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read generated root config: %v", err)
 	}
-	rootConfigs, err := ParseConfig(rootConfigContent)
+	rootConfig, err := ParseConfig(rootConfigContent)
 	if err != nil {
 		t.Fatalf("Failed to parse generated root config: %v", err)
 	}
-	if len(rootConfigs) != 1 || len(rootConfigs[0].Rules) == 0 {
+	if len(rootConfig.Rules) == 0 {
 		t.Fatalf("Expected parsed root config with at least one rule")
 	}
 }
@@ -284,16 +271,11 @@ func TestParseConfig_ValidMinimalConfig(t *testing.T) {
 		]
 	}`
 
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
-	if len(configs) != 1 {
-		t.Errorf("Expected 1 config, got %d", len(configs))
-	}
-
-	config := configs[0]
 	if config.ConfigVersion != "1.0" {
 		t.Errorf("Expected configVersion '1.0', got '%s'", config.ConfigVersion)
 	}
@@ -353,12 +335,10 @@ func TestParseConfig_ValidCompleteConfig(t *testing.T) {
 		]
 	}`
 
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-
-	config := configs[0]
 
 	// Check global settings
 	if len(config.ConditionNames) != 2 || config.ConditionNames[0] != "node" || config.ConditionNames[1] != "imports" {
@@ -595,15 +575,12 @@ func TestParseConfig_CustomAssetExtensionsValidation(t *testing.T) {
 			"rules": [{"path": "."}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("Expected no error, got: %v", err)
 		}
-		if len(configs) != 1 {
-			t.Fatalf("Expected 1 config, got: %d", len(configs))
-		}
-		if len(configs[0].CustomAssetExtensions) != 1 || configs[0].CustomAssetExtensions[0] != "d.ts" {
-			t.Fatalf("Expected customAssetExtensions to contain d.ts, got: %v", configs[0].CustomAssetExtensions)
+		if len(config.CustomAssetExtensions) != 1 || config.CustomAssetExtensions[0] != "d.ts" {
+			t.Fatalf("Expected customAssetExtensions to contain d.ts, got: %v", config.CustomAssetExtensions)
 		}
 	})
 
@@ -1027,12 +1004,10 @@ func TestParseConfig_DisabledOptions(t *testing.T) {
 	}`
 
 	// Should pass validation because all options are disabled
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error for disabled options, got %v", err)
 	}
-
-	config := configs[0]
 	rule := config.Rules[0]
 
 	// Verify options are parsed but validation is skipped when disabled
@@ -1582,7 +1557,7 @@ func TestParseConfigWithComments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configs, err := ParseConfig([]byte(tt.content))
+			config, err := ParseConfig([]byte(tt.content))
 
 			if tt.shouldError {
 				if err == nil {
@@ -1596,12 +1571,6 @@ func TestParseConfigWithComments(t *testing.T) {
 				return
 			}
 
-			if len(configs) != 1 {
-				t.Errorf("Expected 1 config, got %d", len(configs))
-				return
-			}
-
-			config := configs[0]
 			if config.ConfigVersion != tt.expected.ConfigVersion {
 				t.Errorf("Expected configVersion %s, got %s", tt.expected.ConfigVersion, config.ConfigVersion)
 			}
@@ -1915,12 +1884,12 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
 
-		rule := configs[0].Rules[0]
+		rule := config.Rules[0]
 		if firstDetectionOrNil(rule.UnusedExportsDetections) == nil {
 			t.Fatal("Expected unusedExportsDetection to be non-nil")
 		}
@@ -1961,12 +1930,12 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
 
-		rule := configs[0].Rules[0]
+		rule := config.Rules[0]
 		if firstDetectionOrNil(rule.UnusedExportsDetections) == nil || !firstDetectionOrNil(rule.UnusedExportsDetections).Enabled {
 			t.Error("Expected unusedExportsDetection to be enabled")
 		}
@@ -2276,12 +2245,12 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
 
-		rule := configs[0].Rules[0]
+		rule := config.Rules[0]
 		if firstDetectionOrNil(rule.UnresolvedImportsDetections) == nil {
 			t.Fatal("Expected unresolvedImportsDetection to be non-nil")
 		}
@@ -2597,7 +2566,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configs, err := ParseConfig([]byte(tt.config))
+			config, err := ParseConfig([]byte(tt.config))
 			if tt.expectedErr != "" {
 				if err == nil {
 					t.Fatalf("Expected error containing %q, got nil", tt.expectedErr)
@@ -2612,12 +2581,6 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 				return
 			}
 
-			if len(configs) != 1 {
-				t.Errorf("Expected 1 config, got %d", len(configs))
-				return
-			}
-
-			config := configs[0]
 			if len(config.Rules) != 1 {
 				t.Errorf("Expected 1 rule, got %d", len(config.Rules))
 				return
@@ -2649,18 +2612,12 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			]
 		}`
 
-		configs, err := ParseConfig([]byte(config))
+		parsedConfig, err := ParseConfig([]byte(config))
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 			return
 		}
 
-		if len(configs) != 1 {
-			t.Errorf("Expected 1 config, got %d", len(configs))
-			return
-		}
-
-		parsedConfig := configs[0]
 		if len(parsedConfig.Rules) != 3 {
 			t.Errorf("Expected 3 rules, got %d", len(parsedConfig.Rules))
 			return
@@ -2703,12 +2660,12 @@ func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		rule := configs[0].Rules[0]
+		rule := config.Rules[0]
 		expectedMerged := []string{"src/prod.ts", "src/shared.ts", "src/dev.ts"}
 		if !reflect.DeepEqual(firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints, expectedMerged) {
 			t.Fatalf("unexpected orphanFilesDetection.validEntryPoints: %+v", firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints)
@@ -2743,12 +2700,12 @@ func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		rule := configs[0].Rules[0]
+		rule := config.Rules[0]
 		if !reflect.DeepEqual(firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints, []string{"src/custom-orphan.ts"}) {
 			t.Fatalf("unexpected orphan override: %+v", firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints)
 		}
@@ -2782,12 +2739,12 @@ func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		rule := configs[0].Rules[0]
+		rule := config.Rules[0]
 		if len(firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints) != 0 {
 			t.Fatalf("expected empty orphan validEntryPoints, got %+v", firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints)
 		}
@@ -2821,12 +2778,12 @@ func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		rule := configs[0].Rules[0]
+		rule := config.Rules[0]
 		expectedMerged := []string{"src/prod.ts", "src/dev.ts"}
 		if !reflect.DeepEqual(firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints, expectedMerged) {
 			t.Fatalf("unexpected orphan fallback: %+v", firstDetectionOrNil(rule.OrphanFilesDetections).ValidEntryPoints)
@@ -2893,12 +2850,12 @@ func TestParseConfig_IgnoreMapSupportsStringOrArrayValues(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		got := firstDetectionOrNil(configs[0].Rules[0].UnusedExportsDetections).Ignore["src/types.ts"]
+		got := firstDetectionOrNil(config.Rules[0].UnusedExportsDetections).Ignore["src/types.ts"]
 		if len(got) != 2 || got[0] != "B*" || got[1] != "F*" {
 			t.Fatalf("unexpected normalized ignore for unused exports: %#v", got)
 		}
@@ -2918,12 +2875,12 @@ func TestParseConfig_IgnoreMapSupportsStringOrArrayValues(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		got := firstDetectionOrNil(configs[0].Rules[0].UnresolvedImportsDetections).Ignore["src/index.ts"]
+		got := firstDetectionOrNil(config.Rules[0].UnresolvedImportsDetections).Ignore["src/index.ts"]
 		if len(got) != 2 || got[0] != "non-existent-*" || got[1] != "missing-*" {
 			t.Fatalf("unexpected normalized ignore for unresolved imports: %#v", got)
 		}
@@ -2970,12 +2927,12 @@ func TestParseConfig_DetectorsCanBeArrays(t *testing.T) {
 		}]
 	}`
 
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	rule := configs[0].Rules[0]
+	rule := config.Rules[0]
 	if len(rule.CircularImportsDetections) != 2 {
 		t.Fatalf("expected 2 circularImportsDetection entries, got %d", len(rule.CircularImportsDetections))
 	}

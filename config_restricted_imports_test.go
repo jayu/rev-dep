@@ -20,12 +20,12 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		detections := configs[0].Rules[0].RestrictedImportsDetections
+		detections := config.Rules[0].RestrictedImportsDetections
 		if len(detections) == 0 || detections[0] == nil || !detections[0].Enabled {
 			t.Fatalf("expected restrictedImportsDetection to be enabled")
 		}
@@ -145,12 +145,12 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		rule := configs[0].Rules[0]
+		rule := config.Rules[0]
 		if len(rule.RestrictedImportsDetections) != 2 {
 			t.Fatalf("expected 2 restrictedImportsDetection entries, got %d", len(rule.RestrictedImportsDetections))
 		}

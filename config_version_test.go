@@ -11,15 +11,12 @@ func TestParseConfig_ValidVersion(t *testing.T) {
         "rules": [{"path": "."}]
     }`)
 
-	configs, err := ParseConfig(content)
+	config, err := ParseConfig(content)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if len(configs) != 1 {
-		t.Fatalf("expected 1 config, got %d", len(configs))
-	}
-	if configs[0].ConfigVersion != "1.0" {
-		t.Fatalf("expected configVersion 1.0, got %s", configs[0].ConfigVersion)
+	if config.ConfigVersion != "1.0" {
+		t.Fatalf("expected configVersion 1.0, got %s", config.ConfigVersion)
 	}
 }
 

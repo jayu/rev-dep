@@ -16,12 +16,12 @@ func TestParseConfig_DevDepsUsageOnProdDetection_IgnoreTypeImports(t *testing.T)
 			}]
 		}`
 
-		configs, err := ParseConfig([]byte(configJSON))
+		config, err := ParseConfig([]byte(configJSON))
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
-		detections := configs[0].Rules[0].DevDepsUsageOnProdDetections
+		detections := config.Rules[0].DevDepsUsageOnProdDetections
 		if len(detections) == 0 || detections[0] == nil || !detections[0].Enabled {
 			t.Fatalf("expected devDepsUsageOnProdDetection to be enabled")
 		}

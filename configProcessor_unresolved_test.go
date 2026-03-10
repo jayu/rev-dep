@@ -17,12 +17,12 @@ func loadAndProcessUnresolvedConfig(t *testing.T, testCwd string, cfg string) *C
 		_ = os.Remove(configPath)
 	})
 
-	configs, err := LoadConfig(configPath)
+	config, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&configs[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}

@@ -39,7 +39,7 @@ func TestConfigProcessor_CircularDependencies(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&config[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("Failed to process config: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestConfigProcessor_OrphanFiles(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&config[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("Failed to process config: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestConfigProcessor_ModuleBoundaries(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&config[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("Failed to process config: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestConfigProcessor_UnusedNodeModules(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&config[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("Failed to process config: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestConfigProcessor_MissingNodeModules(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&config[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("Failed to process config: %v", err)
 	}
@@ -412,12 +412,12 @@ func TestConfigProcessor_MultipleRules(t *testing.T) {
 	}
 	defer os.Remove(configPath)
 
-	configs, err := LoadConfig(configPath)
+	config, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("Failed to load multi-rule config: %v", err)
 	}
 
-	result, err := ProcessConfig(&configs[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("Failed to process multi-rule config: %v", err)
 	}
@@ -450,12 +450,12 @@ func TestConfigProcessor_RulePathFiltering(t *testing.T) {
 	}
 	defer os.Remove(configPath)
 
-	configs, err := LoadConfig(configPath)
+	config, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("Failed to load specific path config: %v", err)
 	}
 
-	result, err := ProcessConfig(&configs[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("Failed to process specific path config: %v", err)
 	}
@@ -503,12 +503,12 @@ func TestConfigProcessor_NewFields(t *testing.T) {
 	}
 	defer os.Remove(configPath)
 
-	configs, err := LoadConfig(configPath)
+	config, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("Failed to load all checks config: %v", err)
 	}
 
-	result, err := ProcessConfig(&configs[0], testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("Failed to process all checks config: %v", err)
 	}

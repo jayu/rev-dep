@@ -19,19 +19,13 @@ func TestConfigProcessor_ImportConventions(t *testing.T) {
 		t.Fatalf("Failed to read config file: %v", err)
 	}
 
-	configs, err := ParseConfig(configBytes)
+	config, err := ParseConfig(configBytes)
 	if err != nil {
 		t.Fatalf("ParseConfig failed: %v", err)
 	}
 
-	if len(configs) == 0 {
-		t.Fatalf("Expected at least 1 config, got %d", len(configs))
-	}
-
-	config := &configs[0]
-
 	// Process the config
-	result, err := ProcessConfig(config, tempDir, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}

@@ -20,16 +20,11 @@ func TestParseConfig_ImportConventions_SimplifiedMode(t *testing.T) {
 		]
 	}`
 
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
-	if len(configs) != 1 {
-		t.Errorf("Expected 1 config, got %d", len(configs))
-	}
-
-	config := configs[0]
 	if len(config.Rules) != 1 {
 		t.Errorf("Expected 1 rule, got %d", len(config.Rules))
 	}
@@ -69,16 +64,11 @@ func TestParseConfig_ImportConventions_AdvancedMode(t *testing.T) {
 		]
 	}`
 
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
-	if len(configs) != 1 {
-		t.Errorf("Expected 1 config, got %d", len(configs))
-	}
-
-	config := configs[0]
 	if len(config.Rules) != 1 {
 		t.Errorf("Expected 1 rule, got %d", len(config.Rules))
 	}
@@ -231,14 +221,11 @@ func TestParseConfig_ImportConventions_MissingAliasRejected(t *testing.T) {
 	}`
 
 	// This should actually pass since alias is optional
-	configs, err := ParseConfig([]byte(configJSON))
+	_, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error for missing alias (optional), got %v", err)
 	}
 
-	if len(configs) != 1 {
-		t.Errorf("Expected 1 config, got %d", len(configs))
-	}
 }
 
 func TestParseConfig_ImportConventions_NestedDomainsRejected(t *testing.T) {
@@ -416,16 +403,11 @@ func TestParseConfig_ImportConventions_EnabledField(t *testing.T) {
 		]
 	}`
 
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
-	if len(configs) != 1 {
-		t.Errorf("Expected 1 config, got %d", len(configs))
-	}
-
-	config := configs[0]
 	rule := config.Rules[0]
 	convention := rule.ImportConventions[0]
 
@@ -480,12 +462,10 @@ func TestParseConfig_ImportConventions_EnabledFieldDefault(t *testing.T) {
 		]
 	}`
 
-	configs, err := ParseConfig([]byte(configJSON))
+	config, err := ParseConfig([]byte(configJSON))
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-
-	config := configs[0]
 	rule := config.Rules[0]
 	convention := rule.ImportConventions[0]
 

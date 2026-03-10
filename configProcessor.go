@@ -266,7 +266,7 @@ func processRuleChecks(
 		enabledChecks = append(enabledChecks, "unresolved-imports")
 	}
 	if anyEnabled(rule.getDevDepsUsageOnProdDetections()) {
-		enabledChecks = append(enabledChecks, "restricted-dev-dependencies-usage")
+		enabledChecks = append(enabledChecks, "dev-deps-usage-on-prod")
 	}
 	if anyEnabled(rule.getRestrictedImportsDetections()) {
 		enabledChecks = append(enabledChecks, "restricted-imports")

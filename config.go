@@ -403,10 +403,10 @@ func findConfigFile(dir string) (string, error) {
 // LoadConfig loads the rev-dep configuration from the specified path.
 // configPath can be a specific file path or a directory containing rev-dep.config.json or rev-dep.config.jsonc.
 // Returns a single RevDepConfig object.
-func LoadConfig(configPath string) ([]RevDepConfig, error) {
+func LoadConfig(configPath string) (RevDepConfig, error) {
 	content, err := readConfigFile(configPath)
 	if err != nil {
-		return nil, err
+		return RevDepConfig{}, err
 	}
 
 	return ParseConfig(content)
@@ -434,16 +434,16 @@ func readConfigFile(configPath string) ([]byte, error) {
 }
 
 // ParseConfig parses the config content and returns a validated RevDepConfig.
-func ParseConfig(content []byte) ([]RevDepConfig, error) {
+func ParseConfig(content []byte) (RevDepConfig, error) {
 	// First, parse into a generic map to validate field names and types
 	var rawConfig map[string]interface{}
 	if err := json.Unmarshal(jsonc.ToJSON(content), &rawConfig); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
+		return RevDepConfig{}, fmt.Errorf("failed to parse config: %w", err)
 	}
 
 	// Validate field names and structure
 	if err := validateRawConfig(rawConfig); err != nil {
-		return nil, err
+		return RevDepConfig{}, err
 	}
 
 	// Use a temporary struct to unmarshal with generic types for normalization
@@ -460,23 +460,23 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 		Rules []rawRuleItems `json:"rules"`
 	}
 	if err := json.Unmarshal(jsonc.ToJSON(content), &rawRules); err != nil {
-		return nil, fmt.Errorf("failed to parse config for normalization: %w", err)
+		return RevDepConfig{}, fmt.Errorf("failed to parse config for normalization: %w", err)
 	}
 
 	// Parse into final typed struct
 	var config RevDepConfig
 	if err := json.Unmarshal(jsonc.ToJSON(content), &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config into final structure: %w", err)
+		return RevDepConfig{}, fmt.Errorf("failed to parse config into final structure: %w", err)
 	}
 
 	// Validate config
 	if err := ValidateConfig(&config); err != nil {
-		return nil, err
+		return RevDepConfig{}, err
 	}
 
 	// Validate config version against supported versions for this CLI
 	if err := validateConfigVersion(config.ConfigVersion); err != nil {
-		return nil, err
+		return RevDepConfig{}, err
 	}
 
 	// Set default values for optional fields and followMonorepoPackages and process import conventions
@@ -493,7 +493,7 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 			} else {
 				parsedFollow, err := parseFollowMonorepoPackagesValue(rawFollow)
 				if err != nil {
-					return nil, err
+					return RevDepConfig{}, err
 				}
 				config.Rules[i].FollowMonorepoPackages = parsedFollow
 			}
@@ -525,7 +525,7 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 			for j, rawConv := range rawRules.Rules[i].ImportConventions {
 				parsedDomains, err := parseImportConventionDomains(rawConv.Domains)
 				if err != nil {
-					return nil, fmt.Errorf("failed to parse import convention domains for rules[%d].importConventions[%d]: %w", i, j, err)
+					return RevDepConfig{}, fmt.Errorf("failed to parse import convention domains for rules[%d].importConventions[%d]: %w", i, j, err)
 				}
 				config.Rules[i].ImportConventions[j] = ImportConventionRule{
 					Rule:    rawConv.Rule,
@@ -536,7 +536,7 @@ func ParseConfig(content []byte) ([]RevDepConfig, error) {
 		}
 	}
 
-	return []RevDepConfig{config}, nil
+	return config, nil
 }
 
 func cloneStringSlice(input []string) []string {

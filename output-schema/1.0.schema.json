@@ -1,0 +1,206 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jayu/rev-dep/blob/master/output-schema/1.0.schema.json",
+  "title": "Rev-Dep JSON Output",
+  "description": "JSON output format for rev-dep config run --format json",
+  "type": "object",
+  "required": ["version", "hasFailures", "rules", "fixSummary"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Output schema version"
+    },
+    "hasFailures": {
+      "type": "boolean",
+      "description": "Whether any check reported failures"
+    },
+    "rules": {
+      "type": "array",
+      "description": "Results for each rule in the configuration",
+      "items": { "$ref": "#/definitions/ruleResult" }
+    },
+    "fixSummary": { "$ref": "#/definitions/fixSummary" }
+  },
+  "definitions": {
+    "ruleResult": {
+      "type": "object",
+      "required": ["path", "fileCount", "checks"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Rule path from the configuration"
+        },
+        "fileCount": {
+          "type": "integer",
+          "description": "Number of files matched by this rule"
+        },
+        "checks": { "$ref": "#/definitions/checks" }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Results for each enabled check. Only enabled checks are present.",
+      "properties": {
+        "circularDependencies": { "$ref": "#/definitions/checkResult" },
+        "orphanFiles": { "$ref": "#/definitions/checkResult" },
+        "moduleBoundaries": { "$ref": "#/definitions/checkResult" },
+        "unusedNodeModules": { "$ref": "#/definitions/checkResult" },
+        "missingNodeModules": { "$ref": "#/definitions/checkResult" },
+        "importConventions": { "$ref": "#/definitions/checkResult" },
+        "unresolvedImports": { "$ref": "#/definitions/checkResult" },
+        "unusedExports": { "$ref": "#/definitions/checkResult" },
+        "restrictedDevDependenciesUsage": { "$ref": "#/definitions/checkResult" },
+        "restrictedImports": { "$ref": "#/definitions/checkResult" }
+      }
+    },
+    "checkResult": {
+      "type": "object",
+      "required": ["status", "issues"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail"],
+          "description": "Whether the check passed or failed"
+        },
+        "issues": {
+          "type": "array",
+          "description": "List of issues found by the check (empty when status is pass)",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/definitions/circularDependencyIssue" },
+              { "$ref": "#/definitions/orphanFileIssue" },
+              { "$ref": "#/definitions/moduleBoundaryIssue" },
+              { "$ref": "#/definitions/unusedNodeModuleIssue" },
+              { "$ref": "#/definitions/missingNodeModuleIssue" },
+              { "$ref": "#/definitions/importConventionIssue" },
+              { "$ref": "#/definitions/unresolvedImportIssue" },
+              { "$ref": "#/definitions/unusedExportIssue" },
+              { "$ref": "#/definitions/restrictedDevDepsIssue" },
+              { "$ref": "#/definitions/restrictedImportIssue" }
+            ]
+          }
+        }
+      }
+    },
+    "circularDependencyIssue": {
+      "type": "object",
+      "required": ["cycle"],
+      "additionalProperties": false,
+      "properties": {
+        "cycle": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "File paths forming the circular dependency chain"
+        }
+      }
+    },
+    "orphanFileIssue": {
+      "type": "object",
+      "required": ["filePath"],
+      "additionalProperties": false,
+      "properties": {
+        "filePath": { "type": "string" }
+      }
+    },
+    "moduleBoundaryIssue": {
+      "type": "object",
+      "required": ["ruleName", "filePath", "importPath", "violationType"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleName": { "type": "string" },
+        "filePath": { "type": "string" },
+        "importPath": { "type": "string" },
+        "violationType": { "type": "string" }
+      }
+    },
+    "unusedNodeModuleIssue": {
+      "type": "object",
+      "required": ["moduleName"],
+      "additionalProperties": false,
+      "properties": {
+        "moduleName": { "type": "string" }
+      }
+    },
+    "missingNodeModuleIssue": {
+      "type": "object",
+      "required": ["moduleName", "importedFrom"],
+      "additionalProperties": false,
+      "properties": {
+        "moduleName": { "type": "string" },
+        "importedFrom": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "importConventionIssue": {
+      "type": "object",
+      "required": ["filePath", "importRequest", "violationType"],
+      "additionalProperties": false,
+      "properties": {
+        "filePath": { "type": "string" },
+        "importRequest": { "type": "string" },
+        "violationType": { "type": "string" }
+      }
+    },
+    "unresolvedImportIssue": {
+      "type": "object",
+      "required": ["filePath", "request"],
+      "additionalProperties": false,
+      "properties": {
+        "filePath": { "type": "string" },
+        "request": { "type": "string" }
+      }
+    },
+    "unusedExportIssue": {
+      "type": "object",
+      "required": ["filePath", "exportName", "isType"],
+      "additionalProperties": false,
+      "properties": {
+        "filePath": { "type": "string" },
+        "exportName": { "type": "string" },
+        "isType": { "type": "boolean" }
+      }
+    },
+    "restrictedDevDepsIssue": {
+      "type": "object",
+      "required": ["devDependency", "filePath", "entryPoint"],
+      "additionalProperties": false,
+      "properties": {
+        "devDependency": { "type": "string" },
+        "filePath": { "type": "string" },
+        "entryPoint": { "type": "string" }
+      }
+    },
+    "restrictedImportIssue": {
+      "type": "object",
+      "required": ["violationType", "importerFile", "entryPoint"],
+      "additionalProperties": false,
+      "properties": {
+        "violationType": { "type": "string" },
+        "importerFile": { "type": "string" },
+        "entryPoint": { "type": "string" },
+        "deniedFile": { "type": "string" },
+        "deniedModule": { "type": "string" },
+        "importRequest": { "type": "string" }
+      }
+    },
+    "fixSummary": {
+      "type": "object",
+      "required": ["fixedFilesCount", "fixedImportsCount", "deletedFilesCount", "fixableIssuesCount", "unfixableAliasingCount"],
+      "additionalProperties": false,
+      "properties": {
+        "fixedFilesCount": { "type": "integer" },
+        "fixedImportsCount": { "type": "integer" },
+        "deletedFilesCount": { "type": "integer" },
+        "fixableIssuesCount": { "type": "integer" },
+        "unfixableAliasingCount": { "type": "integer" }
+      }
+    }
+  }
+}

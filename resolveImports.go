@@ -1360,6 +1360,11 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 	importsResolver := resolverManager.GetResolverForFile(filePath)
 
 	for impIdx, imp := range imports {
+
+		if imp.ResolvedType == LocalExportDeclaration {
+			continue
+		}
+
 		moduleName := GetNodeModuleName(imp.Request)
 		mu.Lock()
 		_, isBuiltInModule := builtInModules[moduleName]

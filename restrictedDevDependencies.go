@@ -10,7 +10,7 @@ func FindDevDependenciesInProduction(
 	validEntryPoints []string,
 	ignoreTypeImports bool,
 	rulePath string,
-	monorepoContext *MonorepoContext,
+	devDependencies map[string]bool,
 ) []RestrictedDevDependenciesUsageViolation {
 	if len(validEntryPoints) == 0 {
 		return []RestrictedDevDependenciesUsageViolation{}
@@ -32,14 +32,6 @@ func FindDevDependenciesInProduction(
 	slices.Sort(prodEntryPoints) // ensure deterministic results
 
 	graph := buildDepsGraphForMultiple(ruleTree, prodEntryPoints, nil, false, ignoreTypeImports)
-
-	// Get dev dependencies from package.json in rule path
-	devDependencies := make(map[string]bool)
-	if monorepoContext != nil {
-		if config, err := monorepoContext.GetPackageConfig(rulePath); err == nil {
-			devDependencies = GetDevDependenciesFromConfig(config)
-		}
-	}
 
 	var violations []RestrictedDevDependenciesUsageViolation
 

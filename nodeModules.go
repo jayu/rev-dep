@@ -14,7 +14,7 @@ import (
 	"github.com/tidwall/jsonc"
 )
 
-func GetNodeModulesFromPkgJson(packageJsonContent []byte) map[string]bool {
+func GetNodeModulesFromPkgJson(packageJsonContent []byte) (map[string]bool, map[string]bool) {
 	packageJsonContent = jsonc.ToJSON(packageJsonContent)
 
 	var rawPackageJson map[string]map[string]string
@@ -25,24 +25,25 @@ func GetNodeModulesFromPkgJson(packageJsonContent []byte) map[string]bool {
 		// fmt.Printf("Failed to parse package json : %s\n", err)
 	}
 
-	modules := map[string]bool{}
+	deps := map[string]bool{}
+	devDeps := map[string]bool{}
 
-	dependencies, ok := rawPackageJson["dependencies"]
+	rawDeps, ok := rawPackageJson["dependencies"]
 
 	if ok {
-		for dep := range dependencies {
-			modules[dep] = true
+		for dep := range rawDeps {
+			deps[dep] = true
 		}
 	}
-	devDependencies, ok2 := rawPackageJson["devDependencies"]
+	rawDevDeps, ok2 := rawPackageJson["devDependencies"]
 
 	if ok2 {
-		for dep := range devDependencies {
-			modules[dep] = true
+		for dep := range rawDevDeps {
+			devDeps[dep] = true
 		}
 	}
 
-	return modules
+	return deps, devDeps
 }
 
 func GetNodeModuleName(request string) string {

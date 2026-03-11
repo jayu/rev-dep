@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -88,14 +89,14 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 		if rule.Checks.CircularDependencies != nil {
 			for _, issue := range rule.Checks.CircularDependencies.Issues {
 				if v, ok := issue.(jsonCircularDependencyIssue); ok {
-					add("Circular dependencies", strings.Join(v.Cycle, " -> "), "")
+					add("Circular Dependencies Issues", strings.Join(v.Cycle, " -> "), "")
 				}
 			}
 		}
 		if rule.Checks.OrphanFiles != nil {
 			for _, issue := range rule.Checks.OrphanFiles.Issues {
 				if v, ok := issue.(jsonOrphanFileIssue); ok {
-					add("Orphan files", v.FilePath, "")
+					add("Orphan Files Issues", v.FilePath, "")
 				}
 			}
 		}
@@ -106,14 +107,14 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 					if label == "" {
 						label = v.RuleName
 					}
-					add("Module boundaries", label, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
+					add("Module Boundary Issues", label, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
 				}
 			}
 		}
 		if rule.Checks.UnusedNodeModules != nil {
 			for _, issue := range rule.Checks.UnusedNodeModules.Issues {
 				if v, ok := issue.(jsonUnusedNodeModuleIssue); ok {
-					add("Unused dependencies", v.ModuleName, formatIssueLocationWithFields(v.PackageJsonPath, v.jsonLocationFields))
+					add("Unused Node Modules Issues", v.ModuleName, formatIssueLocationWithFields(v.PackageJsonPath, v.jsonLocationFields))
 				}
 			}
 		}
@@ -122,14 +123,14 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 				if v, ok := issue.(jsonMissingNodeModuleIssue); ok {
 					if len(v.Locations) > 0 {
 						for _, loc := range v.Locations {
-							add("Unlisted dependencies", v.ModuleName, formatIssueLocation(loc.FilePath, loc.StartLine, loc.StartCol))
+							add("Missing Node Modules Issues", v.ModuleName, formatIssueLocation(loc.FilePath, loc.StartLine, loc.StartCol))
 						}
 					} else if len(v.ImportedFrom) > 0 {
 						for _, filePath := range v.ImportedFrom {
-							add("Unlisted dependencies", v.ModuleName, formatIssueLocation(filePath, 0, 0))
+							add("Missing Node Modules Issues", v.ModuleName, formatIssueLocation(filePath, 0, 0))
 						}
 					} else {
-						add("Unlisted dependencies", v.ModuleName, formatIssueLocation("unknown", 0, 0))
+						add("Missing Node Modules Issues", v.ModuleName, formatIssueLocation("unknown", 0, 0))
 					}
 				}
 			}
@@ -137,28 +138,28 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 		if rule.Checks.ImportConventions != nil {
 			for _, issue := range rule.Checks.ImportConventions.Issues {
 				if v, ok := issue.(jsonImportConventionIssue); ok {
-					add("Import conventions", v.ImportRequest, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
+					add("Import Convention Issues", v.ImportRequest, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
 				}
 			}
 		}
 		if rule.Checks.UnresolvedImports != nil {
 			for _, issue := range rule.Checks.UnresolvedImports.Issues {
 				if v, ok := issue.(jsonUnresolvedImportIssue); ok {
-					add("Unresolved imports", v.Request, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
+					add("Unresolved Imports", v.Request, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
 				}
 			}
 		}
 		if rule.Checks.UnusedExports != nil {
 			for _, issue := range rule.Checks.UnusedExports.Issues {
 				if v, ok := issue.(jsonUnusedExportIssue); ok {
-					add("Unused exports", v.ExportName, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
+					add("Unused Exports Issues", v.ExportName, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
 				}
 			}
 		}
 		if rule.Checks.RestrictedDevDependenciesUsage != nil {
 			for _, issue := range rule.Checks.RestrictedDevDependenciesUsage.Issues {
 				if v, ok := issue.(jsonRestrictedDevDepsIssue); ok {
-					add("Dev deps usage on prod", v.DevDependency, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
+					add("Dev Deps Usage On Prod Issues", v.DevDependency, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
 				}
 			}
 		}
@@ -173,28 +174,42 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 							label = v.DeniedFile
 						}
 					}
-					add("Restricted imports", label, formatIssueLocationWithFields(v.ImporterFile, v.jsonLocationFields))
+					add("Restricted Imports Issues", label, formatIssueLocationWithFields(v.ImporterFile, v.jsonLocationFields))
 				}
 			}
 		}
 	}
 
 	order := []string{
-		"Circular dependencies",
-		"Orphan files",
-		"Module boundaries",
-		"Unused dependencies",
-		"Unlisted dependencies",
-		"Import conventions",
-		"Unresolved imports",
-		"Unused exports",
-		"Dev deps usage on prod",
-		"Restricted imports",
+		"Circular Dependencies Issues",
+		"Orphan Files Issues",
+		"Module Boundary Issues",
+		"Unused Node Modules Issues",
+		"Missing Node Modules Issues",
+		"Import Convention Issues",
+		"Unresolved Imports",
+		"Unused Exports Issues",
+		"Dev Deps Usage On Prod Issues",
+		"Restricted Imports Issues",
 	}
 
 	groups := make([]issuesListGroup, 0, len(order))
 	for _, title := range order {
 		if items, ok := byType[title]; ok && len(items) > 0 {
+			sort.SliceStable(items, func(i, j int) bool {
+				iLoc := items[i].Location
+				jLoc := items[j].Location
+				if iLoc != jLoc {
+					if iLoc == "" {
+						return false
+					}
+					if jLoc == "" {
+						return true
+					}
+					return iLoc < jLoc
+				}
+				return items[i].Label < items[j].Label
+			})
 			groups = append(groups, issuesListGroup{Title: title, Items: items})
 		}
 	}

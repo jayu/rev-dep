@@ -397,12 +397,7 @@ func processRuleChecks(
 			unusedSet := map[string]bool{}
 			unusedModules := make([]UnusedNodeModuleIssue, 0)
 			outputType := ""
-			unusedPackageJsonPath := ""
-			if rulePathResolver != nil {
-				unusedPackageJsonPath = filepath.Join(rulePathResolver.resolverRoot, "package.json")
-			} else {
-				unusedPackageJsonPath = filepath.Join(fullRulePath, "package.json")
-			}
+
 			for _, detection := range rule.getUnusedNodeModulesDetections() {
 				if !detection.Enabled {
 					continue
@@ -424,7 +419,7 @@ func processRuleChecks(
 						unusedSet[moduleName] = true
 						unusedModules = append(unusedModules, UnusedNodeModuleIssue{
 							ModuleName:      moduleName,
-							PackageJsonPath: unusedPackageJsonPath,
+							PackageJsonPath: rulePathResolver.packageJsonPath,
 						})
 					}
 				}
@@ -456,12 +451,14 @@ func processRuleChecks(
 				if !detection.Enabled {
 					continue
 				}
+
 				missingModules = append(missingModules, GetMissingNodeModulesFromTree(
 					ruleTree,
 					detection.IncludeModules,
 					detection.ExcludeModules,
 					rulePathNodeModules,
 				)...)
+
 				if outputType == "" && detection.OutputType != "" {
 					outputType = detection.OutputType
 				}
@@ -557,9 +554,9 @@ func processRuleChecks(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			var monorepoContext *MonorepoContext
-			if resolverManager != nil {
-				monorepoContext = resolverManager.monorepoContext
+			var devDependencies map[string]bool
+			if rulePathResolver != nil {
+				devDependencies = rulePathResolver.devNodeModules
 			}
 
 			violations := make([]RestrictedDevDependenciesUsageViolation, 0)
@@ -572,7 +569,7 @@ func processRuleChecks(
 					detection.ProdEntryPoints,
 					detection.IgnoreTypeImports,
 					fullRulePath,
-					monorepoContext,
+					devDependencies,
 				)...)
 			}
 

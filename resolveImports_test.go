@@ -715,11 +715,13 @@ func TestGetNodeModulesFromPkg(t *testing.T) {
 	}
 	`
 
-	modules := GetNodeModulesFromPkgJson([]byte(pkgJson))
+	deps, devDeps := GetNodeModulesFromPkgJson([]byte(pkgJson))
 	expectedModules := []string{"react", "node", "@types/react", "@types/node"}
 
 	for _, module := range expectedModules {
-		_, has := modules[module]
+		_, hasDeps := deps[module]
+		_, hasDevDeps := devDeps[module]
+		has := hasDeps || hasDevDeps
 		if !has {
 			t.Errorf("Module '%s' not found in package.json", module)
 		}

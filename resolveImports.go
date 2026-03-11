@@ -82,6 +82,8 @@ type ModuleResolver struct {
 	resolverRoot       string
 	manager            *ResolverManager
 	nodeModules        map[string]bool
+	devNodeModules     map[string]bool
+	packageJsonPath    string
 }
 
 type ResolutionError int8
@@ -129,6 +131,7 @@ type ResolverManager struct {
 type RootParams struct {
 	TsConfigContent []byte
 	PkgJsonContent  []byte
+	PkgJsonPath     string
 	SortedFiles     []string
 	Cwd             string
 }
@@ -153,7 +156,7 @@ func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, cond
 	}
 
 	if monorepoCtx == nil {
-		rm.rootResolver = NewImportsResolver(rootParams.Cwd, rootParams.TsConfigContent, rootParams.PkgJsonContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
+		rm.rootResolver = NewImportsResolver(rootParams.Cwd, rootParams.TsConfigContent, rootParams.PkgJsonContent, rootParams.PkgJsonPath, rm.conditionNames, rm.rootParams.SortedFiles, rm)
 		rm.cwdResolver = rm.rootResolver
 		return rm
 	}
@@ -260,12 +263,13 @@ func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
 
 	var pkgContent []byte
 
-	pkgContent, _ = os.ReadFile(filepath.Join(dirPath, "package.json"))
+	pkgJsonPath := filepath.Join(dirPath, "package.json")
+	pkgContent, _ = os.ReadFile(pkgJsonPath)
 
 	tsConfigPath := filepath.Join(dirPath, "tsconfig.json")
 	tsConfigContent, _ := ParseTsConfig(tsConfigPath)
 
-	resolver := NewImportsResolver(dirPath, tsConfigContent, pkgContent, rm.conditionNames, rm.rootParams.SortedFiles, rm)
+	resolver := NewImportsResolver(dirPath, tsConfigContent, pkgContent, pkgJsonPath, rm.conditionNames, rm.rootParams.SortedFiles, rm)
 
 	return resolver
 }
@@ -511,7 +515,7 @@ func ParseTsConfigContent(tsconfigContent []byte) *TsConfigParsed {
 	return tsConfigParsed
 }
 
-func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
+func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonContent []byte, packageJsonPath string, conditionNames []string, allFilePaths []string, manager *ResolverManager) *ModuleResolver {
 	tsConfigParsed := ParseTsConfigContent(tsconfigContent)
 
 	packageJsonImports := &PackageJsonImports{
@@ -612,16 +616,33 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 		return len(patternB.key) - len(patternA.key)
 	})
 
+	deps, devDeps := GetNodeModulesFromPkgJson(packageJsonContent)
+
 	factory := &ModuleResolver{
 		tsConfigParsed:     tsConfigParsed,
 		packageJsonImports: packageJsonImports,
 		aliasesCache:       map[string]ResolvedModuleInfo{},
 		manager:            manager,
 		resolverRoot:       dirPath,
-		nodeModules:        GetNodeModulesFromPkgJson(packageJsonContent),
+		devNodeModules:     devDeps,
+		nodeModules:        nil,
+		packageJsonPath:    packageJsonPath,
 	}
 
+	factory.nodeModules = mergeNodeModules(deps, devDeps)
+
 	return factory
+}
+
+func mergeNodeModules(deps map[string]bool, devDeps map[string]bool) map[string]bool {
+	merged := make(map[string]bool, len(deps)+len(devDeps))
+	for dep := range deps {
+		merged[dep] = true
+	}
+	for dep := range devDeps {
+		merged[dep] = true
+	}
+	return merged
 }
 
 func hasExtensionPrecedence(previousExt string, currentExt string) bool {
@@ -1273,6 +1294,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	resolverManager = NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
 		TsConfigContent: tsconfigContent,
 		PkgJsonContent:  pkgJsonContent,
+		PkgJsonPath:     pkgJsonPath,
 		SortedFiles:     sortedFiles,
 		Cwd:             cwd,
 	}, excludeFilePatterns)

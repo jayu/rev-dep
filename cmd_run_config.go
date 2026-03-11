@@ -49,6 +49,9 @@ var configRunCmd = &cobra.Command{
 		if runConfigFormat == "json" {
 			return runConfigWithJSONOutput(config, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix)
 		}
+		if runConfigFormat == "issues-list" {
+			return runConfigWithIssuesListOutput(config, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix)
+		}
 
 		if err := filterRunConfigRules(&config, runConfigRules); err != nil {
 			return err
@@ -676,7 +679,7 @@ func init() {
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
-	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json)")
+	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
 
 	// config init command

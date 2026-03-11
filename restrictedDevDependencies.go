@@ -1,6 +1,8 @@
 package main
 
-import "slices"
+import (
+	"slices"
+)
 
 // FindDevDependenciesInProduction detects when dev dependencies are used in production entry points
 func FindDevDependenciesInProduction(

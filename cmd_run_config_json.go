@@ -40,6 +40,21 @@ type jsonCheckResult struct {
 	Issues []interface{} `json:"issues"`
 }
 
+type jsonLocationFields struct {
+	StartLine *int `json:"startLine,omitempty"`
+	StartCol  *int `json:"startCol,omitempty"`
+	EndLine   *int `json:"endLine,omitempty"`
+	EndCol    *int `json:"endCol,omitempty"`
+}
+
+type jsonLocation struct {
+	FilePath  string `json:"filePath"`
+	StartLine int    `json:"startLine"`
+	StartCol  int    `json:"startCol"`
+	EndLine   int    `json:"endLine"`
+	EndCol    int    `json:"endCol"`
+}
+
 type jsonFixSummary struct {
 	FixedFilesCount        int `json:"fixedFilesCount"`
 	FixedImportsCount      int `json:"fixedImportsCount"`
@@ -61,38 +76,46 @@ type jsonModuleBoundaryIssue struct {
 	FilePath      string `json:"filePath"`
 	ImportPath    string `json:"importPath"`
 	ViolationType string `json:"violationType"`
+	jsonLocationFields
 }
 
 type jsonUnusedNodeModuleIssue struct {
-	ModuleName string `json:"moduleName"`
+	ModuleName      string `json:"moduleName"`
+	PackageJsonPath string `json:"filePath"`
+	jsonLocationFields
 }
 
 type jsonMissingNodeModuleIssue struct {
-	ModuleName   string   `json:"moduleName"`
-	ImportedFrom []string `json:"importedFrom"`
+	ModuleName   string         `json:"moduleName"`
+	ImportedFrom []string       `json:"importedFrom"`
+	Locations    []jsonLocation `json:"locations,omitempty"`
 }
 
 type jsonImportConventionIssue struct {
 	FilePath      string `json:"filePath"`
 	ImportRequest string `json:"importRequest"`
 	ViolationType string `json:"violationType"`
+	jsonLocationFields
 }
 
 type jsonUnresolvedImportIssue struct {
 	FilePath string `json:"filePath"`
 	Request  string `json:"request"`
+	jsonLocationFields
 }
 
 type jsonUnusedExportIssue struct {
 	FilePath   string `json:"filePath"`
 	ExportName string `json:"exportName"`
 	IsType     bool   `json:"isType"`
+	jsonLocationFields
 }
 
 type jsonRestrictedDevDepsIssue struct {
 	DevDependency string `json:"devDependency"`
 	FilePath      string `json:"filePath"`
 	EntryPoint    string `json:"entryPoint"`
+	jsonLocationFields
 }
 
 type jsonRestrictedImportIssue struct {
@@ -102,6 +125,7 @@ type jsonRestrictedImportIssue struct {
 	DeniedFile    string `json:"deniedFile,omitempty"`
 	DeniedModule  string `json:"deniedModule,omitempty"`
 	ImportRequest string `json:"importRequest,omitempty"`
+	jsonLocationFields
 }
 
 // ---------------- JSON output logic ----------------
@@ -116,7 +140,7 @@ func runConfigWithJSONOutput(config RevDepConfig, cwd string, packageJsonPath st
 		return err
 	}
 
-	result, err := ProcessConfig(&config, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix)
+	result, err := ProcessConfig(&config, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, true)
 	if err != nil {
 		return fmt.Errorf("Error processing config: %v", err)
 	}
@@ -131,8 +155,9 @@ func runConfigWithJSONOutput(config RevDepConfig, cwd string, packageJsonPath st
 	output.FixSummary.FixableIssuesCount += result.FixableIssuesCount
 	output.FixSummary.UnfixableAliasingCount += result.UnfixableAliasingCount
 
+	locator := newFileLocationResolver(cwd, result.FullTree)
 	for _, ruleResult := range result.RuleResults {
-		output.Rules = append(output.Rules, buildJSONRuleResult(ruleResult, cwd))
+		output.Rules = append(output.Rules, buildJSONRuleResult(ruleResult, cwd, locator))
 	}
 
 	if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
@@ -146,7 +171,7 @@ func runConfigWithJSONOutput(config RevDepConfig, cwd string, packageJsonPath st
 	return nil
 }
 
-func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
+func buildJSONRuleResult(ruleResult RuleResult, cwd string, locator *fileLocationResolver) jsonRuleResult {
 	relPath := func(absolutePath string) string {
 		if absolutePath == "" {
 			return absolutePath
@@ -198,12 +223,16 @@ func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
 			if len(ruleResult.ModuleBoundaryViolations) > 0 {
 				cr.Status = "fail"
 				for _, v := range ruleResult.ModuleBoundaryViolations {
-					cr.Issues = append(cr.Issues, jsonModuleBoundaryIssue{
+					issue := jsonModuleBoundaryIssue{
 						RuleName:      v.RuleName,
 						FilePath:      relPath(v.FilePath),
 						ImportPath:    relPath(v.ImportPath),
 						ViolationType: v.ViolationType,
-					})
+					}
+					if locator != nil && v.ImportRequest != "" {
+						issue.jsonLocationFields = locator.locationForRequest(v.FilePath, v.ImportRequest)
+					}
+					cr.Issues = append(cr.Issues, issue)
 				}
 			} else {
 				cr.Status = "pass"
@@ -215,7 +244,15 @@ func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
 			if len(ruleResult.UnusedNodeModules) > 0 {
 				cr.Status = "fail"
 				for _, module := range ruleResult.UnusedNodeModules {
-					cr.Issues = append(cr.Issues, jsonUnusedNodeModuleIssue{ModuleName: module})
+					loc := jsonLocationFields{}
+					if locator != nil {
+						loc = locator.locationForPackageJsonDependency(module.PackageJsonPath, module.ModuleName)
+					}
+					cr.Issues = append(cr.Issues, jsonUnusedNodeModuleIssue{
+						ModuleName:      module.ModuleName,
+						PackageJsonPath: relPath(module.PackageJsonPath),
+						jsonLocationFields: loc,
+					})
 				}
 			} else {
 				cr.Status = "pass"
@@ -231,10 +268,25 @@ func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
 					for i, p := range m.ImportedFrom {
 						importedFrom[i] = relPath(p)
 					}
-					cr.Issues = append(cr.Issues, jsonMissingNodeModuleIssue{
+					issue := jsonMissingNodeModuleIssue{
 						ModuleName:   m.ModuleName,
 						ImportedFrom: importedFrom,
-					})
+					}
+					if locator != nil {
+						for _, filePath := range m.ImportedFrom {
+							fields := locator.locationForModuleName(filePath, m.ModuleName)
+							if fields.StartLine != nil && fields.StartCol != nil && fields.EndLine != nil && fields.EndCol != nil {
+								issue.Locations = append(issue.Locations, jsonLocation{
+									FilePath:  relPath(filePath),
+									StartLine: *fields.StartLine,
+									StartCol:  *fields.StartCol,
+									EndLine:   *fields.EndLine,
+									EndCol:    *fields.EndCol,
+								})
+							}
+						}
+					}
+					cr.Issues = append(cr.Issues, issue)
 				}
 			} else {
 				cr.Status = "pass"
@@ -246,11 +298,15 @@ func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
 			if len(ruleResult.ImportConventionViolations) > 0 {
 				cr.Status = "fail"
 				for _, v := range ruleResult.ImportConventionViolations {
-					cr.Issues = append(cr.Issues, jsonImportConventionIssue{
+					issue := jsonImportConventionIssue{
 						FilePath:      relPath(v.FilePath),
 						ImportRequest: v.ImportRequest,
 						ViolationType: v.ViolationType,
-					})
+					}
+					if locator != nil {
+						issue.jsonLocationFields = locator.locationForRequest(v.FilePath, v.ImportRequest)
+					}
+					cr.Issues = append(cr.Issues, issue)
 				}
 			} else {
 				cr.Status = "pass"
@@ -262,10 +318,14 @@ func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
 			if len(ruleResult.UnresolvedImports) > 0 {
 				cr.Status = "fail"
 				for _, u := range ruleResult.UnresolvedImports {
-					cr.Issues = append(cr.Issues, jsonUnresolvedImportIssue{
+					issue := jsonUnresolvedImportIssue{
 						FilePath: relPath(u.FilePath),
 						Request:  u.Request,
-					})
+					}
+					if locator != nil {
+						issue.jsonLocationFields = locator.locationForRequest(u.FilePath, u.Request)
+					}
+					cr.Issues = append(cr.Issues, issue)
 				}
 			} else {
 				cr.Status = "pass"
@@ -277,11 +337,15 @@ func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
 			if len(ruleResult.UnusedExports) > 0 {
 				cr.Status = "fail"
 				for _, ue := range ruleResult.UnusedExports {
-					cr.Issues = append(cr.Issues, jsonUnusedExportIssue{
+					issue := jsonUnusedExportIssue{
 						FilePath:   relPath(ue.FilePath),
 						ExportName: ue.ExportName,
 						IsType:     ue.IsType,
-					})
+					}
+					if locator != nil {
+						issue.jsonLocationFields = locator.locationForExport(ue.FilePath, ue.ExportName)
+					}
+					cr.Issues = append(cr.Issues, issue)
 				}
 			} else {
 				cr.Status = "pass"
@@ -293,11 +357,15 @@ func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
 			if len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 {
 				cr.Status = "fail"
 				for _, v := range ruleResult.RestrictedDevDependenciesUsageViolations {
-					cr.Issues = append(cr.Issues, jsonRestrictedDevDepsIssue{
+					issue := jsonRestrictedDevDepsIssue{
 						DevDependency: v.DevDependency,
 						FilePath:      relPath(v.FilePath),
 						EntryPoint:    relPath(v.EntryPoint),
-					})
+					}
+					if locator != nil {
+						issue.jsonLocationFields = locator.locationForModuleName(v.FilePath, v.DevDependency)
+					}
+					cr.Issues = append(cr.Issues, issue)
 				}
 			} else {
 				cr.Status = "pass"
@@ -309,14 +377,18 @@ func buildJSONRuleResult(ruleResult RuleResult, cwd string) jsonRuleResult {
 			if len(ruleResult.RestrictedImportsViolations) > 0 {
 				cr.Status = "fail"
 				for _, v := range ruleResult.RestrictedImportsViolations {
-					cr.Issues = append(cr.Issues, jsonRestrictedImportIssue{
+					issue := jsonRestrictedImportIssue{
 						ViolationType: v.ViolationType,
 						ImporterFile:  relPath(v.ImporterFile),
 						EntryPoint:    relPath(v.EntryPoint),
 						DeniedFile:    relPath(v.DeniedFile),
 						DeniedModule:  v.DeniedModule,
 						ImportRequest: v.ImportRequest,
-					})
+					}
+					if locator != nil && v.ImportRequest != "" {
+						issue.jsonLocationFields = locator.locationForRequest(v.ImporterFile, v.ImportRequest)
+					}
+					cr.Issues = append(cr.Issues, issue)
 				}
 			} else {
 				cr.Status = "pass"

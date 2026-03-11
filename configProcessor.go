@@ -50,7 +50,7 @@ type RuleResult struct {
 	OrphanFilesAutofixable                          []string
 	MissingNodeModules                              []MissingNodeModuleResult
 	MissingNodeModulesOutputType                    string
-	UnusedNodeModules                               []string
+	UnusedNodeModules                               []UnusedNodeModuleIssue
 	UnusedNodeModulesOutputType                     string
 	ImportConventionViolations                      []ImportConventionViolation
 	UnusedExports                                   []UnusedExport
@@ -71,6 +71,7 @@ type ConfigProcessingResult struct {
 	DeletedFilesCount      int
 	UnfixableAliasingCount int
 	FixableIssuesCount     int
+	FullTree               MinimalDependencyTree
 }
 
 // discoverAllFilesForConfig discovers all files for config processing
@@ -394,8 +395,14 @@ func processRuleChecks(
 		go func() {
 			defer wg.Done()
 			unusedSet := map[string]bool{}
-			unusedModules := make([]string, 0)
+			unusedModules := make([]UnusedNodeModuleIssue, 0)
 			outputType := ""
+			unusedPackageJsonPath := ""
+			if rulePathResolver != nil {
+				unusedPackageJsonPath = filepath.Join(rulePathResolver.resolverRoot, "package.json")
+			} else {
+				unusedPackageJsonPath = filepath.Join(fullRulePath, "package.json")
+			}
 			for _, detection := range rule.getUnusedNodeModulesDetections() {
 				if !detection.Enabled {
 					continue
@@ -415,14 +422,19 @@ func processRuleChecks(
 				for _, moduleName := range found {
 					if !unusedSet[moduleName] {
 						unusedSet[moduleName] = true
-						unusedModules = append(unusedModules, moduleName)
+						unusedModules = append(unusedModules, UnusedNodeModuleIssue{
+							ModuleName:      moduleName,
+							PackageJsonPath: unusedPackageJsonPath,
+						})
 					}
 				}
 				if outputType == "" && detection.OutputType != "" {
 					outputType = detection.OutputType
 				}
 			}
-			slices.Sort(unusedModules)
+			slices.SortFunc(unusedModules, func(a, b UnusedNodeModuleIssue) int {
+				return strings.Compare(a.ModuleName, b.ModuleName)
+			})
 
 			mu.Lock()
 			ruleResult.UnusedNodeModules = unusedModules
@@ -604,6 +616,7 @@ func ProcessConfig(
 	packageJson string,
 	tsconfigJson string,
 	fix bool,
+	forceDetailed bool,
 ) (*ConfigProcessingResult, error) {
 	// Step 1: Discover all files
 	allFiles, excludePatterns, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles)
@@ -613,7 +626,7 @@ func ProcessConfig(
 
 	// Step 2: Build dependency tree for config
 	parseMode := ParseModeBasic
-	if anyRuleChecksForUnusedExports(config) {
+	if forceDetailed || anyRuleChecksForUnusedExports(config) {
 		parseMode = ParseModeDetailed
 	}
 
@@ -635,6 +648,7 @@ func ProcessConfig(
 	result := &ConfigProcessingResult{
 		RuleResults: make([]RuleResult, len(config.Rules)),
 		HasFailures: false,
+		FullTree:    fullTree,
 	}
 
 	// Validate package.json exists for all rule paths before parallel processing

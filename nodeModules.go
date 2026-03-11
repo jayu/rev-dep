@@ -217,6 +217,11 @@ type MissingNodeModuleResult struct {
 	ImportedFrom []string
 }
 
+type UnusedNodeModuleIssue struct {
+	ModuleName      string
+	PackageJsonPath string
+}
+
 func isValidNodeModuleName(name string) bool {
 	// There are more restrictions on node module name than starting with dot, but for now we just check against that
 	return !strings.HasPrefix(name, ".")

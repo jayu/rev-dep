@@ -22,7 +22,7 @@ func loadAndProcessUnusedExportsConfig(t *testing.T, testCwd string, cfg string)
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestConfigProcessor_UnusedExports(t *testing.T) {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false, false)
 	if err != nil {
 		t.Fatalf("Failed to process config: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestConfigProcessor_UnusedExportsAutofix(t *testing.T) {
 	}
 
 	// Run with fix=true
-	result, err := ProcessConfig(&config, tmpDir, "package.json", "tsconfig.json", true)
+	result, err := ProcessConfig(&config, tmpDir, "package.json", "tsconfig.json", true, false)
 	if err != nil {
 		t.Fatalf("Failed to process config: %v", err)
 	}

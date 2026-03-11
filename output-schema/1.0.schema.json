@@ -120,10 +120,15 @@
     },
     "unusedNodeModuleIssue": {
       "type": "object",
-      "required": ["moduleName"],
+      "required": ["moduleName", "filePath"],
       "additionalProperties": false,
       "properties": {
-        "moduleName": { "type": "string" }
+        "moduleName": { "type": "string" },
+        "filePath": { "type": "string" },
+        "startLine": { "type": "integer" },
+        "startCol": { "type": "integer" },
+        "endLine": { "type": "integer" },
+        "endCol": { "type": "integer" }
       }
     },
     "missingNodeModuleIssue": {

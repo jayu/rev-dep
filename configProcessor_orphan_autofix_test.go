@@ -46,7 +46,7 @@ func TestConfigProcessor_OrphanFiles_Autofix(t *testing.T) {
 	}
 
 	// 1. Verify fixable issues count when fix=false
-	result, err := ProcessConfig(&config, tempDir, "", "", false)
+	result, err := ProcessConfig(&config, tempDir, "", "", false, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestConfigProcessor_OrphanFiles_Autofix(t *testing.T) {
 	}
 
 	// 2. Process with fix=true and verify removal
-	result, err = ProcessConfig(&config, tempDir, "", "", true)
+	result, err = ProcessConfig(&config, tempDir, "", "", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestConfigProcessor_OrphanFiles_NoAutofix(t *testing.T) {
 	}
 
 	// 1. Verify fixable issues count is 0 when autofix is disabled
-	result, err := ProcessConfig(&config, tempDir, "", "", false)
+	result, err := ProcessConfig(&config, tempDir, "", "", false, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestConfigProcessor_OrphanFiles_NoAutofix(t *testing.T) {
 	}
 
 	// 2. Even with fix=true, nothing should be deleted
-	result, err = ProcessConfig(&config, tempDir, "", "", true)
+	result, err = ProcessConfig(&config, tempDir, "", "", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestConfigProcessor_OrphanFiles_MultipleDetections_AutofixRespectsReporting
 		},
 	}
 	// With fix=false, orphan is reported but not suggested as fixable (because reporting detector has autofix=false).
-	result, err := ProcessConfig(&config, tempDir, "", "", false)
+	result, err := ProcessConfig(&config, tempDir, "", "", false, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestConfigProcessor_OrphanFiles_MultipleDetections_AutofixRespectsReporting
 	}
 
 	// With fix=true, reported orphan should still NOT be deleted.
-	result, err = ProcessConfig(&config, tempDir, "", "", true)
+	result, err = ProcessConfig(&config, tempDir, "", "", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -34,7 +35,7 @@ func captureJSONOutput(t *testing.T, result *ConfigProcessingResult, cwd string)
 	output.FixSummary.UnfixableAliasingCount = result.UnfixableAliasingCount
 
 	for _, ruleResult := range result.RuleResults {
-		output.Rules = append(output.Rules, buildJSONRuleResult(ruleResult, cwd))
+		output.Rules = append(output.Rules, buildJSONRuleResult(ruleResult, cwd, nil))
 	}
 
 	json.NewEncoder(os.Stdout).Encode(output)
@@ -158,7 +159,9 @@ func TestJSONOutput_WithFailures(t *testing.T) {
 				UnresolvedImports: []UnresolvedImport{
 					{FilePath: "src/index.ts", Request: "./missing"},
 				},
-				UnusedNodeModules: []string{"lodash"},
+				UnusedNodeModules: []UnusedNodeModuleIssue{
+					{ModuleName: "lodash", PackageJsonPath: filepath.Join(cwd, "package.json")},
+				},
 				MissingNodeModules: []MissingNodeModuleResult{
 					{ModuleName: "axios", ImportedFrom: []string{"src/api.ts"}},
 				},
@@ -218,14 +221,27 @@ func TestJSONOutput_WithFailures(t *testing.T) {
 		t.Error("expected importConventions to fail")
 	}
 
-	// Unresolved imports
-	if rule.Checks.UnresolvedImports.Status != "fail" {
-		t.Error("expected unresolvedImports to fail")
-	}
-
 	// Unused node modules
 	if rule.Checks.UnusedNodeModules.Status != "fail" {
 		t.Error("expected unusedNodeModules to fail")
+	}
+	if len(rule.Checks.UnusedNodeModules.Issues) != 1 {
+		t.Fatalf("expected 1 unused node module issue, got %d", len(rule.Checks.UnusedNodeModules.Issues))
+	}
+	firstUnused, ok := rule.Checks.UnusedNodeModules.Issues[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected unused node module issue to be an object, got %T", rule.Checks.UnusedNodeModules.Issues[0])
+	}
+	if firstUnused["moduleName"] != "lodash" {
+		t.Errorf("expected unused moduleName 'lodash', got %v", firstUnused["moduleName"])
+	}
+	if firstUnused["filePath"] != "package.json" {
+		t.Errorf("expected filePath 'package.json', got %v", firstUnused["filePath"])
+	}
+
+	// Unresolved imports
+	if rule.Checks.UnresolvedImports.Status != "fail" {
+		t.Error("expected unresolvedImports to fail")
 	}
 
 	// Missing node modules

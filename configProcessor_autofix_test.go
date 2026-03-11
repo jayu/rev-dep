@@ -69,7 +69,7 @@ func TestConfigProcessor_ImportConventions_Autofix(t *testing.T) {
 	}
 
 	// Process the config with fix=true
-	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestConfigProcessor_ImportConventions_Autofix_Aliasing(t *testing.T) {
 	}
 
 	// Process the config with fix=true
-	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestConfigProcessor_ImportConventions_StylePreservation(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "tsconfig.json"), []byte(tsconfig), 0644)
 
 	// Run autofix
-	_, err = ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	_, err = ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestConfigProcessor_ImportConventions_UnfixableAliasing(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "package.json"), []byte(packageJson), 0644)
 
 	// Run autofix
-	result, err := ProcessConfig(&config, tempDir, "package.json", "", true)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}

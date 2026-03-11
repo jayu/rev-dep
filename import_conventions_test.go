@@ -128,7 +128,7 @@ func TestImportConventions_ObjectDomains_TsWildcardAlias(t *testing.T) {
 
 	os.WriteFile(chatFile, []byte(chatFileContent), 0644)
 
-	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestImportConventions_ObjectDomains_TsWildcardAlias(t *testing.T) {
 	// Reset auth file content
 	os.WriteFile(authFile, []byte(authFileContent), 0644)
 
-	result, err = ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	result, err = ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 
 	if result.HasFailures {
 		t.Fatalf("Expected no violations for disabled domain, got %d violations", len(result.RuleResults[0].ImportConventionViolations))
@@ -426,7 +426,7 @@ func TestImportConventions_ObjectDomains_NoTsWildcardAlias(t *testing.T) {
 
 	os.WriteFile(chatFile, []byte(chatFileContent), 0644)
 
-	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -573,7 +573,7 @@ func TestImportConventions_ObjectDomains_NoTsWildcardAlias(t *testing.T) {
 	// Reset auth file content
 	os.WriteFile(authFile, []byte(authFileContent), 0644)
 
-	result, err = ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	result, err = ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 
 	if result.HasFailures {
 		t.Fatalf("Expected no violations for disabled domain, got %d violations", len(result.RuleResults[0].ImportConventionViolations))
@@ -667,7 +667,7 @@ func TestImportConventions_StringDomains_TsWildcardAlias(t *testing.T) {
 
 	os.WriteFile(settingsFile, []byte(settingsFileContent), 0644)
 
-	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}
@@ -846,7 +846,7 @@ func TestImportConventions_StringDomains_NoTsWildcardAlias(t *testing.T) {
 
 	os.WriteFile(settingsFile, []byte(settingsFileContent), 0644)
 
-	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", true, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}

@@ -9,6 +9,7 @@ import (
 type ModuleBoundaryViolation struct {
 	FilePath      string
 	ImportPath    string
+	ImportRequest string
 	RuleName      string
 	ViolationType string // "denied" or "not_allowed"
 }
@@ -61,6 +62,7 @@ func CheckModuleBoundariesFromTree(
 							violations = append(violations, ModuleBoundaryViolation{
 								FilePath:      filePath,
 								ImportPath:    resolvedPath,
+								ImportRequest: dep.Request,
 								RuleName:      boundary.Rule.Name,
 								ViolationType: "denied",
 							})
@@ -73,6 +75,7 @@ func CheckModuleBoundariesFromTree(
 								violations = append(violations, ModuleBoundaryViolation{
 									FilePath:      filePath,
 									ImportPath:    resolvedPath,
+									ImportRequest: dep.Request,
 									RuleName:      boundary.Rule.Name,
 									ViolationType: "not_allowed",
 								})

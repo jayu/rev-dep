@@ -25,7 +25,7 @@ func TestConfigProcessor_ImportConventions(t *testing.T) {
 	}
 
 	// Process the config
-	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", false)
+	result, err := ProcessConfig(&config, tempDir, "package.json", "tsconfig.json", false, false)
 	if err != nil {
 		t.Fatalf("ProcessConfig failed: %v", err)
 	}

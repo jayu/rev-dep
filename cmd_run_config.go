@@ -55,7 +55,7 @@ var configRunCmd = &cobra.Command{
 		}
 
 		// Process the config
-		result, err := ProcessConfig(&config, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix)
+		result, err := ProcessConfig(&config, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, false)
 		if err != nil {
 			return fmt.Errorf("Error processing config: %v", err)
 		}
@@ -201,7 +201,12 @@ func formatAndPrintConfigResults(result *ConfigProcessingResult, cwd string, lis
 					}
 
 					for _, module := range modulesToDisplay {
-						fmt.Printf("    - %s\n", module)
+						packageJsonPath := getRelativePath(module.PackageJsonPath)
+						if packageJsonPath != "" {
+							fmt.Printf("    - %s (%s)\n", module.ModuleName, packageJsonPath)
+						} else {
+							fmt.Printf("    - %s\n", module.ModuleName)
+						}
 					}
 
 					if remaining > 0 {

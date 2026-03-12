@@ -774,6 +774,7 @@ rev-dep config run [flags]
   -c, --cwd string                                                  Working directory (default "$PWD")
       --fix                                                         Automatically fix fixable issues
       --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --format string                                               Output format (json, issues-list)
   -h, --help                                                        help for run
       --list-all-issues                                             List all issues instead of limiting output
       --package-json string                                         Path to package.json (default: ./package.json)

@@ -89,8 +89,8 @@ func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) 
 			}
 			return true
 		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
-			// matches file with name exactly as the pattern
+		if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
+			// matches file/dir with name exactly as the pattern (unnanchored only - anchored patterns like /boot must only match at root)
 			if debug {
 				fmt.Println(fileWithoutPrefix, "return matches file name exactly", matcher.inputString)
 			}

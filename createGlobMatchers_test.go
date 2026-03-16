@@ -166,4 +166,17 @@ func TestGlobMatchingWithRootAnchoredPattern(t *testing.T) {
 			t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, pattern, filePath)
 		}
 	})
+
+	t.Run("Root-anchored /config should not match nested directory", func(t *testing.T) {
+		root := "/fs/root/"
+		pattern := "/config"
+		filePath := "/fs/root/js/projects/app/config"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if matches {
+			t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, pattern, filePath)
+		}
+	})
 }

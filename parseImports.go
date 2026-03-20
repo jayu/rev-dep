@@ -246,12 +246,13 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 			continue
 		}
 
-		skippedSpacesIndex := skipSpaces(code, i)
-		if skippedSpacesIndex == i {
+		// Skip whitespace and comments (e.g. /* webpackChunkName: "..." */) to reach the string literal
+		skippedIndex := skipSpacesAndComments(code, i)
+		if skippedIndex == i {
 			// If there was any valid import the loop should break already
 			return "", i, 0, 0
 		}
-		i = skippedSpacesIndex
+		i = skippedIndex
 	}
 	if moduleStart == -1 || moduleEnd == -1 {
 		return string(module), i, 0, 0

@@ -209,6 +209,63 @@ func TestConfigProcessor_UnusedNodeModules(t *testing.T) {
 	}
 }
 
+func TestProcessConfig_ProcessIgnoredFilesIncludesGitIgnored(t *testing.T) {
+	tempDir := t.TempDir()
+
+	writeFile := func(relPath, content string) {
+		fullPath := filepath.Join(tempDir, relPath)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("mkdir failed: %v", err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("write failed: %v", err)
+		}
+	}
+
+	writeFile("package.json", `{"name":"test","version":"1.0.0"}`)
+	writeFile("tsconfig.json", `{}`)
+	writeFile(".gitignore", "src/ignored.ts\n")
+	writeFile("src/a.ts", `import "./ignored";`)
+	writeFile("src/ignored.ts", `import "./a";`)
+
+	baseRule := Rule{
+		Path: ".",
+		CircularImportsDetections: []*CircularImportsOptions{{
+			Enabled: true,
+		}},
+	}
+
+	configWithoutWhitelist := RevDepConfig{
+		ConfigVersion: "1.7",
+		Rules:         []Rule{baseRule},
+	}
+
+	result, err := ProcessConfig(&configWithoutWhitelist, tempDir, "package.json", "tsconfig.json", false, false)
+	if err != nil {
+		t.Fatalf("ProcessConfig failed: %v", err)
+	}
+	if len(result.RuleResults) != 1 {
+		t.Fatalf("expected 1 rule result, got %d", len(result.RuleResults))
+	}
+	if len(result.RuleResults[0].CircularDependencies) != 0 {
+		t.Fatalf("expected no circular dependencies without whitelist, got %d", len(result.RuleResults[0].CircularDependencies))
+	}
+
+	configWithWhitelist := RevDepConfig{
+		ConfigVersion:       "1.7",
+		ProcessIgnoredFiles: []string{"src/ignored.ts"},
+		Rules:               []Rule{baseRule},
+	}
+
+	result, err = ProcessConfig(&configWithWhitelist, tempDir, "package.json", "tsconfig.json", false, false)
+	if err != nil {
+		t.Fatalf("ProcessConfig failed: %v", err)
+	}
+	if len(result.RuleResults[0].CircularDependencies) == 0 {
+		t.Fatalf("expected circular dependencies when ignored file is whitelisted")
+	}
+}
+
 func TestConfigProcessor_MissingNodeModules(t *testing.T) {
 	currentDir, _ := os.Getwd()
 	testCwd := filepath.Join(currentDir, "__fixtures__/configProcessorProject")

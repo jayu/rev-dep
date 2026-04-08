@@ -68,7 +68,8 @@ func findAndProcessGitIgnoreFilesUpToRepoRoot(dirPath string, globMatchers []Glo
 	return findAndProcessGitIgnoreFilesUpToRepoRoot(parent, globMatchers)
 }
 
-func GetFiles(directory string, existingFiles []string, parentGlobMatchers []GlobMatcher) []string {
+func GetFiles(directory string, existingFiles []string, parentGlobMatchers []GlobMatcher, includeMatchers []GlobMatcher) []string {
+	includePrefixes := buildIncludePrefixes(includeMatchers)
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return existingFiles
@@ -79,8 +80,7 @@ func GetFiles(directory string, existingFiles []string, parentGlobMatchers []Glo
 		entryFilePath := filepath.Join(directory, entryName)
 
 		if entry.IsDir() {
-			debug := false
-			if !MatchesAnyGlobMatcher(entryFilePath, parentGlobMatchers, debug) {
+			if shouldTraverseDir(entryFilePath, parentGlobMatchers, includeMatchers, includePrefixes) {
 				// We parse gitignore here to avoid duplicated processing of gitignore from cwd - it will be captured by FindAndProcessGitIgnoreFilesUpToRepoRoot which result should be passed as parentGlobMatchers to root invocation of getFiles
 
 				gitignoreFile, gitignoreError := os.ReadFile(filepath.Join(entryFilePath, ".gitignore"))
@@ -95,12 +95,12 @@ func GetFiles(directory string, existingFiles []string, parentGlobMatchers []Glo
 					ignoreGlobs = parentGlobMatchers
 				}
 
-				existingFiles = GetFiles(entryFilePath, existingFiles, ignoreGlobs)
+				existingFiles = GetFiles(entryFilePath, existingFiles, ignoreGlobs, includeMatchers)
 			}
 			continue
 		}
 
-		if hasCorrectExtension(entryName) && !MatchesAnyGlobMatcher(entryFilePath, parentGlobMatchers, false) {
+		if hasCorrectExtension(entryName) && !isExcludedByPatterns(entryFilePath, parentGlobMatchers, includeMatchers) {
 			// store internal normalized path (forward slashes) for analysis and tests
 			existingFiles = append(existingFiles, NormalizePathForInternal(entryFilePath))
 		}

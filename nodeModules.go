@@ -151,7 +151,7 @@ func NodeModulesCmd(
 ) (string, int) {
 	cwd := StandardiseDirPath(inputCwd)
 	excludeFiles := []string{}
-	absolutePathToEntryPoints, discoveredFiles := ResolveEntryPointsFromPatterns(cwd, entryPoints, excludeFiles)
+	absolutePathToEntryPoints, discoveredFiles := ResolveEntryPointsFromPatterns(cwd, entryPoints, excludeFiles, nil)
 
 	shouldIncludeModule := createShouldModuleByIncluded(modulesToInclude, modulesToExclude)
 
@@ -160,7 +160,7 @@ func NodeModulesCmd(
 		upfrontFilesList = discoveredFiles
 	}
 
-	minimalTree, _, resolverManager := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, upfrontFilesList, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, resolverManager := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, nil, upfrontFilesList, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, nil)
 
 	if len(absolutePathToEntryPoints) == 0 && (groupByEntryPoint || groupByEntryPointModulesCount || groupByModuleShowEntryPoints || groupByModuleEntryPointsCount) {
 		absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)

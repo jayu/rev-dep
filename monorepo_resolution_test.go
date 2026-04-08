@@ -73,7 +73,7 @@ func TestMonorepoResolution(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{}, nil)
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/main.ts"))
 
 	// Test 1: Resolve @company/lib-a/utils
@@ -173,7 +173,7 @@ func TestMonorepoResolutionSelectiveFollow(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@company/lib-a": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@company/lib-a": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{}, nil)
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/main.ts"))
 
 	pathA, rtypeA, errA := resolver.ResolveModule("@company/lib-a", filepath.Join(cwd, "src/main.ts"))
@@ -235,7 +235,7 @@ func TestMonorepoResolutionSelectiveFollowDoesNotUseWildcardMatching(t *testing.
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@company/*": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@company/*": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{}, nil)
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/main.ts"))
 
 	_, _, errA := resolver.ResolveModule("@company/lib-a", filepath.Join(cwd, "src/main.ts"))
@@ -297,7 +297,7 @@ func TestMonorepoResolutionSelectiveFollow_UsesPackageLocalResolverContext(t *te
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@repo/shared": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{Packages: map[string]bool{"@repo/shared": true}}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{}, nil)
 	appFile := filepath.Join(cwd, "src/index.ts")
 	resolver := manager.GetResolverForFile(appFile)
 
@@ -350,7 +350,7 @@ func TestDependencyValidation(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{}, nil)
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "index.ts"))
 
 	_, _, resErr := resolver.ResolveModule("@company/secret", filepath.Join(cwd, "index.ts"))
@@ -415,7 +415,7 @@ func TestMonorepoSubpackageExports(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{}, nil)
 	resolver := manager.GetResolverForFile(filepath.Join(cwd, "src/index.ts"))
 
 	// Test 1: External import via exports
@@ -501,7 +501,7 @@ func TestMonorepoRelaxedAndAliases(t *testing.T) {
 		Cwd:             appDir,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{}, nil)
 	resolver := manager.GetResolverForFile(NormalizePathForInternal(filepath.Join(appDir, "src/index.ts")))
 
 	// Test 1: Resolve via alias but should be MonorepoModule
@@ -583,8 +583,7 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{})
-
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{}, nil)
 	// Test 1: Resolve @company/common/file-utils from apps/app
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
 	resolver := manager.GetResolverForFile(appFile)
@@ -680,8 +679,7 @@ func TestMonorepoInternalTsconfigAlias(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{})
-
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{}, nil)
 	// Test 1: Resolve @company/common/utils from apps/app
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
 	resolver := manager.GetResolverForFile(appFile)
@@ -810,7 +808,7 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo")
 	}
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	// Verify target is found
 	if _, ok := monorepoCtx.PackageToPath["@pkg/target"]; !ok {
@@ -833,7 +831,7 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 			Cwd: appPath,
 		}
 
-		manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import"}, rootParams, []GlobMatcher{})
+		manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import"}, rootParams, []GlobMatcher{}, nil)
 		resolver := manager.GetResolverForFile(NormalizePathForInternal(filepath.Join(appPath, "index.ts")))
 
 		path, rtype, resErr := resolver.ResolveModule("@pkg/target", NormalizePathForInternal(filepath.Join(appPath, "index.ts")))
@@ -906,8 +904,7 @@ func TestMonorepoImportAliasToWorkspacePackage(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{})
-
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []GlobMatcher{}, nil)
 	// Test 1: Resolve #common-pkg-file-utils from apps/app
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/index.ts"))
 	resolver := manager.GetResolverForFile(appFile)

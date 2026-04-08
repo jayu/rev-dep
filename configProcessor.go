@@ -58,6 +58,7 @@ type RuleResult struct {
 	RestrictedDevDependenciesUsageViolations        []RestrictedDevDependenciesUsageViolation
 	RestrictedImportsViolations                     []RestrictedImportViolation
 	RestrictedImportsFollowMonorepoPackages         FollowMonorepoPackagesValue
+	ProcessIgnoredFiles                             []string
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
 }
@@ -78,18 +79,20 @@ type ConfigProcessingResult struct {
 func discoverAllFilesForConfig(
 	cwd string,
 	ignoreFiles []string,
-) ([]string, []GlobMatcher, error) {
+	processIgnoredFiles []string,
+) ([]string, []GlobMatcher, []GlobMatcher, error) {
 	// Create glob matchers for ignore files
 	ignoreMatchers := CreateGlobMatchers(ignoreFiles, cwd)
+	processIgnoredMatchers := CreateGlobMatchers(processIgnoredFiles, cwd)
 
 	// Always include gitignore patterns
 	gitignoreMatchers := FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
 	combinedMatchers := append(ignoreMatchers, gitignoreMatchers...)
 
 	// Get all files using the existing GetFiles function
-	files := GetFiles(cwd, []string{}, combinedMatchers)
+	files := GetFiles(cwd, []string{}, combinedMatchers, processIgnoredMatchers)
 
-	return files, combinedMatchers, nil
+	return files, combinedMatchers, processIgnoredMatchers, nil
 }
 
 func anyRuleChecksForUnusedExports(config *RevDepConfig) bool {
@@ -118,6 +121,7 @@ func anyEnabled[T enabledOption](items []T) bool {
 func buildDependencyTreeForConfig(
 	allFiles []string,
 	excludePatterns []GlobMatcher,
+	includePatterns []GlobMatcher,
 	conditionNames []string,
 	cwd string,
 	packageJson string,
@@ -149,6 +153,7 @@ func buildDependencyTreeForConfig(
 		packageJson,
 		tsconfigJson,
 		excludePatterns,
+		includePatterns,
 		conditionNames,
 		followMonorepoPackages,
 		customAssetExtensions,
@@ -316,11 +321,24 @@ func processRuleChecks(
 				if !detection.Enabled {
 					continue
 				}
-				circularDeps = append(circularDeps, FindCircularDependencies(
-					ruleTree,
-					sortedRuleFiles,
-					detection.IgnoreTypeImports,
-				)...)
+				algo := strings.ToLower(strings.TrimSpace(detection.Algorithm))
+				if algo == "" {
+					algo = "dfs"
+				}
+				switch algo {
+				case "scc":
+					circularDeps = append(circularDeps, FindCircularDependenciesSCC(
+						ruleTree,
+						sortedRuleFiles,
+						detection.IgnoreTypeImports,
+					)...)
+				default:
+					circularDeps = append(circularDeps, FindCircularDependencies(
+						ruleTree,
+						sortedRuleFiles,
+						detection.IgnoreTypeImports,
+					)...)
+				}
 			}
 
 			mu.Lock()
@@ -616,7 +634,7 @@ func ProcessConfig(
 	forceDetailed bool,
 ) (*ConfigProcessingResult, error) {
 	// Step 1: Discover all files
-	allFiles, excludePatterns, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles)
+	allFiles, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles, config.ProcessIgnoredFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -630,6 +648,7 @@ func ProcessConfig(
 	fullTree, resolverManager, err := buildDependencyTreeForConfig(
 		allFiles,
 		excludePatterns,
+		includePatterns,
 		config.ConditionNames,
 		cwd,
 		packageJson,
@@ -675,6 +694,7 @@ func ProcessConfig(
 				cwd,
 				fix,
 			)
+			ruleResult.ProcessIgnoredFiles = config.ProcessIgnoredFiles
 
 			// Set the missing package.json flag
 			ruleResult.MissingPackageJson = missingPackageJsonResults[ruleIndex]

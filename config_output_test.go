@@ -275,10 +275,10 @@ func TestPrintRestrictedImportsResolveHint_UsesViolationIgnoreTypeFlag(t *testin
 	if !strings.Contains(output, "resolve --module") {
 		t.Fatalf("expected module example in hint, got:\n%s", output)
 	}
-	if strings.Contains(output, "resolve --file src/denied-file.ts --entry-points src/entry-file.ts --cwd . --ignore-type-imports") {
+	if strings.Contains(output, "resolve --file \"src/denied-file.ts\" --entry-points \"src/entry-file.ts\" --cwd \".\" --ignore-type-imports") {
 		t.Fatalf("expected file example to not include --ignore-type-imports, got:\n%s", output)
 	}
-	if !strings.Contains(output, "resolve --module react/jsx-runtime --entry-points src/entry-module.ts --cwd . --ignore-type-imports") {
+	if !strings.Contains(output, "resolve --module react/jsx-runtime --entry-points \"src/entry-module.ts\" --cwd \".\" --ignore-type-imports") {
 		t.Fatalf("expected module example to include --ignore-type-imports, got:\n%s", output)
 	}
 	if !strings.Contains(output, "--graph-exclude \"**/*.stories.tsx\"") {

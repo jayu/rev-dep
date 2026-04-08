@@ -133,10 +133,11 @@ func hasValidWorkspaces(pkgJson map[string]interface{}) bool {
 	return false
 }
 
-func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatcher) {
+func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatcher, includeFilePatterns []GlobMatcher) {
 	// Always honor .gitignore when discovering workspace packages.
 	gitIgnoreExcludePatterns := FindAndProcessGitIgnoreFilesUpToRepoRoot(ctx.WorkspaceRoot)
 	allExcludePatterns := append(append([]GlobMatcher{}, excludeFilePatterns...), gitIgnoreExcludePatterns...)
+	includePrefixes := buildIncludePrefixes(includeFilePatterns)
 
 	// Prefer pnpm workspace file (supports plural/singular and .yml/.yaml), fall back to package.json workspaces
 	var patterns []string
@@ -272,7 +273,7 @@ func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatc
 		if pos.isComplex {
 			complexRootPath := filepath.Join(DenormalizePathForOS(ctx.WorkspaceRoot), DenormalizePathForOS(pos.complexRoot))
 			complexCandidates := make(map[string]bool)
-			ctx.walkForPackagesWithWorkerPool(complexRootPath, allExcludePatterns, complexCandidates)
+			ctx.walkForPackagesWithWorkerPool(complexRootPath, allExcludePatterns, includeFilePatterns, includePrefixes, complexCandidates)
 			for candidatePath := range complexCandidates {
 				relToWorkspace, err := filepath.Rel(ctx.WorkspaceRoot, candidatePath)
 				if err != nil {
@@ -285,7 +286,7 @@ func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatc
 			}
 		} else if pos.isDeep {
 			// Recursive walk for ** patterns (can include nested workspace packages)
-			ctx.walkForPackagesWithWorkerPool(fullBasePath, allExcludePatterns, candidateDirs)
+			ctx.walkForPackagesWithWorkerPool(fullBasePath, allExcludePatterns, includeFilePatterns, includePrefixes, candidateDirs)
 		} else if pos.isDir {
 			// One star: check immediate subdirectories
 			entries, err := os.ReadDir(fullBasePath)
@@ -295,7 +296,7 @@ func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatc
 			for _, entry := range entries {
 				if entry.IsDir() {
 					dirPath := filepath.Join(fullBasePath, entry.Name())
-					if len(allExcludePatterns) > 0 && MatchesAnyGlobMatcher(dirPath, allExcludePatterns, false) {
+					if isExcludedByPatterns(dirPath, allExcludePatterns, includeFilePatterns) {
 						continue
 					}
 					if _, err := os.Stat(filepath.Join(dirPath, "package.json")); err == nil {
@@ -305,7 +306,7 @@ func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatc
 			}
 		} else {
 			// Direct path
-			if len(allExcludePatterns) > 0 && MatchesAnyGlobMatcher(fullBasePath, allExcludePatterns, false) {
+			if isExcludedByPatterns(fullBasePath, allExcludePatterns, includeFilePatterns) {
 				continue
 			}
 			if _, err := os.Stat(filepath.Join(fullBasePath, "package.json")); err == nil {
@@ -339,7 +340,7 @@ func (ctx *MonorepoContext) FindWorkspacePackages(excludeFilePatterns []GlobMatc
 	}
 }
 
-func (ctx *MonorepoContext) walkForPackagesWithWorkerPool(basePath string, excludeFilePatterns []GlobMatcher, candidateDirs map[string]bool) {
+func (ctx *MonorepoContext) walkForPackagesWithWorkerPool(basePath string, excludeFilePatterns []GlobMatcher, includeFilePatterns []GlobMatcher, includePrefixes []string, candidateDirs map[string]bool) {
 	type workspaceScanItem struct {
 		dirPath      string
 		excludeGlobs []GlobMatcher
@@ -385,7 +386,7 @@ func (ctx *MonorepoContext) walkForPackagesWithWorkerPool(basePath string, exclu
 							continue
 						}
 						dirPath := filepath.Join(currentItem.dirPath, entry.Name())
-						if len(currentItem.excludeGlobs) > 0 && MatchesAnyGlobMatcher(dirPath, currentItem.excludeGlobs, false) {
+						if !shouldTraverseDir(dirPath, currentItem.excludeGlobs, includeFilePatterns, includePrefixes) {
 							continue
 						}
 

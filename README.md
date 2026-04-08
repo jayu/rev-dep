@@ -215,8 +215,8 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.6",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.6.schema.json?raw=true",
+  "configVersion": "1.7",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
   "rules": [
     {
       "path": ".",
@@ -251,8 +251,8 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.6",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.6.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.7",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -364,6 +364,7 @@ Here's a comprehensive example showing all available properties:
 - **`conditionNames`** (optional): Array of condition names for exports resolution
 - **`customAssetExtensions`** (optional): Additional asset extensions treated as resolvable imports (e.g. `["glb", "mp3"]`). Default list covers common extensions for fonts, images, config files.
 - **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
+- **`processIgnoredFiles`** (optional): Global file patterns to process even if they match gitignore or `ignoreFiles`.
 - **`rules`** (required): Array of rule objects
 
 #### Rule Properties

@@ -141,7 +141,7 @@ func logWarning(format string, a ...interface{}) {
 	}
 }
 
-func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFiles []string) ([]string, []string) {
+func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFiles []string, processIgnoredFiles []string) ([]string, []string) {
 	if len(entryPoints) == 0 {
 		return []string{}, []string{}
 	}
@@ -149,6 +149,7 @@ func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFil
 	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)
 	gitIgnoreExcludePatterns := FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
 	allExcludePatterns := append(excludePatterns, gitIgnoreExcludePatterns...)
+	includePatterns := CreateGlobMatchers(processIgnoredFiles, cwd)
 
 	absolutePathToEntryPoints := make([]string, 0, len(entryPoints))
 	entryPointsSet := map[string]bool{}
@@ -157,7 +158,7 @@ func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFil
 	for _, entryPoint := range entryPoints {
 		abs := NormalizePathForInternal(JoinWithCwd(cwd, entryPoint))
 		if fileInfo, err := os.Stat(DenormalizePathForOS(abs)); err == nil && !fileInfo.IsDir() {
-			if MatchesAnyGlobMatcher(abs, allExcludePatterns, false) {
+			if isExcludedByPatterns(abs, allExcludePatterns, includePatterns) {
 				continue
 			}
 			if !entryPointsSet[abs] {
@@ -170,7 +171,7 @@ func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFil
 		if strings.ContainsAny(entryPoint, "*?[]{}") {
 			hasGlob = true
 		} else {
-			if MatchesAnyGlobMatcher(abs, allExcludePatterns, false) {
+			if isExcludedByPatterns(abs, allExcludePatterns, includePatterns) {
 				continue
 			}
 			if !entryPointsSet[abs] {
@@ -186,7 +187,7 @@ func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFil
 	}
 
 	matchers := CreateGlobMatchers(entryPoints, cwd)
-	allFiles := GetFiles(cwd, []string{}, allExcludePatterns)
+	allFiles := GetFiles(cwd, []string{}, allExcludePatterns, includePatterns)
 	for _, filePath := range allFiles {
 		if MatchesAnyGlobMatcher(filePath, matchers, false) {
 			normalized := NormalizePathForInternal(filePath)
@@ -208,12 +209,13 @@ var (
 	resolveModule         string
 	resolveEntryPoints    []string
 	resolveGraphExclude   []string
+	resolveProcessIgnored []string
 	resolveIgnoreType     bool
 	resolveAll            bool
 	resolveCompactSummary bool
 )
 
-func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
+func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude, processIgnoredFiles []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
 	hasFile := strings.TrimSpace(filePath) != ""
 	hasModule := strings.TrimSpace(moduleName) != ""
 
@@ -221,8 +223,8 @@ func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude []
 		return fmt.Errorf("exactly one of --file or --module must be provided")
 	}
 
-	absolutePathToEntryPoints, discoveredFiles := ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude)
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	absolutePathToEntryPoints, discoveredFiles := ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude, processIgnoredFiles)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	if len(absolutePathToEntryPoints) == 0 {
 		absolutePathToEntryPoints = GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
@@ -406,6 +408,7 @@ Helps understand how different parts of your codebase are connected.`,
 			resolveModule,
 			resolveEntryPoints,
 			resolveGraphExclude,
+			resolveProcessIgnored,
 			resolveIgnoreType,
 			resolveAll,
 			resolveCompactSummary,
@@ -424,12 +427,13 @@ var (
 	entryPointsCount             bool
 	entryPointsDependenciesCount bool
 	entryPointsGraphExclude      []string
+	entryPointsProcessIgnored    []string
 	entryPointsResultExclude     []string
 	entryPointsResultInclude     []string
 )
 
-func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, processIgnoredFiles, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	notReferencedFiles := GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
 
@@ -505,6 +509,7 @@ Useful for understanding your application's architecture and dependencies.`,
 			entryPointsCount,
 			entryPointsDependenciesCount,
 			entryPointsGraphExclude,
+			entryPointsProcessIgnored,
 			entryPointsResultExclude,
 			entryPointsResultInclude,
 			packageJsonPath,
@@ -517,15 +522,29 @@ Useful for understanding your application's architecture and dependencies.`,
 
 // ---------------- circular ----------------
 var (
-	circularCwd        string
-	circularIgnoreType bool
+	circularCwd            string
+	circularIgnoreType     bool
+	circularAlgorithm      string
+	circularProcessIgnored []string
 )
 
-func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) (int, error) {
+func circularCmdFn(cwd string, ignoreType bool, processIgnoredFiles []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) (int, error) {
 	excludeFiles := []string{}
 
-	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
-	cycles := FindCircularDependencies(minimalTree, files, ignoreType)
+	minimalTree, files, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	algo := strings.ToLower(strings.TrimSpace(circularAlgorithm))
+	if algo == "" {
+		algo = "dfs"
+	}
+	var cycles [][]string
+	switch algo {
+	case "dfs":
+		cycles = FindCircularDependencies(minimalTree, files, ignoreType)
+	case "scc":
+		cycles = FindCircularDependenciesSCC(minimalTree, files, ignoreType)
+	default:
+		return 0, fmt.Errorf("invalid value for --algorithm: %q (allowed: DFS, SCC)", circularAlgorithm)
+	}
 
 	formatted := FormatCircularDependencies(cycles, cwd, minimalTree)
 	if len(cycles) > 0 {
@@ -551,6 +570,7 @@ Circular dependencies can cause hard-to-debug issues and should generally be avo
 		count, err := circularCmdFn(
 			ResolveAbsoluteCwd(circularCwd),
 			circularIgnoreType,
+			circularProcessIgnored,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
@@ -844,7 +864,7 @@ var (
 )
 
 func listCwdFilesCmdFn(cwd string, include, exclude []string, listFilesCount bool) error {
-	files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
+	files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd), nil)
 
 	includeGlobs := CreateGlobMatchers(include, cwd)
 	excludeGlobs := CreateGlobMatchers(exclude, cwd)
@@ -892,17 +912,18 @@ with options to filter results.`,
 
 // ---------------- files ----------------
 var (
-	filesCwd        string
-	filesEntryPoint string
-	filesIgnoreType bool
-	filesCount      bool
+	filesCwd            string
+	filesEntryPoint     string
+	filesIgnoreType     bool
+	filesCount          bool
+	filesProcessIgnored []string
 )
 
-func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
+func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, processIgnoredFiles []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
 	absolutePathToEntryPoint := JoinWithCwd(cwd, entryPoint)
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, processIgnoredFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	depsGraph := buildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false, false)
 
@@ -940,6 +961,7 @@ by the specified entry point.`,
 			filesEntryPoint,
 			filesIgnoreType,
 			filesCount,
+			filesProcessIgnored,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
@@ -958,18 +980,20 @@ var (
 	unresolvedIgnoreFiles           []string
 	unresolvedIgnoreImports         []string
 	unresolvedCustomAssetExtensions []string
+	unresolvedProcessIgnored        []string
 )
 
 // ---------------- imported-by ----------------
 var (
-	importedByCwd         string
-	importedByFile        string
-	importedByCount       bool
-	importedByListImports bool
+	importedByCwd            string
+	importedByFile           string
+	importedByCount          bool
+	importedByListImports    bool
+	importedByProcessIgnored []string
 )
 
 func linesOfCodeCmdFn(cwd string) error {
-	files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
+	files := GetFiles(cwd, []string{}, FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd), nil)
 	ch := make(chan [3]int) // [lines, linesWithoutComments, linesWithoutTemplates]
 	var wg sync.WaitGroup
 
@@ -1047,10 +1071,10 @@ func linesOfCodeCmdFn(cwd string) error {
 	return nil
 }
 
-func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
+func importedByCmdFn(cwd, filePath string, count, listImports bool, processIgnoredFiles []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue) error {
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	absolutePathToFilePath := NormalizePathForInternal(JoinWithCwd(cwd, filePath))
 
@@ -1165,6 +1189,7 @@ This is useful for understanding the impact of changes to a particular file.`,
 			importedByFile,
 			importedByCount,
 			importedByListImports,
+			importedByProcessIgnored,
 			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
@@ -1197,7 +1222,7 @@ var unresolvedCmd = &cobra.Command{
 			return err
 		}
 
-		return unresolvedCmdRun(ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followValue, opts, unresolvedCustomAssetExtensions)
+		return unresolvedCmdRun(ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followValue, opts, unresolvedCustomAssetExtensions, unresolvedProcessIgnored)
 	},
 }
 
@@ -1213,8 +1238,8 @@ func stringMapToFileValueIgnoreMap(input map[string]string) FileValueIgnoreMap {
 }
 
 // unresolvedCmdRun is the functional core for the `unresolved` command. It returns an error on failure.
-func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions, customAssetExtensions []string) error {
-	out, err := getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions)
+func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) error {
+	out, err := getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions, processIgnoredFiles)
 	if err != nil {
 		return err
 	}
@@ -1225,8 +1250,8 @@ func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []st
 }
 
 // getUnresolvedOutput returns formatted unresolved imports grouped by file as a string.
-func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions, customAssetExtensions []string) (string, error) {
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions)
+func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, options *UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) (string, error) {
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions)
 
 	unresolved := DetectUnresolvedImports(minimalTree, map[string]bool{})
 	unresolved = FilterUnresolvedImports(unresolved, options, cwd)
@@ -1306,6 +1331,8 @@ func init() {
 		"Target node module name to check for dependencies")
 	resolveCmd.Flags().StringSliceVar(&resolveGraphExclude, "graph-exclude", []string{},
 		"Glob patterns to exclude files from dependency analysis")
+	resolveCmd.Flags().StringSliceVar(&resolveProcessIgnored, "process-ignored-files", []string{},
+		"Glob patterns to process even if they are ignored by gitignore or exclude patterns")
 	resolveCmd.Flags().StringSliceVarP(&resolveEntryPoints, "entry-points", "p", []string{},
 		"Entry point file(s) or glob pattern(s) to start analysis from (default: auto-detected)")
 	resolveCmd.Flags().BoolVarP(&resolveIgnoreType, "ignore-type-imports", "t", false,
@@ -1326,6 +1353,8 @@ func init() {
 		"Show the number of dependencies for each entry point")
 	entryPointsCmd.Flags().StringSliceVar(&entryPointsGraphExclude, "graph-exclude", []string{},
 		"Exclude files matching these glob patterns from analysis")
+	entryPointsCmd.Flags().StringSliceVar(&entryPointsProcessIgnored, "process-ignored-files", []string{},
+		"Glob patterns to process even if they are ignored by gitignore or exclude patterns")
 	entryPointsCmd.Flags().StringSliceVar(&entryPointsResultExclude, "result-exclude", []string{},
 		"Exclude files matching these glob patterns from results")
 	entryPointsCmd.Flags().StringSliceVar(&entryPointsResultInclude, "result-include", []string{},
@@ -1337,6 +1366,10 @@ func init() {
 		"Working directory for the command")
 	circularCmd.Flags().BoolVarP(&circularIgnoreType, "ignore-type-imports", "t", false,
 		"Exclude type imports from the analysis")
+	circularCmd.Flags().StringSliceVar(&circularProcessIgnored, "process-ignored-files", []string{},
+		"Glob patterns to process even if they are ignored by gitignore or exclude patterns")
+	circularCmd.Flags().StringVar(&circularAlgorithm, "algorithm", "DFS",
+		"Cycle detection algorithm: DFS (default) or SCC")
 
 	// node-modules flags
 	addNodeModulesFlags(nodeModulesUsedCmd, false)
@@ -1397,6 +1430,8 @@ func init() {
 		"Exclude type imports from the analysis")
 	filesCmd.Flags().BoolVarP(&filesCount, "count", "n", false,
 		"Only display the count of files in the dependency tree")
+	filesCmd.Flags().StringSliceVar(&filesProcessIgnored, "process-ignored-files", []string{},
+		"Glob patterns to process even if they are ignored by gitignore or exclude patterns")
 	filesCmd.MarkFlagRequired("entry-point")
 
 	// lines-of-code flags
@@ -1413,6 +1448,8 @@ func init() {
 		"Only display the count of importing files")
 	importedByCmd.Flags().BoolVar(&importedByListImports, "list-imports", false,
 		"List the import identifiers used by each file")
+	importedByCmd.Flags().StringSliceVar(&importedByProcessIgnored, "process-ignored-files", []string{},
+		"Glob patterns to process even if they are ignored by gitignore or exclude patterns")
 	importedByCmd.MarkFlagRequired("file")
 
 	// unresolved flags
@@ -1427,6 +1464,8 @@ func init() {
 		"Import requests to ignore globally in unresolved output")
 	unresolvedCmd.Flags().StringSliceVar(&unresolvedCustomAssetExtensions, "custom-asset-extensions", []string{},
 		"Additional asset extensions treated as resolvable (e.g. glb,mp3)")
+	unresolvedCmd.Flags().StringSliceVar(&unresolvedProcessIgnored, "process-ignored-files", []string{},
+		"Glob patterns to process even if they are ignored by gitignore or exclude patterns")
 
 	// add commands
 	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, unresolvedCmd, docsCmd, configCmd)
@@ -1439,10 +1478,11 @@ func main() {
 	}
 }
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, customAssetExtensions []string) (MinimalDependencyTree, []string, *ResolverManager) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, processIgnoredFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, customAssetExtensions []string) (MinimalDependencyTree, []string, *ResolverManager) {
 	var files []string
 
 	excludePatterns := CreateGlobMatchers(excludeFiles, cwd)
+	includePatterns := CreateGlobMatchers(processIgnoredFiles, cwd)
 
 	gitIgnoreExcludePatterns := FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
 
@@ -1452,7 +1492,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 	// While it's faster than looking up for all files upfront, if the file list for entry point is small, it's slower if file list for entry point is long, as resolver is not concurrent
 	// To leverage that we have to make resolver concurrent using channels as queue
 	if len(upfrontFilesList) == 0 {
-		files = GetFiles(cwd, []string{}, allExcludePatterns)
+		files = GetFiles(cwd, []string{}, allExcludePatterns, includePatterns)
 	} else {
 		files = upfrontFilesList
 	}
@@ -1463,7 +1503,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, customAssetExtensions, ParseModeBasic, NodeModulesMatchingStrategyCwdResolver)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, includePatterns, conditionNames, followMonorepoPackages, customAssetExtensions, ParseModeBasic, NodeModulesMatchingStrategyCwdResolver)
 
 	minimalTree := TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

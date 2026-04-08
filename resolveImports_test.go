@@ -11,7 +11,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExists(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, nil, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDir.ts"]
 	_, fileWithIndexExists := minimalTree["__fixtures__/mockProject/src/fileDirTheSameName/index.ts"]
@@ -30,7 +30,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExistsOutOfCwd(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, nil, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDirOutsideCwd.ts"]
 
@@ -45,7 +45,7 @@ func TestShouldResolveImportToFileWhenNodeModuleWithTheSamePrefixExists(t *testi
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, nil, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithSamePathAsNodeModule.ts"]
 
@@ -60,7 +60,7 @@ func TestShouldResolveFilesWithAmbiguousImportsByOrderingExtensions(t *testing.T
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, nil, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/ambiguousImports/test.ts"]
 
@@ -86,7 +86,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -110,7 +110,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -141,7 +141,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -176,7 +176,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -208,7 +208,7 @@ func TestParsingTsConfig(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     []string{},
 			Cwd:             "/root/",
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.tsConfigParsed.aliases)
@@ -258,7 +258,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("@/dir/fileA", cwd+"app/index.js")
@@ -288,7 +288,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("app/dir/fileA", cwd+"app/index.js")
@@ -322,7 +322,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("fileA", cwd+"app/index.ts")
@@ -354,7 +354,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("db", cwd+"app/index.js")
@@ -385,7 +385,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA", cwd+"app/index.js")
@@ -416,7 +416,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/dir/fileA.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("../index", cwd+"app/dir/fileA.ts")
@@ -447,7 +447,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA.jsx", cwd+"app/index.ts")
@@ -471,7 +471,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA", cwd+"app/index.ts")
@@ -495,7 +495,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA.ts?raw", cwd+"app/index.ts")
@@ -527,7 +527,7 @@ func TestResolve(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("@runtime/helpers/classApplyDescriptorSet.js", cwd+"app/index.ts")
@@ -556,7 +556,7 @@ func TestGetMinimalDepsTreeForCwd_SupportsMtsFiles(t *testing.T) {
 		t.Fatalf("failed to write dep.mts: %v", err)
 	}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, nil, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	indexPath := NormalizePathForInternal(filepath.Join(tmpDir, "index.mts"))
 	depPath := NormalizePathForInternal(filepath.Join(tmpDir, "dep.mts"))
@@ -592,7 +592,7 @@ func TestRelativeImports(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/dir/fileA.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("../index", cwd+"app/dir/fileA.ts")
@@ -623,7 +623,7 @@ func TestRelativeImports(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir", cwd+"app/index.js")
@@ -655,7 +655,7 @@ func TestRelativeImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgConfig),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/dir/file.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule(".", cwd+"app/dir/file.ts")
@@ -686,7 +686,7 @@ func TestRelativeImports(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/dir/file.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("..", cwd+"app/dir/file.ts")
@@ -733,7 +733,7 @@ func TestResolveNodeModules(t *testing.T) {
 	ignoreTypeImports := false
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, nil, []string{}, "", "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	nodeModulesImports := minimalTree[cwd+"src/nodeModules.ts"]
 
@@ -808,7 +808,7 @@ func TestModuleSuffixes(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
@@ -838,7 +838,7 @@ func TestModuleSuffixes(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
@@ -869,7 +869,7 @@ func TestModuleSuffixes(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./components", cwd+"app/index.ts")
@@ -897,7 +897,7 @@ func TestModuleSuffixes(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
@@ -931,7 +931,7 @@ func TestModuleSuffixes(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("@/button", cwd+"app/index.ts")
@@ -961,7 +961,7 @@ func TestModuleSuffixes(t *testing.T) {
 			PkgJsonContent:  []byte{},
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []GlobMatcher{})
+		}, []GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		_, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
@@ -1114,7 +1114,7 @@ func TestSpecialCharactersInAliases(t *testing.T) {
 	}`
 
 	// This should not panic or cause regexp compilation errors
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, []string{}, tempTsConfig, "", []string{}, FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, excludeFiles, nil, []string{}, tempTsConfig, "", []string{}, FollowMonorepoPackagesValue{}, nil)
 
 	// If we get here without panicking, the test passes
 	// The actual resolution might not find files since these are test aliases,

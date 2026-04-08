@@ -36,7 +36,7 @@ func TestPnpmWorkspaceParsing(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expectedPackages := []string{
 		"@pnpm/pkg-a",
@@ -76,7 +76,7 @@ func TestNpmWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via npm workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expected := []string{"@npm/a", "@npm/b"}
 	for _, pkg := range expected {
@@ -113,7 +113,7 @@ func TestYarnWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via yarn workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expected := []string{"@yarn/x", "@yarn/y"}
 	for _, pkg := range expected {
@@ -148,7 +148,7 @@ func TestBunWorkspaceDiscovery(t *testing.T) {
 	if monorepoCtx == nil {
 		t.Fatalf("Failed to detect monorepo via bun workspaces")
 	}
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	if _, ok := monorepoCtx.PackageToPath["bun-lib-1"]; !ok {
 		t.Errorf("Expected to find bun-lib-1")
@@ -207,7 +207,7 @@ func TestPnpmResolution(t *testing.T) {
 		Cwd:             cwd,
 	}
 
-	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import"}, rootParams, []GlobMatcher{})
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import"}, rootParams, []GlobMatcher{}, nil)
 	appFile := NormalizePathForInternal(filepath.Join(cwd, "src/main.ts"))
 	resolver := manager.GetResolverForFile(appFile)
 
@@ -257,7 +257,7 @@ func TestPnpmWorkspaceRecursiveGlobDiscoversNestedPackages(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expected := []string{
 		"@repo/desktop",
@@ -304,7 +304,7 @@ func TestPnpmWorkspaceSingleStarDoesNotDiscoverNestedPackages(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	if _, ok := monorepoCtx.PackageToPath["@repo/desktop"]; !ok {
 		t.Fatalf("Expected to discover direct package with packages/* workspace glob")
@@ -348,7 +348,7 @@ func TestNpmWorkspaceRecursiveGlobDiscoversNestedPackages(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via npm workspaces")
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expected := []string{
 		"@repo/desktop",
@@ -394,7 +394,7 @@ func TestYarnWorkspaceRecursiveGlobDiscoversNestedPackages(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via yarn workspaces")
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expected := []string{
 		"@repo/desktop",
@@ -447,7 +447,7 @@ func TestFindWorkspacePackagesSkipsGitIgnoredDirectories(t *testing.T) {
 	}
 
 	// Pass no custom excludes - FindWorkspacePackages should still honor .gitignore.
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	if _, ok := monorepoCtx.PackageToPath["@repo/desktop"]; !ok {
 		t.Fatalf("Expected non-ignored package @repo/desktop to be discovered")
@@ -495,7 +495,7 @@ func TestFindWorkspacePackagesSkipsNestedGitIgnoredDirectories(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	if _, ok := monorepoCtx.PackageToPath["@repo/desktop"]; !ok {
 		t.Fatalf("Expected package @repo/desktop to be discovered")
@@ -600,7 +600,7 @@ func TestFindWorkspacePackages(t *testing.T) {
 
 	excludeMatchers := CreateGlobMatchers([]string{"**/ignored/**"}, root)
 
-	ctx.FindWorkspacePackages(excludeMatchers)
+	ctx.FindWorkspacePackages(excludeMatchers, nil)
 
 	expectedPackages := map[string]string{
 		"@app/app1":          NormalizePathForInternal(filepath.Join(root, "apps", "app1")),
@@ -661,7 +661,7 @@ func TestFindWorkspacePackagesSingleStarAtRoot(t *testing.T) {
 
 	ctx := NewMonorepoContext(root)
 
-	ctx.FindWorkspacePackages([]GlobMatcher{})
+	ctx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expectedPackages := []string{"@pkg/a", "@pkg/b"}
 	var gotPackages []string
@@ -699,7 +699,7 @@ func TestWorkspaceRootExclusion(t *testing.T) {
 	writeFile(`{"name": "@pkg/a"}`, "packages", "a", "package.json")
 
 	ctx := NewMonorepoContext(root)
-	ctx.FindWorkspacePackages([]GlobMatcher{})
+	ctx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	// Assert root package is NOT in the map
 	if _, ok := ctx.PackageToPath["@pkg/root"]; ok {
@@ -859,7 +859,7 @@ func TestWorkspacesArrayAndPackagesObject(t *testing.T) {
 	if monorepoArray.WorkspaceRoot != NormalizePathForInternal(arrayRoot) {
 		t.Errorf("Expected workspace root %s, got %s", NormalizePathForInternal(arrayRoot), monorepoArray.WorkspaceRoot)
 	}
-	monorepoArray.FindWorkspacePackages([]GlobMatcher{})
+	monorepoArray.FindWorkspacePackages([]GlobMatcher{}, nil)
 	if _, ok := monorepoArray.PackageToPath["@arr/pkg"]; !ok {
 		t.Errorf("Expected to find @arr/pkg in array-style workspaces")
 	}
@@ -872,7 +872,7 @@ func TestWorkspacesArrayAndPackagesObject(t *testing.T) {
 	if monorepoObj.WorkspaceRoot != NormalizePathForInternal(objRoot) {
 		t.Errorf("Expected workspace root %s, got %s", NormalizePathForInternal(objRoot), monorepoObj.WorkspaceRoot)
 	}
-	monorepoObj.FindWorkspacePackages([]GlobMatcher{})
+	monorepoObj.FindWorkspacePackages([]GlobMatcher{}, nil)
 	if _, ok := monorepoObj.PackageToPath["@obj/pkg"]; !ok {
 		t.Errorf("Expected to find @obj/pkg in object-with-packages-style workspaces")
 	}
@@ -914,7 +914,7 @@ func TestPnpmTakesPrecedenceOverPackageJson(t *testing.T) {
 		t.Fatalf("Expected monorepo root %s, got %s", NormalizePathForInternal(tmpDir), monorepoCtx.WorkspaceRoot)
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	// Since pnpm-workspace.yaml is present at repo root, it should take precedence and only packages/* should be used
 	if _, ok := monorepoCtx.PackageToPath["@pnpm/only"]; !ok {
@@ -959,7 +959,7 @@ func TestPnpmWorkspaceDeepGlobStarStar(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expected := []string{"@scope/app1", "@scope/shared", "@scope/deep"}
 	for _, pkg := range expected {
@@ -988,7 +988,7 @@ func TestPnpmWorkspaceMiddleDeepThenSingleStar(t *testing.T) {
 `,
 		"package.json": `{}`,
 
-		"packages/desktop/package.json": `{ "name": "@repo/desktop", "version": "1.0.0" }`,
+		"packages/desktop/package.json":                           `{ "name": "@repo/desktop", "version": "1.0.0" }`,
 		"packages/desktop/plugin-workspace/plugin-a/package.json": `{ "name": "@repo/plugin-a", "version": "1.0.0" }`,
 		"packages/desktop/plugin-workspace/plugin-b/package.json": `{ "name": "@repo/plugin-b", "version": "1.0.0" }`,
 
@@ -1010,7 +1010,7 @@ func TestPnpmWorkspaceMiddleDeepThenSingleStar(t *testing.T) {
 		t.Fatalf("Failed to detect monorepo via pnpm-workspace.yaml")
 	}
 
-	monorepoCtx.FindWorkspacePackages([]GlobMatcher{})
+	monorepoCtx.FindWorkspacePackages([]GlobMatcher{}, nil)
 
 	expected := []string{
 		"@repo/plugin-a",

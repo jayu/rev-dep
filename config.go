@@ -1574,10 +1574,6 @@ func validateAndNormalizeIgnoreConfig(ignore FileValueIgnoreMap, ignoreFiles []s
 			return nil, nil, fmt.Errorf("%s.ignore['%s'] must be a relative path", prefix, configuredPath)
 		}
 
-		if normalizedPath == ".." || strings.HasPrefix(normalizedPath, "../") {
-			return nil, nil, fmt.Errorf("%s.ignore['%s'] must not traverse parent directories", prefix, configuredPath)
-		}
-
 		if _, err := glob.Compile(NormalizeGlobPattern(normalizedPath)); err != nil {
 			return nil, nil, fmt.Errorf("%s.ignore['%s'] has invalid file glob pattern: %v", prefix, configuredPath, err)
 		}
@@ -1978,12 +1974,6 @@ func parseImportConventionDomains(domains interface{}) ([]ImportConventionDomain
 }
 
 func validatePattern(pattern string) error {
-	if len(pattern) >= 2 && pattern[0] == '.' && (pattern[1] == '/' || pattern[1] == '\\') {
-		return fmt.Errorf("pattern '%s' starts with './' or '.\\', which is not allowed. Use paths that starts with file or directory name", pattern)
-	}
-	if len(pattern) >= 3 && pattern[0] == '.' && pattern[1] == '.' && (pattern[2] == '/' || pattern[2] == '\\') {
-		return fmt.Errorf("pattern '%s' starts with '../' or '..\\', which is not allowed. Use paths that starts with file or directory name", pattern)
-	}
 	return nil
 }
 

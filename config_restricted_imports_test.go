@@ -159,7 +159,7 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid graphExclude pattern", func(t *testing.T) {
+	t.Run("relative graphExclude pattern", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
 			"rules": [{
@@ -174,11 +174,8 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 		}`
 
 		_, err := ParseConfig([]byte(configJSON))
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-		if !contains(err.Error(), "graphExclude[0]") {
-			t.Fatalf("expected graphExclude validation error, got: %v", err)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
 		}
 	})
 }

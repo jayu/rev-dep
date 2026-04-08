@@ -180,3 +180,213 @@ func TestGlobMatchingWithRootAnchoredPattern(t *testing.T) {
 		}
 	})
 }
+
+func TestGlobMatchingWithRelativePattern(t *testing.T) {
+	t.Run("Relative pattern ../node_modules should match parent directory contents", func(t *testing.T) {
+		root := "/fs/root/dir"
+		pattern := "../node_modules"
+		filePath := "/fs/root/node_modules/pkg/index.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" not matching path "%s"`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../node_modules should not match nested directory", func(t *testing.T) {
+		root := "/fs/root/dir"
+		pattern := "../node_modules"
+		filePath := "/fs/root/sub/node_modules/pkg/index.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if matches {
+			t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../config should not match nested child directory inside parent", func(t *testing.T) {
+		root := "/fs/root/"
+		pattern := "../config"
+		filePath := "/fs/root/js/projects/app/config/file.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if matches {
+			t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ./same-dir/config/file.js should match correctly", func(t *testing.T) {
+		root := "/fs/root/project/"
+		pattern := "./same-dir/config/file.js"
+		filePath := "/fs/root/project/same-dir/config/file.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ./same-dir/config/file.js should not match when root points to different directory", func(t *testing.T) {
+		root := "/fs/root/"
+		pattern := "./same-dir/config/file.js"
+		filePath := "/fs/root/project/same-dir/config/file.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if matches {
+			t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../../ should match second level parent directory", func(t *testing.T) {
+		root := "/fs/root/project/same-dir/"
+		pattern := "../../"
+		filePath := "/fs/root/file.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../../project should not match file in second level parent directory", func(t *testing.T) {
+		root := "/fs/root/project/same-dir/"
+		pattern := "../../project/"
+		filePath := "/fs/root/project/same-dir/config/file.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../../project should match file in second level parent directory", func(t *testing.T) {
+		root := "/fs/root/project/same-dir/"
+		pattern := "../../project/"
+		filePath := "/fs/root/project/file.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../../project/**/file.* should match file", func(t *testing.T) {
+		root := "/fs/root/project/same-dir/"
+		pattern := "../../project/**/file.*"
+		filePath := "/fs/root/project/same-dir/config/file.js"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ./config/ should match files under current root config dir", func(t *testing.T) {
+		root := "/fs/root/project/"
+		pattern := "./config/"
+		filePath := "/fs/root/project/config/settings.json"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ./config/ should not match sibling config dir", func(t *testing.T) {
+		root := "/fs/root/project/"
+		pattern := "./config/"
+		filePath := "/fs/root/config/settings.json"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if matches {
+			t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../config/ should match files under parent config dir", func(t *testing.T) {
+		root := "/fs/root/project/"
+		pattern := "../config/"
+		filePath := "/fs/root/config/settings.json"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ./ should match files under current root", func(t *testing.T) {
+		root := "/fs/root/project/"
+		pattern := "./"
+		filePath := "/fs/root/project/readme.md"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../ should match files under parent root", func(t *testing.T) {
+		root := "/fs/root/project/"
+		pattern := "../"
+		filePath := "/fs/root/readme.md"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern .. should match files under parent root", func(t *testing.T) {
+		root := "/fs/root/project/"
+		pattern := ".."
+		filePath := "/fs/root/readme.md"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+
+	t.Run("Relative pattern ../.. should match files under grandparent root", func(t *testing.T) {
+		root := "/fs/root/project/same-dir/"
+		pattern := "../.."
+		filePath := "/fs/root/readme.md"
+		globMatchers := CreateGlobMatchers([]string{pattern}, root)
+
+		matches := MatchesAnyGlobMatcher(filePath, globMatchers, debug)
+
+		if !matches {
+			t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, pattern, filePath)
+		}
+	})
+}

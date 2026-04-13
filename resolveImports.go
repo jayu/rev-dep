@@ -1224,10 +1224,13 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	}
 
 	// Try workspace package resolution for the original request before TypeScript alias resolution
-	// to ensure monorepo packages take precedence over TypeScript aliases
-	// But only if no package.json import was matched
+	// to ensure monorepo packages take precedence over TypeScript aliases.
+	// But only if no package.json import was matched.
+	// If workspace resolution matches but fails (e.g. FileNotFound for packages without exports),
+	// fall through to tsconfig paths instead of returning the error.
 	if aliasMatchedButFileNotFound == "" {
-		if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(requestWithoutQuery, root); requestMatched {
+		// Fall through to tsconfig paths when workspace matches but resolution fails
+		if requestMatched, resolvedPath, rtype, err := f.tryResolveWorkspacePackageImport(requestWithoutQuery, root); requestMatched && err == nil {
 			return resolvedPath, rtype, err
 		}
 	}

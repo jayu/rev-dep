@@ -975,3 +975,85 @@ func TestMonorepoImportAliasToWorkspacePackage(t *testing.T) {
 	}
 
 }
+
+// TestWorkspaceFallbackToTsconfig covers the bug where workspace resolution matched
+// but failed (e.g. FileNotFound for packages without exports), and we returned immediately
+// without trying tsconfig paths. Now we fall through to tsconfig when workspace fails.
+func TestWorkspaceFallbackToTsconfig(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "rev-dep-monorepo-workspace-fallback")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Workspace package @company/common has NO exports. resolvePackageFallback builds
+	// pkgPath + subpath = packages/common/components/utils (wrong).
+	// The actual file lives at packages/common/src/components/utils.ts.
+	// The app's tsconfig maps @company/common/* -> ../../packages/common/src/*.
+	files := map[string]string{
+		"package.json": `{ "workspaces": ["packages/*", "apps/*"] }`,
+		"packages/common/package.json": `{
+			"name": "@company/common",
+			"version": "1.0.0"
+		}`,
+		"packages/common/src/components/utils.ts": `export const util = {};`,
+		"apps/app/package.json": `{
+			"name": "app",
+			"dependencies": {
+				"@company/common": "*"
+			}
+		}`,
+		"apps/app/tsconfig.json": `{
+			"compilerOptions": {
+				"baseUrl": ".",
+				"paths": {
+					"@company/common/*": ["../../packages/common/src/*"]
+				}
+			}
+		}`,
+		"apps/app/src/index.ts": `import { util } from "@company/common/components/utils";`,
+	}
+
+	for path, content := range files {
+		fullPath := filepath.Join(tmpDir, path)
+		os.MkdirAll(filepath.Dir(fullPath), 0755)
+		os.WriteFile(fullPath, []byte(content), 0644)
+	}
+
+	cwd := filepath.Join(tmpDir, "apps/app")
+	allKeys := []string{}
+	for k := range files {
+		if filepath.Ext(k) == ".ts" || filepath.Ext(k) == ".js" || filepath.Ext(k) == ".json" {
+			allKeys = append(allKeys, filepath.Join(tmpDir, k))
+		}
+	}
+
+	rootParams := RootParams{
+		TsConfigContent: []byte(files["apps/app/tsconfig.json"]),
+		PkgJsonContent:  []byte(files["apps/app/package.json"]),
+		SortedFiles:     allKeys,
+		Cwd:             cwd,
+	}
+
+	manager := NewResolverManager(FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []GlobMatcher{})
+	appFile := filepath.Join(cwd, "src/index.ts")
+	resolver := manager.GetResolverForFile(appFile)
+
+	// Without the fix: workspace matches but returns FileNotFound (wrong path),
+	// and we would return that error. With the fix: we fall through to tsconfig
+	// and resolve correctly to packages/common/src/components/utils.ts
+	path, rtype, resErr := resolver.ResolveModule("@company/common/components/utils", appFile)
+
+	if resErr != nil {
+		t.Fatalf("Expected resolution to succeed via tsconfig fallback, got error: %v", *resErr)
+	}
+	expected := filepath.Join(tmpDir, "packages/common/src/components/utils.ts")
+	if path != expected {
+		t.Errorf("Expected path %s, got %s", expected, path)
+	}
+	// Resolved via tsconfig paths, so UserModule (tsconfig aliases are UserModule)
+	if rtype != UserModule {
+		t.Errorf("Expected UserModule for tsconfig resolution, got %v", rtype)
+	}
+}
+

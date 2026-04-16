@@ -3,6 +3,7 @@ package resolve
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	globutil "rev-dep-go/internal/glob"
@@ -1093,6 +1094,27 @@ func TestDetectModuleSuffixVariants(t *testing.T) {
 			t.Error("Expected types.ts to NOT be a variant")
 		}
 	})
+}
+
+func TestGetModulePathWithExtension_DoesNotStripEarlierPathSegmentExtension(t *testing.T) {
+	modulePath := "/tmp/TestFilesfiles_--entry-point_packages_exported-package_src_main.ts_--condition-names_node,imports_--follow-monorepo-packages_--count/mockMonorepo/packages/exported-package/src/deep/fallback.ts"
+
+	resolver := &ModuleResolver{
+		tsConfigParsed: &TsConfigParsed{},
+		manager: &ResolverManager{
+			filesAndExtensions: &map[string]string{},
+		},
+	}
+
+	got, err := resolver.getModulePathWithExtension(modulePath)
+	if err == nil || *err != FileNotFound {
+		t.Fatalf("expected FileNotFound, got %v", err)
+	}
+
+	want := strings.TrimSuffix(modulePath, ".ts")
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
 }
 
 func TestSpecialCharactersInAliases(t *testing.T) {

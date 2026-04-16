@@ -718,7 +718,7 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 			e := FileNotFound
 			return modulePath, &e
 		}
-		modulePath = strings.Replace(modulePath, tsSupportedExtension, "", 1)
+		modulePath = strings.TrimSuffix(modulePath, tsSupportedExtension)
 	}
 
 	suffixes := f.tsConfigParsed.ModuleSuffixes

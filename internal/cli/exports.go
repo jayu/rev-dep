@@ -93,26 +93,26 @@ func ListCwdFilesCmdFn(cwd string, include, exclude []string, listFilesCount boo
 	return listCwdFilesCmdFn(cwd, include, exclude, listFilesCount)
 }
 
-func EntryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
-	return entryPointsCmdFn(cwd, ignoreType, entryPointsCount, entryPointsDependenciesCount, graphExclude, resultExclude, resultInclude, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+func EntryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, processIgnoredFiles, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
+	return entryPointsCmdFn(cwd, ignoreType, entryPointsCount, entryPointsDependenciesCount, graphExclude, processIgnoredFiles, resultExclude, resultInclude, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 }
 
-func FilesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
-	return filesCmdFn(cwd, entryPoint, ignoreType, filesCount, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+func FilesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, processIgnoredFiles []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
+	return filesCmdFn(cwd, entryPoint, ignoreType, filesCount, processIgnoredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 }
 
-func ResolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
-	return resolveCmdFn(cwd, filePath, moduleName, entryPoints, graphExclude, ignoreType, resolveAll, resolveCompactSummary, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+func ResolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude, processIgnoredFiles []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
+	return resolveCmdFn(cwd, filePath, moduleName, entryPoints, graphExclude, processIgnoredFiles, ignoreType, resolveAll, resolveCompactSummary, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 }
 
-func ImportedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
-	return importedByCmdFn(cwd, filePath, count, listImports, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
+func ImportedByCmdFn(cwd, filePath string, count, listImports bool, processIgnoredFiles []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
+	return importedByCmdFn(cwd, filePath, count, listImports, processIgnoredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 }
 
 func LinesOfCodeCmdFn(cwd string) error {
 	return linesOfCodeCmdFn(cwd)
 }
 
-func GetUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string) (string, error) {
-	return getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions)
+func GetUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) (string, error) {
+	return getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions, processIgnoredFiles)
 }

@@ -242,7 +242,7 @@ func TestEntryPoints(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return entryPointsCmdFn(mockProjectPath, false, false, false, []string{}, []string{}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return entryPointsCmdFn(mockProjectPath, false, false, false, []string{}, []string{}, []string{}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -253,7 +253,7 @@ func TestEntryPoints(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return entryPointsCmdFn(mockProjectPath, false, false, true, []string{}, []string{}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return entryPointsCmdFn(mockProjectPath, false, false, true, []string{}, []string{}, []string{}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -264,7 +264,7 @@ func TestEntryPoints(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return entryPointsCmdFn(mockProjectPath, true, false, true, []string{"src/nested/**"}, []string{"**/*.d.ts"}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return entryPointsCmdFn(mockProjectPath, true, false, true, []string{"src/nested/**"}, []string{}, []string{"**/*.d.ts"}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -275,7 +275,7 @@ func TestEntryPoints(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return entryPointsCmdFn(mockProjectPath, true, false, true, []string{}, []string{}, []string{"**/*.ts"}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return entryPointsCmdFn(mockProjectPath, true, false, true, []string{}, []string{}, []string{}, []string{"**/*.ts"}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -286,7 +286,7 @@ func TestEntryPoints(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockMonorepo")
 
 		output, err := captureOutput(func() error {
-			return entryPointsCmdFn(mockProjectPath, false, false, false, []string{"packages/exported-package/src/deep/**"}, []string{"**/*.d.ts"}, []string{"packages/**/*.ts"}, "", "", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true})
+			return entryPointsCmdFn(mockProjectPath, false, false, false, []string{"packages/exported-package/src/deep/**"}, []string{}, []string{"**/*.d.ts"}, []string{"packages/**/*.ts"}, "", "", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true})
 		})
 
 		assert.NilError(t, err)
@@ -299,7 +299,7 @@ func TestFiles(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return filesCmdFn(mockProjectPath, "index.ts", false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return filesCmdFn(mockProjectPath, "index.ts", false, false, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -310,7 +310,7 @@ func TestFiles(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return filesCmdFn(mockProjectPath, "index.ts", false, true, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return filesCmdFn(mockProjectPath, "index.ts", false, true, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -321,7 +321,7 @@ func TestFiles(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return filesCmdFn(mockProjectPath, "index.ts", true, false, "custom.package.json", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return filesCmdFn(mockProjectPath, "index.ts", true, false, []string{}, "custom.package.json", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -342,7 +342,7 @@ func TestFiles(t *testing.T) {
 		assert.NilError(t, err)
 
 		output, err := captureOutput(func() error {
-			return filesCmdFn(tempProjectPath, "packages/exported-package/src/smoke-files-count.ts", false, true, "", "", []string{"node", "imports"}, model.FollowMonorepoPackagesValue{FollowAll: true})
+			return filesCmdFn(tempProjectPath, "packages/exported-package/src/smoke-files-count.ts", false, true, []string{}, "", "", []string{"node", "imports"}, model.FollowMonorepoPackagesValue{FollowAll: true})
 		})
 
 		assert.NilError(t, err)
@@ -356,7 +356,7 @@ func TestFiles(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockMonorepo")
 
 		output, err := captureOutput(func() error {
-			return filesCmdFn(mockProjectPath, "packages/consumer-package/index.ts", true, false, "", "", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true})
+			return filesCmdFn(mockProjectPath, "packages/consumer-package/index.ts", true, false, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true})
 		})
 
 		assert.NilError(t, err)
@@ -380,7 +380,7 @@ func TestImportedByCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return importedByCmdFn(mockProjectPath, "src/types.ts", false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return importedByCmdFn(mockProjectPath, "src/types.ts", false, false, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -391,7 +391,7 @@ func TestImportedByCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return importedByCmdFn(mockProjectPath, "src/types.ts", true, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return importedByCmdFn(mockProjectPath, "src/types.ts", true, false, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -402,7 +402,7 @@ func TestImportedByCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return importedByCmdFn(mockProjectPath, "src/types.ts", false, true, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return importedByCmdFn(mockProjectPath, "src/types.ts", false, true, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -413,7 +413,7 @@ func TestImportedByCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return importedByCmdFn(mockProjectPath, "moduleSrc/fileA.tsx", false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return importedByCmdFn(mockProjectPath, "moduleSrc/fileA.tsx", false, false, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -424,7 +424,7 @@ func TestImportedByCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return importedByCmdFn(mockProjectPath, "moduleSrc/fileA.tsx", false, true, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return importedByCmdFn(mockProjectPath, "moduleSrc/fileA.tsx", false, true, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -437,7 +437,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{}, []string{}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -448,7 +448,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"index.ts"}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"index.ts"}, []string{}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -459,7 +459,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"src/importFile*.ts"}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"src/importFile*.ts"}, []string{}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -472,7 +472,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"src/importFileA*.ts"}, []string{"src/importFileA.ts"}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"src/importFileA*.ts"}, []string{"src/importFileA.ts"}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -499,7 +499,7 @@ func TestResolveCmd(t *testing.T) {
 		assert.NilError(t, err)
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(tempProjectPath, "src/types.ts", "", []string{"src/exclude-test-entry.ts"}, []string{"src/nested/**"}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(tempProjectPath, "src/types.ts", "", []string{"src/exclude-test-entry.ts"}, []string{"src/nested/**"}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -514,7 +514,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"index.ts"}, []string{}, false, true, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"index.ts"}, []string{}, []string{}, false, true, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -525,7 +525,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"index.ts"}, []string{}, false, false, true, "", "", []string{"node", "imports"}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"index.ts"}, []string{}, []string{}, false, false, true, "", "", []string{"node", "imports"}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -536,7 +536,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"index.ts"}, []string{}, false, false, false, "custom.package.json", "custom.tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "src/types.ts", "", []string{"index.ts"}, []string{}, []string{}, false, false, false, "custom.package.json", "custom.tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -547,7 +547,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "", "react", []string{"index.ts"}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "", "react", []string{"index.ts"}, []string{}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -562,7 +562,7 @@ func TestResolveCmd(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
 		output, err := captureOutput(func() error {
-			return resolveCmdFn(mockProjectPath, "", "react/jsx-runtime", []string{"index.ts"}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+			return resolveCmdFn(mockProjectPath, "", "react/jsx-runtime", []string{"index.ts"}, []string{}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		})
 
 		assert.NilError(t, err)
@@ -574,11 +574,11 @@ func TestResolveCmd(t *testing.T) {
 	t.Run("resolve validation should require exactly one target", func(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 
-		err := resolveCmdFn(mockProjectPath, "", "", []string{"index.ts"}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+		err := resolveCmdFn(mockProjectPath, "", "", []string{"index.ts"}, []string{}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		assert.Assert(t, err != nil)
 		assert.Assert(t, strings.Contains(err.Error(), "exactly one of --file or --module"))
 
-		err = resolveCmdFn(mockProjectPath, "src/types.ts", "react", []string{"index.ts"}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
+		err = resolveCmdFn(mockProjectPath, "src/types.ts", "react", []string{"index.ts"}, []string{}, []string{}, false, false, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
 		assert.Assert(t, err != nil)
 		assert.Assert(t, strings.Contains(err.Error(), "exactly one of --file or --module"))
 	})

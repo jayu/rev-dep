@@ -36,10 +36,10 @@ for (const nativePkgName of nativePackages) {
   fs.writeFileSync(pathToPackage, JSON.stringify(pkgJson, null, 2))
 }
 
-const versionFile = `package main
+const versionFile = `package version
 
 var Version = "${newVersion}"`
 
-fs.writeFileSync("./version.go", versionFile)
+fs.writeFileSync("./internal/version/version.go", versionFile)
 
-console.log("Saved version.go file")
+console.log("Saved internal/version/version.go file")

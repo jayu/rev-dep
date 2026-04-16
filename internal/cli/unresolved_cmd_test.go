@@ -24,7 +24,7 @@ func TestUnresolvedCmdRun(t *testing.T) {
 	}
 
 	// Run helper directly
-	out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, nil, nil)
+	out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("getUnresolvedOutput failed: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestUnresolvedCmdRun_WithIgnoreOptions(t *testing.T) {
 			t.Fatalf("validateUnresolvedImportsOptions failed: %v", err)
 		}
 
-		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil)
+		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil, nil)
 		if err != nil {
 			t.Fatalf("getUnresolvedOutput failed: %v", err)
 		}
@@ -75,7 +75,7 @@ func TestUnresolvedCmdRun_WithIgnoreOptions(t *testing.T) {
 			t.Fatalf("validateUnresolvedImportsOptions failed: %v", err)
 		}
 
-		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil)
+		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil, nil)
 		if err != nil {
 			t.Fatalf("getUnresolvedOutput failed: %v", err)
 		}
@@ -100,7 +100,7 @@ func TestUnresolvedCmdRun_WithIgnoreOptions(t *testing.T) {
 			t.Fatalf("validateUnresolvedImportsOptions failed: %v", err)
 		}
 
-		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil)
+		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil, nil)
 		if err != nil {
 			t.Fatalf("getUnresolvedOutput failed: %v", err)
 		}
@@ -122,7 +122,7 @@ func TestUnresolvedCmdRun_WithIgnoreOptions(t *testing.T) {
 			t.Fatalf("validateUnresolvedImportsOptions failed: %v", err)
 		}
 
-		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil)
+		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil, nil)
 		if err != nil {
 			t.Fatalf("getUnresolvedOutput failed: %v", err)
 		}
@@ -142,7 +142,7 @@ func TestUnresolvedCmdRun_WithIgnoreOptions(t *testing.T) {
 			t.Fatalf("validateUnresolvedImportsOptions failed: %v", err)
 		}
 
-		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil)
+		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil, nil)
 		if err != nil {
 			t.Fatalf("getUnresolvedOutput failed: %v", err)
 		}
@@ -162,7 +162,7 @@ func TestUnresolvedCmdRun_WithIgnoreOptions(t *testing.T) {
 			t.Fatalf("validateUnresolvedImportsOptions failed: %v", err)
 		}
 
-		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil)
+		out, err := getUnresolvedOutput(testCwd, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, opts, nil, nil)
 		if err != nil {
 			t.Fatalf("getUnresolvedOutput failed: %v", err)
 		}
@@ -198,7 +198,7 @@ func TestUnresolvedCmdRun_WithCustomAssetExtensions(t *testing.T) {
 		t.Fatalf("failed to write custom asset file: %v", err)
 	}
 
-	outDefault, err := getUnresolvedOutput(tempDir, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, nil, nil)
+	outDefault, err := getUnresolvedOutput(tempDir, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("getUnresolvedOutput failed: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestUnresolvedCmdRun_WithCustomAssetExtensions(t *testing.T) {
 		t.Fatalf("expected custom asset import to be unresolved without custom extension, got: %s", outDefault)
 	}
 
-	outCustom, err := getUnresolvedOutput(tempDir, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, nil, []string{"custom"})
+	outCustom, err := getUnresolvedOutput(tempDir, "package.json", "tsconfig.json", []string{}, model.FollowMonorepoPackagesValue{FollowAll: true}, nil, []string{"custom"}, nil)
 	if err != nil {
 		t.Fatalf("getUnresolvedOutput failed: %v", err)
 	}

@@ -219,6 +219,70 @@ func TestConfigProcessor_UnusedNodeModules(t *testing.T) {
 	}
 }
 
+func TestProcessConfig_ProcessIgnoredFilesIncludesGitIgnored(t *testing.T) {
+	tempDir := t.TempDir()
+
+	writeFile := func(relPath, content string) {
+		fullPath := filepath.Join(tempDir, relPath)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+			t.Fatalf("mkdir failed: %v", err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+			t.Fatalf("write failed: %v", err)
+		}
+	}
+
+	writeFile("package.json", `{"name":"test","version":"1.0.0"}`)
+	writeFile("tsconfig.json", `{}`)
+	writeFile(".gitignore", "src/ignored.ts\n")
+	writeFile("src/a.ts", `import "./ignored";`)
+	writeFile("src/ignored.ts", `import "./a";`)
+
+	cfg := RevDepConfig{
+		ConfigVersion:       "1.7",
+		ProcessIgnoredFiles: []string{"src/ignored.ts"},
+		Rules: []Rule{{
+			Path: ".",
+			CircularImportsDetections: []*CircularImportsOptions{{
+				Enabled:   true,
+				Algorithm: "scc",
+			}},
+		}},
+	}
+
+	result, err := ProcessConfig(&cfg, tempDir, "package.json", "tsconfig.json", false, false)
+	if err != nil {
+		t.Fatalf("ProcessConfig failed: %v", err)
+	}
+	if len(result.RuleResults) != 1 {
+		t.Fatalf("expected 1 rule result, got %d", len(result.RuleResults))
+	}
+
+	cycles := result.RuleResults[0].CircularDependencies
+	if len(cycles) != 1 {
+		t.Fatalf("expected 1 circular dependency, got %d: %+v", len(cycles), cycles)
+	}
+
+	relCycle := make([]string, len(cycles[0]))
+	for i, file := range cycles[0] {
+		rel, err := filepath.Rel(tempDir, file)
+		if err != nil {
+			t.Fatalf("filepath.Rel failed: %v", err)
+		}
+		relCycle[i] = filepath.ToSlash(rel)
+	}
+
+	expected := []string{"src/a.ts", "src/ignored.ts", "src/a.ts"}
+	if !containsStringSlice([][]string{relCycle}, "src/ignored.ts") || len(relCycle) != len(expected) {
+		t.Fatalf("expected cycle to include ignored file, got %v", relCycle)
+	}
+	for i := range expected {
+		if relCycle[i] != expected[i] {
+			t.Fatalf("expected cycle %v, got %v", expected, relCycle)
+		}
+	}
+}
+
 func TestConfigProcessor_MissingNodeModules(t *testing.T) {
 	testCwd := configProcessorFixture(t)
 

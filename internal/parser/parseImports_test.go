@@ -3752,3 +3752,14 @@ function Comp() {
 		t.Fatalf("Expected only './a' import, got %q", imports[0].Request)
 	}
 }
+
+func TestDynamicImportWithWebpackMagicComment(t *testing.T) {
+	code := `const View = lazy(() => import(/* webpackChunkName: "lazy-view" */ '@scope/app/components/views/summary-view'))`
+	imports := ParseImportsByte([]byte(code), false, ParseModeBasic)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d: %+v", len(imports), imports)
+	}
+	if imports[0].Request != "@scope/app/components/views/summary-view" || !imports[0].IsDynamicImport {
+		t.Fatalf("Expected dynamic import with webpack comment, got request=%q dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
+	}
+}

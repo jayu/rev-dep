@@ -56,7 +56,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#simple", cwd+"src/main.ts")
 
@@ -74,7 +74,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#wildcard/utils.js", cwd+"src/main.ts")
 
@@ -92,7 +92,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#deep/wildcard/utils.js", cwd+"src/main.ts")
 
@@ -115,7 +115,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(localPkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#runtime/helpers/classApplyDescriptorSet.js", cwd+"src/main.ts")
 
@@ -133,7 +133,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#conditional", cwd+"src/main.ts")
 
@@ -151,7 +151,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#conditional", cwd+"src/main.ts")
 
@@ -169,7 +169,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#nested", cwd+"src/main.ts")
 
@@ -197,7 +197,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(localPkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolverNode := rmNode.GetResolverForFile(cwd + "main.ts")
 		pathNode, _, _ := resolverNode.ResolveModule("#foo", cwd+"main.ts")
 		if pathNode != cwd+"dist/index.js" {
@@ -210,7 +210,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(localPkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolverImport := rmImport.GetResolverForFile(cwd + "main.ts")
 		pathImport, _, _ := resolverImport.ResolveModule("#foo", cwd+"main.ts")
 		if pathImport != cwd+"src/index.ts" {
@@ -224,7 +224,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#wildcard/specific.js", cwd+"src/main.ts")
 
@@ -242,7 +242,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#root/src/specific/file.ts", cwd+"src/main.ts")
 
@@ -277,7 +277,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#simple", cwd+"src/main.ts")
 
@@ -302,7 +302,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent: []byte(pkgJson),
 			SortedFiles:    filePaths,
 			Cwd:            cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, rtype, err := resolver.ResolveModule("#wildcard/file.js", cwd+"src/main.ts")
 
@@ -326,7 +326,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		path, _, err := resolver.ResolveModule("#directory/someDir/index.js", cwd+"src/main.ts")
@@ -347,7 +347,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 		_, _, err := resolver.ResolveModule("#multiple/sth/wildcards/sth.js", cwd+"src/main.ts")
 
@@ -362,7 +362,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJson),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 
 		// Test simple string target
@@ -422,7 +422,7 @@ func TestResolvePackageJsonImports(t *testing.T) {
 			PkgJsonContent:  []byte(pkgJsonWithInvalidTargets),
 			SortedFiles:     filePaths,
 			Cwd:             cwd,
-		}, []globutil.GlobMatcher{})
+		}, []globutil.GlobMatcher{}, nil)
 		resolver := rm.GetResolverForFile(cwd + "src/main.ts")
 
 		// Valid targets should be parsed

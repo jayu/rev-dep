@@ -71,7 +71,8 @@ func findAndProcessGitIgnoreFilesUpToRepoRoot(dirPath string, globMatchers []glo
 	return findAndProcessGitIgnoreFilesUpToRepoRoot(parent, globMatchers)
 }
 
-func GetFiles(directory string, existingFiles []string, parentGlobMatchers []globutil.GlobMatcher) []string {
+func GetFiles(directory string, existingFiles []string, parentGlobMatchers []globutil.GlobMatcher, includeMatchers []globutil.GlobMatcher) []string {
+	includePrefixes := globutil.BuildIncludePrefixes(includeMatchers)
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return existingFiles
@@ -82,8 +83,7 @@ func GetFiles(directory string, existingFiles []string, parentGlobMatchers []glo
 		entryFilePath := filepath.Join(directory, entryName)
 
 		if entry.IsDir() {
-			debug := false
-			if !globutil.MatchesAnyGlobMatcher(entryFilePath, parentGlobMatchers, debug) {
+			if globutil.ShouldTraverseDir(entryFilePath, parentGlobMatchers, includeMatchers, includePrefixes) {
 				// We parse gitignore here to avoid duplicated processing of gitignore from cwd - it will be captured by FindAndProcessGitIgnoreFilesUpToRepoRoot which result should be passed as parentGlobMatchers to root invocation of getFiles
 
 				gitignoreFile, gitignoreError := os.ReadFile(filepath.Join(entryFilePath, ".gitignore"))
@@ -98,12 +98,12 @@ func GetFiles(directory string, existingFiles []string, parentGlobMatchers []glo
 					ignoreGlobs = parentGlobMatchers
 				}
 
-				existingFiles = GetFiles(entryFilePath, existingFiles, ignoreGlobs)
+				existingFiles = GetFiles(entryFilePath, existingFiles, ignoreGlobs, includeMatchers)
 			}
 			continue
 		}
 
-		if hasCorrectExtension(entryName) && !globutil.MatchesAnyGlobMatcher(entryFilePath, parentGlobMatchers, false) {
+		if hasCorrectExtension(entryName) && !globutil.IsExcludedByPatterns(entryFilePath, parentGlobMatchers, includeMatchers) {
 			// store internal normalized path (forward slashes) for analysis and tests
 			existingFiles = append(existingFiles, pathutil.NormalizePathForInternal(entryFilePath))
 		}

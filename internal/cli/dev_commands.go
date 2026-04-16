@@ -36,7 +36,7 @@ of your project's dependency graph.`,
 		absolutePathToEntryPoint := pathutil.JoinWithCwd(cwd, browserEntryPoint)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, browserIgnoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
+		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, browserIgnoreType, excludeFiles, nil, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
 
 		StartServer(minimalTree, absolutePathToEntryPoint, cwd)
 		return nil
@@ -71,7 +71,7 @@ var debugParseFileCmd = &cobra.Command{
 		path := pathutil.JoinWithCwd(cwd, debugFile)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{path}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
+		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{path}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
 
 		fmt.Println(path)
 
@@ -115,7 +115,7 @@ var debugGetTreeCmd = &cobra.Command{
 		cwd := pathutil.ResolveAbsoluteCwd(debugTreeCwd)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
+		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
 
 		treeWithLabels := make(map[string][]MinimalDependencyWithLabels)
 		for key, deps := range minimalTree {

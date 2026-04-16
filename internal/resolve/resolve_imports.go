@@ -118,8 +118,8 @@ type RootParams struct {
 	Cwd             string
 }
 
-func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, conditionNames []string, rootParams RootParams, excludeFilePatterns []globutil.GlobMatcher) *ResolverManager {
-	monorepoCtx := detectMonorepoContext(rootParams.Cwd, followMonorepoPackages, excludeFilePatterns)
+func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, conditionNames []string, rootParams RootParams, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher) *ResolverManager {
+	monorepoCtx := detectMonorepoContext(rootParams.Cwd, followMonorepoPackages, excludeFilePatterns, includeFilePatterns)
 
 	rm := &ResolverManager{
 		monorepoContext:        monorepoCtx,
@@ -154,7 +154,7 @@ func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, cond
 	return rm
 }
 
-func detectMonorepoContext(cwd string, followMonorepoPackages FollowMonorepoPackagesValue, excludeFilePatterns []globutil.GlobMatcher) *monorepo.MonorepoContext {
+func detectMonorepoContext(cwd string, followMonorepoPackages FollowMonorepoPackagesValue, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher) *monorepo.MonorepoContext {
 	if !followMonorepoPackages.IsEnabled() {
 		return nil
 	}
@@ -162,7 +162,7 @@ func detectMonorepoContext(cwd string, followMonorepoPackages FollowMonorepoPack
 	if monorepoCtx == nil {
 		return nil
 	}
-	monorepoCtx.FindWorkspacePackages(excludeFilePatterns)
+	monorepoCtx.FindWorkspacePackages(excludeFilePatterns, includeFilePatterns)
 	return monorepoCtx
 }
 
@@ -1177,7 +1177,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	return "", NotResolvedModule, &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []globutil.GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, customAssetExtensions []string, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, customAssetExtensions []string, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
 	tsConfigPath := pathutil.JoinWithCwd(cwd, tsconfigJson)
 	pkgJsonPath := pathutil.JoinWithCwd(cwd, packageJson)
 
@@ -1214,7 +1214,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		PkgJsonPath:     pkgJsonPath,
 		SortedFiles:     sortedFiles,
 		Cwd:             cwd,
-	}, excludeFilePatterns)
+	}, excludeFilePatterns, includeFilePatterns)
 
 	missingResolutionFailedAttempts := map[string]bool{}
 	discoveredFiles := map[string]bool{}
@@ -1251,6 +1251,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 					ch_idx,
 					module.BuiltInModules,
 					excludeFilePatterns,
+					includeFilePatterns,
 					assetExtensionsSet,
 					parseMode,
 					nodeModulesMatchingStrategy,
@@ -1274,14 +1275,14 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	filteredFiles := make([]string, 0, len(sortedFiles))
 
 	for _, filePath := range sortedFiles {
-		if !globutil.MatchesAnyGlobMatcher(filePath, excludeFilePatterns, false) {
+		if !globutil.IsExcludedByPatterns(filePath, excludeFilePatterns, includeFilePatterns) {
 			filteredFiles = append(filteredFiles, filePath)
 		}
 	}
 	filteredFileImportsArr := make([]FileImports, 0, len(fileImportsArr))
 
 	for _, entry := range fileImportsArr {
-		if !globutil.MatchesAnyGlobMatcher(entry.FilePath, excludeFilePatterns, false) {
+		if !globutil.IsExcludedByPatterns(entry.FilePath, excludeFilePatterns, includeFilePatterns) {
 			filteredFileImportsArr = append(filteredFileImportsArr, entry)
 		}
 	}
@@ -1289,7 +1290,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	return filteredFileImportsArr, filteredFiles, resolverManager
 }
 
-func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []globutil.GlobMatcher, assetExtensionsSet map[string]bool, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) {
+func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, assetExtensionsSet map[string]bool, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()
@@ -1376,7 +1377,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 					if missingFilePath != "" {
 						// If file exists on disk but matches exclude patterns, mark it as excluded by user and do not add to discovery lists
-						if globutil.MatchesAnyGlobMatcher(missingFilePath, excludeFilePatterns, false) {
+						if globutil.IsExcludedByPatterns(missingFilePath, excludeFilePatterns, includeFilePatterns) {
 							mu.Lock()
 							imports[impIdx].PathOrName = missingFilePath
 							imports[impIdx].ResolvedType = ExcludedByUser
@@ -1456,7 +1457,7 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 		} else {
 			// resolved to a path; if it's excluded by user, mark and do not add to discovery
-			if globutil.MatchesAnyGlobMatcher(importPath, excludeFilePatterns, false) {
+			if globutil.IsExcludedByPatterns(importPath, excludeFilePatterns, includeFilePatterns) {
 				mu.Lock()
 				fileImports.Imports[impIdx].PathOrName = importPath
 				imports[impIdx].ResolvedType = ExcludedByUser

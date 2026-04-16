@@ -633,6 +633,13 @@ func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string)
 			slices.Sort(pkgs)
 			resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--follow-monorepo-packages \"%s\"", strings.Join(pkgs, ",")))
 		}
+		if len(ruleResult.ProcessIgnoredFiles) > 0 {
+			patterns := append([]string(nil), ruleResult.ProcessIgnoredFiles...)
+			slices.Sort(patterns)
+			for _, pattern := range patterns {
+				resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--process-ignored-files %q", pattern))
+			}
+		}
 		if len(resolveExtraFlags) == 0 {
 			return ""
 		}
@@ -656,7 +663,7 @@ func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string)
 
 	fmt.Printf("    Hint: trace resolution paths with `rev-dep resolve` from this rule cwd.\n")
 	if sampleFileViolation != nil {
-		fmt.Printf("    Example: `rev-dep resolve --file %s --entry-points %s --cwd %s%s`\n",
+		fmt.Printf("    Example: `rev-dep resolve --file \"%s\" --entry-points \"%s\" --cwd \"%s\"%s`\n",
 			relToRule(sampleFileViolation.DeniedFile),
 			relToRule(sampleFileViolation.EntryPoint),
 			ruleCwdArg,
@@ -668,7 +675,7 @@ func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string)
 		if moduleArg == "" {
 			moduleArg = sampleModuleViolation.DeniedModule
 		}
-		fmt.Printf("    Example: `rev-dep resolve --module %s --entry-points %s --cwd %s%s`\n",
+		fmt.Printf("    Example: `rev-dep resolve --module %s --entry-points \"%s\" --cwd \"%s\"%s`\n",
 			moduleArg,
 			relToRule(sampleModuleViolation.EntryPoint),
 			ruleCwdArg,
@@ -698,7 +705,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
-	currentConfigVersion := "1.6"
+	currentConfigVersion := "1.7"
 
 	// Check if any config file already exists
 	existingConfig, err := config.FindConfigFile(cwd)
@@ -770,7 +777,7 @@ func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
 
 			// Find workspace packages
 			excludePatterns := globutil.CreateGlobMatchers([]string{}, cwd)
-			monorepoCtx.FindWorkspacePackages(excludePatterns)
+			monorepoCtx.FindWorkspacePackages(excludePatterns, nil)
 
 			// Collect and sort package paths
 			var packagePaths []string

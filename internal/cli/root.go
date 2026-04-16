@@ -168,8 +168,8 @@ func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude []
 		return fmt.Errorf("exactly one of --file or --module must be provided")
 	}
 
-	absolutePathToEntryPoints, discoveredFiles := resolve.ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude)
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	absolutePathToEntryPoints, discoveredFiles := resolve.ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude, nil)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, nil, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	if len(absolutePathToEntryPoints) == 0 {
 		absolutePathToEntryPoints = graph.GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
@@ -376,7 +376,7 @@ var (
 )
 
 func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, nil, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	notReferencedFiles := graph.GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
 
@@ -467,13 +467,27 @@ Useful for understanding your application's architecture and dependencies.`,
 var (
 	circularCwd        string
 	circularIgnoreType bool
+	circularAlgorithm  string
 )
 
 func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) (int, error) {
 	excludeFiles := []string{}
 
-	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
-	cycles := checks.FindCircularDependencies(minimalTree, files, ignoreType)
+	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, nil, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	algo := strings.ToLower(strings.TrimSpace(circularAlgorithm))
+	if algo == "" {
+		algo = "dfs"
+	}
+
+	var cycles [][]string
+	switch algo {
+	case "dfs":
+		cycles = checks.FindCircularDependencies(minimalTree, files, ignoreType)
+	case "scc":
+		cycles = checks.FindCircularDependenciesSCC(minimalTree, files, ignoreType)
+	default:
+		return 0, fmt.Errorf("invalid value for --algorithm: %q (allowed: DFS, SCC)", circularAlgorithm)
+	}
 
 	formatted := checks.FormatCircularDependencies(cycles, cwd, minimalTree)
 	if len(cycles) > 0 {
@@ -792,7 +806,7 @@ var (
 )
 
 func listCwdFilesCmdFn(cwd string, include, exclude []string, listFilesCount bool) error {
-	files := fs.GetFiles(cwd, []string{}, fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
+	files := fs.GetFiles(cwd, []string{}, fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd), nil)
 
 	includeGlobs := globutil.CreateGlobMatchers(include, cwd)
 	excludeGlobs := globutil.CreateGlobMatchers(exclude, cwd)
@@ -850,7 +864,7 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, packageJson
 	absolutePathToEntryPoint := pathutil.JoinWithCwd(cwd, entryPoint)
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, nil, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	depsGraph := graph.BuildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false, false)
 
@@ -917,7 +931,7 @@ var (
 )
 
 func linesOfCodeCmdFn(cwd string) error {
-	files := fs.GetFiles(cwd, []string{}, fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd))
+	files := fs.GetFiles(cwd, []string{}, fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd), nil)
 	ch := make(chan [3]int) // [lines, linesWithoutComments, linesWithoutTemplates]
 	var wg sync.WaitGroup
 
@@ -998,7 +1012,7 @@ func linesOfCodeCmdFn(cwd string) error {
 func importedByCmdFn(cwd, filePath string, count, listImports bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, nil, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
 
 	absolutePathToFilePath := pathutil.NormalizePathForInternal(pathutil.JoinWithCwd(cwd, filePath))
 
@@ -1177,7 +1191,7 @@ func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames [
 	if options == nil {
 		options = &config.UnresolvedImportsOptions{}
 	}
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, nil, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions)
 
 	unresolved := checks.DetectUnresolvedImports(minimalTree, map[string]bool{})
 	filterOpts := &checks.UnresolvedFilterOptions{
@@ -1293,6 +1307,8 @@ func init() {
 		"Working directory for the command")
 	circularCmd.Flags().BoolVarP(&circularIgnoreType, "ignore-type-imports", "t", false,
 		"Exclude type imports from the analysis")
+	circularCmd.Flags().StringVar(&circularAlgorithm, "algorithm", "DFS",
+		"Cycle detection algorithm: DFS (default) or SCC")
 
 	// node-modules flags
 	addNodeModulesFlags(nodeModulesUsedCmd, false)

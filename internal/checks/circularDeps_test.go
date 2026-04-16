@@ -17,7 +17,7 @@ func TestFindCircularDepsWithTypeImports(t *testing.T) {
 	}
 	cwd := filepath.Clean(root) + string(filepath.Separator)
 
-	minimalDepsTree, sortedFiles, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalDepsTree, sortedFiles, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
@@ -48,7 +48,7 @@ func TestFindCircularDepsWithoutTypeImports(t *testing.T) {
 	}
 	cwd := filepath.Clean(root) + string(filepath.Separator)
 
-	minimalDepsTree, sortedFiles, _ := resolve.GetMinimalDepsTreeForCwd(cwd, true, []string{}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalDepsTree, sortedFiles, _ := resolve.GetMinimalDepsTreeForCwd(cwd, true, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
@@ -74,7 +74,7 @@ func TestFindMultipleCircularDepsFromSameNode(t *testing.T) {
 	}
 	cwd := filepath.Clean(root) + string(filepath.Separator)
 
-	minimalDepsTree, sortedFiles, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalDepsTree, sortedFiles, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 

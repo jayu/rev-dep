@@ -18,8 +18,9 @@ import (
 )
 
 type CircularImportsOptions struct {
-	Enabled           bool `json:"enabled"`
-	IgnoreTypeImports bool `json:"ignoreTypeImports"`
+	Enabled           bool   `json:"enabled"`
+	IgnoreTypeImports bool   `json:"ignoreTypeImports"`
+	Algorithm         string `json:"algorithm,omitempty"`
 }
 
 func (o *CircularImportsOptions) IsEnabled() bool { return o != nil && o.Enabled }
@@ -292,6 +293,7 @@ type RevDepConfig struct {
 	ConditionNames        []string `json:"conditionNames,omitempty"`
 	CustomAssetExtensions []string `json:"customAssetExtensions,omitempty"`
 	IgnoreFiles           []string `json:"ignoreFiles,omitempty"`
+	ProcessIgnoredFiles   []string `json:"processIgnoredFiles,omitempty"`
 	Rules                 []Rule   `json:"rules"`
 }
 
@@ -310,7 +312,7 @@ func ConfigFileNameJSONC() string {
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -463,6 +465,14 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 
 			// Apply rule-level entry point inheritance for selected detectors.
 			// Explicit detector arrays (including empty) override rule-level defaults.
+			for _, circularCfg := range config.Rules[i].getCircularImportsDetections() {
+				algo := strings.ToLower(strings.TrimSpace(circularCfg.Algorithm))
+				if algo == "" {
+					algo = "dfs"
+				}
+				circularCfg.Algorithm = algo
+			}
+
 			for _, orphanCfg := range config.Rules[i].getOrphanFilesDetections() {
 				if orphanCfg.ValidEntryPoints == nil {
 					orphanCfg.ValidEntryPoints = mergeAndDedupeEntryPoints(config.Rules[i].ProdEntryPoints, config.Rules[i].DevEntryPoints)
@@ -581,6 +591,7 @@ func validateRawConfig(raw map[string]interface{}) error {
 		"conditionNames":        true,
 		"customAssetExtensions": true,
 		"ignoreFiles":           true,
+		"processIgnoredFiles":   true,
 		"rules":                 true,
 	}
 
@@ -603,6 +614,18 @@ func validateRawConfig(raw map[string]interface{}) error {
 		for i, extension := range extensionsArray {
 			if _, ok := extension.(string); !ok {
 				return fmt.Errorf("customAssetExtensions[%d] must be a string, got %T", i, extension)
+			}
+		}
+	}
+
+	if processIgnoredFiles, exists := raw["processIgnoredFiles"]; exists && processIgnoredFiles != nil {
+		processIgnoredFilesArray, ok := processIgnoredFiles.([]interface{})
+		if !ok {
+			return fmt.Errorf("processIgnoredFiles must be an array, got %T", processIgnoredFiles)
+		}
+		for i, pattern := range processIgnoredFilesArray {
+			if _, ok := pattern.(string); !ok {
+				return fmt.Errorf("processIgnoredFiles[%d] must be a string, got %T", i, pattern)
 			}
 		}
 	}
@@ -847,6 +870,7 @@ func validateRawCircularImportsDetectionInstance(circularMap map[string]interfac
 	allowedFields := map[string]bool{
 		"enabled":           true,
 		"ignoreTypeImports": true,
+		"algorithm":         true,
 	}
 
 	for field := range circularMap {
@@ -868,6 +892,12 @@ func validateRawCircularImportsDetectionInstance(circularMap map[string]interfac
 	if ignoreType, exists := circularMap["ignoreTypeImports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
 			return fmt.Errorf("%s.ignoreTypeImports must be a boolean, got %T", prefix, ignoreType)
+		}
+	}
+
+	if algo, exists := circularMap["algorithm"]; exists && algo != nil {
+		if _, ok := algo.(string); !ok {
+			return fmt.Errorf("%s.algorithm must be a string, got %T", prefix, algo)
 		}
 	}
 
@@ -1178,7 +1208,7 @@ func ValidateConfig(config *RevDepConfig) error {
 			if len(rule.getCircularImportsDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
-			if err := validateCircularImportsOptions(detection); err != nil {
+			if err := validateCircularImportsOptions(detection, prefix); err != nil {
 				return err
 			}
 		}
@@ -1291,11 +1321,17 @@ func validateBoundaryRule(boundary *BoundaryRule, prefix string) error {
 }
 
 // validateCircularImportsOptions validates circular imports detection options
-func validateCircularImportsOptions(opts *CircularImportsOptions) error {
+func validateCircularImportsOptions(opts *CircularImportsOptions, prefix string) error {
 	if !opts.Enabled {
 		return nil
 	}
-	// No additional validation needed for now
+	if opts.Algorithm != "" {
+		switch strings.ToLower(strings.TrimSpace(opts.Algorithm)) {
+		case "dfs", "scc":
+		default:
+			return fmt.Errorf("%s.algorithm: must be one of 'DFS', 'SCC', got '%s'", prefix, opts.Algorithm)
+		}
+	}
 	return nil
 }
 
@@ -1543,10 +1579,6 @@ func validateAndNormalizeIgnoreConfig(ignore globutil.FileValueIgnoreMap, ignore
 
 		if filepath.IsAbs(pathutil.DenormalizePathForOS(normalizedPath)) {
 			return nil, nil, fmt.Errorf("%s.ignore['%s'] must be a relative path", prefix, configuredPath)
-		}
-
-		if normalizedPath == ".." || strings.HasPrefix(normalizedPath, "../") {
-			return nil, nil, fmt.Errorf("%s.ignore['%s'] must not traverse parent directories", prefix, configuredPath)
 		}
 
 		if _, err := glob.Compile(pathutil.NormalizeGlobPattern(normalizedPath)); err != nil {
@@ -1953,12 +1985,6 @@ func parseImportConventionDomains(domains interface{}) ([]ImportConventionDomain
 }
 
 func validatePattern(pattern string) error {
-	if len(pattern) >= 2 && pattern[0] == '.' && (pattern[1] == '/' || pattern[1] == '\\') {
-		return fmt.Errorf("pattern '%s' starts with './' or '.\\', which is not allowed. Use paths that starts with file or directory name", pattern)
-	}
-	if len(pattern) >= 3 && pattern[0] == '.' && pattern[1] == '.' && (pattern[2] == '/' || pattern[2] == '\\') {
-		return fmt.Errorf("pattern '%s' starts with '../' or '..\\', which is not allowed. Use paths that starts with file or directory name", pattern)
-	}
 	return nil
 }
 

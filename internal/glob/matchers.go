@@ -2,6 +2,7 @@ package globutil
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -18,6 +19,42 @@ type GlobMatcher struct {
 	isAdditional                       bool
 }
 
+func rebaseRelativePattern(pattern string, patternRoot string) (string, string, bool, bool) {
+	if pattern == "" || strings.HasPrefix(pattern, "/") {
+		return patternRoot, pattern, false, false
+	}
+	if pattern != "." && pattern != ".." && !strings.HasPrefix(pattern, "./") && !strings.HasPrefix(pattern, "../") {
+		return patternRoot, pattern, false, false
+	}
+
+	trailingSlash := strings.HasSuffix(pattern, "/")
+	cleaned := path.Clean(pattern)
+	parts := strings.Split(cleaned, "/")
+	up := 0
+	i := 0
+	for i < len(parts) && parts[i] == ".." {
+		up++
+		i++
+	}
+	rest := strings.Join(parts[i:], "/")
+	if rest == "" {
+		rest = "."
+	}
+	if rest == "." && !trailingSlash {
+		trailingSlash = true
+	}
+
+	root := strings.TrimSuffix(patternRoot, "/")
+	for i := 0; i < up; i++ {
+		root = path.Dir(root)
+	}
+	if root != "" {
+		root += "/"
+	}
+
+	return root, rest, true, trailingSlash
+}
+
 func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 	globMatchers := []GlobMatcher{}
 	// normalize pattern root to internal form and ensure trailing '/'
@@ -26,32 +63,54 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 		patternRootNorm = patternRootNorm + "/"
 	}
 
-	for _, excludePattern := range patterns {
-		isAnchoredToPatternRoot := strings.HasPrefix(excludePattern, "/")
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(pattern)
+		pattern = pathutil.NormalizeGlobPattern(pattern)
+
+		patternRootForPattern := patternRootNorm
+		isAnchoredToPatternRoot := strings.HasPrefix(pattern, "/")
 		if isAnchoredToPatternRoot {
-			excludePattern = strings.TrimPrefix(excludePattern, "/")
+			pattern = strings.TrimPrefix(pattern, "/")
+		}
+
+		if !isAnchoredToPatternRoot {
+			if newRoot, newPattern, ok, trailingSlash := rebaseRelativePattern(pattern, patternRootNorm); ok {
+				patternRootForPattern = newRoot
+				pattern = newPattern
+				isAnchoredToPatternRoot = true
+				if trailingSlash {
+					if pattern == "." {
+						pattern = ""
+					}
+					if pattern == "" {
+						pattern = "**"
+					} else if !strings.HasSuffix(pattern, "/") {
+						pattern += "/"
+					}
+				}
+			}
 		}
 
 		// .gitignore for entries without `/` or `*` - so effectively plain text names, matches directories of files with that exact name. We want to align with .gitignore behavior
-		shouldMatchAnyFileOrDirWithPattern := !strings.Contains(excludePattern, "/") && !strings.Contains(excludePattern, "*")
+		shouldMatchAnyFileOrDirWithPattern := !strings.Contains(pattern, "/") && !strings.Contains(pattern, "*")
 
-		if strings.HasSuffix(excludePattern, "/") && !strings.Contains(excludePattern, "*") {
+		if strings.HasSuffix(pattern, "/") && !strings.Contains(pattern, "*") {
 			// in gitignore entry with `/` suffix matches whole directory recursively
 			if isAnchoredToPatternRoot {
-				excludePattern = excludePattern + "**"
+				pattern = pattern + "**"
 			} else {
-				excludePattern = "**" + excludePattern + "**"
+				pattern = "**" + pattern + "**"
 			}
 
 		}
 
 		// normalize pattern separators (globs and gitignore entries use forward slashes)
-		patternNorm := pathutil.NormalizeGlobPattern(excludePattern)
+		patternNorm := pathutil.NormalizeGlobPattern(pattern)
 
 		item := GlobMatcher{
 			globPattern:                        glob.MustCompile(patternNorm),
 			inputString:                        patternNorm,
-			patternRoot:                        patternRootNorm,
+			patternRoot:                        patternRootForPattern,
 			isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
 			shouldMatchAnyFileOrDirWithPattern: shouldMatchAnyFileOrDirWithPattern,
 			isAdditional:                       false,
@@ -65,7 +124,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 			additionalItem := GlobMatcher{
 				globPattern:                        glob.MustCompile(additionalPattern),
 				inputString:                        additionalPattern,
-				patternRoot:                        patternRootNorm,
+				patternRoot:                        patternRootForPattern,
 				isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
 				shouldMatchAnyFileOrDirWithPattern: false,
 				isAdditional:                       true,
@@ -91,8 +150,8 @@ func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) 
 			}
 			return true
 		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
-			// matches file with name exactly as the pattern
+		if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
+			// matches file/dir with name exactly as the pattern (unnanchored only - anchored patterns like /boot must only match at root)
 			if debug {
 				fmt.Println(fileWithoutPrefix, "return matches file name exactly", matcher.inputString)
 			}

@@ -85,6 +85,10 @@ func CircularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPat
 	return circularCmdFn(cwd, ignoreType, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages)
 }
 
+func SetCircularAlgorithm(value string) {
+	circularAlgorithm = value
+}
+
 func ListCwdFilesCmdFn(cwd string, include, exclude []string, listFilesCount bool) error {
 	return listCwdFilesCmdFn(cwd, include, exclude, listFilesCount)
 }

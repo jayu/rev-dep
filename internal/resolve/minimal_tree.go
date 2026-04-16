@@ -12,10 +12,11 @@ import (
 	"rev-dep-go/internal/pathutil"
 )
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, customAssetExtensions []string) (model.MinimalDependencyTree, []string, *ResolverManager) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, includeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, customAssetExtensions []string) (model.MinimalDependencyTree, []string, *ResolverManager) {
 	var files []string
 
 	excludePatterns := globutil.CreateGlobMatchers(excludeFiles, cwd)
+	includePatterns := globutil.CreateGlobMatchers(includeFiles, cwd)
 
 	gitIgnoreExcludePatterns := fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
 
@@ -25,7 +26,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 	// While it's faster than looking up for all files upfront, if the file list for entry point is small, it's slower if file list for entry point is long, as resolver is not concurrent
 	// To leverage that we have to make resolver concurrent using channels as queue
 	if len(upfrontFilesList) == 0 {
-		files = fs.GetFiles(cwd, []string{}, allExcludePatterns)
+		files = fs.GetFiles(cwd, []string{}, allExcludePatterns, includePatterns)
 	} else {
 		files = upfrontFilesList
 	}
@@ -36,7 +37,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, conditionNames, followMonorepoPackages, customAssetExtensions, model.ParseModeBasic, model.NodeModulesMatchingStrategyCwdResolver)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, includePatterns, conditionNames, followMonorepoPackages, customAssetExtensions, model.ParseModeBasic, model.NodeModulesMatchingStrategyCwdResolver)
 
 	minimalTree := model.TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 
@@ -44,12 +45,13 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 }
 
 // ResolveEntryPointsFromPatterns expands entry point globs and filters excluded files.
-func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFiles []string) ([]string, []string) {
+func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFiles []string, includeFiles []string) ([]string, []string) {
 	if len(entryPoints) == 0 {
 		return []string{}, []string{}
 	}
 
 	excludePatterns := globutil.CreateGlobMatchers(excludeFiles, cwd)
+	includePatterns := globutil.CreateGlobMatchers(includeFiles, cwd)
 	gitIgnoreExcludePatterns := fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
 	allExcludePatterns := append(excludePatterns, gitIgnoreExcludePatterns...)
 
@@ -60,7 +62,7 @@ func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFil
 	for _, entryPoint := range entryPoints {
 		abs := pathutil.NormalizePathForInternal(pathutil.JoinWithCwd(cwd, entryPoint))
 		if fileInfo, err := os.Stat(pathutil.DenormalizePathForOS(abs)); err == nil && !fileInfo.IsDir() {
-			if globutil.MatchesAnyGlobMatcher(abs, allExcludePatterns, false) {
+			if globutil.IsExcludedByPatterns(abs, allExcludePatterns, includePatterns) {
 				continue
 			}
 			if !entryPointsSet[abs] {
@@ -73,7 +75,7 @@ func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFil
 		if strings.ContainsAny(entryPoint, "*?[]{}") {
 			hasGlob = true
 		} else {
-			if globutil.MatchesAnyGlobMatcher(abs, allExcludePatterns, false) {
+			if globutil.IsExcludedByPatterns(abs, allExcludePatterns, includePatterns) {
 				continue
 			}
 			if !entryPointsSet[abs] {
@@ -89,7 +91,7 @@ func ResolveEntryPointsFromPatterns(cwd string, entryPoints []string, excludeFil
 	}
 
 	matchers := globutil.CreateGlobMatchers(entryPoints, cwd)
-	allFiles := fs.GetFiles(cwd, []string{}, allExcludePatterns)
+	allFiles := fs.GetFiles(cwd, []string{}, allExcludePatterns, includePatterns)
 	for _, filePath := range allFiles {
 		if globutil.MatchesAnyGlobMatcher(filePath, matchers, false) {
 			normalized := pathutil.NormalizePathForInternal(filePath)

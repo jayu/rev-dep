@@ -513,14 +513,13 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 	}
 }
 
-func TestParseConfig_InvalidPatterns(t *testing.T) {
+func TestParseConfig_RelativePatternsAllowed(t *testing.T) {
 	tests := []struct {
-		name        string
-		configJSON  string
-		expectedErr string
+		name       string
+		configJSON string
 	}{
 		{
-			name: "invalid boundary pattern",
+			name: "relative boundary pattern",
 			configJSON: `{
 				"configVersion": "1.0",
 				"rules": [{
@@ -533,10 +532,9 @@ func TestParseConfig_InvalidPatterns(t *testing.T) {
 					}]
 				}]
 			}`,
-			expectedErr: "pattern './src/**' starts with './'",
 		},
 		{
-			name: "invalid allow pattern",
+			name: "relative allow pattern",
 			configJSON: `{
 				"configVersion": "1.0",
 				"rules": [{
@@ -549,10 +547,9 @@ func TestParseConfig_InvalidPatterns(t *testing.T) {
 					}]
 				}]
 			}`,
-			expectedErr: "pattern './utils/**' starts with './'",
 		},
 		{
-			name: "invalid deny pattern",
+			name: "relative deny pattern",
 			configJSON: `{
 				"configVersion": "1.0",
 				"rules": [{
@@ -565,10 +562,9 @@ func TestParseConfig_InvalidPatterns(t *testing.T) {
 					}]
 				}]
 			}`,
-			expectedErr: "pattern '../external/**' starts with '../'",
 		},
 		{
-			name: "invalid graph exclude pattern",
+			name: "relative graph exclude pattern",
 			configJSON: `{
 				"configVersion": "1.0",
 				"rules": [{
@@ -579,17 +575,13 @@ func TestParseConfig_InvalidPatterns(t *testing.T) {
 					}
 				}]
 			}`,
-			expectedErr: "pattern './invalid/**' starts with './'",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ParseConfig([]byte(tt.configJSON))
-			if err == nil {
-				t.Errorf("Expected error for %s, got nil", tt.name)
-			} else if !contains(err.Error(), tt.expectedErr) {
-				t.Errorf("Expected error containing '%s', got '%s'", tt.expectedErr, err.Error())
+			if _, err := ParseConfig([]byte(tt.configJSON)); err != nil {
+				t.Errorf("Expected no error for %s, got %v", tt.name, err)
 			}
 		})
 	}
@@ -1827,7 +1819,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid graphExclude pattern", func(t *testing.T) {
+	t.Run("relative graphExclude pattern", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
 			"rules": [{
@@ -1840,11 +1832,8 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}`
 
 		_, err := ParseConfig([]byte(configJSON))
-		if err == nil {
-			t.Fatal("Expected error, got nil")
-		}
-		if !contains(err.Error(), "starts with './'") {
-			t.Errorf("Expected pattern validation error, got: %s", err.Error())
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
 		}
 	})
 
@@ -1991,7 +1980,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid ignoreFiles pattern", func(t *testing.T) {
+	t.Run("relative ignoreFiles pattern", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
 			"rules": [{
@@ -2004,11 +1993,8 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}`
 
 		_, err := ParseConfig([]byte(configJSON))
-		if err == nil {
-			t.Fatal("Expected error, got nil")
-		}
-		if !contains(err.Error(), "starts with './'") {
-			t.Errorf("Expected pattern validation error, got: %s", err.Error())
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
 		}
 	})
 }
@@ -2156,7 +2142,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid ignoreFiles pattern", func(t *testing.T) {
+	t.Run("relative ignoreFiles pattern", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
 			"rules": [{
@@ -2169,11 +2155,8 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 		}`
 
 		_, err := ParseConfig([]byte(configJSON))
-		if err == nil {
-			t.Fatal("Expected error, got nil")
-		}
-		if !contains(err.Error(), "starts with './'") {
-			t.Errorf("Expected pattern validation error, got: %s", err.Error())
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
 		}
 	})
 
@@ -2200,7 +2183,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 		}
 	})
 
-	t.Run("ignore map key cannot traverse parent dirs", func(t *testing.T) {
+	t.Run("ignore map key can traverse parent dirs", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
 			"rules": [{
@@ -2214,12 +2197,12 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 			}]
 		}`
 
-		_, err := ParseConfig([]byte(configJSON))
-		if err == nil {
-			t.Fatal("Expected error, got nil")
+		config, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
 		}
-		if !contains(err.Error(), "must not traverse parent directories") {
-			t.Errorf("Expected parent directory traversal error, got: %s", err.Error())
+		if got := firstDetectionOrNil(config.Rules[0].UnresolvedImportsDetections).Ignore["../src/index.ts"]; len(got) != 1 || got[0] != "non-existent-module" {
+			t.Fatalf("Expected ignore entry for ../src/index.ts, got %#v", got)
 		}
 	})
 }

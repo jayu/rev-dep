@@ -34,7 +34,7 @@ const settings = {
 };
 
 const DOCS_DIR = path.join(process.cwd(), 'docs');
-const README_PATH = path.join(process.cwd(), 'Readme.md');
+const README_PATH = path.join(process.cwd(), 'README.md');
 const NPM_README_PATH = path.join(process.cwd(), 'npm', 'rev-dep', 'Readme.md');
 const DOCS_START_MARKER = '<!-- cli-docs-start -->';
 const DOCS_END_MARKER = '<!-- cli-docs-end -->';

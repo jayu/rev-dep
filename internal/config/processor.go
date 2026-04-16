@@ -1,0 +1,845 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+
+	"rev-dep-go/internal/checks"
+	"rev-dep-go/internal/fs"
+	globutil "rev-dep-go/internal/glob"
+	"rev-dep-go/internal/graph"
+	"rev-dep-go/internal/model"
+	"rev-dep-go/internal/node"
+	"rev-dep-go/internal/parser"
+	"rev-dep-go/internal/pathutil"
+	"rev-dep-go/internal/resolve"
+	"rev-dep-go/internal/sourceedit"
+)
+
+// validateRulePathPackageJson checks if package.json exists in the rule path directory
+// and returns true if package.json is missing
+func validateRulePathPackageJson(rulePath, cwd string) bool {
+	// Construct the full path to the rule directory
+	fullRulePath := filepath.Join(cwd, rulePath)
+
+	// Check if the directory exists
+	if _, err := os.Stat(fullRulePath); os.IsNotExist(err) {
+		// Directory doesn't exist, no need to check for package.json
+		return false
+	}
+
+	// Check for package.json file in the rule directory
+	packageJsonPath := filepath.Join(fullRulePath, "package.json")
+	if _, err := os.Stat(packageJsonPath); os.IsNotExist(err) {
+		// package.json doesn't exist
+		return true
+	}
+
+	return false
+}
+
+// RuleResult contains the results for a single rule in the config
+type RuleResult struct {
+	RulePath                                        string
+	FileCount                                       int
+	EnabledChecks                                   []string
+	DependencyTree                                  model.MinimalDependencyTree
+	ModuleBoundaryViolations                        []checks.ModuleBoundaryViolation
+	CircularDependencies                            [][]string
+	OrphanFiles                                     []string
+	OrphanFilesAutofixable                          []string
+	MissingNodeModules                              []node.MissingNodeModuleResult
+	MissingNodeModulesOutputType                    string
+	UnusedNodeModules                               []node.UnusedNodeModuleIssue
+	UnusedNodeModulesOutputType                     string
+	ImportConventionViolations                      []checks.ImportConventionViolation
+	UnusedExports                                   []checks.UnusedExport
+	UnresolvedImports                               []checks.UnresolvedImport
+	RestrictedDevDependenciesUsageViolations        []checks.RestrictedDevDependenciesUsageViolation
+	RestrictedImportsViolations                     []checks.RestrictedImportViolation
+	RestrictedImportsFollowMonorepoPackages         model.FollowMonorepoPackagesValue
+	ProcessIgnoredFiles                             []string
+	MissingPackageJson                              bool
+	ShouldWarnAboutImportConventionWithPJsonImports bool
+}
+
+// ConfigProcessingResult contains the results for processing an entire config
+type ConfigProcessingResult struct {
+	RuleResults            []RuleResult
+	HasFailures            bool
+	FixedFilesCount        int
+	FixedImportsCount      int
+	DeletedFilesCount      int
+	UnfixableAliasingCount int
+	FixableIssuesCount     int
+	FullTree               model.MinimalDependencyTree
+}
+
+// discoverAllFilesForConfig discovers all files for config processing
+func discoverAllFilesForConfig(
+	cwd string,
+	ignoreFiles []string,
+	processIgnoredFiles []string,
+) ([]string, []globutil.GlobMatcher, []globutil.GlobMatcher, error) {
+	// Create glob matchers for ignore files
+	ignoreMatchers := globutil.CreateGlobMatchers(ignoreFiles, cwd)
+	processIgnoredMatchers := globutil.CreateGlobMatchers(processIgnoredFiles, cwd)
+
+	// Always include gitignore patterns
+	gitignoreMatchers := fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
+	combinedMatchers := append(ignoreMatchers, gitignoreMatchers...)
+
+	// Get all files using the existing GetFiles function
+	files := fs.GetFiles(cwd, []string{}, combinedMatchers, processIgnoredMatchers)
+
+	return files, combinedMatchers, processIgnoredMatchers, nil
+}
+
+func anyRuleChecksForUnusedExports(config *RevDepConfig) bool {
+	for _, rule := range config.Rules {
+		if anyEnabled(rule.getUnusedExportsDetections()) {
+			return true
+		}
+	}
+	return false
+}
+
+type enabledOption interface {
+	IsEnabled() bool
+}
+
+func anyEnabled[T enabledOption](items []T) bool {
+	for _, item := range items {
+		if item.IsEnabled() {
+			return true
+		}
+	}
+	return false
+}
+
+// buildDependencyTreeForConfig builds dependency tree for config processing
+func buildDependencyTreeForConfig(
+	allFiles []string,
+	excludePatterns []globutil.GlobMatcher,
+	includePatterns []globutil.GlobMatcher,
+	conditionNames []string,
+	cwd string,
+	packageJson string,
+	tsconfigJson string,
+	customAssetExtensions []string,
+	parseMode model.ParseMode,
+) (model.MinimalDependencyTree, *resolve.ResolverManager, error) {
+	// For config processing, we always resolve type imports (we filter later per-check)
+	ignoreTypeImports := false
+
+	// We always follow monorepo packages for comprehensive analysis
+	followMonorepoPackages := model.FollowMonorepoPackagesValue{FollowAll: true}
+
+	// Skip resolving missing files for performance
+	skipResolveMissing := false
+
+	// Parse imports from all files
+	fileImportsArr, _ := parser.ParseImportsFromFiles(allFiles, ignoreTypeImports, parseMode)
+
+	slices.Sort(allFiles)
+
+	// Resolve imports using the existing resolver
+	fileImportsArr, _, resolverManager := resolve.ResolveImports(
+		fileImportsArr,
+		allFiles,
+		cwd,
+		ignoreTypeImports,
+		skipResolveMissing,
+		packageJson,
+		tsconfigJson,
+		excludePatterns,
+		includePatterns,
+		conditionNames,
+		followMonorepoPackages,
+		customAssetExtensions,
+		parseMode,
+		model.NodeModulesMatchingStrategySelfResolver,
+	)
+
+	// Transform to minimal dependency tree
+	minimalTree := model.TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
+
+	return minimalTree, resolverManager, nil
+}
+
+func filterFilesForRule(
+	fullTree model.MinimalDependencyTree,
+	rulePath string,
+	cwd string,
+	followMonorepoPackages model.FollowMonorepoPackagesValue,
+	resolverManager *resolve.ResolverManager,
+) ([]string, model.MinimalDependencyTree) {
+	normalizedRulePath := pathutil.NormalizePathForInternal(filepath.Clean(pathutil.JoinWithCwd(cwd, rulePath)))
+	normalizedRulePathWithSlash := pathutil.StandardiseDirPathInternal(normalizedRulePath)
+	isRuleFile := func(filePath string) bool {
+		normalizedFilePath := pathutil.NormalizePathForInternal(filePath)
+		return strings.HasPrefix(normalizedFilePath, normalizedRulePathWithSlash)
+	}
+
+	filesWithinCwd := []string{}
+	subTree := model.MinimalDependencyTree{}
+
+	for file := range fullTree {
+		if isRuleFile(file) {
+			filesWithinCwd = append(filesWithinCwd, file)
+		}
+	}
+
+	if !followMonorepoPackages.IsEnabled() {
+		for _, file := range filesWithinCwd {
+			subTree[file] = fullTree[file]
+		}
+
+		return filesWithinCwd, subTree
+	}
+
+	// Build graph to trace dependencies from other packages
+
+	graph := graph.BuildDepsGraphForMultiple(fullTree, filesWithinCwd, nil, false, false)
+
+	allowedPackagePathPrefixes := map[string]bool{}
+	if !followMonorepoPackages.ShouldFollowAll() && resolverManager != nil && resolverManager.MonorepoContext() != nil {
+		for packageName, packagePath := range resolverManager.MonorepoContext().PackageToPath {
+			if !followMonorepoPackages.ShouldFollowPackage(packageName) {
+				continue
+			}
+
+			normalizedPackagePath := pathutil.NormalizePathForInternal(packagePath)
+			allowedPackagePathPrefixes[pathutil.StandardiseDirPathInternal(normalizedPackagePath)] = true
+		}
+	}
+
+	filteredFiles := make([]string, 0, len(graph.Vertices))
+
+	for vertex := range graph.Vertices {
+		if !followMonorepoPackages.ShouldFollowAll() && !isRuleFile(vertex) {
+			isInAllowedWorkspacePackage := false
+			for packagePathPrefix := range allowedPackagePathPrefixes {
+				if strings.HasPrefix(vertex, packagePathPrefix) {
+					isInAllowedWorkspacePackage = true
+					break
+				}
+			}
+			if !isInAllowedWorkspacePackage {
+				continue
+			}
+		}
+		filteredFiles = append(filteredFiles, vertex)
+		subTree[vertex] = fullTree[vertex]
+	}
+
+	return filteredFiles, subTree
+}
+
+func FilterFilesForRule(
+	fullTree model.MinimalDependencyTree,
+	rulePath string,
+	cwd string,
+	followMonorepoPackages model.FollowMonorepoPackagesValue,
+	resolverManager *resolve.ResolverManager,
+) ([]string, model.MinimalDependencyTree) {
+	return filterFilesForRule(fullTree, rulePath, cwd, followMonorepoPackages, resolverManager)
+}
+
+// processRuleChecks runs all enabled checks for a rule in parallel
+func processRuleChecks(
+	rule Rule,
+	ruleFiles []string,
+	ruleTree model.MinimalDependencyTree,
+	fullTree model.MinimalDependencyTree,
+	resolverManager *resolve.ResolverManager,
+	cwd string,
+	fix bool,
+) RuleResult {
+	// Track enabled checks
+	enabledChecks := []string{}
+
+	// Check which detections are enabled
+	if anyEnabled(rule.getCircularImportsDetections()) {
+		enabledChecks = append(enabledChecks, "circular-imports")
+	}
+	if anyEnabled(rule.getOrphanFilesDetections()) {
+		enabledChecks = append(enabledChecks, "orphan-files")
+	}
+	if len(rule.ModuleBoundaries) > 0 {
+		enabledChecks = append(enabledChecks, "module-boundaries")
+	}
+	if anyEnabled(rule.getUnusedNodeModulesDetections()) {
+		enabledChecks = append(enabledChecks, "unused-node-modules")
+	}
+	if anyEnabled(rule.getMissingNodeModulesDetections()) {
+		enabledChecks = append(enabledChecks, "missing-node-modules")
+	}
+	if anyEnabled(rule.getUnusedExportsDetections()) {
+		enabledChecks = append(enabledChecks, "unused-exports")
+	}
+	if anyEnabled(rule.getUnresolvedImportsDetections()) {
+		enabledChecks = append(enabledChecks, "unresolved-imports")
+	}
+	if anyEnabled(rule.getDevDepsUsageOnProdDetections()) {
+		enabledChecks = append(enabledChecks, "dev-deps-usage-on-prod")
+	}
+	if anyEnabled(rule.getRestrictedImportsDetections()) {
+		enabledChecks = append(enabledChecks, "restricted-imports")
+	}
+	if len(rule.ImportConventions) > 0 {
+		enabledChecks = append(enabledChecks, "import-conventions")
+	}
+
+	ruleResult := RuleResult{
+		RulePath:                                rule.Path,
+		FileCount:                               len(ruleFiles),
+		EnabledChecks:                           enabledChecks,
+		DependencyTree:                          fullTree, // Include the full dependency tree for circular dependency formatting
+		RestrictedImportsFollowMonorepoPackages: rule.FollowMonorepoPackages,
+	}
+
+	fullRulePath := pathutil.StandardiseDirPath(filepath.Join(cwd, rule.Path))
+
+	rulePathResolver := resolverManager.GetResolverForFile(fullRulePath)
+	rulePathNodeModules := make(map[string]bool, 0)
+
+	if rulePathResolver != nil {
+		rulePathNodeModules = rulePathResolver.NodeModules()
+	}
+
+	// Detect module-suffix variants to exclude from orphan/unused-exports detection.
+	// Uses per-file resolver lookup so monorepos with package-level moduleSuffixes work.
+	moduleSuffixVariants := resolve.DetectModuleSuffixVariants(ruleFiles, resolverManager)
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	// Circular Dependencies
+	if anyEnabled(rule.getCircularImportsDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// For circular dependencies, use the full tree since we need complete graph
+			// Sort rule files as required by FindCircularDependencies
+			sortedRuleFiles := make([]string, len(ruleFiles))
+			copy(sortedRuleFiles, ruleFiles)
+			slices.Sort(sortedRuleFiles)
+
+			circularDeps := make([][]string, 0)
+			for _, detection := range rule.getCircularImportsDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				algo := strings.ToLower(strings.TrimSpace(detection.Algorithm))
+				if algo == "" {
+					algo = "dfs"
+				}
+				switch algo {
+				case "scc":
+					circularDeps = append(circularDeps, checks.FindCircularDependenciesSCC(
+						ruleTree,
+						sortedRuleFiles,
+						detection.IgnoreTypeImports,
+					)...)
+				default:
+					circularDeps = append(circularDeps, checks.FindCircularDependencies(
+						ruleTree,
+						sortedRuleFiles,
+						detection.IgnoreTypeImports,
+					)...)
+				}
+			}
+
+			mu.Lock()
+			ruleResult.CircularDependencies = circularDeps
+			mu.Unlock()
+		}()
+	}
+
+	// Orphan Files
+	if anyEnabled(rule.getOrphanFilesDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			orphanSet := map[string]bool{}
+			orphanAutofixSet := map[string]bool{}
+			orphanFiles := make([]string, 0)
+			orphanFilesAutofixable := make([]string, 0)
+			for _, detection := range rule.getOrphanFilesDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				found := checks.FindOrphanFiles(
+					ruleTree,
+					detection.ValidEntryPoints,
+					detection.GraphExclude,
+					detection.IgnoreTypeImports,
+					fullRulePath,
+					moduleSuffixVariants,
+				)
+				for _, file := range found {
+					if !orphanSet[file] {
+						orphanSet[file] = true
+						orphanFiles = append(orphanFiles, file)
+					}
+					if detection.Autofix && !orphanAutofixSet[file] {
+						orphanAutofixSet[file] = true
+						orphanFilesAutofixable = append(orphanFilesAutofixable, file)
+					}
+				}
+			}
+			slices.Sort(orphanFiles)
+			slices.Sort(orphanFilesAutofixable)
+
+			mu.Lock()
+			ruleResult.OrphanFiles = orphanFiles
+			ruleResult.OrphanFilesAutofixable = orphanFilesAutofixable
+			mu.Unlock()
+		}()
+	}
+
+	// Module Boundaries
+	if len(rule.ModuleBoundaries) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			violations := checks.CheckModuleBoundariesFromTree(
+				ruleTree,
+				ruleFiles,
+				rule.ModuleBoundaries,
+				fullRulePath,
+			)
+
+			mu.Lock()
+			ruleResult.ModuleBoundaryViolations = violations
+			mu.Unlock()
+		}()
+	}
+
+	// Unused Node Modules
+	if anyEnabled(rule.getUnusedNodeModulesDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			unusedSet := map[string]bool{}
+			unusedModules := make([]node.UnusedNodeModuleIssue, 0)
+			outputType := ""
+
+			for _, detection := range rule.getUnusedNodeModulesDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				found := node.GetUnusedNodeModulesFromTree(
+					ruleTree,
+					rulePathNodeModules,
+					fullRulePath,
+					detection.PkgJsonFieldsWithBinaries,
+					detection.FilesWithBinaries,
+					detection.FilesWithModules,
+					"", // use empty path so it is discovered in fullRulePath
+					"", // use empty path so it is discovered in fullRulePath
+					detection.IncludeModules,
+					detection.ExcludeModules,
+				)
+				for _, moduleName := range found {
+					if !unusedSet[moduleName] {
+						unusedSet[moduleName] = true
+						unusedModules = append(unusedModules, node.UnusedNodeModuleIssue{
+							ModuleName:      moduleName,
+							PackageJsonPath: rulePathResolver.PackageJSONPath(),
+						})
+					}
+				}
+				if outputType == "" && detection.OutputType != "" {
+					outputType = detection.OutputType
+				}
+			}
+			slices.SortFunc(unusedModules, func(a, b node.UnusedNodeModuleIssue) int {
+				return strings.Compare(a.ModuleName, b.ModuleName)
+			})
+
+			mu.Lock()
+			ruleResult.UnusedNodeModules = unusedModules
+			if outputType != "" {
+				ruleResult.UnusedNodeModulesOutputType = outputType
+			}
+			mu.Unlock()
+		}()
+	}
+
+	// Missing Node Modules
+	if anyEnabled(rule.getMissingNodeModulesDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			missingModules := make([]node.MissingNodeModuleResult, 0)
+			outputType := ""
+			for _, detection := range rule.getMissingNodeModulesDetections() {
+				if !detection.Enabled {
+					continue
+				}
+
+				missingModules = append(missingModules, node.GetMissingNodeModulesFromTree(
+					ruleTree,
+					detection.IncludeModules,
+					detection.ExcludeModules,
+					rulePathNodeModules,
+				)...)
+
+				if outputType == "" && detection.OutputType != "" {
+					outputType = detection.OutputType
+				}
+			}
+
+			mu.Lock()
+			ruleResult.MissingNodeModules = missingModules
+			if outputType != "" {
+				ruleResult.MissingNodeModulesOutputType = outputType
+			}
+			mu.Unlock()
+		}()
+	}
+
+	// Import Conventions
+	if len(rule.ImportConventions) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			violations, shouldWarnAboutImportConventionWithPJsonImports := checks.CheckImportConventionsFromTree(
+				ruleTree,
+				ruleFiles,
+				rule.ImportConventions,
+				rulePathResolver,
+				fullRulePath, // Use rule path instead of current working directory
+				fix,
+			)
+
+			mu.Lock()
+			ruleResult.ImportConventionViolations = violations
+			ruleResult.ShouldWarnAboutImportConventionWithPJsonImports = shouldWarnAboutImportConventionWithPJsonImports
+			mu.Unlock()
+		}()
+	}
+
+	// Unused Exports
+	if anyEnabled(rule.getUnusedExportsDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			unusedExports := make([]checks.UnusedExport, 0)
+			for _, detection := range rule.getUnusedExportsDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				found := checks.FindUnusedExports(
+					ruleFiles,
+					ruleTree,
+					detection.ValidEntryPoints,
+					detection.GraphExclude,
+					detection.IgnoreTypeExports,
+					detection.Autofix,
+					fullRulePath,
+					moduleSuffixVariants,
+				)
+				filterOpts := &checks.UnusedExportsFilterOptions{
+					Ignore:        detection.Ignore,
+					IgnoreFiles:   detection.IgnoreFiles,
+					IgnoreExports: detection.IgnoreExports,
+				}
+				found = checks.FilterUnusedExports(found, filterOpts, fullRulePath)
+				unusedExports = append(unusedExports, found...)
+			}
+
+			mu.Lock()
+			ruleResult.UnusedExports = unusedExports
+			mu.Unlock()
+		}()
+	}
+
+	// Unresolved Imports
+	if anyEnabled(rule.getUnresolvedImportsDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// NotResolvedModule might be actually a node module, but defined rule path package (eg apps/main-app) not in just in time package (pacakges/shared)
+			// We are not able to detect that during module resolution for config file, becasue we resolve all modules without knowing which workspace contains app and which contains shared code
+			// During rule evaluation we can assume that package.json in rule path is the one that contains node modules for app build from that rule path
+			unresolved := make([]checks.UnresolvedImport, 0)
+			for _, detection := range rule.getUnresolvedImportsDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				found := checks.DetectUnresolvedImports(ruleTree, rulePathNodeModules)
+				filterOpts := &checks.UnresolvedFilterOptions{
+					Ignore:        detection.Ignore,
+					IgnoreFiles:   detection.IgnoreFiles,
+					IgnoreImports: detection.IgnoreImports,
+				}
+				found = checks.FilterUnresolvedImports(found, filterOpts, fullRulePath)
+				unresolved = append(unresolved, found...)
+			}
+
+			mu.Lock()
+			ruleResult.UnresolvedImports = unresolved
+			mu.Unlock()
+		}()
+	}
+
+	// Restricted Dev Dependencies Usage
+	if anyEnabled(rule.getDevDepsUsageOnProdDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var devDependencies map[string]bool
+			if rulePathResolver != nil {
+				devDependencies = rulePathResolver.DevNodeModules()
+			}
+
+			violations := make([]checks.RestrictedDevDependenciesUsageViolation, 0)
+			for _, detection := range rule.getDevDepsUsageOnProdDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				violations = append(violations, checks.FindDevDependenciesInProduction(
+					ruleTree,
+					detection.ProdEntryPoints,
+					detection.IgnoreTypeImports,
+					fullRulePath,
+					devDependencies,
+				)...)
+			}
+
+			mu.Lock()
+			ruleResult.RestrictedDevDependenciesUsageViolations = violations
+			mu.Unlock()
+		}()
+	}
+
+	// Restricted Imports
+	if anyEnabled(rule.getRestrictedImportsDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			violations := make([]checks.RestrictedImportViolation, 0)
+			for _, detection := range rule.getRestrictedImportsDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				violations = append(violations, checks.FindRestrictedImports(
+					ruleTree,
+					detection,
+					fullRulePath,
+				)...)
+			}
+
+			mu.Lock()
+			ruleResult.RestrictedImportsViolations = violations
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+	return ruleResult
+}
+
+// ProcessConfig processes a rev-dep configuration with parallel rule and check execution
+func ProcessConfig(
+	config *RevDepConfig,
+	cwd string,
+	packageJson string,
+	tsconfigJson string,
+	fix bool,
+	forceDetailed bool,
+) (*ConfigProcessingResult, error) {
+	// Step 1: Discover all files
+	allFiles, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles, config.ProcessIgnoredFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 2: Build dependency tree for config
+	parseMode := model.ParseModeBasic
+	if forceDetailed || anyRuleChecksForUnusedExports(config) {
+		parseMode = model.ParseModeDetailed
+	}
+
+	fullTree, resolverManager, err := buildDependencyTreeForConfig(
+		allFiles,
+		excludePatterns,
+		includePatterns,
+		config.ConditionNames,
+		cwd,
+		packageJson,
+		tsconfigJson,
+		config.CustomAssetExtensions,
+		parseMode,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 3: Process each rule in parallel
+	result := &ConfigProcessingResult{
+		RuleResults: make([]RuleResult, len(config.Rules)),
+		HasFailures: false,
+		FullTree:    fullTree,
+	}
+
+	// Validate package.json exists for all rule paths before parallel processing
+	missingPackageJsonResults := make([]bool, len(config.Rules))
+	for i, rule := range config.Rules {
+		missingPackageJsonResults[i] = validateRulePathPackageJson(rule.Path, cwd)
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for i, rule := range config.Rules {
+		wg.Add(1)
+		go func(ruleIndex int, currentRule Rule) {
+			defer wg.Done()
+
+			// Step 3a: Filter files for this rule
+			ruleFiles, ruleTree := filterFilesForRule(fullTree, currentRule.Path, cwd, currentRule.FollowMonorepoPackages, resolverManager)
+
+			// Step 3b: Execute enabled checks in parallel
+			ruleResult := processRuleChecks(
+				currentRule,
+				ruleFiles,
+				ruleTree,
+				fullTree,
+				resolverManager,
+				cwd,
+				fix,
+			)
+			ruleResult.ProcessIgnoredFiles = config.ProcessIgnoredFiles
+
+			// Set the missing package.json flag
+			ruleResult.MissingPackageJson = missingPackageJsonResults[ruleIndex]
+
+			// Check for failures and update result
+			hasFailures := len(ruleResult.CircularDependencies) > 0 ||
+				len(ruleResult.OrphanFiles) > 0 ||
+				len(ruleResult.ModuleBoundaryViolations) > 0 ||
+				len(ruleResult.UnusedNodeModules) > 0 ||
+				len(ruleResult.MissingNodeModules) > 0 ||
+				len(ruleResult.ImportConventionViolations) > 0 ||
+				len(ruleResult.UnusedExports) > 0 ||
+				len(ruleResult.UnresolvedImports) > 0 ||
+				len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 ||
+				len(ruleResult.RestrictedImportsViolations) > 0
+
+			mu.Lock()
+			result.RuleResults[ruleIndex] = ruleResult
+			if hasFailures {
+				result.HasFailures = true
+			}
+			mu.Unlock()
+		}(i, rule)
+	}
+
+	wg.Wait()
+
+	// Step 4: Apply fixes if requested
+	if fix {
+		changesByFile := make(map[string][]sourceedit.Change)
+
+		for i, ruleResult := range result.RuleResults {
+			ruleCfg := config.Rules[i]
+			isOrphanFixEnabled := false
+			for _, orphanCfg := range ruleCfg.getOrphanFilesDetections() {
+				if orphanCfg.Enabled && orphanCfg.Autofix {
+					isOrphanFixEnabled = true
+					break
+				}
+			}
+
+			// Create a set of orphan files to be deleted by this rule to avoid content fixes on them
+			orphanFilesToDelete := make(map[string]bool)
+			if isOrphanFixEnabled {
+				for _, orphan := range ruleResult.OrphanFilesAutofixable {
+					orphanFilesToDelete[orphan] = true
+				}
+			}
+
+			// Handle import convention and unused exports fixes as before
+			for _, v := range ruleResult.ImportConventionViolations {
+				if orphanFilesToDelete[v.FilePath] {
+					continue
+				}
+				if v.Fix != nil {
+					changesByFile[v.FilePath] = append(changesByFile[v.FilePath], *v.Fix)
+					result.FixedImportsCount++
+				} else if v.ViolationType == "should-be-aliased" {
+					result.UnfixableAliasingCount++
+				}
+			}
+			for _, v := range ruleResult.UnusedExports {
+				if orphanFilesToDelete[v.FilePath] {
+					continue
+				}
+				if v.Fix != nil {
+					changesByFile[v.FilePath] = append(changesByFile[v.FilePath], *v.Fix)
+					result.FixedImportsCount++
+				}
+			}
+
+			// Handle orphan files autofix: delete files when configured
+			if isOrphanFixEnabled {
+				for _, orphan := range ruleResult.OrphanFilesAutofixable {
+					osPath := pathutil.DenormalizePathForOS(orphan)
+					if !filepath.IsAbs(osPath) {
+						osPath = filepath.Join(cwd, osPath)
+					}
+					if err := os.Remove(osPath); err != nil {
+						return result, fmt.Errorf("failed to remove orphan file '%s': %w", osPath, err)
+					}
+					result.DeletedFilesCount++
+				}
+			}
+		}
+
+		if len(changesByFile) > 0 {
+			if err := sourceedit.ApplyFileChanges(changesByFile); err != nil {
+				return result, fmt.Errorf("failed to apply autofixes: %w", err)
+			}
+			result.FixedFilesCount += len(changesByFile)
+		}
+	} else {
+		fixableIssuesCount := 0
+		for i, ruleResult := range result.RuleResults {
+			for _, v := range ruleResult.ImportConventionViolations {
+				if v.Fix != nil {
+					fixableIssuesCount++
+				}
+			}
+			for _, v := range ruleResult.UnusedExports {
+				if v.Fix != nil {
+					fixableIssuesCount++
+				}
+			}
+
+			// Add orphan files to fixable count if autofix is enabled for this rule
+			rule := config.Rules[i]
+			isOrphanFixEnabled := false
+			for _, orphanCfg := range rule.getOrphanFilesDetections() {
+				if orphanCfg.Enabled && orphanCfg.Autofix {
+					isOrphanFixEnabled = true
+					break
+				}
+			}
+			if isOrphanFixEnabled {
+				fixableIssuesCount += len(ruleResult.OrphanFilesAutofixable)
+			}
+		}
+		result.FixableIssuesCount = fixableIssuesCount
+	}
+
+	return result, nil
+}

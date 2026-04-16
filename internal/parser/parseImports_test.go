@@ -2672,6 +2672,7 @@ const m = import('./real-dynamic')
 	}
 }
 
+
 func TestMemberImportCallWithSpacesAfterDotIsNotDynamicImport(t *testing.T) {
 	code := `
 const Module = {}

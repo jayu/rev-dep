@@ -1260,11 +1260,10 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		}
 	}()
 
-	idx := 0
-	for idx < len(fileImportsArr) {
+	initialWorkItems := len(fileImportsArr)
+	for idx := 0; idx < initialWorkItems; idx++ {
 		wg.Add(1)
 		ch_idx <- idx
-		idx++
 	}
 
 	wg.Wait()

@@ -1,0 +1,42 @@
+---
+sidebar_position: 1
+---
+
+# Welcome to Rev-dep
+
+**Rev-dep** is a high-speed static analysis tool designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
+
+Implemented in **Go**, it can audit a **500k+ LoC project in approximately 500ms**.
+
+## Key Features
+
+- 🛡️ **Architecture Integrity:** Enforce module boundaries and prevent illegal imports.
+- 🔍 **Dependency Hygiene:** Detect unused exports, orphan files, and unused node modules.
+- ⚡ **High Performance:** Optimized for speed to serve as a high-speed gatekeeper in your CI.
+- 🏗️ **Monorepo Support:** Native support for `pnpm`, `yarn`, and `npm` workspaces.
+
+## Quick Start
+
+### Installation
+
+Install it as a dev dependency:
+
+```bash
+pnpm add -D rev-dep
+```
+
+### Initialize Configuration
+
+Create a configuration file to start defining your and rules:
+
+```bash
+npx rev-dep config init
+```
+
+### Run a Check
+
+Once configured, you can run various checks. For example, to detect circular imports:
+
+```bash
+pnpm exec rev-dep circular
+```

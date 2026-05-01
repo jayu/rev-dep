@@ -1,0 +1,394 @@
+/**
+ * CSS files with the .module.css suffix will be
+ * treated as CSS modules and scoped locally.
+ */
+
+.heroBanner {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(rgb(18, 7, 60), rgb(18, 7, 60) 30%, black);
+  background-repeat: no-repeat
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.featureCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  height: 100%;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.92));
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.featureCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+.sectionPadding {
+  padding: 3rem 0;
+}
+
+.sectionPaddingLR {
+  padding: 3rem 1.5rem;
+}
+
+.marginLarge {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+.marginXLarge {
+  margin-top: 4rem;
+  margin-bottom: 4rem;
+}
+
+.textCenter {
+  text-align: center;
+}
+
+.sectionEyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(37, 99, 235);
+}
+
+.problemShell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.problemIntro {
+  min-width: 0;
+  padding: 1rem 0;
+}
+
+.problemLead {
+  margin: 0.75rem 0 0;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.problemCopy {
+  margin: 1rem 0 0;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.problemHighlightCard {
+  padding: 1.75rem;
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.18), transparent 34%),
+    linear-gradient(180deg, rgb(12, 19, 38), rgb(20, 28, 52));
+  color: white;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+.problemHighlightLabel {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(191, 219, 254, 0.92);
+}
+
+.problemHighlightQuote {
+  margin: 1rem 0 0;
+  font-size: 1.65rem;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.problemHighlightBody {
+  margin: 1.25rem 0 0;
+  line-height: 1.7;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.problemStatsRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-top: 1.5rem;
+}
+
+.problemStat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.problemStatValue {
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+  color: white;
+}
+
+.problemStatLabel {
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.problemGovernance {
+  margin-top: 2rem;
+}
+
+.problemGovernanceHeader {
+  max-width: 760px;
+}
+
+.problemGovernanceCopy {
+  margin: 1rem 0 0;
+  line-height: 1.7;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.problemQuestionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.problemQuestionCard {
+  padding: 1.4rem 1.5rem;
+  border-radius: 1rem;
+  background: white;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.problemQuestionTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.problemQuestionBody {
+  margin: 0.75rem 0 0;
+  line-height: 1.65;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.problemPanelFooter {
+  margin: 1.5rem 0 0;
+  max-width: 760px;
+  line-height: 1.7;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.whyHeader {
+  max-width: 760px;
+  margin: 0 auto 2.5rem;
+}
+
+.whySubtitle {
+  margin: 1rem auto 0;
+  color: var(--ifm-color-emphasis-700);
+  line-height: 1.7;
+}
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.featureEmoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.9rem;
+  background: rgba(37, 99, 235, 0.08);
+  font-size: 1.8rem;
+}
+
+.featureTitle {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.featureDescription {
+  margin: 0;
+  color: var(--ifm-color-emphasis-700);
+  line-height: 1.7;
+}
+
+.testimonialsSection {
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(247, 250, 255, 0.9), rgba(255, 255, 255, 1));
+}
+
+.testimonialsHeader {
+  max-width: 760px;
+}
+
+.testimonialsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+.testimonialCard {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 260px;
+  padding: 1.6rem;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+.testimonialQuote {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.testimonialFooter {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.testimonialAvatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.testimonialMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.testimonialAuthor {
+  font-weight: 700;
+  color: var(--ifm-font-color-base);
+}
+
+.testimonialSource {
+  font-size: 0.92rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.capabilitiesSection {
+  padding-top: 1rem;
+}
+
+.capabilitiesHeader {
+  max-width: 760px;
+}
+
+.capabilitiesIntro {
+  margin: 1rem 0 0;
+  line-height: 1.7;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.capabilitiesGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+.capabilityCard {
+  padding: 1.75rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 252, 0.94));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+}
+
+.capabilityTitle {
+  margin: 0;
+}
+
+.capabilityList {
+  margin: 1rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.capabilityList li {
+  margin-top: 0.75rem;
+  line-height: 1.7;
+  color: var(--ifm-color-emphasis-700);
+}
+
+@media screen and (max-width: 996px) {
+  .problemShell {
+    grid-template-columns: 1fr;
+  }
+
+  .problemQuestionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .featureGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .testimonialsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .capabilitiesGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .problemHighlightCard {
+    padding: 1.4rem;
+  }
+
+  .problemStatsRow {
+    grid-template-columns: 1fr;
+  }
+
+  .featureGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "generatedAt": "2026-05-01",
+  "source": "GitHub issues and comments from https://github.com/jayu/rev-dep/issues",
+  "notes": [
+    "These are raw candidate testimonials extracted from public GitHub issue threads.",
+    "Strength is editorial guidance for homepage usage, not source metadata.",
+    "Quotes are intentionally short and point to the exact issue or comment URL where possible."
+  ],
+  "candidates": [
+    {
+      "strength": "strong",
+      "author": {
+        "login": "vinpogo",
+        "name": "VinGy",
+        "profileUrl": "https://github.com/vinpogo",
+        "avatarUrl": "https://avatars.githubusercontent.com/u/35638693?v=4"
+      },
+      "quote": "I think this project is great, and will be able to replace dependency-cruiser for my needs.",
+      "source": {
+        "type": "issue_comment",
+        "issueNumber": 25,
+        "issueTitle": "Possible missing cycle",
+        "issueUrl": "https://github.com/jayu/rev-dep/issues/25",
+        "commentUrl": "https://github.com/jayu/rev-dep/issues/25#issuecomment-4065960337"
+      },
+      "context": "Direct comparison against dependency-cruiser from a user evaluating migration."
+    },
+    {
+      "strength": "strong",
+      "author": {
+        "login": "BrunoAlpezdev",
+        "name": "Bruno Perez Valenzuela",
+        "profileUrl": "https://github.com/BrunoAlpezdev",
+        "avatarUrl": "https://avatars.githubusercontent.com/u/102603630?v=4"
+      },
+      "quote": "Thank a lot for your efforts in this project. I think its an amazing job!!",
+      "source": {
+        "type": "issue_body",
+        "issueNumber": 18,
+        "issueTitle": "Feature request: structured JSON output (--format json) with file positions",
+        "issueUrl": "https://github.com/jayu/rev-dep/issues/18"
+      },
+      "context": "Praise from a user asking for deeper CI and IDE integration."
+    },
+    {
+      "strength": "medium",
+      "author": {
+        "login": "ryanquinn3",
+        "name": "Ryan Quinn",
+        "profileUrl": "https://github.com/ryanquinn3",
+        "avatarUrl": "https://avatars.githubusercontent.com/u/5115565?v=4"
+      },
+      "quote": "The potential speed up gained from rev-dep is super attractive so it would be amazing if we could use it.",
+      "source": {
+        "type": "issue_body",
+        "issueNumber": 4,
+        "issueTitle": "Support Nodejs import/export maps",
+        "issueUrl": "https://github.com/jayu/rev-dep/issues/4"
+      },
+      "context": "Positive speed signal from a user testing rev-dep on a large monorepo."
+    },
+    {
+      "strength": "medium",
+      "author": {
+        "login": "ryanquinn3",
+        "name": "Ryan Quinn",
+        "profileUrl": "https://github.com/ryanquinn3",
+        "avatarUrl": "https://avatars.githubusercontent.com/u/5115565?v=4"
+      },
+      "quote": "I am now getting the expected result from the `files` command with `--follow-monorepo-packages`. Thank you for the fix here!",
+      "source": {
+        "type": "issue_comment",
+        "issueNumber": 4,
+        "issueTitle": "Support Nodejs import/export maps",
+        "issueUrl": "https://github.com/jayu/rev-dep/issues/4",
+        "commentUrl": "https://github.com/jayu/rev-dep/issues/4#issuecomment-3777456631"
+      },
+      "context": "Follow-up confirmation after a monorepo/import-map fix landed."
+    },
+    {
+      "strength": "medium",
+      "author": {
+        "login": "habitssss",
+        "name": "habitssss",
+        "profileUrl": "https://github.com/habitssss",
+        "avatarUrl": "https://avatars.githubusercontent.com/u/48110386?v=4"
+      },
+      "quote": "Thanks for the great tool.",
+      "source": {
+        "type": "issue_body",
+        "issueNumber": 16,
+        "issueTitle": "panic: Too many expression parse iterations when parsing long require/import string literals",
+        "issueUrl": "https://github.com/jayu/rev-dep/issues/16"
+      },
+      "context": "Short but direct praise from a user filing a reproducible bug report."
+    },
+    {
+      "strength": "medium",
+      "author": {
+        "login": "johnseekins",
+        "name": "John Seekins",
+        "profileUrl": "https://github.com/johnseekins",
+        "avatarUrl": "https://avatars.githubusercontent.com/u/5665929?v=4"
+      },
+      "quote": "Thanks for pointing out `excludeModules`. That helped move things forward quite a bit for me.",
+      "source": {
+        "type": "issue_comment",
+        "issueNumber": 30,
+        "issueTitle": "False positive \"missing dependency\" check",
+        "issueUrl": "https://github.com/jayu/rev-dep/issues/30",
+        "commentUrl": "https://github.com/jayu/rev-dep/issues/30#issuecomment-4245493363"
+      },
+      "context": "Good support signal, though less homepage-friendly than the stronger quotes."
+    },
+    {
+      "strength": "weak",
+      "author": {
+        "login": "drPytho",
+        "name": "drPytho",
+        "profileUrl": "https://github.com/drPytho",
+        "avatarUrl": "https://avatars.githubusercontent.com/u/4624677?v=4"
+      },
+      "quote": "Trying to migrate a large monorepo over to rev-dep.",
+      "source": {
+        "type": "issue_comment",
+        "issueNumber": 19,
+        "issueTitle": "missingNodeModulesDetection false positives in pnpm strict node_modules layout",
+        "issueUrl": "https://github.com/jayu/rev-dep/issues/19",
+        "commentUrl": "https://github.com/jayu/rev-dep/issues/19#issuecomment-4010939098"
+      },
+      "context": "Useful social proof for monorepo adoption, but not really a testimonial."
+    }
+  ]
+}

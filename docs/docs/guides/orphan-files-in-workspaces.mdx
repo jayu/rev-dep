@@ -1,0 +1,37 @@
+---
+title: Orphan files in shared workspace packages
+---
+
+# Orphan files in shared workspace packages
+
+Shared internal packages often look orphaned when the current rule does not follow into the package that actually uses them.
+
+## Common cause
+
+- package A defines an entry point
+- package B contains shared files
+- package A imports package B
+- the rule for package A does not follow package B
+
+In that setup, files in package B may appear unreachable from the current graph scope.
+
+Example:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": "packages/app",
+      "followMonorepoPackages": ["@acme/shared"],
+      "prodEntryPoints": ["src/main.tsx"],
+      "orphanFilesDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+If `@acme/shared` is omitted from `followMonorepoPackages`, shared files can look orphaned even though the application depends on them through workspace-local imports.
+
+Fix the modeling first. Do not blindly disable orphan detection.

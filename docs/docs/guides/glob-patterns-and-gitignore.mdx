@@ -1,0 +1,54 @@
+---
+title: ignoreFiles, glob patterns, and .gitignore
+---
+
+# ignoreFiles, glob patterns, and .gitignore
+
+Ignored-file behavior strongly affects what enters the graph.
+
+## Relevant config fields
+
+- `ignoreFiles`
+- `processIgnoredFiles`
+
+Example:
+
+```jsonc
+{
+  "ignoreFiles": ["**/*.stories.tsx", "**/*.generated.ts"],
+  "processIgnoredFiles": ["dist/**/*.generated.ts"],
+  "rules": [
+    {
+      "path": ".",
+      "orphanFilesDetection": {
+        "enabled": true,
+        "graphExclude": ["**/*.snap.ts"]
+      }
+    }
+  ]
+}
+```
+
+## Practical rules
+
+- keep patterns narrow and intentional
+- be careful with root-anchored patterns
+- use `processIgnoredFiles` for files that are ignored by default but still matter to analysis
+
+## Where each mechanism applies
+
+- gitignore affects file discovery
+- `ignoreFiles` adds rev-dep-specific exclusions
+- `processIgnoredFiles` selectively brings files back for processing
+- some detectors also expose their own `graphExclude` or ignore fields for detector-local suppression
+
+## Command examples
+
+```bash
+rev-dep unresolved --process-ignored-files dist/**/*.generated.ts
+rev-dep resolve --file src/runtime.ts --graph-exclude **/*.test.ts
+```
+
+Use config-level fields when the behavior should be stable for the whole repo. Use command flags when you are only investigating one case.
+
+If analysis seems to miss or over-include files, inspect ignore behavior before changing detectors.

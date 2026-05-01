@@ -1,0 +1,21 @@
+---
+title: First monorepo setup
+---
+
+# First monorepo setup
+
+In monorepos, `rev-dep` is most useful when each rule maps to a real package boundary or a small number of related packages.
+
+## Good first defaults
+
+- Run `rev-dep config init` from the workspace root.
+- Keep one rule per package when packages have different entry points or policies.
+- Add `followMonorepoPackages` only when the rule needs to traverse into other workspace packages.
+
+## Common first mistakes
+
+- Treating the whole monorepo as one package when teams actually want package-local checks
+- Forgetting to define dev entry points for scripts, tests, or tooling
+- Expecting workspace packages to be followed automatically in every scenario
+
+For the details, continue with [Following monorepo packages](../guides/following-monorepo-packages.mdx) and [pnpm workspaces](../guides/pnpm-workspaces.mdx).

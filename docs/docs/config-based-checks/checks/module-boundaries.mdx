@@ -1,0 +1,33 @@
+---
+title: Module boundaries
+---
+
+# Module boundaries
+
+Use `moduleBoundaries` when you want to ban imports across architectural layers or domains.
+
+```json
+"moduleBoundaries": [
+  {
+    "name": "ui-cannot-import-api",
+    "pattern": "src/ui/**/*",
+    "deny": ["src/api/**/*"]
+  }
+]
+```
+
+Best for stable rules like feature isolation, layer direction, and package-local boundaries.
+
+## How `allow` and `deny` interact
+
+- `pattern` defines which importing files belong to the boundary.
+- `allow` defines what those files may import.
+- `deny` overrides `allow` for explicitly forbidden paths.
+
+This makes the detector useful for both broad layer rules and fine-grained carve-outs.
+
+## Good use cases
+
+- UI may import shared utilities but not API internals
+- feature packages may not import sibling feature internals
+- package-local source must not reach into another package's private folders

@@ -1,0 +1,20 @@
+---
+title: Circular imports
+---
+
+# Circular imports
+
+`circularImportsDetection` finds dependency cycles between files.
+
+This is usually one of the best first checks to enable because the signal is high and the intent is straightforward.
+
+If your codebase uses many type-only imports, consider `ignoreTypeImports` where appropriate.
+
+## Algorithms
+
+Two algorithms are available:
+
+- `DFS`
+- `SCC`
+
+The default is `DFS`. Most teams can leave this alone unless they are investigating algorithm-specific output or performance characteristics.

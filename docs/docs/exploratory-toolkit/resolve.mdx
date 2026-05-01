@@ -1,0 +1,26 @@
+---
+title: Resolve dependency path
+---
+
+# Resolve dependency path
+
+Use `resolve` when you need to know whether a file or package is reachable from a specific entry point.
+
+```bash
+rev-dep resolve --file src/utils/math.ts
+rev-dep resolve --file src/utils/math.ts --entry-point src/index.ts
+rev-dep resolve --module react --entry-point src/index.ts
+```
+
+This is one of the best commands for explaining unexpected reachability.
+
+## Useful flags
+
+```bash
+rev-dep resolve --file src/utils/math.ts --all
+rev-dep resolve --file src/utils/math.ts --compact-summary
+rev-dep resolve --file src/utils/math.ts --graph-exclude **/*.test.ts
+rev-dep resolve --module react --follow-monorepo-packages
+```
+
+Use `--compact-summary` when you want counts per entry point instead of full path output.

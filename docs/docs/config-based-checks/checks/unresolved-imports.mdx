@@ -1,0 +1,24 @@
+---
+title: Unresolved imports
+---
+
+# Unresolved imports
+
+`unresolvedImportsDetection` reports import requests that `rev-dep` cannot resolve.
+
+Common causes:
+
+- wrong path
+- missing file extension support
+- unsupported or misconfigured aliases
+- `package.json` imports/exports or tsconfig path setups that need extra configuration
+
+When this check fails, read [Unresolved imports troubleshooting](../../guides/unresolved-imports-troubleshooting.mdx).
+
+## Useful options
+
+- `ignoreFiles`
+- `ignoreImports`
+- `ignore`
+
+Use `ignore` when the exception depends on both file pattern and import request. Use the global lists when the exception is broader.

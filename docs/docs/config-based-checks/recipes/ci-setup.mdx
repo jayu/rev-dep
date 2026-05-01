@@ -1,0 +1,20 @@
+---
+title: CI setup
+---
+
+# CI setup
+
+The simplest CI command is:
+
+```bash
+rev-dep config run
+```
+
+Useful variants:
+
+```bash
+rev-dep config run --list-all-issues
+rev-dep config run --format json
+```
+
+Use JSON output when another tool needs to consume failures directly. Keep the plain format for fast local review.

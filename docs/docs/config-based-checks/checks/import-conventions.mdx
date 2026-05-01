@@ -1,0 +1,29 @@
+---
+title: Import conventions
+---
+
+# Import conventions
+
+Use `importConventions` to enforce consistent import style, including alias-based conventions, with optional autofix.
+
+Best for:
+
+- preferring aliases in selected domains
+- discouraging fragile relative imports
+- keeping import style consistent across packages
+
+## Current rule type
+
+The supported rule value is:
+
+- `relative-internal-absolute-external`
+
+This lets you define domains and enforce a consistent “how should imports look here?” policy.
+
+## Domain definitions
+
+`domains` can use a short string form or an object form. Use the short form for broad conventions and the object form when you need explicit domain metadata such as aliases.
+
+## Autofix
+
+This detector supports autofix. It is one of the safer places to start with `--fix`, provided the repo does not rely on ambiguous aliasing.

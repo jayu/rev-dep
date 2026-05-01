@@ -1,0 +1,23 @@
+---
+title: Common investigative workflows
+---
+
+# Common investigative workflows
+
+## Why is this file reachable?
+
+1. `rev-dep imported-by --file ...`
+2. `rev-dep resolve --file ...`
+3. `rev-dep files --entry-point ...`
+
+## Why is this package marked missing or unused?
+
+1. `rev-dep node-modules used`
+2. `rev-dep node-modules missing`
+3. compare with package scripts, build tooling, and workspace setup
+
+## Where should config entry points come from?
+
+1. `rev-dep entry-points`
+2. confirm real app roots
+3. add tests, scripts, and Storybook as dev entry points where needed

@@ -1,0 +1,41 @@
+---
+title: Output formats
+---
+
+# Output formats
+
+By default, `rev-dep config run` prints human-readable output for local use.
+
+For CI integrations and machine consumers, use:
+
+```bash
+rev-dep config run --format json
+```
+
+## JSON output
+
+- returns all issues, not the usual truncated view
+- includes overall failure state
+- includes rule-level and check-level results
+- is versioned separately from internal Go types
+- includes fix summary counts
+- includes issue locations where rev-dep can resolve them from the analyzed tree
+
+If you are consuming the JSON programmatically, validate against the published schema in `output-schema/1.0.schema.json` in the repository.
+
+## Issues-list output
+
+For a compact, grep-friendly text view, use:
+
+```bash
+rev-dep config run --format issues-list
+```
+
+This groups issues by type and prints location-oriented output such as:
+
+- orphan file paths
+- unresolved import locations
+- missing module import sites
+- import convention violation sites
+
+It is useful when you want more structure than the default human output without committing to JSON parsing.

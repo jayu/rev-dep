@@ -1,0 +1,25 @@
+---
+title: Find entry points
+---
+
+# Find entry points
+
+Use:
+
+```bash
+rev-dep entry-points
+```
+
+This helps you discover likely roots before writing `prodEntryPoints` and `devEntryPoints` in config.
+
+## Useful flags
+
+```bash
+rev-dep entry-points --count
+rev-dep entry-points --print-deps-count
+rev-dep entry-points --result-include src/**
+rev-dep entry-points --result-exclude **/*.test.ts
+rev-dep entry-points --process-ignored-files dist/**/*.generated.ts
+```
+
+Use this command to bootstrap config, not as a substitute for application knowledge. Auto-detected roots are candidates, not business-truth.

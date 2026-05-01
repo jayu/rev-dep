@@ -1,0 +1,57 @@
+---
+title: Missing dependency false positives
+---
+
+# Missing dependency false positives
+
+Some packages are operationally required but do not appear as direct imports in the processed code graph.
+
+## Typical examples
+
+- Babel and webpack plugins referenced by config ecosystems
+- Storybook packages loaded by framework tooling
+- TypeScript used by the toolchain rather than imported by source files
+
+## Example config for tooling-aware package usage
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "pkgJsonFieldsWithBinaries": ["scripts", "bin"],
+        "filesWithBinaries": ["scripts/**/*.sh"],
+        "filesWithModules": [".storybook/main.ts", "webpack*.js"],
+        "excludeModules": ["@types/*"]
+      }
+    }
+  ]
+}
+```
+
+## How to reason about it
+
+Rev-dep is strongest at static source-graph truth. Tooling-only dependencies may need different treatment than runtime dependencies.
+
+Before treating a result as a bug, check:
+
+- whether the package is directly imported anywhere processed by `rev-dep`
+- whether the relevant config or script files are included in `devEntryPoints`
+- whether the package is consumed indirectly by another tool rather than by your own source
+
+## Investigative commands
+
+```bash
+rev-dep node-modules used --group-by-module
+rev-dep node-modules unused --exclude-modules @types/*
+rev-dep imported-by --file .storybook/main.ts --list-imports
+```
+
+## Better fixes than blanket disabling
+
+- include the right files in the graph
+- add binary/module usage hints for node-modules analysis
+- scope the detector with `includeModules` or `excludeModules`
+- separate runtime dependency hygiene from build-tooling inventories

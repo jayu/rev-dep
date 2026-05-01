@@ -1,0 +1,32 @@
+---
+title: Overview
+---
+
+# Config-Based Checks
+
+`rev-dep config run` is the preferred way to enforce dependency hygiene across a project. It executes enabled checks per rule in one pass instead of repeating similar work command-by-command.
+
+## Best Use Cases
+
+- CI enforcement
+- team-wide architecture rules
+- dead code cleanup
+- dependency declaration hygiene
+- incremental hardening of a large codebase
+
+## How The Model Works
+
+- A config file contains top-level defaults and one or more `rules`.
+- Each rule targets a `path`.
+- A rule enables one or more checks.
+- Entry points define what counts as reachable production and development code.
+
+## Typical Rollout
+
+1. Generate the config.
+2. Define entry points.
+3. Enable a few low-ambiguity checks.
+4. Fix obvious issues.
+5. Add architecture and style enforcement once the graph is trustworthy.
+
+Next: [Config file structure](./config-file-structure.mdx)

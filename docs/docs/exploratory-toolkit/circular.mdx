@@ -1,0 +1,24 @@
+---
+title: Detect circular dependencies
+---
+
+# Detect circular dependencies
+
+Use:
+
+```bash
+rev-dep circular
+```
+
+This gives you cycle-focused output without requiring a config file, which is useful during refactors or before adopting the full config runner.
+
+## Useful flags
+
+```bash
+rev-dep circular --ignore-type-imports
+rev-dep circular --algorithm DFS
+rev-dep circular --algorithm SCC
+rev-dep circular --process-ignored-files dist/**/*.generated.ts
+```
+
+The command exits non-zero when cycles are found, which makes it suitable for lightweight CI use even without a config file.

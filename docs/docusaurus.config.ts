@@ -70,6 +70,25 @@ const config: Config = {
     ],
   ],
 
+  plugins: [
+    function gtagFallbackPlugin() {
+      return {
+        name: 'gtag-fallback-plugin',
+        getClientModules() {
+          // Keep local navigation safe when the gtag script is blocked or not initialized yet.
+          return ['./src/gtagFallback.ts'];
+        },
+      };
+    },
+    [
+      '@cmfcmf/docusaurus-search-local',
+      {
+        indexBlog: false,
+        indexPages: false,
+      },
+    ],
+  ],
+
   themeConfig: {
     // Replace with your project's social card
     image: 'img/og-logo.jpg',
@@ -94,6 +113,7 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
+        {type: 'search', position: 'right'},
         // {to: '/blog', label: 'Blog', position: 'left'},
         {type:'html', position:'right', value:'<iframe src="https://ghbtns.com/github-btn.html?user=jayu&repo=rev-dep&type=star&count=true" frameborder="0" scrolling="0" width="120" height="20" title="GitHub" style="margin-top: 8px;"></iframe>'},
       ],

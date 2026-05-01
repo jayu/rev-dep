@@ -1,0 +1,28 @@
+---
+title: Inspect node modules usage
+---
+
+# Inspect node modules usage
+
+The `node-modules` command family helps answer package-hygiene questions:
+
+```bash
+rev-dep node-modules used
+rev-dep node-modules unused
+rev-dep node-modules missing
+rev-dep node-modules installed
+```
+
+Use config-based checks when you want these results enforced continuously. Use the standalone commands when you want quick inspection.
+
+## Useful flags and grouping modes
+
+```bash
+rev-dep node-modules used --group-by-module
+rev-dep node-modules missing --group-by-file
+rev-dep node-modules missing --group-by-module-files-count
+rev-dep node-modules unused --exclude-modules @types/*
+rev-dep node-modules used --entry-points src/main.ts
+```
+
+These commands share many flags with the config detectors, which makes them useful for testing assumptions before changing the config file.

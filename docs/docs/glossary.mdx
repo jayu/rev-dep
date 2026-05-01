@@ -1,0 +1,63 @@
+---
+title: Glossary
+---
+
+# Glossary 📚
+
+Some of the terms used in the problem space that **rev-dep** covers can be confusing.
+Here is a small glossary to help you navigate the concepts.
+
+## Dependency
+
+A *dependency* can be understood literally. In the context of a project's dependency graph, it may refer to:
+
+* a **node module / package** (a package is a dependency of a project or file), or
+* a **source code file** (a file is a dependency of another file if it imports it).
+
+## Entry point
+
+An *entry point* is a source file that is **not imported by any other file**.
+It can represent:
+
+* the main entry of the application
+* an individual page or feature
+* configuration or test bootstrap files
+
+depending on the project structure.
+
+## Unused / Dead file
+
+A file is considered *unused* or *dead* when:
+
+* it is an **entry point** (nothing imports it), **and**
+* running it does **not produce any meaningful output** or side effect.
+
+In practice, such files can often be removed safely.
+
+## Circular dependency
+
+A *circular dependency* occurs when a file **directly or indirectly imports itself** through a chain of imports.
+
+This can lead to unpredictable runtime behavior, uninitialized values, or subtle bugs.
+However, circular dependencies between **TypeScript type-only imports** are usually harmless.
+
+## Reverse dependency (or "dependents")
+
+Files that *import* a given file.
+Useful for answering: "What breaks if I change or delete this file?"
+
+## Import graph / Dependency graph
+
+A visual representation of how files or modules import each other.
+
+## Missing dependency / unused node module
+
+A module that your code imports but is **not listed in package.json**.
+
+## Unused dependency / unused node module
+
+A dependency listed in **package.json** that is **never imported** in the source code.
+
+## Root directory / Project root
+
+The top-level directory used as the starting point for dependency analysis.

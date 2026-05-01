@@ -7,6 +7,7 @@
 <p align="center">
   <a href="#capabilities-">Capabilities</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="https://rev-dep.com/docs/intro">Documentation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#exploratory-toolkit-">Exploratory Toolkit</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#cli-reference-">CLI Reference</a>
 </p>
@@ -31,7 +32,7 @@ As codebases scale, maintaining a mental map of dependencies becomes impossible.
 
 <p align="center"><b>Think of Rev-dep as a high-speed linter for your dependency graph.</b></p>
 
-**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks—including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 500ms**.
+**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks - including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 500ms**.
 
 ### **Automated Codebase Governance**
 
@@ -94,6 +95,8 @@ Use CLI commands for ad-hoc dependency exploration:
 - `list-cwd-files` - list all source code files in CWD
 
 ## **Installation 📦**
+
+Full documentation: [rev-dep.com/docs/intro](https://rev-dep.com/docs/intro)
 
 **Install locally to set up project check scripts**
 
@@ -781,6 +784,7 @@ rev-dep config run [flags]
   -h, --help                                                        help for run
       --list-all-issues                                             List all issues instead of limiting output
       --package-json string                                         Path to package.json (default: ./package.json)
+      --recheck                                                     Run all checks again after '--fix' to validate the final state
       --rules strings                                               Subset of rules to run (comma-separated list of rule paths)
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                                                     Show warnings and verbose output

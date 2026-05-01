@@ -1,0 +1,96 @@
+---
+title: Config file structure
+---
+
+# Config file structure
+
+The config file can be named `rev-dep.config.json`, `rev-dep.config.jsonc`, `.rev-dep.config.json`, or `.rev-dep.config.jsonc`.
+
+## Top-level fields
+
+- `configVersion`
+- `$schema`
+- `conditionNames`
+- `customAssetExtensions`
+- `ignoreFiles`
+- `processIgnoredFiles`
+- `rules`
+
+### What these fields do
+
+- `conditionNames`: custom condition order for `package.json` imports/exports resolution.
+- `customAssetExtensions`: extensions that should be treated as resolvable imports instead of unresolved noise.
+- `ignoreFiles`: files excluded from analysis by rev-dep config, in addition to gitignored files.
+- `processIgnoredFiles`: files that should still be processed even if gitignore or ignore patterns would normally skip them.
+
+## Rule-level fields
+
+Each rule must define:
+
+- `path`
+
+And can additionally define:
+
+- `followMonorepoPackages`
+- `prodEntryPoints`
+- `devEntryPoints`
+- any enabled checks
+
+## Important behavior
+
+- `rev-dep` supports `.json` and `.jsonc` config files, including hidden variants.
+- Only one config file variant may exist in a directory. Multiple variants are treated as an error.
+- `configVersion` must be one of the versions supported by the current CLI release.
+- Several detector fields accept either a single object or an array of objects. Arrays are useful when you want multiple independently configured runs of the same detector within one rule.
+
+## Starter example
+
+```jsonc
+{
+  "configVersion": "1.7",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.tsx"],
+      "devEntryPoints": ["scripts/**", "**/*.test.ts"],
+      "circularImportsDetection": {"enabled": true},
+      "unusedNodeModulesDetection": {"enabled": true}
+    }
+  ]
+}
+```
+
+Use the schema URL for editor autocomplete and validation.
+
+## A fuller example
+
+```jsonc
+{
+  "configVersion": "1.7",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
+  "conditionNames": ["node", "default"],
+  "customAssetExtensions": ["glb", "mp3"],
+  "ignoreFiles": ["**/*.snap.ts"],
+  "processIgnoredFiles": ["dist/**/*.generated.ts"],
+  "rules": [
+    {
+      "path": ".",
+      "followMonorepoPackages": false,
+      "prodEntryPoints": ["src/main.tsx"],
+      "devEntryPoints": ["scripts/**", "**/*.test.ts"],
+      "circularImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true,
+        "algorithm": "DFS"
+      },
+      "unresolvedImportsDetection": {
+        "enabled": true,
+        "ignoreImports": ["virtual:*"]
+      }
+    }
+  ]
+}
+```
+
+Use top-level fields for cross-rule defaults. Use rule-level fields when a package or directory really needs different graph behavior.

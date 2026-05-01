@@ -1,42 +1,39 @@
 ---
 sidebar_position: 1
+slug: /intro
+title: Overview
 ---
 
-# Welcome to Rev-dep
+# Rev-dep
 
-**Rev-dep** is a high-speed static analysis tool designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
+`rev-dep` is a fast dependency analysis CLI for JavaScript and TypeScript projects. It helps you enforce architecture rules, find dead code, trace dependency paths, and inspect package usage without stitching together multiple slower tools.
 
-Implemented in **Go**, it can audit a **500k+ LoC project in approximately 500ms**.
+There are two main ways to use it:
 
-## Key Features
+- `rev-dep config run` for repeatable codebase governance in CI and local checks.
+- Standalone CLI commands for ad hoc investigation while debugging or refactoring.
 
-- 🛡️ **Architecture Integrity:** Enforce module boundaries and prevent illegal imports.
-- 🔍 **Dependency Hygiene:** Detect unused exports, orphan files, and unused node modules.
-- ⚡ **High Performance:** Optimized for speed to serve as a high-speed gatekeeper in your CI.
-- 🏗️ **Monorepo Support:** Native support for `pnpm`, `yarn`, and `npm` workspaces.
+## Start Here
 
-## Quick Start
+- New user: go to [Quick Start](./quick-start/overview.mdx)
+- Setting up CI and governance: go to [Config-Based Checks](./config-based-checks/overview.mdx)
+- Debugging a dependency problem: go to [Exploratory Toolkit](./exploratory-toolkit/overview.mdx)
+- Looking for exact flags and subcommands: go to [CLI Reference](./cli-reference/overview.mdx)
 
-### Installation
+## What Rev-dep Helps You Find
 
-Install it as a dev dependency:
+- Illegal imports across architectural boundaries
+- Circular imports
+- Unused exports and orphan files
+- Missing or unused `node_modules`
+- Imports that no longer resolve
+- Dependency paths between files and entry points
 
-```bash
-pnpm add -D rev-dep
-```
+## Core Ideas
 
-### Initialize Configuration
+- Rev-dep builds a dependency graph from source files.
+- Entry points determine what counts as reachable production or development code.
+- Config-based checks are the preferred path when you want one fast pass over the whole project.
+- Exploratory commands are better when you want to answer one question quickly.
 
-Create a configuration file to start defining your and rules:
-
-```bash
-npx rev-dep config init
-```
-
-### Run a Check
-
-Once configured, you can run various checks. For example, to detect circular imports:
-
-```bash
-pnpm exec rev-dep circular
-```
+If the terms above are unfamiliar, start with [Glossary](./glossary).

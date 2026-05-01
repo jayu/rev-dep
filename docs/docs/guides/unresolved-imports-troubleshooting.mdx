@@ -1,0 +1,98 @@
+---
+title: Unresolved imports troubleshooting
+---
+
+# Unresolved imports troubleshooting
+
+When `unresolvedImportsDetection` fails, work through these checks in order.
+
+## 1. Verify the path really exists
+
+Start with plain path mistakes, renamed files, and missing extensions.
+
+```bash
+rev-dep unresolved
+rev-dep imported-by --file src/suspect-file.ts --list-imports
+```
+
+## 2. Verify alias inputs
+
+Check tsconfig paths, package `imports` and `exports`, and the `conditionNames` being used.
+
+```jsonc
+{
+  "conditionNames": ["node", "default"],
+  "rules": [
+    {
+      "path": ".",
+      "unresolvedImportsDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+## 3. Verify workspace traversal intent
+
+If the target lives in another workspace package, make sure the rule or command is configured for that case.
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": "packages/app",
+      "followMonorepoPackages": ["@acme/shared"],
+      "unresolvedImportsDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+## 4. Verify ignored-file behavior
+
+A file excluded by `ignoreFiles` or gitignore may disappear from the graph unless `processIgnoredFiles` brings it back in.
+
+```jsonc
+{
+  "processIgnoredFiles": ["dist/**/*.generated.ts"],
+  "rules": [
+    {
+      "path": ".",
+      "unresolvedImportsDetection": {
+        "enabled": true,
+        "ignoreFiles": ["**/*.stories.tsx"]
+      }
+    }
+  ]
+}
+```
+
+## 5. Verify asset-extension behavior
+
+If the import is a non-code asset that your tooling resolves, add the extension through:
+
+- top-level `customAssetExtensions`
+- CLI `--custom-asset-extensions` for the `unresolved` command
+
+```jsonc
+{
+  "customAssetExtensions": ["glb", "mp3", "custom"],
+  "rules": [
+    {
+      "path": ".",
+      "unresolvedImportsDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+Or for one-off debugging:
+
+```bash
+rev-dep unresolved --custom-asset-extensions glb,mp3,custom
+```

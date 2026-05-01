@@ -1,0 +1,30 @@
+---
+title: Unused node modules
+---
+
+# Unused node modules
+
+`unusedNodeModulesDetection` compares declared dependencies with packages actually imported in the processed code graph.
+
+It is best for finding stale runtime dependencies. It is less authoritative for build-only tooling that may be referenced indirectly through scripts or config ecosystems.
+
+See [Missing dependency false positives](../../guides/missing-dependency-false-positives.mdx).
+
+## Useful options
+
+- `includeModules`
+- `excludeModules`
+- `pkgJsonFieldsWithBinaries`
+- `filesWithBinaries`
+- `filesWithModules`
+- `outputType`
+
+## Why the binary-related options exist
+
+Some repos invoke tooling through package.json scripts, local wrapper files, or module strings that are not ordinary source imports. These fields let you teach the detector about those additional usage signals instead of pretending every dependency is referenced through `import` statements alone.
+
+## Output types
+
+- `list`
+- `groupByModule`
+- `groupByFile`

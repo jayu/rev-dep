@@ -1,0 +1,20 @@
+---
+title: Supported file types and limitations
+---
+
+# Supported file types and limitations
+
+Rev-dep is primarily a JavaScript and TypeScript dependency analysis tool.
+
+## Strongest support
+
+- `.js`
+- `.jsx`
+- `.ts`
+- `.tsx`
+
+## Additional cases
+
+Framework-specific files and asset-like imports may work depending on parser support and configuration, but they should be treated as compatibility scenarios rather than the baseline contract.
+
+If your repo depends heavily on framework-specific single-file components or custom generated assets, validate a small target area first.

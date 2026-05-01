@@ -1,0 +1,62 @@
+---
+title: tsconfig paths and alias resolution
+---
+
+# tsconfig paths and alias resolution
+
+Rev-dep supports tsconfig path aliases, but alias setups can still create ambiguity in monorepos.
+
+## Practical guidance
+
+- prefer clear, non-overlapping alias targets
+- avoid alias definitions that compete with workspace-package names unless the distinction is intentional
+- verify whether the desired behavior is package-based resolution or tsconfig-path resolution
+
+## Example tsconfig
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@ui/*": ["src/ui/*"],
+      "@shared/*": ["../../packages/shared/src/*"]
+    }
+  }
+}
+```
+
+Example rev-dep config:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": "packages/app",
+      "followMonorepoPackages": false,
+      "unresolvedImportsDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+## When results look surprising
+
+Check:
+
+- which `tsconfig.json` the command or rule is using
+- whether a workspace package name and a tsconfig alias can both match the same request
+- whether `followMonorepoPackages` is changing resolution expectations
+
+## Practical limitation
+
+If two resolution strategies can both plausibly target different files for the same request, the setup is inherently harder to analyze reliably. Favor alias schemes that make the intended target obvious.
+
+## Useful commands
+
+```bash
+rev-dep unresolved --tsconfig-json tsconfig.json
+rev-dep resolve --file src/shared/button.ts --tsconfig-json tsconfig.json
+```

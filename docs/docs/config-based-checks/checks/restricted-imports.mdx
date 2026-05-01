@@ -1,0 +1,29 @@
+---
+title: Restricted imports
+---
+
+# Restricted imports
+
+`restrictedImportsDetection` blocks denied modules or files from selected entry points.
+
+This is useful for rules like:
+
+- server code must not import browser-only libraries
+- client bundles must not import Node-only modules
+- selected entry points must avoid forbidden packages
+
+## Important validation rules
+
+- `entryPoints` is required
+- at least one of `denyFiles` or `denyModules` is required
+- detector-level `entryPoints` do not fall back to rule-level entry points
+
+## Useful options
+
+- `graphExclude`
+- `denyFiles`
+- `denyModules`
+- `ignoreMatches`
+- `ignoreTypeImports`
+
+Use this detector when the policy is about what code reachable from specific roots may depend on, not just about direct import style.

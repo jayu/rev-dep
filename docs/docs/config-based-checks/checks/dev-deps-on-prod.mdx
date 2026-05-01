@@ -1,0 +1,20 @@
+---
+title: Dev dependencies in production
+---
+
+# Dev dependencies in production
+
+`devDepsUsageOnProdDetection` catches dependencies declared as `devDependencies` that are pulled into production entry-point graphs.
+
+This check depends on good separation between:
+
+- `prodEntryPoints`
+- `devEntryPoints`
+
+If development-only files are missing from `devEntryPoints`, results can be misleading.
+
+## Useful option
+
+- `prodEntryPoints`
+
+This detector can define its own production roots when the rule-level `prodEntryPoints` are too broad or not the right abstraction for the dependency policy you want to enforce.

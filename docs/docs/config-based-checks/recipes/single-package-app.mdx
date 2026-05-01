@@ -1,0 +1,24 @@
+---
+title: Single-package app
+---
+
+# Single-package app
+
+Start with one rule:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.tsx"],
+      "devEntryPoints": ["scripts/**", "**/*.test.ts"],
+      "circularImportsDetection": {"enabled": true},
+      "unusedExportsDetection": {"enabled": true},
+      "orphanFilesDetection": {"enabled": true}
+    }
+  ]
+}
+```
+
+Add stricter checks only after the basic graph looks correct.

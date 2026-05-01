@@ -1,0 +1,50 @@
+---
+title: Initialize config
+---
+
+# Initialize config
+
+Run:
+
+```bash
+rev-dep config init
+```
+
+This creates a starter `rev-dep.config.json` in the current directory.
+
+In practice, `config init` writes `.rev-dep.config.jsonc`.
+
+## Expected Behavior
+
+- In a single-package project, the generated config contains one rule for `path: "."`.
+- In a monorepo root, `rev-dep` generates a root rule and additional rules for discovered workspace packages.
+- In a workspace package inside a monorepo, it creates one package-local rule for `path: "."`.
+
+## What the generated config enables
+
+The generated config is intentionally conservative.
+
+- enabled by default:
+  - `circularImportsDetection`
+  - `unresolvedImportsDetection`
+- present but disabled by default:
+  - `orphanFilesDetection`
+  - `unusedNodeModulesDetection`
+  - `missingNodeModulesDetection`
+  - `unusedExportsDetection`
+  - `devDepsUsageOnProdDetection`
+  - `restrictedImportsDetection`
+
+In non-monorepo projects, the generated config also adds a starter `moduleBoundaries` rule for `src/**/*`.
+
+At a monorepo root, the root rule gets a starter `moduleBoundaries` rule for `packages/**/*`, while package-level rules get the same conservative detector defaults as single-package repos.
+
+## What To Adjust First
+
+- `prodEntryPoints`
+- `devEntryPoints`
+- which checks are enabled
+
+Those fields determine whether reachability-based checks like orphan files, unused exports, and dev-dependency usage give useful results.
+
+Continue with [Entry points](../config-based-checks/entry-points.mdx) before enabling many checks at once.

@@ -1,0 +1,77 @@
+---
+title: Following monorepo packages
+---
+
+# Following monorepo packages
+
+Use `followMonorepoPackages` when a rule needs to traverse from one workspace package into another package's source graph.
+
+## Why this exists
+
+Some teams want package-local analysis by default. Others want cross-workspace reachability. Rev-dep makes that choice explicit instead of always following every workspace package.
+
+## Config shape
+
+Rule-level `followMonorepoPackages` supports:
+
+- `false`: do not follow other workspace packages
+- `true`: follow all workspace packages
+- `["pkg-a", "@scope/pkg-b"]`: follow only selected packages
+
+Example:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": "packages/app",
+      "followMonorepoPackages": ["@acme/shared", "@acme/design-system"],
+      "prodEntryPoints": ["src/main.tsx"],
+      "orphanFilesDetection": {
+        "enabled": true
+      },
+      "unusedExportsDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+## When to enable it
+
+- a package imports source from a shared internal workspace package
+- you want orphan and unused-export analysis to account for internal package usage
+- you are debugging monorepo-local resolution instead of published-package behavior
+
+This flag exists in both the CLI and the config model:
+
+- CLI: `--follow-monorepo-packages`, optionally with package names
+- config: `followMonorepoPackages` on each rule
+
+The CLI form can mean “follow all” when passed without a value. The config form uses `true`, `false`, or a package-name array.
+
+Examples:
+
+```bash
+rev-dep resolve --file packages/shared/src/index.ts --follow-monorepo-packages
+rev-dep resolve --file packages/shared/src/index.ts --follow-monorepo-packages @acme/shared,@acme/design-system
+```
+
+## Tradeoff
+
+Following more packages broadens the graph and can change which files count as reachable. Use the smallest scope that matches your intent.
+
+## Good mental model
+
+Ask this question per rule:
+
+“Am I analyzing this package as an isolated unit, or as a source graph that intentionally traverses into internal workspace dependencies?”
+
+That answer should drive the setting more than any blanket monorepo default.
+
+## Common pattern
+
+- app packages: follow selected shared packages
+- library packages: often stay package-local first
+- root-level governance rules: use package boundaries rather than “follow everything” by default

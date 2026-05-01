@@ -1,0 +1,36 @@
+---
+title: Fix mode and autofix
+---
+
+# Fix mode and autofix
+
+Some checks can automatically apply fixes when both of these are true:
+
+- the check supports autofix
+- you run `rev-dep config run --fix`
+
+## Typical fixable checks
+
+- `importConventions`
+- `unusedExportsDetection`
+- `orphanFilesDetection`
+
+## Recommended workflow
+
+```bash
+rev-dep config run
+rev-dep config run --fix
+rev-dep config run --fix --recheck
+```
+
+The final `--recheck` run matters because some fixes remove imports or files and can expose follow-on issues that were hidden in the initial graph.
+
+## Recommendation
+
+Use fix mode only after reviewing plain `config run` output first. That keeps adoption safer, especially in large repositories where entry-point mistakes can make a fix technically valid but operationally unwanted.
+
+## What fix mode does not guarantee
+
+- It does not guarantee every reported issue is fixable.
+- It does not guarantee a zero exit code.
+- It does not replace reviewing broad cleanup in a large repo.

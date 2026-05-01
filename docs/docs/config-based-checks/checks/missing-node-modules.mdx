@@ -1,0 +1,28 @@
+---
+title: Missing node modules
+---
+
+# Missing node modules
+
+`missingNodeModulesDetection` flags imported packages that are not declared in the relevant `package.json`.
+
+Most useful when:
+
+- package boundaries are clear
+- imports are statically analyzable
+- alias and import-map configuration is already understood by `rev-dep`
+
+## Useful options
+
+- `includeModules`
+- `excludeModules`
+- `outputType`
+
+## Output types
+
+- `list`
+- `groupByModule`
+- `groupByFile`
+- `groupByModuleFilesCount`
+
+The grouped outputs are useful when you want to prioritize fixes by package or by import site count instead of reading a flat list.

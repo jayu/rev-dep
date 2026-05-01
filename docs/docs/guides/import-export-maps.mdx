@@ -1,0 +1,72 @@
+---
+title: package.json imports and exports maps
+---
+
+# package.json imports and exports maps
+
+Rev-dep supports `package.json` import and export map resolution, including configurable condition names.
+
+## When this matters
+
+- you use Node-style import maps instead of tsconfig aliases
+- workspace packages expose subpaths through `exports`
+- resolution behavior changes across `default`, `node`, or custom conditions
+
+## Related settings
+
+- top-level `conditionNames`
+- rule-level `followMonorepoPackages`
+
+Example:
+
+```jsonc
+{
+  "configVersion": "1.7",
+  "conditionNames": ["node", "default"],
+  "rules": [
+    {
+      "path": "packages/app",
+      "followMonorepoPackages": true,
+      "unresolvedImportsDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+If map-based resolution still looks wrong, compare the expected runtime condition set with the condition names passed to `rev-dep`.
+
+## Why condition names matter
+
+The same package can resolve to different targets under conditions like:
+
+- `development`
+- `production`
+- `browser`
+- `node`
+- `default`
+
+If your project relies on a non-default condition path, document that explicitly in config instead of assuming the default resolution matches your runtime.
+
+## Example package.json shapes
+
+```json
+{
+  "imports": {
+    "#shared/*": "./src/shared/*.ts"
+  },
+  "exports": {
+    ".": {
+      "default": "./src/main.ts",
+      "node": "./src/node.ts"
+    }
+  }
+}
+```
+
+And a useful exploratory command:
+
+```bash
+rev-dep unresolved --condition-names node,default
+```

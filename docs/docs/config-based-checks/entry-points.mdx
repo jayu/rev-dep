@@ -1,0 +1,59 @@
+---
+title: Entry points
+---
+
+# Entry points
+
+Entry points are the foundation of graph-based checks. They tell `rev-dep` which files should be treated as the roots of reachable code.
+
+## Two kinds of entry points
+
+- `prodEntryPoints`: application code that ships or runs in production
+- `devEntryPoints`: tests, scripts, Storybook, build files, and other development-only entry points
+
+## Why They Matter
+
+These checks depend heavily on entry points:
+
+- `orphanFilesDetection`
+- `unusedExportsDetection`
+- `devDepsUsageOnProdDetection`
+
+If entry points are incomplete, reachable files may look orphaned and real tooling packages may look unused.
+
+Restricted imports are different: `restrictedImportsDetection` requires its own `entryPoints` field and does not fall back to rule-level `prodEntryPoints` or `devEntryPoints`.
+
+## Good defaults
+
+```json
+{
+  "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+  "devEntryPoints": ["scripts/**", "**/*.test.ts", ".storybook/**/*.ts"]
+}
+```
+
+When in doubt, start narrow, review results, then add missing roots explicitly.
+
+## Rule-level defaults vs detector overrides
+
+Most reachability-based detectors use rule-level `prodEntryPoints` and `devEntryPoints` as their foundation.
+
+Some detectors also expose their own narrower knobs:
+
+- `orphanFilesDetection.validEntryPoints`
+- `unusedExportsDetection.validEntryPoints`
+- `devDepsUsageOnProdDetection.prodEntryPoints`
+
+Use those when one detector needs a smaller or more specific set of roots than the whole rule.
+
+## What belongs in dev entry points
+
+Good candidates:
+
+- tests
+- Storybook files
+- scripts
+- local tooling entry scripts
+- code generation entry files
+
+Not every build-tool dependency becomes visible just because it appears in `devEntryPoints`, but including the files that your team actually owns is still the right first step.

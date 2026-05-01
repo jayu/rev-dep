@@ -1,0 +1,151 @@
+---
+title: Integration guide
+---
+
+# Integration guide
+
+This guide is the practical path to adopting `rev-dep` in an existing codebase.
+
+## 1. Install locally
+
+Use a project-local dev dependency so the whole team and CI share the same version.
+
+```bash
+pnpm add -D rev-dep
+```
+
+## 2. Generate a starter config
+
+```bash
+rev-dep config init
+```
+
+Do not enable every check immediately. First make sure the dependency graph roots are modeled correctly.
+
+The generated config is intentionally conservative. In most repos it enables circular and unresolved checks first, while leaving the more reachability-sensitive detectors disabled until you supply real entry points.
+
+## 3. Start from a small working config
+
+For a regular app, a good first pass looks like this:
+
+```jsonc
+{
+  "configVersion": "1.7",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+      "devEntryPoints": ["scripts/**", "**/*.test.ts", ".storybook/**/*.ts"],
+      "circularImportsDetection": {
+        "enabled": true
+      },
+      "unresolvedImportsDetection": {
+        "enabled": true
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true
+      },
+      "unusedExportsDetection": {
+        "enabled": true
+      },
+      "orphanFilesDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+## 4. Define entry points
+
+Start with the files that really start production execution, then add tests, scripts, and other development-only roots separately.
+
+If your repo has public barrel files, shared packages, Storybook, codegen, or custom scripts, model those deliberately instead of assuming the detector can infer your intent.
+
+## 5. Run and inspect before tightening
+
+```bash
+rev-dep config run
+rev-dep config run --list-all-issues
+rev-dep config run --format issues-list
+```
+
+The default human output is good for local review. `issues-list` is useful when you want compact, location-oriented output while iterating on the config.
+
+## 6. Enable low-ambiguity checks first
+
+Recommended starting set:
+
+- circular imports
+- unresolved imports
+- unused node modules
+- unused exports
+- orphan files
+
+The sequence matters:
+
+1. circular imports and unresolved imports validate graph health
+2. entry points make reachability-based checks meaningful
+3. package-usage checks become easier to trust
+4. architecture rules can be added once the baseline is stable
+
+## 7. Add architecture rules once the graph is trustworthy
+
+After reachability and resolution look correct, add:
+
+- module boundaries
+- import conventions
+- restricted imports
+- dev dependency usage on production paths
+
+Example:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.tsx"],
+      "moduleBoundaries": [
+        {
+          "name": "ui-cannot-import-api",
+          "pattern": "src/ui/**/*",
+          "deny": ["src/api/**/*"]
+        }
+      ],
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["src/client.tsx"],
+        "denyModules": ["fs", "path"]
+      },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true
+      }
+    }
+  ]
+}
+```
+
+## 8. Fix safely
+
+Once the results look trustworthy:
+
+```bash
+rev-dep config run --fix
+rev-dep config run --fix --recheck
+```
+
+Use `--recheck` when enabling autofix in CI or when cleaning up a large repo. It validates the post-fix graph instead of assuming one pass is enough.
+
+## 9. Handle monorepo and tooling cases explicitly
+
+Most unexpected results in real repos come from:
+
+- workspace-package traversal choices
+- build-only tooling packages
+- alias and import-map resolution
+- incomplete ignored-file handling
+
+Use the Guides section for those cases instead of overfitting the base config too early.

@@ -1,0 +1,45 @@
+---
+title: First useful checks
+---
+
+# First useful checks
+
+These commands give quick signal before you invest in full governance rules.
+
+## Exploratory commands
+
+```bash
+rev-dep circular
+rev-dep entry-points
+rev-dep node-modules unused
+rev-dep files --entry-point src/index.ts
+rev-dep resolve --file src/utils/math.ts
+```
+
+## First config-based checks
+
+Start with a small set:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.tsx"],
+      "devEntryPoints": ["**/*.test.ts", "scripts/**"],
+      "circularImportsDetection": {"enabled": true},
+      "unusedNodeModulesDetection": {"enabled": true},
+      "unusedExportsDetection": {"enabled": true},
+      "orphanFilesDetection": {"enabled": true}
+    }
+  ]
+}
+```
+
+Then run:
+
+```bash
+rev-dep config run
+```
+
+If the results look noisy, the first thing to revisit is usually entry-point coverage rather than the detector itself.

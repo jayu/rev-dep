@@ -1,0 +1,30 @@
+---
+title: Unused exports
+---
+
+# Unused exports
+
+`unusedExportsDetection` finds exports that are never imported from any reachable entry point.
+
+Use it after entry points are trustworthy. Incomplete entry points make live exports look unused.
+
+Autofix is available for straightforward cases.
+
+## Useful options
+
+- `validEntryPoints`: files whose exports should be treated as valid public API roots and never reported as unused
+- `ignoreTypeExports`: skip `export type` and interface-style exports
+- `graphExclude`: exclude files from the graph used by this detector
+- `ignoreFiles`: ignore all unused-export findings for matching files
+- `ignoreExports`: ignore selected export names or globs globally
+- `ignore`: ignore export names per matching file glob
+
+## Typical pattern
+
+Use `validEntryPoints` for files like:
+
+- `src/index.ts`
+- `src/public-api.ts`
+- package root barrel files
+
+That keeps the detector focused on internal dead exports instead of public surface files that intentionally re-export many things.

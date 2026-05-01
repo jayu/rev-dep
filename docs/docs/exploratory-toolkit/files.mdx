@@ -1,0 +1,21 @@
+---
+title: Inspect dependency tree
+---
+
+# Inspect dependency tree
+
+Use:
+
+```bash
+rev-dep files --entry-point src/index.ts
+```
+
+This lists files reachable from a chosen entry point. It is useful when you want to understand bundle scope or investigate why a file is considered reachable.
+
+## Useful flags
+
+```bash
+rev-dep files --entry-point src/index.ts --count
+rev-dep files --entry-point src/index.ts --ignore-type-imports
+rev-dep files --entry-point src/index.ts --process-ignored-files dist/**/*.generated.ts
+```

@@ -1,0 +1,24 @@
+---
+title: Orphan files
+---
+
+# Orphan files
+
+`orphanFilesDetection` finds files that are not reachable from configured entry points.
+
+This is useful for dead-file cleanup after refactors, but it is sensitive to:
+
+- missing entry points
+- workspace-package traversal choices
+- intentionally detached files like templates or generated artifacts
+
+## Useful options
+
+- `validEntryPoints`: files that should always count as allowed graph roots for orphan analysis
+- `ignoreTypeImports`: treat type-only imports as non-reachability edges
+- `graphExclude`: exclude files from this detector's graph
+- `autofix`: remove orphan files automatically
+
+## Practical advice
+
+If orphan results look wrong, check graph modeling before enabling autofix. Most false positives come from missing roots, not from the detector itself.

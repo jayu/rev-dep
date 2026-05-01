@@ -28,7 +28,7 @@
 
 `scripts/buildProdBinaries.sh`
 
-`node scripts/addCliRefToReadme.js`
+`node scripts/addCliRefToReadmeAndDocs.js`
 
 `git add . && git commit -m "chore: release`
 

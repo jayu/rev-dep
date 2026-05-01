@@ -41,16 +41,86 @@ Helps identify circular dependencies, unused modules, and optimize project struc
 	}
 )
 
+var (
+	docsOutputDir   string
+	docsCommandPaths []string
+)
+
 var docsCmd = &cobra.Command{
 	Use:   "doc-gen",
 	Short: "Generate CLI documentation",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := doc.GenMarkdownTree(rootCmd, "./docs")
-		if err != nil {
-			log.Fatal(err)
+		outputDir := strings.TrimSpace(docsOutputDir)
+		if outputDir == "" {
+			outputDir = "./docs"
 		}
+
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
+			return fmt.Errorf("create docs output dir: %w", err)
+		}
+
+		if len(docsCommandPaths) == 0 {
+			if err := doc.GenMarkdownTree(rootCmd, outputDir); err != nil {
+				log.Fatal(err)
+			}
+			return nil
+		}
+
+		for _, commandPath := range docsCommandPaths {
+			targetCmd, err := findCommandForDocs(rootCmd, commandPath)
+			if err != nil {
+				return err
+			}
+
+			fileName := strings.ReplaceAll(targetCmd.CommandPath(), " ", "_") + ".md"
+			outputPath := filepath.Join(outputDir, fileName)
+			file, err := os.Create(outputPath)
+			if err != nil {
+				return fmt.Errorf("create doc file for %q: %w", commandPath, err)
+			}
+
+			err = doc.GenMarkdownCustom(targetCmd, file, func(link string) string {
+				return link
+			})
+			closeErr := file.Close()
+			if err != nil {
+				return fmt.Errorf("generate doc for %q: %w", commandPath, err)
+			}
+			if closeErr != nil {
+				return fmt.Errorf("close doc file for %q: %w", commandPath, closeErr)
+			}
+		}
+
 		return nil
 	},
+}
+
+func findCommandForDocs(root *cobra.Command, commandPath string) (*cobra.Command, error) {
+	parts := strings.Fields(strings.TrimSpace(commandPath))
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("invalid empty command path")
+	}
+
+	current := root
+	if parts[0] == root.Name() {
+		parts = parts[1:]
+	}
+
+	for _, part := range parts {
+		var next *cobra.Command
+		for _, child := range current.Commands() {
+			if child.Name() == part || slices.Contains(child.Aliases, part) {
+				next = child
+				break
+			}
+		}
+		if next == nil {
+			return nil, fmt.Errorf("unknown command path %q", commandPath)
+		}
+		current = next
+	}
+
+	return current, nil
 }
 
 // ---------------- shared flags ----------------
@@ -1428,6 +1498,8 @@ func init() {
 		diag.SetVerbose(verboseFlag)
 	}
 	installHelpOutputSanitizer(rootCmd)
+	docsCmd.Flags().StringVar(&docsOutputDir, "output-dir", "./docs", "Directory where markdown docs should be generated")
+	docsCmd.Flags().StringSliceVar(&docsCommandPaths, "command-paths", []string{}, "Exact command paths to generate docs for (for example: 'config', 'config init', 'node-modules used')")
 }
 
 func Execute() error {

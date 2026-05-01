@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="atom.xsl"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://rev-dep.com/blog</id>
+    <title>Rev-dep Blog</title>
+    <updated>2026-05-01T00:00:00.000Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://rev-dep.com/blog"/>
+    <subtitle>Rev-dep Blog</subtitle>
+    <icon>https://rev-dep.com/img/favicon.ico</icon>
+    <entry>
+        <title type="html"><![CDATA[Welcome to Rev-Dep new documentation page]]></title>
+        <id>https://rev-dep.com/blog/welcome</id>
+        <link href="https://rev-dep.com/blog/welcome"/>
+        <updated>2026-05-01T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Welcome to Rev-Dep new documentation page hosted on rev-dep.com.]]></summary>
+        <content type="html"><![CDATA[<p>Welcome to Rev-Dep new documentation page hosted on <a href="https://rev-dep.com/" target="_blank" rel="noopener noreferrer" class="">rev-dep.com</a>.</p>
+<!-- -->
+<p>Click "Docs" in navigation bar to get started with documentation, or "Blog" to read the latest news about Rev-Dep.</p>]]></content>
+        <author>
+            <name>Jakub Mazurek</name>
+            <uri>https://jayu.dev</uri>
+        </author>
+        <category label="Hello" term="Hello"/>
+    </entry>
+</feed>

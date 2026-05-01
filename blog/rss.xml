@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="rss.xsl"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+    <channel>
+        <title>Rev-dep Blog</title>
+        <link>https://rev-dep.com/blog</link>
+        <description>Rev-dep Blog</description>
+        <lastBuildDate>Fri, 01 May 2026 00:00:00 GMT</lastBuildDate>
+        <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
+        <generator>https://github.com/jpmonette/feed</generator>
+        <language>en</language>
+        <item>
+            <title><![CDATA[Welcome to Rev-Dep new documentation page]]></title>
+            <link>https://rev-dep.com/blog/welcome</link>
+            <guid>https://rev-dep.com/blog/welcome</guid>
+            <pubDate>Fri, 01 May 2026 00:00:00 GMT</pubDate>
+            <description><![CDATA[Welcome to Rev-Dep new documentation page hosted on rev-dep.com.]]></description>
+            <content:encoded><![CDATA[<p>Welcome to Rev-Dep new documentation page hosted on <a href="https://rev-dep.com/" target="_blank" rel="noopener noreferrer" class="">rev-dep.com</a>.</p>
+<!-- -->
+<p>Click "Docs" in navigation bar to get started with documentation, or "Blog" to read the latest news about Rev-Dep.</p>]]></content:encoded>
+            <category>Hello</category>
+        </item>
+    </channel>
+</rss>

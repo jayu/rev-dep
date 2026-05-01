@@ -46,7 +46,7 @@ function HomepageHeader() {
 
 function CodebaseScalingProblemSection() {
   return (
-    <section className={clsx(styles.sectionPaddingLR, styles.marginLarge, 'bg-light')}>
+    <section className={clsx(styles.sectionPaddingLR, styles.marginLarge, styles.problemSection)}>
       <div className="container">
         <div className={styles.problemShell}>
           <div className={styles.problemIntro}>
@@ -264,8 +264,9 @@ function CapabilitiesSection() {
 export default function Home(): ReactNode {
   return (
     <Layout
-      title="Rev-dep | Dependency Analysis & Optimization"
-      description="Dependency analysis and optimization toolkit for modern JavaScript and TypeScript codebases.">
+      // title="Rev-dep | High-Speed Dependency Graph Analysis for JS/TS Monorepos"
+      // description="Enforce module boundaries, find circular imports, dead files, unused exports, and dependency issues in one fast CLI. Audit 500k+ LoC in around 500ms."
+      >
       <HomepageHeader />
       <main>
         <CodebaseScalingProblemSection />

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" version="1.1">
+  <title>Rev-dep OG image</title>
+  <defs>
+    <radialGradient id="bgGrad" cx="35%" cy="25%" r="90%">
+      <stop offset="0%" stop-color="rgb(18,7,60)" />
+      <stop offset="30%" stop-color="rgb(18,7,60)" />
+      <stop offset="100%" stop-color="rgb(0,0,0)" />
+    </radialGradient>
+    <linearGradient id="globalGrad" x1="0" y1="0" x2="1000" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="magenta" />
+      <stop offset="25%" stop-color="#B237E2" />
+      <stop offset="50%" stop-color="rgb(142,59,195)" />
+      <stop offset="75%" stop-color="rgb(211,76,168)" />
+      <stop offset="100%" stop-color="rgb(223,115,79)" />
+    </linearGradient>
+  </defs>
+  <style>
+    .text2 {
+      font-family: system-ui;
+      font-size: 400px;
+      font-weight: 2;
+    }
+
+    .tagline {
+      font-family: system-ui;
+      font-size: 42px;
+      font-weight: 300;
+      fill: #ffffff;
+    }
+  </style>
+
+  <rect width="1200" height="630" fill="url(#bgGrad)" />
+
+  <g transform="translate(190 78) scale(0.58)">
+    <circle cx="50" cy="50" r="16" fill="none" stroke="url(#globalGrad)" stroke-width="8" />
+    <circle cx="50" cy="250" r="16" fill="none" stroke="url(#globalGrad)" stroke-width="8" />
+    <circle cx="50" cy="450" r="16" fill="none" stroke="url(#globalGrad)" stroke-width="8" />
+    <circle cx="270" cy="450" r="16" fill="none" stroke="url(#globalGrad)" stroke-width="8" />
+
+    <path d="M 50 84 L 50 236" stroke="url(#globalGrad)" stroke-width="8" />
+    <path d="M 50 78 L 60 96 L 40 96 Z" fill="url(#globalGrad)" stroke="url(#globalGrad)" stroke-width="8" />
+
+    <path d="M 50 284 L 50 436" stroke="url(#globalGrad)" stroke-width="8" />
+    <path d="M 50 278 L 60 296 L 40 296 Z" fill="url(#globalGrad)" stroke="url(#globalGrad)" stroke-width="8" />
+
+    <path d="M 72 276 L 260 440" stroke="url(#globalGrad)" stroke-width="8" />
+    <path d="M 67 272 L 86 277 L 74 290 Z" fill="url(#globalGrad)" stroke="url(#globalGrad)" stroke-width="8" />
+
+    <path d="M 84 44 A 110 160 90 1 1 66 250" stroke="url(#globalGrad)" stroke-width="8" fill="none" />
+    <path d="M 77 46 L 94 32 L 98 54 Z" fill="url(#globalGrad)" stroke="url(#globalGrad)" stroke-width="8" />
+
+    <text x="290" y="470" class="text2" fill="url(#globalGrad)">
+      ev-dep
+    </text>
+  </g>
+
+  <text x="600" y="505" class="tagline" text-anchor="middle">
+    High-speed dependency graph analysis for JS/TS monorepos
+  </text>
+</svg>

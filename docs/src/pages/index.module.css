@@ -72,6 +72,13 @@
   color: rgb(37, 99, 235);
 }
 
+.problemSection {
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(247, 250, 255, 0.9), rgba(255, 255, 255, 1));
+  border-radius: 2rem;
+}
+
 .problemShell {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
@@ -105,6 +112,7 @@
     radial-gradient(circle at top right, rgba(59, 130, 246, 0.18), transparent 34%),
     linear-gradient(180deg, rgb(12, 19, 38), rgb(20, 28, 52));
   color: white;
+  border: 1px solid rgba(148, 163, 184, 0.18);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
 }
 
@@ -355,6 +363,57 @@
   margin-top: 0.75rem;
   line-height: 1.7;
   color: var(--ifm-color-emphasis-700);
+}
+
+[data-theme='dark'] .problemSection {
+  background:
+    radial-gradient(circle at top left, rgba(168, 85, 247, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(18, 22, 35, 0.95), rgba(12, 15, 24, 0.98));
+}
+
+[data-theme='dark'] .sectionEyebrow {
+  color: rgba(156, 163, 255, 0.9);
+}
+
+[data-theme='dark'] .problemLead,
+[data-theme='dark'] .problemCopy,
+[data-theme='dark'] .problemGovernanceCopy,
+[data-theme='dark'] .problemQuestionBody,
+[data-theme='dark'] .problemPanelFooter,
+[data-theme='dark'] .whySubtitle,
+[data-theme='dark'] .featureDescription,
+[data-theme='dark'] .capabilitiesIntro,
+[data-theme='dark'] .capabilityList li,
+[data-theme='dark'] .testimonialSource {
+  color: rgba(226, 232, 240, 0.84);
+}
+
+[data-theme='dark'] .featureCard,
+[data-theme='dark'] .problemQuestionCard,
+[data-theme='dark'] .testimonialCard,
+[data-theme='dark'] .capabilityCard {
+  background: linear-gradient(180deg, rgba(23, 28, 43, 0.96), rgba(15, 18, 30, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme='dark'] .featureCard:hover {
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+[data-theme='dark'] .featureEmoji {
+  background: rgba(168, 85, 247, 0.16);
+}
+
+[data-theme='dark'] .testimonialAuthor {
+  color: var(--ifm-color-primary-lightest);
+}
+
+[data-theme='dark'] .testimonialsSection {
+  background:
+    radial-gradient(circle at top left, rgba(168, 85, 247, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(15, 18, 30, 0.94), rgba(9, 12, 20, 1));
+  border-radius: 2rem;
 }
 
 @media screen and (max-width: 996px) {

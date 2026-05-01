@@ -6,6 +6,7 @@
     "type": "git",
     "url": "git+https://github.com/jayu/rev-dep.git"
   },
+  "homepage": "https://rev-dep.com",
   "files": [
     "bin/rev-dep"
   ],

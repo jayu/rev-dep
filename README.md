@@ -7,6 +7,7 @@
 <p align="center">
   <a href="#capabilities-">Capabilities</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="https://rev-dep.com/docs/intro">Documentation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#exploratory-toolkit-">Exploratory Toolkit</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#cli-reference-">CLI Reference</a>
 </p>
@@ -94,6 +95,8 @@ Use CLI commands for ad-hoc dependency exploration:
 - `list-cwd-files` - list all source code files in CWD
 
 ## **Installation 📦**
+
+Full documentation: [rev-dep.com/docs/intro](https://rev-dep.com/docs/intro)
 
 **Install locally to set up project check scripts**
 

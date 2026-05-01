@@ -4,9 +4,13 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+const siteTitle = 'Rev-dep | High-Speed Dependency Graph Analysis for JS/TS Monorepos';
+const siteDescription =
+  'Enforce module boundaries, find circular imports, dead files, unused exports, and dependency issues in one fast CLI. Audit 500k+ LoC in around 500ms.';
+
 const config: Config = {
-  title: 'Rev-dep',
-  tagline: 'Dependency analysis and optimization toolkit for modern JavaScript and TypeScript codebases.',
+  title: siteTitle,
+  tagline: siteDescription,
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -68,7 +72,16 @@ const config: Config = {
 
   themeConfig: {
     // Replace with your project's social card
-    image: 'img/logo.png',
+    image: 'img/og-logo.jpg',
+    metadata: [
+      {name: 'description', content: siteDescription},
+      {property: 'og:type', content: 'website'},
+      {property: 'og:title', content: siteTitle},
+      {property: 'og:description', content: siteDescription},
+      {name: 'twitter:card', content: 'summary_large_image'},
+      {name: 'twitter:title', content: siteTitle},
+      {name: 'twitter:description', content: siteDescription},
+    ],
     colorMode: {
       respectPrefersColorScheme: true,
     },

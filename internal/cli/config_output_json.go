@@ -132,7 +132,7 @@ type jsonRestrictedImportIssue struct {
 
 // ---------------- JSON output logic ----------------
 
-func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, packageJsonPath string, tsconfigJsonPath string, runConfigFix bool) error {
+func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, packageJsonPath string, tsconfigJsonPath string, runConfigFix bool, runConfigRecheck bool) error {
 	output := jsonOutput{
 		Version: "1.0",
 		Rules:   []jsonRuleResult{},
@@ -142,7 +142,7 @@ func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, packageJsonPat
 		return err
 	}
 
-	result, err := config.ProcessConfig(&cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, true)
+	result, err := processConfigRun(&cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck, true)
 	if err != nil {
 		return fmt.Errorf("Error processing config: %v", err)
 	}

@@ -45,6 +45,10 @@ func SetRunConfigFix(value bool) {
 	runConfigFix = value
 }
 
+func SetRunConfigRecheck(value bool) {
+	runConfigRecheck = value
+}
+
 func ConfigRunCommand() *cobra.Command {
 	return configRunCmd
 }

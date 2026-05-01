@@ -9,12 +9,12 @@ import (
 	"rev-dep-go/internal/config"
 )
 
-func runConfigWithIssuesListOutput(cfg config.RevDepConfig, cwd string, packageJsonPath string, tsconfigJsonPath string, runConfigFix bool) error {
+func runConfigWithIssuesListOutput(cfg config.RevDepConfig, cwd string, packageJsonPath string, tsconfigJsonPath string, runConfigFix bool, runConfigRecheck bool) error {
 	if err := filterRunConfigRules(&cfg, runConfigRules); err != nil {
 		return err
 	}
 
-	result, err := config.ProcessConfig(&cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, true)
+	result, err := processConfigRun(&cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck, true)
 	if err != nil {
 		return fmt.Errorf("Error processing config: %v", err)
 	}

@@ -35,6 +35,7 @@ var (
 	runConfigCwd     string
 	runConfigListAll bool
 	runConfigFix     bool
+	runConfigRecheck bool
 	runConfigRules   []string
 	runConfigFormat  string
 )
@@ -54,18 +55,17 @@ var configRunCmd = &cobra.Command{
 		}
 
 		if runConfigFormat == "json" {
-			return runConfigWithJSONOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix)
+			return runConfigWithJSONOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck)
 		}
 		if runConfigFormat == "issues-list" {
-			return runConfigWithIssuesListOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix)
+			return runConfigWithIssuesListOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck)
 		}
 
 		if err := filterRunConfigRules(&cfg, runConfigRules); err != nil {
 			return err
 		}
 
-		// Process the config
-		result, err := config.ProcessConfig(&cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, false)
+		result, err := processConfigRun(&cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck, false)
 		if err != nil {
 			return fmt.Errorf("Error processing config: %v", err)
 		}
@@ -75,7 +75,7 @@ var configRunCmd = &cobra.Command{
 		executionTime := time.Since(startTime)
 		fmt.Printf("\n✨  Done in %dms.\n", executionTime.Milliseconds())
 
-		if result.HasFailures {
+		if shouldConfigRunExitNonZero(result, runConfigFix) {
 			os.Exit(1)
 		}
 
@@ -100,6 +100,79 @@ var configInitCmd = &cobra.Command{
 }
 
 const maxIssuesToList = 5
+
+func shouldConfigRunExitNonZero(result *config.ConfigProcessingResult, fix bool) bool {
+	if !fix {
+		return result.HasFailures
+	}
+
+	return hasUnfixableConfigRunIssues(result)
+}
+
+func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
+	totalIssues := 0
+	fixableIssues := 0
+
+	for _, ruleResult := range result.RuleResults {
+		totalIssues += len(ruleResult.CircularDependencies)
+		totalIssues += len(ruleResult.OrphanFiles)
+		totalIssues += len(ruleResult.ModuleBoundaryViolations)
+		totalIssues += len(ruleResult.UnusedNodeModules)
+		totalIssues += len(ruleResult.MissingNodeModules)
+		totalIssues += len(ruleResult.ImportConventionViolations)
+		totalIssues += len(ruleResult.UnusedExports)
+		totalIssues += len(ruleResult.UnresolvedImports)
+		totalIssues += len(ruleResult.RestrictedDevDependenciesUsageViolations)
+		totalIssues += len(ruleResult.RestrictedImportsViolations)
+
+		fixableIssues += len(ruleResult.OrphanFilesAutofixable)
+
+		for _, violation := range ruleResult.ImportConventionViolations {
+			if violation.Fix != nil {
+				fixableIssues++
+			}
+		}
+
+		for _, unusedExport := range ruleResult.UnusedExports {
+			if unusedExport.Fix != nil {
+				fixableIssues++
+			}
+		}
+	}
+
+	return totalIssues > fixableIssues
+}
+
+func processConfigRun(
+	cfg *config.RevDepConfig,
+	cwd string,
+	packageJsonPath string,
+	tsconfigJsonPath string,
+	fix bool,
+	recheck bool,
+	forceDetailed bool,
+) (*config.ConfigProcessingResult, error) {
+	result, err := config.ProcessConfig(cfg, cwd, packageJsonPath, tsconfigJsonPath, fix, forceDetailed)
+	if err != nil {
+		return nil, err
+	}
+
+	if !fix || !recheck {
+		return result, nil
+	}
+
+	recheckedResult, err := config.ProcessConfig(cfg, cwd, packageJsonPath, tsconfigJsonPath, false, forceDetailed)
+	if err != nil {
+		return nil, err
+	}
+
+	recheckedResult.FixedFilesCount = result.FixedFilesCount
+	recheckedResult.FixedImportsCount = result.FixedImportsCount
+	recheckedResult.DeletedFilesCount = result.DeletedFilesCount
+	recheckedResult.UnfixableAliasingCount = result.UnfixableAliasingCount
+
+	return recheckedResult, nil
+}
 
 // formatAndPrintConfigResults formats and prints the config processing results
 func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd string, listAll bool) {
@@ -693,6 +766,7 @@ func init() {
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
+	configRunCmd.Flags().BoolVar(&runConfigRecheck, "recheck", false, "Run all checks again after '--fix' to validate the final state")
 	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
 

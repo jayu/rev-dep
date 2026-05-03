@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([["1833"],{5513(e){e.exports=JSON.parse('{"title":"Recent posts","items":[{"title":"Welcome to Rev-Dep new documentation page","permalink":"/blog/welcome","unlisted":false,"date":"2026-05-01T00:00:00.000Z"}]}')}}]);

@@ -4,26 +4,89 @@ title: Restricted imports
 
 # Restricted imports
 
-`restrictedImportsDetection` blocks denied modules or files from selected entry points.
+`restrictedImportsDetection` blocks denied modules or files from being imported by code reachable from selected entry points.
 
-This is useful for rules like:
+## What this check does
 
-- server code must not import browser-only libraries
-- client bundles must not import Node-only modules
-- selected entry points must avoid forbidden packages
+The check builds a dependency graph starting from defined entry points. It then scans all reachable files and checks if any of their imports match the forbidden patterns defined in `denyFiles` or `denyModules`.
 
-## Important validation rules
+## Why it is important
 
-- `entryPoints` is required
-- at least one of `denyFiles` or `denyModules` is required
-- detector-level `entryPoints` do not fall back to rule-level entry points
+This check is vital for enforcing environment-specific boundaries and preventing accidental leakage of incompatible code:
 
-## Useful options
+- **Environment Isolation:** Prevents server-side logic (e.g., using `fs` or `path`) from being imported into client-side bundles, which would cause runtime errors in the browser.
+- **Security:** Can be used to block imports of sensitive modules or internal configuration files from reachable application entry points.
+- **Dependency Hygiene:** Prevents the accidental introduction of heavy or incompatible packages into sensitive parts of the application.
 
-- `graphExclude`
-- `denyFiles`
-- `denyModules`
-- `ignoreMatches`
-- `ignoreTypeImports`
+## Restricted Imports vs. Module Boundaries
 
-Use this detector when the policy is about what code reachable from specific roots may depend on, not just about direct import style.
+It is important to distinguish `restrictedImports` from [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx).
+
+- **`restrictedImports`** is centered on **reachability and entry points**. It starts from a set of defined entry points and traces the dependency graph, looking if any unwanted file path path is imported transitively. It works on an dependency graph level.
+- **`moduleBoundaries`** is centered on **colocation and patterns**. It checks the relationship between files based on their paths: "If a file matching pattern A imports a file matching pattern B, it is a violation." It works on a file-to-file level.
+
+## Configuration
+
+Below is a comprehensive example demonstrating how to use all available options.
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": false,
+        "entryPoints": ["src/server.ts", "src/api/**/*.ts"],
+        "graphExclude": ["**/*.test.ts"],
+        "denyFiles": ["src/secrets/*"],
+        "denyModules": ["some-internal-package"],
+        "ignoreMatches": ["src/secrets/public-keys.ts"],
+      }
+    }
+  ]
+}
+```
+
+## Defining multiple restricted imports rules
+
+Configuration file supports defining multiple `restrictedImportsDetection` rules within the same workspace. 
+
+This allows to evaluate different dependency graphs (starting from different entry points) within the same workspace.
+
+Simply define `restrictedImportsDetection` as an array of detectors:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "restrictedImportsDetection": [{
+        // Front-end pages cannot import server-only files
+        "enabled": true,
+        "entryPoints": ["src/pages/**/*.tsx"],
+        "denyFiles": ["src/server/*"],
+      },{
+        // Server cannot import files with JSX
+        "enabled": true,
+        "entryPoints": ["src/server/index.ts"],
+        "denyFiles": ["**/*.tsx"],
+      }]
+    }
+  ]
+}
+```
+
+
+
+## Options
+
+- `enabled` (boolean): Whether to enable restricted imports detection.
+- `entryPoints` (array of strings): The starting points for the dependency graph analysis. Note that unlike other checks, these do not fall back to rule-level entry points.
+- `graphExclude` (array of strings): Glob patterns to exclude certain files from the dependency graph analysis.
+- `denyFiles` (array of strings): Glob patterns for file paths that are forbidden from being imported.
+- `denyModules` (array of strings): Glob patterns for module names that are forbidden from being imported.
+- `ignoreMatches` (array of strings): File or module patterns to ignore in the final detection results. Use it as an exception to deny rules.
+- `ignoreTypeImports` (boolean): Whether to exclude type-only imports from the dependency graph traversal.
+
+**Note:** At least one of `denyFiles` or `denyModules` must be provided for the check to be valid.

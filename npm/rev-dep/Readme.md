@@ -1312,7 +1312,7 @@ It can represent:
 * an individual page or feature
 * configuration or test bootstrap files
 
-— depending on the project structure.
+- depending on the project structure.
 
 ### Unused / Dead file
 

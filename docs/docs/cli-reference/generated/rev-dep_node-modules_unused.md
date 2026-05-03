@@ -29,7 +29,7 @@ rev-dep node-modules unused --exclude-modules=@types/*
   -e, --exclude-modules strings                                     list of modules to exclude from the output
   -b, --files-with-binaries strings                                 Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings                             Additional files to search for module imports. Use paths relative to cwd
-      --follow-monorepo-packages strings[=__REV_DEP_FOLLOW_ALL__]   Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
   -h, --help                                                        help for unused
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
   -i, --include-modules strings                                     list of modules to include in the output

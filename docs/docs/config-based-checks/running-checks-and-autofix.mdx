@@ -1,0 +1,73 @@
+---
+title: Running checks and autofix
+---
+
+# Running checks and autofix
+
+## Running checks
+
+Run all enabled checks:
+
+```bash
+rev-dep config run
+```
+
+List every issue instead of the default truncated output:
+
+```bash
+rev-dep config run --list-all-issues
+```
+
+Can also run specific rules/workspaces:
+
+```bash
+rev-dep config run --rules packages/app,packages/shared
+```
+
+### Output formats
+
+Information about the supported output formats can be found in [Output formats](./output-formats.mdx).
+
+### Exit code
+
+- Exit code `0` when all enabled checks pass
+- Exit code `1` when violations exist
+
+## Using AutoFix
+
+Some checks can automatically apply fixes when both of these are true:
+
+- the check supports autofix
+- you run `rev-dep config run --fix`
+
+### Fixable detectors
+
+- `importConventions`
+- `unusedExportsDetection`
+- `orphanFilesDetection`
+
+Note that `autofix: true` must be set in the config for the detector be fixable.
+
+### Exit code nuance with `--fix` and `--recheck`
+
+Using `--fix` flag adjust the source code, but do not perform validation after the fixes are applied. 
+
+This means it will still exit with code `1`.
+
+To perform a re-check after applying fixes, you can use the `--recheck` flag in combination with `--fix`:
+
+```bash
+rev-dep config run --fix --recheck
+```
+
+Additional pass will be performed to check if all issues are resolved.
+
+### Autofixing orphan files issues
+
+Note that autofixing orphan files issues removes the orphan file. 
+
+Removing one orphan file can cause another file to become orphan.
+
+Running `rev-dep config run --fix` several times might be needed to remove all orphan files.
+
+

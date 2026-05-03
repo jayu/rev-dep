@@ -4,30 +4,61 @@ title: Module boundaries
 
 # Module boundaries
 
-Use `moduleBoundaries` when you want to ban imports across architectural layers or domains.
+`moduleBoundaries` enforces architectural constraints by preventing files in certain directories (or patterns) from importing files in other forbidden directories.
+
+## What this check does
+
+The check looks at files matching a specific `pattern` and analyzes their import statements. If any of these imports match a pattern listed in the `deny` list, a violation is reported. You can also use the `allow` list to permit specific exceptions to a broader `deny` rule.
+
+## Why it is important
+
+Maintaining clear boundaries is crucial for the long-scale health of a codebase:
+
+- **Architectural Integrity:** It prevents "spaghetti dependencies" where any part of the system can import any other part, leading to an unmanageable dependency graph.
+- **Layer Separation:** It ensures that higher-level layers (like UI) cannot depend on lower-level implementation details (like database internals) that should be hidden.
+- **Feature Isolation:** It helps maintain the independence of features or packages, making them easier to test, refont, or even extract into separate repositories.
+- **Monorepo Governance:** It is highly effective for enforcing boundaries between monorepo packages, such as preventing a mobile app package from accidentally importing server-side logic.
+
+It's especially important in an increasingly agentic development landscape, preventing AI agents from introducing structural regressions or violating design principles they may not be contextually aware of.
+
+## Module Boundaries vs. Restricted Imports
+
+It is important to distinguish `moduleBoundaries` from [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx).
+
+- **`moduleBoundaries`** is centered on **colocation and patterns**. It checks the relationship between files based on their paths: "If a file matching pattern A imports a file matching pattern B, it is a violation." It works on a file-to-file level.
+- **`restrictedImports`** is centered on **reachability and entry points**. It starts from a set of defined entry points and traces the dependency graph, looking if any unwanted file path path is imported transitively. It works on an dependency graph level.
+
+## Configuration
+
+Below is an example of how `moduleBoundaries` fits within the `rules` array:
 
 ```json
-"moduleBoundaries": [
-  {
-    "name": "ui-cannot-import-api",
-    "pattern": "src/ui/**/*",
-    "deny": ["src/api/**/*"]
-  }
-]
+{
+  "rules": [
+    {
+      "path": ".",
+      "moduleBoundaries": [
+        {
+          "name": "ui-cannot-import-api",
+          "pattern": "src/ui/**",
+          "deny": ["src/api/**"]
+        },
+        {
+          "name": "feature-isolation",
+          "pattern": "src/features/auth/**",
+          "deny": ["src/features/payment/**"]
+        }
+      ]
+    }
+  ]
+}
 ```
 
-Best for stable rules like feature isolation, layer direction, and package-local boundaries.
+## Options
 
-## How `allow` and `deny` interact
+Each boundary rule consists of:
 
-- `pattern` defines which importing files belong to the boundary.
-- `allow` defines what those files may import.
-- `deny` overrides `allow` for explicitly forbidden paths.
-
-This makes the detector useful for both broad layer rules and fine-grained carve-outs.
-
-## Good use cases
-
-- UI may import shared utilities but not API internals
-- feature packages may not import sibling feature internals
-- package-local source must not reach into another package's private folders
+- `name` (string): A descriptive name for the boundary rule.
+- `pattern` (string): The glob pattern defining which importing files belong to this boundary.
+- `deny` (array of strings): A list of glob patterns that are forbidden for the files matching the `pattern`.
+- `allow` (array of strings, optional): A list of glob patterns that are explicitly permitted, overriding the `deny` list for specific cases.

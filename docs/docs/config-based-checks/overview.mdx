@@ -4,29 +4,29 @@ title: Overview
 
 # Config-Based Checks
 
-`rev-dep config run` is the preferred way to enforce dependency hygiene across a project. It executes enabled checks per rule in one pass instead of repeating similar work command-by-command.
+Execution of checks based on a configuration file is designed to optimize the speed of running multiple checks for many workspaces at once.
 
-## Best Use Cases
+All checks are executed in a single pass, each file is read and parsed only once, which allows for significant resource savings.
 
-- CI enforcement
-- team-wide architecture rules
-- dead code cleanup
-- dependency declaration hygiene
-- incremental hardening of a large codebase
+Additionally set of detectors for each rule (typically workspace) is executed in parallel and particular detectors within each rule are also executed in parallel utilizing all available CPU cores in optimal way.
 
-## How The Model Works
+Adding more detectors usually increases overall execution time only by few milliseconds, which makes **rev-dep** an excellent choice for huge monorepos.
 
-- A config file contains top-level defaults and one or more `rules`.
-- Each rule targets a `path`.
-- A rule enables one or more checks.
-- Entry points define what counts as reachable production and development code.
+<p align="center">
+<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output" width="400"/>
+</p>
 
-## Typical Rollout
+## Checks overview
 
-1. Generate the config.
-2. Define entry points.
-3. Enable a few low-ambiguity checks.
-4. Fix obvious issues.
-5. Add architecture and style enforcement once the graph is trustworthy.
+Available checks are:
 
-Next: [Config file structure](./config-file-structure.mdx)
+- `moduleBoundaries` - enforce architecture boundaries between modules.
+- `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
+- `importConventions` - enforce import style conventions (offers autofix).
+- `circularImportsDetection` - detect circular imports.
+- `orphanFilesDetection` - detect dead/orphan files (offers autofix).
+- `unusedExportsDetection` - detect exports that are never used (offers autofix).
+- `unusedNodeModulesDetection` - detect dependencies declared but not used.
+- `missingNodeModulesDetection` - detect imports missing from package json.
+- `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
+- `unresolvedImportsDetection` - detect unresolved import requests.

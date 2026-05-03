@@ -10,21 +10,68 @@ Use it after entry points are trustworthy. Incomplete entry points make live exp
 
 Autofix is available for straightforward cases.
 
-## Useful options
+## What this check does
 
-- `validEntryPoints`: files whose exports should be treated as valid public API roots and never reported as unused
-- `ignoreTypeExports`: skip `export type` and interface-style exports
-- `graphExclude`: exclude files from the graph used by this detector
-- `ignoreFiles`: ignore all unused-export findings for matching files
-- `ignoreExports`: ignore selected export names or globs globally
-- `ignore`: ignore export names per matching file glob
+`unusedExportsDetection` analyzes the dependency graph starting from the defined entry/root entry points. It identifies any exported members (functions, classes, variables, etc.) that are not reachable via any `import` or `require` statement from the project's entry points.
 
-## Typical pattern
+This allows you to identify dead code that can be safely removed to improve maintainability and reduce bundle size.
 
-Use `validEntryPoints` for files like:
+## Why it is important
 
-- `src/index.ts`
-- `src/public-api.ts`
-- package root barrel files
+- **Reduces Dead Code**: Automatically identifies code that can be safely removed, keeping the codebase clean.
+- **Improves Bundle Size**: Removing unused exports helps keep production bundles small and efficient.
+- **Improves Maintainability**: Easier to navigate and understand the codebase when dead exports are eliminated.
 
-That keeps the detector focused on internal dead exports instead of public surface files that intentionally re-export many things.
+## Monorepo Note
+
+When working in a monorepo, detecting unused exports might work best at the workspace root. This allows the detector to have context of all packages and check whether a dimension of a *given* export is used across the entire monorepo, not just within a single workspace.
+
+{/*
+// TODO full-docs
+
+## Troubleshooting
+
+If you see reported false positives, follow [Unused exports in shared workspace packages](docs/docs/troubleshooting/unused-exports-in-shared-workspace-packages.mdx) guide.
+
+*/}
+
+## Configuration
+
+Below is an example of how `unusedExportsDetection` fits within the `rules` array. It demonstrates defining general production and development entry points at the **rule level**.
+
+It showcases the possibility of then overriding them with specific `validEntryPoints` at the **check level** when necessary.
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.ts"],
+      "devEntryPoints": ["**/*.test.ts"],
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true,
+        // overrides the rule-level entry points settings for this check
+        "validEntryPoints": ["src/specific-entry.ts"],
+        "ignoreFiles": ["**/legacy.ts"],
+        "ignoreExports": ["legacyExport"],
+        "ignoreTypeExports": true,
+        "ignore": {
+          "**/types.ts": ["Foo*", "Bar*"]
+        }
+      }
+    }
+  ]
+}
+```
+
+## Options
+
+- `enabled`: Enables the unused exports check.
+- `validEntryPoints`: Files whose exports should be treated as valid public API roots and never reported as unused.
+- `ignoreTypeExports`: Skip `export type` and interface-style exports.
+- `ignoreFiles`: Ignore all unused-export findings for matching files.
+- `ignoreExports`: Ignore selected export names or globs globally.
+- `ignore`: Ignore specific export names for matching file globs (e.g., `{"**/types.ts": "Foo*"}`).
+- `graphExclude`: Exclude files from the dependency graph used by this detector.
+- `autofix`: Enables automatic removal of the `export` keyword for unused exports.

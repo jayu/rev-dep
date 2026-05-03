@@ -1,5 +1,5 @@
 ---
-title: Entry points
+title: Entry points definition
 ---
 
 # Entry points
@@ -11,7 +11,7 @@ Entry points are the foundation of graph-based checks. They tell `rev-dep` which
 - `prodEntryPoints`: application code that ships or runs in production
 - `devEntryPoints`: tests, scripts, Storybook, build files, and other development-only entry points
 
-## Why They Matter
+## Why they matter
 
 These checks depend heavily on entry points:
 
@@ -21,13 +21,11 @@ These checks depend heavily on entry points:
 
 If entry points are incomplete, reachable files may look orphaned and real tooling packages may look unused.
 
-Restricted imports are different: `restrictedImportsDetection` requires its own `entryPoints` field and does not fall back to rule-level `prodEntryPoints` or `devEntryPoints`.
-
 ## Good defaults
 
 ```json
 {
-  "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+  "prodEntryPoints": ["src/index.ts*", "src/pages/**/*.ts*"],
   "devEntryPoints": ["scripts/**", "**/*.test.ts", ".storybook/**/*.ts"]
 }
 ```
@@ -40,9 +38,9 @@ Most reachability-based detectors use rule-level `prodEntryPoints` and `devEntry
 
 Some detectors also expose their own narrower knobs:
 
-- `orphanFilesDetection.validEntryPoints`
-- `unusedExportsDetection.validEntryPoints`
-- `devDepsUsageOnProdDetection.prodEntryPoints`
+- `orphanFilesDetection` - `validEntryPoints`
+- `unusedExportsDetection` - `validEntryPoints`
+- `devDepsUsageOnProdDetection` - `prodEntryPoints`
 
 Use those when one detector needs a smaller or more specific set of roots than the whole rule.
 
@@ -56,4 +54,15 @@ Good candidates:
 - local tooling entry scripts
 - code generation entry files
 
-Not every build-tool dependency becomes visible just because it appears in `devEntryPoints`, but including the files that your team actually owns is still the right first step.
+In practice all not imported files that are in use for something should be added dev entry points. 
+
+## Dealing with very long list of entry points
+
+Some real life huge projects might have tens of entry points in different folders.
+
+Good practice to keep the config lean is to group them by folders and use glob patterns to include all files in the folder.
+
+If folders does not work, you can use file extension pattern like `**/*.generated.ts` or `**/*.test.ts`
+
+With good convention in place, it's easier to add new entry points without needing to update the config every time.
+

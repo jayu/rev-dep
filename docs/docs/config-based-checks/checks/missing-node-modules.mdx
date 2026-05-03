@@ -4,25 +4,53 @@ title: Missing node modules
 
 # Missing node modules
 
-`missingNodeModulesDetection` flags imported packages that are not declared in the relevant `package.json`.
+`missingNodeModulesDetection` identifies imports of packages that are not declared in your `package.json`.
 
-Most useful when:
+## What this check does
 
-- package boundaries are clear
-- imports are statically analyzable
-- alias and import-map configuration is already understood by `rev-dep`
+The check scans your codebase for import statements referencing external modules. It then cross-references these imports against the `dependencies` and `devDependencies` listed in your `package.json`. If an import is found that does not exist in the dependency list, it is flagged as a violation.
 
-## Useful options
+## Why it is a problem
 
-- `includeModules`
-- `excludeModules`
-- `outputType`
+Failing to declare dependencies in `package.json` can lead to several critical issues:
 
-## Output types
+- **Runtime Failures:** Your application might work locally because the module happens to be present in your local `node_modules` (e.g., from a previous manual install), but it will fail in CI/CD or production environments where a fresh `npm install` is performed.
+- **Broken Builds:** Automated build pipelines will fail if they cannot resolve the required modules.
+- **Implicit Dependency Risks:** You might be using a module that is currently present because it is a transitive dependency of another package. However, since you don't have direct control over its version, an update to that other package could change the dependency tree, remove the module, or relocate it (via package manager hoisting), causing your application to break in an unpredictable way.
 
-- `list`
-- `groupByModule`
-- `groupByFile`
-- `groupByModuleFilesCount`
+## Configuration
 
-The grouped outputs are useful when you want to prioritize fixes by package or by import site count instead of reading a flat list.
+Below is an example of how `missingNodeModulesDetection` fits within the `rules` array in your configuration:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "missingNodeModulesDetection": {
+        "enabled": true,
+        "excludeModules": ["my-custom-local-hacked-module", "lodash"],
+        "outputType": "groupByModule"
+      }
+    }
+  ]
+}
+```
+
+## Options
+
+- `enabled` (boolean): Whether to enable missing node modules detection.
+- `includeModules` (array of strings): A list of specific modules to include in the analysis.
+- `excludeModules` (array of strings): A list of modules to exclude from the analysis.
+- `outputType` (string): Defines how the results are presented. Supported values:
+    - `list`: A flat list of all violations.
+    - `groupByModule`: Organizes results by the name of the missing module.
+    - `groupByFile`: Organizes results by the file path where the missing import was found.
+    - `groupByModuleFilesCount`: Organizes results by the missing module and shows how many files are importing it.
+
+{/*
+// TODO full-docs
+---
+
+**Follow this guide if you see reported false positives:** [docs/docs/troubleshooting/missing-dependency-false-positives.mdx](docs/docs/troubleshooting/missing-dependency-false-positives.mdx)
+*/}

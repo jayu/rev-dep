@@ -26,7 +26,7 @@ rev-dep files --entry-point src/index.ts
   -n, --count                                                       Only display the count of files in the dependency tree
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
   -p, --entry-point string                                          Entry point file to analyze (required)
-      --follow-monorepo-packages strings[=__REV_DEP_FOLLOW_ALL__]   Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
   -h, --help                                                        help for files
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --package-json string                                         Path to package.json (default: ./package.json)

@@ -8,23 +8,71 @@ title: Unused node modules
 
 It is best for finding stale runtime dependencies. It is less authoritative for build-only tooling that may be referenced indirectly through scripts or config ecosystems.
 
-See [Missing dependency false positives](../../guides/missing-dependency-false-positives.mdx).
+## What this check does
 
-## Useful options
+The check compares the dependencies declared in your `package.json` with the modules that are actually used in your codebase. A dependency is considered **used** if it matches any of the following checks:
 
-- `includeModules`
-- `excludeModules`
-- `pkgJsonFieldsWithBinaries`
-- `filesWithBinaries`
-- `filesWithModules`
-- `outputType`
+- **Import analysis in JS/TS source files**: The dependency tree is traversed and every `import` or `require` that resolves to a package name marks that package as used.
+- **Binary usage in `package.json` scripts**: For each declared dependency, `rev-dep` reads its own `package.json` (from `node_modules/`) and collects binary names from the `bin` field. It then checks whether any of those binary names appear as a substring in any `scripts` entry of `package.json` that declares this dependency.
+- **`@types/*` pairing**: An `@types/foo` package is considered used if `foo` itself is used (imported in any JS/TS source file).
+- **`tsconfig.json` `compilerOptions.types`**: Packages listed in `compilerOptions.types` (e.g., `["jest", "node"]`) are marked as used as `@types/<name>`.
 
-## Why the binary-related options exist
+Any dependency that is listed but fails all these checks is flagged as unused.
 
-Some repos invoke tooling through package.json scripts, local wrapper files, or module strings that are not ordinary source imports. These fields let you teach the detector about those additional usage signals instead of pretending every dependency is referenced through `import` statements alone.
+## Why it is important
 
-## Output types
+- **Reduces Bundle Size**: Removing unused dependencies helps keep your production bundles small and efficient.
+- **Improves Maintainability**: A cleaner `package.json` makes it easier to manage dependencies and understand the project's actual requirements.
+- **Security**: Reducing the number of installed packages minimizes the attack surface of your application.
+- **Faster CI/Development**: Fewer dependencies lead to faster installation times and reduced CI execution duration.
 
-- `list`
-- `groupByModule`
-- `groupByFile`
+## Configuration
+
+Below is an example of how `unusedNodeModulesDetection` fits within the `rules` array. It demonstrates defining general production and development entry points at the **rule level**.
+
+It showcase possibility of then overriding them with specific `validEntryPoints` at the **check level** when necessary.
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.ts"],
+      "devEntryPoints": ["**/*.test.ts"],
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["some-important-module"],
+        "excludeModules": ["some-unimportant-module"],
+        "pkgJsonFieldsWithBinaries": ["scripts"],
+        "filesWithBinaries": ["**/*.sh"],
+        "filesWithModules": ["**/*.config.js"],
+        "outputType": "groupByModule"
+      }
+    }
+  ]
+}
+```
+
+
+
+## Detecting usage of node modules outside of JS/TS source code files
+
+Sometimes, a dependency is used in ways that are not captured by standard `import` or `require` statements (e.g., TypeScript is marked as unused because `tsc` is not in your `package.json` scripts and `typescript` is not imported in your code).
+
+To bypass this detection gap, you can configure `rev-dep` to perform a plain-text match against package names or binary names in additional locations:
+
+- **`pkgJsonFieldsWithBinaries`**: Additional `package.json` fields (e.g., `lint-staged`) to search for binary names via plain-text match.
+- **`filesWithBinaries`**: Additional files to search for binary names via plain-text match (e.g., adding your `*.yaml` CI files).
+- **`filesWithModules`**: Additional files to search for package names via plain-text match. Eg. webpack config that list plugins by name without importing them.
+
+This allows to point the detector to additional locations instead of excluding modules from analysis altogether, which is a more precise way to reduce false positives.
+
+## Options
+
+- `enabled`: Enables the unused node modules detection.
+- `includeModules`: Modules to include in analysis.
+- `excludeModules`: Modules to exclude from analysis.
+- `pkgJsonFieldsWithBinaries`: Package.json fields that contain binaries.
+- `filesWithBinaries`: Files that contain binaries.
+- `filesWithModules`: Files that contain modules.
+- `outputType`: Output format type (`list`, `groupByModule`, or `groupByFile`).

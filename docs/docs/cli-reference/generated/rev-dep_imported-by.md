@@ -26,7 +26,7 @@ rev-dep imported-by --file src/utils/helpers.ts
   -n, --count                                                       Only display the count of importing files
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
   -f, --file string                                                 Target file to find importers for (required)
-      --follow-monorepo-packages strings[=__REV_DEP_FOLLOW_ALL__]   Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
   -h, --help                                                        help for imported-by
       --list-imports                                                List the import identifiers used by each file
       --package-json string                                         Path to package.json (default: ./package.json)

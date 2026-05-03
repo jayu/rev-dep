@@ -25,7 +25,7 @@ rev-dep circular --ignore-types-imports
       --algorithm string                                            Cycle detection algorithm: DFS (default) or SCC (default "DFS")
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-      --follow-monorepo-packages strings[=__REV_DEP_FOLLOW_ALL__]   Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
   -h, --help                                                        help for circular
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --package-json string                                         Path to package.json (default: ./package.json)

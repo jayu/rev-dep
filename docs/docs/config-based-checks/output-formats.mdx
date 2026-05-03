@@ -6,18 +6,29 @@ title: Output formats
 
 By default, `rev-dep config run` prints human-readable output for local use.
 
+It truncates the list of displayed issues to up to 5 per detector.
+
+```bash
+rev-dep config run
+```
+
+If you will to list all issues without truncation, use:
+
+```bash
+rev-dep config run --list-all-issues
+```
+
+## JSON output
+
 For CI integrations and machine consumers, use:
 
 ```bash
 rev-dep config run --format json
 ```
 
-## JSON output
-
 - returns all issues, not the usual truncated view
 - includes overall failure state
 - includes rule-level and check-level results
-- is versioned separately from internal Go types
 - includes fix summary counts
 - includes issue locations where rev-dep can resolve them from the analyzed tree
 
@@ -31,11 +42,11 @@ For a compact, grep-friendly text view, use:
 rev-dep config run --format issues-list
 ```
 
-This groups issues by type and prints location-oriented output such as:
+This groups issues by type and prints location-oriented output.
 
-- orphan file paths
-- unresolved import locations
-- missing module import sites
-- import convention violation sites
+If no issues are found, it prints `No issues found`
 
-It is useful when you want more structure than the default human output without committing to JSON parsing.
+## Exit code
+
+- `0` when all enabled checks pass
+- `1` when failures exist

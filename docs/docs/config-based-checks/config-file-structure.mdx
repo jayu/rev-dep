@@ -4,58 +4,84 @@ title: Config file structure
 
 # Config file structure
 
-The config file can be named `rev-dep.config.json`, `rev-dep.config.jsonc`, `.rev-dep.config.json`, or `.rev-dep.config.jsonc`.
+To get started, initialise your config:
+
+```bash
+rev-dep config init
+```
+
+Rev-dep automatically detects project context and creates scaffolding for each workspace package it discovers.
+
+> The config file can be named `rev-dep.config.json`, `rev-dep.config.jsonc`, `.rev-dep.config.json`, or `.rev-dep.config.jsonc` depending on your preference.
 
 ## Top-level fields
 
-- `configVersion`
-- `$schema`
-- `conditionNames`
-- `customAssetExtensions`
-- `ignoreFiles`
-- `processIgnoredFiles`
-- `rules`
-
-### What these fields do
-
+- `configVersion`: Configuration version string
+- `$schema`: JSON schema reference for validation
 - `conditionNames`: custom condition order for `package.json` imports/exports resolution.
-- `customAssetExtensions`: extensions that should be treated as resolvable imports instead of unresolved noise.
+- `customAssetExtensions`: additional extensions that should be treated as resolvable imports.
 - `ignoreFiles`: files excluded from analysis by rev-dep config, in addition to gitignored files.
 - `processIgnoredFiles`: files that should still be processed even if gitignore or ignore patterns would normally skip them.
+- `rules`: array of rules defining checks for different parts of the codebase. Typically single rule defines checks for single workspace package. However, you can have multiple rules with the same `path` if that's needed.
+
+> Name `rules` might be confusing, it's a bad design choice made at the beginning. This will be likely renamed to `workspaces` or `scopes` in next major release to better reflect how it is actually being used.
 
 ## Rule-level fields
 
 Each rule must define:
 
-- `path`
+- `path` - relative path to the workspace package that this rule applies to. Can be `.` for the root package.
 
 And can additionally define:
 
-- `followMonorepoPackages`
-- `prodEntryPoints`
-- `devEntryPoints`
-- any enabled checks
+- `followMonorepoPackages`: Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
+- `prodEntryPoints`: Rule-level production entry point patterns for detector defaults
+- `devEntryPoints`: Rule-level development entry point patterns for detector defaults
 
-## Important behavior
+And any detector setup:
+- [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx): Array of module boundary rules
+- [`restrictedImportsDetection`](config-based-checks/checks/restricted-imports.mdx): Restrict importing denied files/modules from selected entry points
+- [`importConventions`](config-based-checks/checks/import-conventions.mdx): Array of import convention rules
+- [`circularImportsDetection`](config-based-checks/checks/circular-imports.mdx): Circular import detection configuration
+- [`orphanFilesDetection`](config-based-checks/checks/orphan-files.mdx): Orphan files detection configuration
+- [`unusedExportsDetection`](config-based-checks/checks/unused-exports.mdx): Unused exports detection configuration
+- [`unusedNodeModulesDetection`](config-based-checks/checks/unused-node-modules.mdx): Unused node modules detection configuration
+- [`missingNodeModulesDetection`](config-based-checks/checks/missing-node-modules.mdx): Missing node modules detection configuration
+- [`devDepsUsageOnProdDetection`](config-based-checks/checks/dev-deps-on-prod.mdx): Restricted dev dependencies usage detection configuration
+- [`unresolvedImportsDetection`](config-based-checks/checks/unresolved-imports.mdx): Unresolved imports detection configuration
 
-- `rev-dep` supports `.json` and `.jsonc` config files, including hidden variants.
-- Only one config file variant may exist in a directory. Multiple variants are treated as an error.
-- `configVersion` must be one of the versions supported by the current CLI release.
-- Several detector fields accept either a single object or an array of objects. Arrays are useful when you want multiple independently configured runs of the same detector within one rule.
+> Detectors can be defined as **a single object or an array of objects**. Defining multiple configurations for the same detector allows to run it multiple times with different settings (e.g., different entry points or different deny rules for restricted imports) within the same rule.
 
-## Starter example
+## Quick Start configuration
 
-```jsonc
+```json
 {
   "configVersion": "1.7",
+  // enables json autocompletion
   "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
   "rules": [
     {
       "path": ".",
-      "prodEntryPoints": ["src/main.tsx"],
-      "devEntryPoints": ["scripts/**", "**/*.test.ts"],
-      "circularImportsDetection": {"enabled": true},
-      "unusedNodeModulesDetection": {"enabled": true}
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+      "devEntryPoints": ["scripts/**", "**/*.test.*"],
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "autofix": true
+      },
+      "unusedNodeModulesDetection": { 
+        "enabled": true 
+      },
+      "circularImportsDetection": { 
+        "enabled": true 
+      },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true
+      }
     }
   ]
 }
@@ -63,34 +89,114 @@ And can additionally define:
 
 Use the schema URL for editor autocomplete and validation.
 
-## A fuller example
+## Comprehensive Config Example
 
-```jsonc
+Here's a comprehensive example showing all available properties:
+
+```json
 {
   "configVersion": "1.7",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
-  "conditionNames": ["node", "default"],
-  "customAssetExtensions": ["glb", "mp3"],
-  "ignoreFiles": ["**/*.snap.ts"],
-  "processIgnoredFiles": ["dist/**/*.generated.ts"],
+  // enables json autocompletion
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true", 
+  "conditionNames": ["import", "default"],
+  "ignoreFiles": ["**/*.test.*"],
   "rules": [
     {
       "path": ".",
-      "followMonorepoPackages": false,
-      "prodEntryPoints": ["src/main.tsx"],
-      "devEntryPoints": ["scripts/**", "**/*.test.ts"],
+      "followMonorepoPackages": true,
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"],
+      "devEntryPoints": ["scripts/**", "**/*.test.*"],
+      "moduleBoundaries": [
+        {
+          "name": "ui-components",
+          "pattern": "src/components/**/*",
+          "allow": ["src/utils/**/*", "src/types/**/*"],
+          "deny": ["src/api/**/*"]
+        },
+        {
+          "name": "api-layer",
+          "pattern": "src/api/**/*",
+          "allow": ["src/utils/**/*", "src/types/**/*"],
+          "deny": ["src/components/**/*"]
+        }
+      ],
+      "importConventions": [
+        {
+          "rule": "relative-internal-absolute-external",
+          "autofix": true,
+          "domains": [
+            {
+              "path": "src/features/auth",
+              "alias": "@auth",
+              "enabled": true
+            },
+            {
+              "path": "src/shared/ui",
+              "alias": "@ui-kit",
+              "enabled": false // checks disabled for this domain, but alias is still used for absolute imports from other domains
+            }
+          ]
+        }
+      ],
       "circularImportsDetection": {
         "enabled": true,
+        "ignoreTypeImports": true
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
         "ignoreTypeImports": true,
-        "algorithm": "DFS"
+        "graphExclude": ["**/*.test.*", "**/stories/**/*"],
+        "autofix": true
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["@myorg/**"],
+        "excludeModules": ["@types/**"],
+        "pkgJsonFieldsWithBinaries": ["scripts", "bin"],
+        "filesWithBinaries": ["scripts/check-something.sh"],
+        "filesWithModules": [".storybook/main.ts"],
+        "outputType": "groupByModule"
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["lodash", "axios"],
+        "excludeModules": ["@types/**"],
+        "outputType": "groupByFile"
+      },
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true,
+        "ignoreTypeExports": true,
+        "graphExclude": ["**/*.stories.tsx"],
+        "ignore": {
+          "src/types.ts": "B*",
+          "**/generated/**/*.ts": "*"
+        },
+        "ignoreFiles": ["**/*.generated.ts"],
+        "ignoreExports": ["default", "unused*"],
       },
       "unresolvedImportsDetection": {
         "enabled": true,
-        "ignoreImports": ["virtual:*"]
+        "ignore": {
+          "src/index.ts": "legacy-*"
+        },
+        "ignoreFiles": ["**/*.generated.ts"],
+        "ignoreImports": ["@internal/*"]
+      },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true
+      },
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["src/server.ts", "src/server/**/*.ts"],
+        "graphExclude": ["some-file-coupling-other-files.ts"],
+        "denyFiles": ["**/*.tsx"],
+        "denyModules": ["react", "react-*"],
+        "ignoreMatches": ["src/server/allowed-view.tsx", "react-awesome-lib"],
+        "ignoreTypeImports": true
       }
     }
   ]
 }
 ```
-
-Use top-level fields for cross-rule defaults. Use rule-level fields when a package or directory really needs different graph behavior.

@@ -1,0 +1,57 @@
+---
+title: Installation and Quick Start
+---
+
+# Installation
+
+For project checks, install `rev-dep` as a development dependency.
+
+```bash
+pnpm add -D rev-dep
+```
+
+```bash
+npm install -D rev-dep
+```
+
+```bash
+yarn add -D rev-dep
+```
+
+Global installation is fine for one-off CLI use, but local installation is the better default for teams and CI.
+
+## Initialize Configuration
+
+Create a configuration file to start defining your and rules:
+
+```bash
+npx rev-dep config init
+```
+
+> More about [config file structure](config-based-checks/config-file-structure.mdx).
+
+Exec the configuration file:
+
+```bash
+npx rev-dep config run
+```
+
+
+{/*
+// TODO full-docs
+### Working with Monorepo?
+
+Check [Detailed Monorepo Integration Guide](./monorepo-integration-guide.mdx)
+
+### Single Workspace Project?
+
+Check [Detailed Single Workspace Integration Guide](./single-workspace-integration-guide.mdx)
+*/}
+
+## Run a Exploratory Toolkit Check
+
+If you just want to look around, use exploratory toolkit. For example detect circular imports in your project:
+
+```bash
+npx rev-dep circular
+```

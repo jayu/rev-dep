@@ -6,19 +6,50 @@ title: Unresolved imports
 
 `unresolvedImportsDetection` reports import requests that `rev-dep` cannot resolve.
 
-Common causes:
+## What this check does
 
-- wrong path
-- missing file extension support
-- unsupported or misconfigured aliases
-- `package.json` imports/exports or tsconfig path setups that need extra configuration
+The check scans the codebase for import statements and attempts to resolve each import request to a physical file or module. If an import cannot be successfully resolved (e.g., due to a missing file, incorrect path, or misconfigured alias), it is flagged as an unresolved import.
 
-When this check fails, read [Unresolved imports troubleshooting](../../guides/unresolved-imports-troubleshooting.mdx).
+## Why this is important
 
-## Useful options
+Unresolved imports are critical errors that directly impact the stability and usability of your application:
 
-- `ignoreFiles`
-- `ignoreImports`
-- `ignore`
+- **Broken Applications:** Unresolved imports often result in runtime errors or build failures, as the required code is simply not available.
+- **Dependency Integrity:** They can signal issues with your `package.json` configuration, `tsconfig.json` aliases, or `package.json` `imports`/`exports` maps.
+- **Bug in rev-dep itself:** If you believe an import should be resolvable but is reported as unresolved, it may indicate a bug in `rev-dep`'s parsing or resolution logic. Please [report such cases](https://github.com/jayu/rev-dep/issues) to help improve the tool.
 
-Use `ignore` when the exception depends on both file pattern and import request. Use the global lists when the exception is broader.
+{/*
+// TODO full-docs
+Follow [Unresolved Imports Troubleshooting Guide](troubleshooting/unresolved-imports-troubleshooting.mdx) if you encounter unresolved imports that should be resolvable.
+*/}
+
+## Configuration
+
+Below is an example of how `unresolvedImportsDetection` fits within the `rules` array, demonstrating how to use various ignore options:
+
+```json
+{
+  "configVersion": "1.0",
+  "rules": [
+    {
+      "path": ".",
+      "unresolvedImportsDetection": {
+        "enabled": true,
+        "ignoreFiles": ["**/*.test.ts"],
+        "ignoreImports": ["some-external-pkg/*"],
+        "ignore": {
+          "src/some/path/to/file.ts": ["import-specifier-to-ignore", "another-import-to-ignore"],
+        }
+      }
+    }
+  ]
+}
+```
+
+## Options
+
+- `enabled` (boolean): Whether to enable unresolved imports detection.
+- `ignoreFiles` (array of strings): Glob patterns for files whose unresolved imports should be ignored.
+- `ignoreImports` (array of strings): Import requests (or globs) to ignore globally in unresolved imports results.
+- `ignore` (object): A map where the key is a file path glob (relative to the rule path) and the value is an import request glob (or string) to ignore for that specific file. Use this when an exception depends on both the file location and the import itself.
+

@@ -8,13 +8,43 @@ title: Circular imports
 
 This is usually one of the best first checks to enable because the signal is high and the intent is straightforward.
 
-If your codebase uses many type-only imports, consider `ignoreTypeImports` where appropriate.
+## Circular imports problem
 
-## Algorithms
+Circular imports occur when two or more modules depend on each other, either directly or indirectly. This can lead to several issues:
 
-Two algorithms are available:
+- **Runtime issues:** In JavaScript/TypeScript, circular dependencies can lead to partially initialized modules, where a module is imported but its exports are not yet fully evaluated, causing `undefined` or other unexpected values at runtime.
+- **Complexity:** They make the dependency graph harder to reason about and can significantly increase the difficulty of refactoring.
+- **Architectural decay:** They often signal a violation of module boundaries and a lack of clear architectural layers.
 
-- `DFS`
-- `SCC`
+### Why `ignoreTypeImports` helps
 
-The default is `DFS`. Most teams can leave this alone unless they are investigating algorithm-specific output or performance characteristics.
+In large, established codebases, circular dependencies are often already present and can be difficult to resolve quickly. Many of these might only involve type-only imports. By using `ignoreTypeImports`, you can enable the check to catch *new* runtime-impacting circular dependencies while still allowing existing type-only cycles to exist, facilitating a smoother integration of `rev-dep` into the CI pipeline.
+
+### Why circular type imports are not desired
+
+While circular type imports are generally harmless at runtime (because they are erased during compilation), they still represent a circular dependency in the dependency graph. From an *architectural* perspective, they indicate that the modules are too tightly coupled, which can hinder modularity and make it harder to separate concerns or extract modules into independent packages later.
+
+## Comprehensive Configuration Example
+
+Example `circularImportsDetection` configuration using the `SCC` (Strongly Connected Components) algorithm for more efficient cycle detection:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "circularImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true,
+        "algorithm": "SCC"
+      }
+    }
+  ]
+}
+```
+
+## Options
+
+- `enabled` (boolean): Whether to enable circular imports detection.
+- `ignoreTypeImports` (boolean): Whether to ignore type-only imports in the analysis.
+- `algorithm` (string): The algorithm used for cycle detection. Supports `DFS` (Depth-First Search) and `SCC` (Strongly Connected Components). Defaults to `DFS`.

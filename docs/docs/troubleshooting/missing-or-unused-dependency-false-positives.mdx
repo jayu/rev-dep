@@ -1,8 +1,12 @@
 ---
-title: Missing dependency false positives
+title: Missing or unused dependency false positives
 ---
 
-# Missing dependency false positives
+// Name: Missing or unused node modules false positives
+// Make sure to explain the situation where different package defines a module and different package compiles the source code using this module
+// Rule of thumb - if package is compiled, it should declare node modules within it, if package is shared and just-in-time compiled by another package, it should not declare node modules within it, but the consumer package should declare those modules.
+// Check this however how it is right now in the D codebase.
+# Missing or unused dependency false positives
 
 Some packages are operationally required but do not appear as direct imports in the processed code graph.
 

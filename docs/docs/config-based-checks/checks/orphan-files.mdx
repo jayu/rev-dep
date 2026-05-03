@@ -6,19 +6,89 @@ title: Orphan files
 
 `orphanFilesDetection` finds files that are not reachable from configured entry points.
 
-This is useful for dead-file cleanup after refactors, but it is sensitive to:
+## What this check does
 
-- missing entry points
-- workspace-package traversal choices
-- intentionally detached files like templates or generated artifacts
+The check builds a dependency graph starting from your project's entry points. Any file in your `path` that is not part of this reachable graph is flagged as an "orphan" (dead/unused file).
 
-## Useful options
+## Why it is important
 
-- `validEntryPoints`: files that should always count as allowed graph roots for orphan analysis
-- `ignoreTypeImports`: treat type-only imports as non-reachability edges
-- `graphExclude`: exclude files from this detector's graph
-- `autofix`: remove orphan files automatically
+Identifying and removing orphan files is essential for maintaining a healthy codebase:
 
-## Practical advice
+- **Codebase Hygiene:** It helps clean up dead code, legacy files, and artifacts left over from major refactors.
+- **Reduced Complexity:** A leaner codebase is easier to navigate, reason about, and maintain.
+- **Build Performance:** Reducing the total number of files can lead to faster analysis and build times in CI/CD pipelines.
 
-If orphan results look wrong, check graph modeling before enabling autofix. Most false positives come from missing roots, not from the detector itself.
+## Monorepo Considerations
+
+When working with a monorepo, detecting orphan files might work best when executed at the **workspace root**. Running the check at the root allows `rev-dep` to have the full context of all packages, ensuring it can verify whether a file is truly unused across the entire monorepo, and not just within a single workspace.
+
+{/*
+// TODO full-docs
+Read more in [Orphan files in shared workspace packages](troubleshooting/orphan-files-in-shared-workspace-packages.mdx).
+*/}
+
+## Configuration
+
+Below is an example of how `orphanFilesDetection` fits within the `rules` array. It demonstrates defining general production and development entry points at the **rule level**.
+
+It showcase possibility of then overriding them with specific `validEntryPoints` at the **check level** when necessary.
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.ts"],
+      "devEntryPoints": ["**/*.test.ts"],
+      "orphanFilesDetection": {
+        "enabled": true,
+        "ignoreTypeImports": false,
+        // Autofix will automatically remove identified orphan file when `config run` is executed with `--fix` flag.
+        "autofix": true,
+        // overrides the rule-level entry points settings for this check
+        "validEntryPoints": ["src/specific-entry.ts"] 
+      }
+    }
+  ]
+}
+```
+
+*Note: While the rule-level `prodEntryPoints` and `devEntryPoints` provide a baseline, you can use `validEntryPoints` within the check configuration to explicitly define the roots for your orphan analysis.*
+
+## Configuration with `graphExclude`
+
+This specific configuration demonstrates how to use `graphExclude` to exclude test files from the dependency graph analysis.
+
+This configuration can be used to detect files that are imported by test files but not by any production code.
+
+Such files might be good removal candidates. Why keep keep unused utils?
+
+> Also note that you can have multiple `orphanFilesDetection` rules within the same workspace. Just define `orphanFilesDetection` as an array of detectors.
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.ts"],
+      "devEntryPoints": ["**/*.test.ts"],
+      "orphanFilesDetection": [{
+          // default check scanning while graph
+          "enabled": true,
+      },{
+          // check for not used, but tested utils
+          "enabled": true,
+          "graphExclude": ["**/*.test.*"],
+      }]
+    }
+  ]
+}
+```
+
+## Options
+
+- `enabled` (boolean): Whether to enable orphan files detection.
+- `validEntryPoints` (array of strings): Files that should always be treated as allowed roots for orphan analysis.
+- `ignoreTypeImports` (boolean): Treat type-only imports as non-reachability edges.
+- `graphExclude` (array of strings): Glob patterns to exclude certain files from the dependency graph analysis.
+- `autofix` (boolean): Whether to automatically remove identified orphan files.

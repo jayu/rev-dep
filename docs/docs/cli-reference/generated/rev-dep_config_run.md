@@ -18,7 +18,7 @@ rev-dep config run [flags]
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -c, --cwd string                                                  Working directory (default "$PWD")
       --fix                                                         Automatically fix fixable issues
-      --follow-monorepo-packages strings[=__REV_DEP_FOLLOW_ALL__]   Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
       --format string                                               Output format (json, issues-list)
   -h, --help                                                        help for run
       --list-all-issues                                             List all issues instead of limiting output

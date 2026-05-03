@@ -167,8 +167,11 @@ function increaseHeaderLevel(content) {
     .replace(/^####\s+(.*$)/gm, '##### $1')
     .replace(/^###\s+(.*$)/gm, '#### $1')
     .replace(/^##\s+(.*$)/gm, '### $1')
-    .replace(/^#\s+(.*$)/gm, '## $1')
-    .replaceAll(followAllToken, ' '.repeat(followAllToken.length));
+    .replace(/^#\s+(.*$)/gm, '## $1');
+}
+
+function sanitizeFollowAllToken(content) {
+  return content.replaceAll(followAllToken, ' '.repeat(followAllToken.length));
 }
 
 function replaceCwdWithPwd(content) {
@@ -186,7 +189,9 @@ function stripSeeAlsoAndFooter(content) {
 }
 
 function cleanReadmeContent(content) {
-  return increaseHeaderLevel(replaceCwdWithPwd(stripSeeAlsoAndFooter(content)));
+  return sanitizeFollowAllToken(
+    increaseHeaderLevel(replaceCwdWithPwd(stripSeeAlsoAndFooter(content))),
+  );
 }
 
 function extractTitle(content) {
@@ -199,7 +204,7 @@ function extractTitle(content) {
 
 function cleanDocsContent(content) {
   const stripped = replaceCwdWithPwd(stripSeeAlsoAndFooter(content));
-  return stripped.replace(/^##\s+.+\n+/, '');
+  return sanitizeFollowAllToken(stripped).replace(/^##\s+.+\n+/, '');
 }
 
 function renderDocsPage(content) {

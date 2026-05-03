@@ -4,17 +4,46 @@ title: Dev dependencies in production
 
 # Dev dependencies in production
 
-`devDepsUsageOnProdDetection` catches dependencies declared as `devDependencies` that are pulled into production entry-point graphs.
+`devDepsUsageOnProdDetection` identifies instances where dependencies listed in `devDependencies` are imported by files that are part of your production dependency graph.
 
-This check depends on good separation between:
+## What this check does
 
-- `prodEntryPoints`
-- `devEntryPoints`
+The check traces the dependency graph starting from your production entry points. If it encounters an import that points to a package listed under `devDependencies` in your `package.json`, it flags it as a violation.
 
-If development-only files are missing from `devEntryPoints`, results can be misleading.
+## Why it is a problem
 
-## Useful option
+Using `devDependencies` in your production runtime code is problematic for several reasons:
 
-- `prodEntryPoints`
+- **Deployment Risks:** Production environments (like Docker containers) are often optimized to only install `dependencies`. If your production code relies on a `devDependency`, your application will likely crash at runtime because the module is missing.
+- **Bundle Bloat:** In frontend projects, importing from `devDependencies` can inadvertently pull in heavy build tools or test utilities into your final client-side bundle, significantly increasing load times.
+- **Architectural Confusion:** It blurs the line between build-time tooling and runtime logic, making it harder to maintain a clean and predictable dependency graph.
 
-This detector can define its own production roots when the rule-level `prodEntryPoints` are too broad or not the right abstraction for the dependency policy you want to enforce.
+## Configuration
+
+While it is best practice to define `prodEntryPoints` and `devEntryPoints` at the **rule level** (to ensure consistency across all checks in that rule), you can override them at the **check level** if a specific rule requires a more granular or different set of entry points.
+
+Below is an example demonstrating both:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.ts", "src/index.ts"],
+      "devEntryPoints": ["**/*.test.ts", "**/setupTests.ts"],
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        // overrides the rule-level entry points settings for this check
+        "prodEntryPoints": ["src/pages/**/*.tsx"] 
+      }
+    }
+  ]
+}
+```
+*In the example above, the check specifically targets `src/pages/**/*.tsx` as entry points, overriding the rule-level defaults for this specific check.*
+
+## Options
+
+- `enabled` (boolean): Whether to enable dev-dependency usage detection.
+- `prodEntryPoints` (array of strings): Production entry point patterns to trace dependencies from. If not provided, the rule-level `prodEntryPoints` are used.
+- `ignoreTypeImports` (boolean): Whether to ignore type-only imports when tracing the production dependency graph.

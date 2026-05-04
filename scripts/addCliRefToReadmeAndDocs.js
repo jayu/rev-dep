@@ -174,12 +174,13 @@ function sanitizeFollowAllToken(content) {
   return content.replaceAll(followAllToken, ' '.repeat(followAllToken.length));
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function replaceCwdWithPwd(content) {
   const cwd = process.cwd();
-  return content.replace(
-    new RegExp(cwd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-    '$PWD',
-  );
+  return content.replace(new RegExp(escapeRegExp(cwd), 'g'), '$PWD');
 }
 
 function stripSeeAlsoAndFooter(content) {
@@ -202,6 +203,18 @@ function extractTitle(content) {
   return match[1].trim();
 }
 
+function extractDescription(content) {
+  const sanitizedContent = sanitizeFollowAllToken(
+    replaceCwdWithPwd(stripSeeAlsoAndFooter(content)),
+  );
+  const match = sanitizedContent.match(/^##\s+.+\n+([\s\S]*?)((?=^###\s)|(?=^```))/m);
+  if (!match) {
+    return '';
+  }
+
+  return match[1].replace(/\s+/g, ' ').trim();
+}
+
 function cleanDocsContent(content) {
   const stripped = replaceCwdWithPwd(stripSeeAlsoAndFooter(content));
   return sanitizeFollowAllToken(stripped).replace(/^##\s+.+\n+/, '');
@@ -209,8 +222,17 @@ function cleanDocsContent(content) {
 
 function renderDocsPage(content) {
   const title = extractTitle(content);
+  const description = extractDescription(content);
   const body = cleanDocsContent(content).trim();
-  return `---\ntitle: ${title}\n---\n\n${body}\n`;
+  const bodyWithoutDescription = body.replace(/^[\s\S]*?(?=^###\s)/m, '').trim();
+
+  let frontmatter = `---\ntitle: ${JSON.stringify(title)}\n`;
+  if (description) {
+    frontmatter += `description: ${JSON.stringify(description)}\n`;
+  }
+  frontmatter += `---\n\n`;
+
+  return `${frontmatter}${body}\n`;
 }
 
 async function readGeneratedCommandDoc(commandPath) {

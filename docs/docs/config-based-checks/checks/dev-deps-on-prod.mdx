@@ -1,10 +1,11 @@
 ---
-title: Dev dependencies in production
+title: Dev Dependencies in Production
+description: Detect when packages listed in `devDependencies` are imported by production code, preventing runtime failures and deployment errors.
 ---
 
 # Dev dependencies in production
 
-`devDepsUsageOnProdDetection` identifies instances where dependencies listed in `devDependencies` are imported by files that are part of your production dependency graph.
+`devDepsUsageOnProdDetection` identifies instances where dependencies listed in `devDependencies` are imported by files that are part of your production dependency graph. This check helps to detect and prevent the usage of development dependencies in your production code, ensuring a stable and predictable deployment.
 
 ## What this check does
 
@@ -20,7 +21,7 @@ Using `devDependencies` in your production runtime code is problematic for sever
 
 ## Configuration
 
-While it is best practice to define `prodEntryPoints` and `devEntryPoints` at the **rule level** (to ensure consistency across all checks in that rule), you can override them at the **check level** if a specific rule requires a more granular or different set of entry points.
+While it is best practice to define `prodEntryPoints` and `devEntry entryPoints` at the **rule level** (to ensure consistency across all checks in that rule), you can override them at the **check level** if a specific rule requires a more granular or different set of entry points.
 
 Below is an example demonstrating both:
 
@@ -47,3 +48,10 @@ Below is an example demonstrating both:
 - `enabled` (boolean): Whether to enable dev-dependency usage detection.
 - `prodEntryPoints` (array of strings): Production entry point patterns to trace dependencies from. If not provided, the rule-level `prodEntryPoints` are used.
 - `ignoreTypeImports` (boolean): Whether to ignore type-only imports when tracing the production dependency graph.
+
+### Also referred as
+Dev Dependencies in Production is also known as:
+- Dev dependencies in production
+- Using devDependencies in production
+- Production usage of devDependencies
+- Dev dependency leakage

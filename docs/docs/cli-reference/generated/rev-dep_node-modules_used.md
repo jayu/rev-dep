@@ -1,5 +1,6 @@
 ---
-title: rev-dep node-modules used
+title: "rev-dep node-modules used"
+description: "List all npm packages imported in your code"
 ---
 
 List all npm packages imported in your code

@@ -1,5 +1,6 @@
 ---
-title: rev-dep circular
+title: "rev-dep circular"
+description: "Detect circular dependencies in your project"
 ---
 
 Detect circular dependencies in your project

@@ -1,5 +1,6 @@
 ---
-title: rev-dep files
+title: "rev-dep files"
+description: "List all files in the dependency tree of an entry point"
 ---
 
 List all files in the dependency tree of an entry point

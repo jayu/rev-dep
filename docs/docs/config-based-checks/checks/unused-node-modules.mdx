@@ -1,10 +1,13 @@
 ---
-title: Unused node modules
+title: Find Unused Node Modules
+description: Detect unused dependencies from your `package.json` to reduce bundle size, improve maintainability, and speed up installations.
 ---
 
 # Unused node modules
 
-`unusedNodeModulesDetection` compares declared dependencies with packages actually imported in the processed code graph.
+`unusedNodeModulesDetection` detects unused dependencies from your `package.json` to reduce bundle size, improve maintainability, and speed up installations.
+
+This check compares declared dependencies with packages actually imported in the processed dependency graph.
 
 It is best for finding stale runtime dependencies. It is less authoritative for build-only tooling that may be referenced indirectly through scripts or config ecosystems.
 
@@ -76,3 +79,15 @@ This allows to point the detector to additional locations instead of excluding m
 - `filesWithBinaries`: Files that contain binaries.
 - `filesWithModules`: Files that contain modules.
 - `outputType`: Output format type (`list`, `groupByModule`, or `groupByFile`).
+
+### Also referred as
+Unused Node Modules is also known as:
+- Unused dependencies
+- Unused npm packages
+- Unused packages
+- Unused typescript dependencies
+- npm find unused files
+- depcheck typescript
+- npm remove unused packages
+- npm check
+- npm prune

@@ -1,5 +1,6 @@
 ---
-title: rev-dep list-cwd-files
+title: "rev-dep list-cwd-files"
+description: "List all files in the current working directory"
 ---
 
 List all files in the current working directory

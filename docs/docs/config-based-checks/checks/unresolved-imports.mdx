@@ -1,10 +1,11 @@
 ---
-title: Unresolved imports
+title: Find Unresolved or Broken Imports
+description: Detect import statements that cannot be resolved to a physical file or module, helping to prevent runtime errors and build failures.
 ---
 
 # Unresolved imports
 
-`unresolvedImportsDetection` reports import requests that `rev-dep` cannot resolve.
+`unresolvedImportsDetection` Detects and reports import statements that rev-dep cannot resole to a physical file or module.
 
 ## What this check does
 
@@ -53,3 +54,8 @@ Below is an example of how `unresolvedImportsDetection` fits within the `rules` 
 - `ignoreImports` (array of strings): Import requests (or globs) to ignore globally in unresolved imports results.
 - `ignore` (object): A map where the key is a file path glob (relative to the rule path) and the value is an import request glob (or string) to ignore for that specific file. Use this when an exception depends on both the file location and the import itself.
 
+### Also referred as
+Unresolved or Broken Imports is also known as:
+- Broken imports
+- Unresolvable imports
+- Missing imports

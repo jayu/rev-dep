@@ -1,5 +1,6 @@
 ---
-title: rev-dep resolve
+title: "rev-dep resolve"
+description: "Trace and display the dependency path between files in your project"
 ---
 
 Trace and display the dependency path between files in your project

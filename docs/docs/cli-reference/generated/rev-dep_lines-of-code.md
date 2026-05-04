@@ -1,5 +1,6 @@
 ---
-title: rev-dep lines-of-code
+title: "rev-dep lines-of-code"
+description: "Count actual lines of code in the project excluding comments and blank lines"
 ---
 
 Count actual lines of code in the project excluding comments and blank lines

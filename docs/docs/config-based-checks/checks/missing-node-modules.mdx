@@ -1,10 +1,11 @@
 ---
-title: Missing node modules
+title: Find Undeclared Dependencies
+description: Detect imports of packages that are missing from your `package.json` to prevent runtime failures and broken builds in CI/CD or production.
 ---
 
 # Missing node modules
 
-`missingNodeModulesDetection` identifies imports of packages that are not declared in your `package.json`.
+`missingNodeModulesDetection`This check helps to detect and prevent usage of undeclared dependencies by identifying imports of packages that are not declared in your `package.json`.
 
 ## What this check does
 
@@ -54,3 +55,10 @@ Below is an example of how `missingNodeModulesDetection` fits within the `rules`
 
 **Follow this guide if you see reported false positives:** [docs/docs/troubleshooting/missing-dependency-false-positives.mdx](docs/docs/troubleshooting/missing-dependency-false-positives.mdx)
 */}
+
+### Also referred as
+Undeclared Dependencies is also known as:
+- Missing dependencies
+- Undeclared dependencies
+- Unlisted dependencies
+- Missing package declarations

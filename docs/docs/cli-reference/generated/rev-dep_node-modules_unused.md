@@ -1,5 +1,6 @@
 ---
-title: rev-dep node-modules unused
+title: "rev-dep node-modules unused"
+description: "Find installed packages that aren't imported in your code"
 ---
 
 Find installed packages that aren't imported in your code

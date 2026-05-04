@@ -1,10 +1,11 @@
 ---
-title: Orphan files
+title: Find Unused or Unreachable Files
+description: Detect and remove files that are not reachable from your project's entry points, helping to clean up dead code and reduce codebase complexity.
 ---
 
 # Orphan files
 
-`orphanFilesDetection` finds files that are not reachable from configured entry points.
+`orphanFilesDetection` finds and removes files that are not reachable from configured entry points. This check helps to identify and remove dead or unreachable code from your codebase.
 
 ## What this check does
 
@@ -92,3 +93,11 @@ Such files might be good removal candidates. Why keep keep unused utils?
 - `ignoreTypeImports` (boolean): Treat type-only imports as non-reachability edges.
 - `graphExclude` (array of strings): Glob patterns to exclude certain files from the dependency graph analysis.
 - `autofix` (boolean): Whether to automatically remove identified orphan files.
+
+### Also referred as
+Unused or Unreachable Files is also known as:
+- Unused files
+- Dead files
+- Dead code
+- Unreachable files
+- Orphaned files

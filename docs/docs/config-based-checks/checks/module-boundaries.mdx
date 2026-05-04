@@ -1,5 +1,6 @@
 ---
-title: Module boundaries
+title: Enforcing Module Boundaries in Monorepos
+description: Enforce architectural constraints and dependency boundaries in monorepos by preventing files in certain directories from importing files in forbidden directories, ensuring clean layer separation and preventing spaghetti dependencies.
 ---
 
 # Module boundaries
@@ -62,3 +63,13 @@ Each boundary rule consists of:
 - `pattern` (string): The glob pattern defining which importing files belong to this boundary.
 - `deny` (array of strings): A list of glob patterns that are forbidden for the files matching the `pattern`.
 - `allow` (array of strings, optional): A list of glob patterns that are explicitly permitted, overriding the `deny` list for specific cases.
+
+### Also referred as
+Module Boundary Enforcement is also known as:
+- Module boundaries
+- Dependency boundaries
+- Architectural boundaries
+- Layer separation enforcement
+- Prohibited imports between modules
+- Enforce Module Boundaries
+- Monorepo Dependency Management

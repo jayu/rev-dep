@@ -1,5 +1,6 @@
 ---
-title: rev-dep node-modules
+title: "rev-dep node-modules"
+description: "Analyze and manage Node.js dependencies"
 ---
 
 Analyze and manage Node.js dependencies

@@ -1,5 +1,6 @@
 ---
-title: rev-dep config init
+title: "rev-dep config init"
+description: "Initialize a new rev-dep.config.json file"
 ---
 
 Initialize a new rev-dep.config.json file

@@ -7,7 +7,7 @@
 <p align="center">
   <a href="#capabilities-">Capabilities</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
-  <a href="https://rev-dep.com/docs/intro">Documentation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="https://rev-dep.com/docs/intro"><b>Documentation</b></a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#exploratory-toolkit-">Exploratory Toolkit</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#cli-reference-">CLI Reference</a>
 </p>

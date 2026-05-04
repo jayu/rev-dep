@@ -1,5 +1,6 @@
 ---
-title: rev-dep config
+title: "rev-dep config"
+description: "Create and execute rev-dep configuration files"
 ---
 
 Create and execute rev-dep configuration files

@@ -1,5 +1,6 @@
 ---
-title: rev-dep config run
+title: "rev-dep config run"
+description: "Execute all checks defined in (.)rev-dep.config.json(c)"
 ---
 
 Execute all checks defined in (.)rev-dep.config.json(c)

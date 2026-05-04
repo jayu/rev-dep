@@ -1,5 +1,6 @@
 ---
-title: rev-dep imported-by
+title: "rev-dep imported-by"
+description: "List all files that directly import the specified file"
 ---
 
 List all files that directly import the specified file

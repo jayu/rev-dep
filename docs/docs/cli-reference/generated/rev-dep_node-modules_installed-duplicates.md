@@ -1,5 +1,6 @@
 ---
-title: rev-dep node-modules installed-duplicates
+title: "rev-dep node-modules installed-duplicates"
+description: "Find and optimize duplicate package installations"
 ---
 
 Find and optimize duplicate package installations

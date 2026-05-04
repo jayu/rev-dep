@@ -1,5 +1,6 @@
 ---
-title: rev-dep node-modules installed
+title: "rev-dep node-modules installed"
+description: "List all installed npm packages in the project"
 ---
 
 List all installed npm packages in the project

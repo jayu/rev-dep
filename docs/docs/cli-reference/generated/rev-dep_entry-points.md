@@ -1,5 +1,6 @@
 ---
-title: rev-dep entry-points
+title: "rev-dep entry-points"
+description: "Discover and list all entry points in the project"
 ---
 
 Discover and list all entry points in the project

@@ -1,5 +1,6 @@
 ---
-title: rev-dep unresolved
+title: "rev-dep unresolved"
+description: "List unresolved imports in the project"
 ---
 
 List unresolved imports in the project

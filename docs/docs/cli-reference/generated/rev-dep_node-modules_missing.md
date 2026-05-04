@@ -1,5 +1,6 @@
 ---
-title: rev-dep node-modules missing
+title: "rev-dep node-modules missing"
+description: "Find imported packages not listed in package.json"
 ---
 
 Find imported packages not listed in package.json

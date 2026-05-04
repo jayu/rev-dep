@@ -1,5 +1,6 @@
 ---
-title: Restricted imports
+title: Forbidden or Restricted Imports
+description: Prevent the accidental import of restricted modules or files, such as preventing server-side code from leaking into client-side bundles.
 ---
 
 # Restricted imports
@@ -90,3 +91,10 @@ Simply define `restrictedImportsDetection` as an array of detectors:
 - `ignoreTypeImports` (boolean): Whether to exclude type-only imports from the dependency graph traversal.
 
 **Note:** At least one of `denyFiles` or `denyModules` must be provided for the check to be valid.
+
+### Also referred as
+Forbidden or Restricted Imports is also known as:
+- Restricted imports
+- Forbidden imports
+- Prohibited imports
+- Denied imports

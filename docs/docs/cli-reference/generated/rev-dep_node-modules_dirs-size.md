@@ -1,5 +1,6 @@
 ---
-title: rev-dep node-modules dirs-size
+title: "rev-dep node-modules dirs-size"
+description: "Calculates cumulative files size in node_modules directories"
 ---
 
 Calculates cumulative files size in node_modules directories

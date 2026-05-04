@@ -1354,3 +1354,8 @@ The top-level directory used as the starting point for dependency analysis.
 ## Made in 🇵🇱 and 🇯🇵 with 🧠 by [@jayu](https://github.com/jayu)
 
 I hope that this small piece of software will help you discover and understood complexity of your project hence make you more confident while refactoring. If this tool was useful, don't hesitate to give it a ⭐!
+
+### My other projects
+
+- [CodeQue - Structural code search](https://codeque.co)
+- [Structural Code Search VSCode](https://marketplace.visualstudio.com/items?itemName=CodeQue.codeque)

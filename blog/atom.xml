@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="atom.xsl"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://rev-dep.com/blog</id>
-    <title>Rev-dep | High-Speed Dependency Graph Analysis for JS/TS Monorepos Blog</title>
+    <title>Rev-dep - High-Speed Dependency Graph Analysis for JS/TS Monorepos Blog</title>
     <updated>2026-05-01T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://rev-dep.com/blog"/>
-    <subtitle>Rev-dep | High-Speed Dependency Graph Analysis for JS/TS Monorepos Blog</subtitle>
+    <subtitle>Rev-dep - High-Speed Dependency Graph Analysis for JS/TS Monorepos Blog</subtitle>
     <icon>https://rev-dep.com/img/favicon.ico</icon>
     <entry>
         <title type="html"><![CDATA[Welcome to Rev-Dep new documentation page]]></title>

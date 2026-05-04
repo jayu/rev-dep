@@ -115,7 +115,8 @@ const config: Config = {
         },
         {type: 'search', position: 'right'},
         // {to: '/blog', label: 'Blog', position: 'left'},
-        {type:'html', position:'right', value:'<iframe src="https://ghbtns.com/github-btn.html?user=jayu&repo=rev-dep&type=star&count=true" frameborder="0" scrolling="0" width="120" height="20" title="GitHub" style="margin-top: 8px;"></iframe>'},
+        {type:'html', position:'right', value:'<iframe src="https://ghbtns.com/github-btn.html?user=jayu&repo=rev-dep&type=star&count=true" frameborder="0" scrolling="0" width="90" height="20" title="GitHub" style="margin-top: 8px;"></iframe>'},
+        {type: 'html', position:"right", value: '<a target="_blank" rel="noopener noreferrer nofollow" href="https://www.npmjs.com/package/rev-dep" aria-label="Visit rev-dep npm package page"><svg height="24" width="24" viewBox="0 0 700 700" fill="currentColor" aria-hidden="true" style="transform: translate(0px, 4px);"><polygon fill="#cb3837" points="0,700 700,700 700,0 0,0"></polygon><polygon fill="#ffffff" points="150,550 350,550 350,250 450,250 450,550 550,550 550,150 150,150 "></polygon></svg></a>'}
       ],
     },
     footer: {
@@ -134,10 +135,13 @@ const config: Config = {
         {
           title: 'More',
           items: [
-            
             {
               label: 'Rev-Dep GitHub',
               href: 'https://github.com/jayu/rev-dep',
+            },
+            {
+              label: 'Rev-Dep NPM package',
+              href: 'https://www.npmjs.com/package/rev-dep',
             },
           ],
         },
@@ -145,8 +149,12 @@ const config: Config = {
           title: 'Jayu\'s Other Projects',
           items: [
             {
-              label: 'CodeQue',
+              label: 'CodeQue - structural code search CLI',
               href: 'https://codeque.co',
+            },
+            {
+              label: 'Structural Code Search VSCode',
+              href: 'https://marketplace.visualstudio.com/items?itemName=CodeQue.codeque',
             },
             {
               label: 'Jayu\'s GitHub',

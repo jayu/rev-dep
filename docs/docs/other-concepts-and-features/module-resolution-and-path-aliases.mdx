@@ -1,18 +1,15 @@
 ---
-title: tsconfig paths and alias resolution
+description: "How rev-dep resolves imports - tsconfig path aliases and package.json imports/exports maps with condition names - and the limits to be aware of."
+title: Module resolution and path aliases
 ---
 
-# tsconfig paths and alias resolution
+# Module resolution and path aliases
 
-Rev-dep supports tsconfig path aliases, but alias setups can still create ambiguity in monorepos.
+rev-dep resolves non-relative imports using the same two mechanisms your tooling does: **tsconfig path aliases** and **package.json `imports`/`exports` maps**. This page covers what is supported and where the limits are.
 
-## Practical guidance
+## tsconfig path aliases
 
-- prefer clear, non-overlapping alias targets
-- avoid alias definitions that compete with workspace-package names unless the distinction is intentional
-- verify whether the desired behavior is package-based resolution or tsconfig-path resolution
-
-## Example tsconfig
+rev-dep reads `compilerOptions.paths` (and `baseUrl`) from the `tsconfig.json` that applies to the file.
 
 ```json
 {
@@ -26,94 +23,16 @@ Rev-dep supports tsconfig path aliases, but alias setups can still create ambigu
 }
 ```
 
-Example rev-dep config:
+Two limits to know:
 
-```jsonc
-{
-  "rules": [
-    {
-      "path": "packages/app",
-      "followMonorepoPackages": false,
-      "unresolvedImportsDetection": {
-        "enabled": true
-      }
-    }
-  ]
-}
-```
+- **Only the first target of each alias is used.** TypeScript allows multiple fallback targets per alias (`"@x/*": ["a/*", "b/*"]`); rev-dep resolves against the first one only.
+- **Alias targets must be relative paths.** Non-relative targets are skipped.
 
-## When results look surprising
+`baseUrl` is honored and contributes a wildcard alias for bare imports rooted at it.
 
-Check:
+## package.json imports and exports maps
 
-- which `tsconfig.json` the command or rule is using
-- whether a workspace package name and a tsconfig alias can both match the same request
-- whether `followMonorepoPackages` is changing resolution expectations
-
-## Practical limitation
-
-If two resolution strategies can both plausibly target different files for the same request, the setup is inherently harder to analyze reliably. Favor alias schemes that make the intended target obvious.
-
-## Useful commands
-
-```bash
-rev-dep unresolved --tsconfig-json tsconfig.json
-rev-dep resolve --file src/shared/button.ts --tsconfig-json tsconfig.json
-```
-
-
----
-title: package.json imports and exports maps
----
-
-# package.json imports and exports maps
-
-Rev-dep supports `package.json` import and export map resolution, including configurable condition names.
-
-## When this matters
-
-- you use Node-style import maps instead of tsconfig aliases
-- workspace packages expose subpaths through `exports`
-- resolution behavior changes across `default`, `node`, or custom conditions
-
-## Related settings
-
-- top-level `conditionNames`
-- rule-level `followMonorepoPackages`
-
-Example:
-
-```jsonc
-{
-  "configVersion": "1.8",
-  "conditionNames": ["node", "default"],
-  "rules": [
-    {
-      "path": "packages/app",
-      "followMonorepoPackages": true,
-      "unresolvedImportsDetection": {
-        "enabled": true
-      }
-    }
-  ]
-}
-```
-
-If map-based resolution still looks wrong, compare the expected runtime condition set with the condition names passed to `rev-dep`.
-
-## Why condition names matter
-
-The same package can resolve to different targets under conditions like:
-
-- `development`
-- `production`
-- `browser`
-- `node`
-- `default`
-
-If your project relies on a non-default condition path, document that explicitly in config instead of assuming the default resolution matches your runtime.
-
-## Example package.json shapes
+rev-dep resolves Node-style subpath imports (`#internal/*`) and `exports` maps, including conditional targets.
 
 ```json
 {
@@ -122,15 +41,37 @@ If your project relies on a non-default condition path, document that explicitly
   },
   "exports": {
     ".": {
-      "default": "./src/main.ts",
-      "node": "./src/node.ts"
+      "node": "./src/node.ts",
+      "default": "./src/main.ts"
     }
   }
 }
 ```
 
-And a useful exploratory command:
+### Condition names
+
+The `default` condition is always honored as a fallback. To resolve other branches (`node`, `browser`, `import`, `production`, custom ones), pass the conditions your runtime uses:
+
+- top-level `conditionNames` in config
+- `--condition-names` on the CLI
+
+```jsonc
+{
+  "conditionNames": ["node", "default"],
+  "rules": [{ "path": "packages/app" }]
+}
+```
+
+If map-based resolution looks wrong, compare your runtime's condition set with the names you passed to rev-dep.
+
+## Interaction with monorepo packages
+
+For an internal workspace package, the `exports`/`imports` map is only consulted when the package is followed - see [Following monorepo packages](./following-monorepo-packages.mdx). Note that a tsconfig alias and a workspace-package name can both match the same request; prefer alias schemes that make the intended target unambiguous.
+
+## Useful commands
 
 ```bash
+rev-dep unresolved --tsconfig-json tsconfig.json
+rev-dep resolve --file src/shared/button.ts --tsconfig-json tsconfig.json
 rev-dep unresolved --condition-names node,default
 ```

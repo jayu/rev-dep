@@ -1,3 +1,27 @@
 ---
-title: Svelte Support
+description: "How rev-dep handles Svelte .svelte components - parses imports from the script blocks with standard module resolution and a little Svelte-aware handling."
+title: Svelte support
 ---
+
+# Svelte support
+
+rev-dep discovers and analyzes `.svelte` files. Support is **basic** - it parses the imports in the component's script - with a little Svelte-aware handling noted below.
+
+## What works
+
+- `.svelte` files are discovered like any other source file.
+- Imports in the script are parsed - both the instance `<script>` (including `<script lang="ts">`) and the module `<script context="module">`.
+- Those imports resolve with the standard rules: relative paths, [tsconfig aliases, and package.json maps](./module-resolution-and-path-aliases.mdx).
+- `export let` prop declarations are recognized as Svelte props, not JS module exports, so they are not falsely reported as unused exports.
+
+So a Svelte component participates in the dependency graph through its script imports - reachability, orphans, unused exports, circular imports, and node-module checks all apply.
+
+## What is not analyzed
+
+- Svelte has no `<template>` block: the markup is the bare top-level content of the file, and it is not analyzed. Components are still tracked through their `import` in the script - what is not seen is anything referenced *only* in markup (for example a `<svelte:component this={...}>` target or an asset URL).
+- The `<style>` block is ignored, so `@import`s in styles are not tracked.
+- There is no Svelte/SvelteKit-specific resolution beyond what your `tsconfig`/`package.json` declares.
+
+## In practice
+
+A standard Svelte project using standard module resolution works. If you rely on framework-specific aliases (such as SvelteKit's `$lib`), make sure they are declared in `tsconfig.json` paths so rev-dep can resolve them, and validate a small area first.

@@ -1,0 +1,60 @@
+---
+description: "Inspect rev-dep internals with the debug commands - parsed imports, the resolved dependency tree, tsconfig aliases, and discovered files."
+title: Debug commands
+---
+
+# Debug commands
+
+The `debug` commands expose rev-dep's internals: how it parses a file, resolves the dependency tree, reads `tsconfig` aliases, and which files it discovers. Use them to diagnose unexpected results or to gather detail when [reporting a bug](https://github.com/jayu/rev-dep/issues).
+
+> **Not covered by semver:** the flags and output of `debug` commands are intended for inspection only. They may change in any release without a major version bump - do not build tooling on top of them.
+
+## `debug parse-file`
+
+Show the parsed and resolved imports/exports for a single file, as JSON.
+
+```bash
+rev-dep debug parse-file --file src/index.ts
+rev-dep debug parse-file --file src/index.ts --cwd packages/app
+rev-dep debug parse-file --file apps/web/src/index.ts --follow-monorepo-packages
+```
+
+Each dependency shows its raw `request` (the import specifier as written), the resolved `id` (the file or package it points to, empty when unresolved), and the resolved-type and import-kind labels.
+
+## `debug get-tree-for-cwd`
+
+Dump the complete minimal dependency tree for the working directory, as JSON.
+
+```bash
+rev-dep debug get-tree-for-cwd
+rev-dep debug get-tree-for-cwd --ignore-type-imports
+rev-dep debug get-tree-for-cwd --follow-monorepo-packages
+```
+
+This is the same tree the config checks and exploratory commands build on, useful when a check's result is surprising.
+
+## `debug parse-tsconfig`
+
+Show how rev-dep parses a `tsconfig.json` - the extracted path aliases, wildcard patterns, and the regexes they compile to.
+
+```bash
+rev-dep debug parse-tsconfig --tsconfig tsconfig.json
+```
+
+Use this when alias-based imports are not resolving as expected.
+
+## `debug list-cwd-files`
+
+List the source files rev-dep discovers in the working directory, with optional glob filtering.
+
+```bash
+rev-dep debug list-cwd-files
+rev-dep debug list-cwd-files --include='*.ts' --exclude='*.test.ts'
+rev-dep debug list-cwd-files --count
+```
+
+This command is also available at the root level as `rev-dep list-cwd-files`, kept for backward compatibility.
+
+## Resolution flags
+
+`parse-file` and `get-tree-for-cwd` accept the shared resolution flags - `--package-json`, `--tsconfig-json`, `--condition-names`, and `--follow-monorepo-packages` - so you can reproduce exactly how a check resolved imports.

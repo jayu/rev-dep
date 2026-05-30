@@ -1,4 +1,5 @@
 ---
+description: "Discover project entry points with rev-dep - files not imported by any other file - to bootstrap config or understand application roots."
 title: Find entry points
 ---
 
@@ -10,16 +11,29 @@ Use:
 rev-dep entry-points
 ```
 
-This helps you discover likely roots before writing `prodEntryPoints` and `devEntryPoints` in config.
+An entry point here is any file that no other file in the graph imports - a likely root of the application.
 
-## Useful flags
+This helps you discover candidates before writing `prodEntryPoints` and `devEntryPoints` in config.
+
+## Output modes
 
 ```bash
-rev-dep entry-points --count
-rev-dep entry-points --print-deps-count
-rev-dep entry-points --result-include src/**
-rev-dep entry-points --result-exclude **/*.test.ts
-rev-dep entry-points --process-ignored-files dist/**/*.generated.ts
+rev-dep entry-points --count            # just the number of entry points
+rev-dep entry-points --print-deps-count # each entry point with its reachable file count
 ```
 
-Use this command to bootstrap config, not as a substitute for application knowledge. Auto-detected roots are candidates, not business-truth.
+## Filtering
+
+`--graph-exclude` removes files from the dependency graph before roots are computed (it changes reachability). 
+
+`--result-include` / `--result-exclude` only filter the printed list (they do not change the graph).
+
+```bash
+rev-dep entry-points --result-include 'src/**'
+rev-dep entry-points --result-exclude '**/*.test.ts'
+rev-dep entry-points --graph-exclude '**/*.stories.tsx'
+rev-dep entry-points --process-ignored-files 'dist/**/*.generated.ts'
+```
+
+Use `--ignore-type-imports` to treat type-only imports as non-references, which can surface type-only files as roots.
+

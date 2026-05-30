@@ -1,28 +1,48 @@
 ---
+description: "Inspect npm package usage with rev-dep node-modules - used, unused, missing, and installed packages - plus node_modules maintenance commands."
 title: Inspect node modules usage
 ---
 
 # Inspect node modules usage
 
-The `node-modules` command family helps answer package-hygiene questions:
+The `node-modules` command family answers package-hygiene questions ad-hoc. Use [config-based checks](../config-based-checks/checks/unused-node-modules.mdx) when you want these enforced continuously.
+
+## Usage analysis
 
 ```bash
-rev-dep node-modules used
-rev-dep node-modules unused
-rev-dep node-modules missing
-rev-dep node-modules installed
+rev-dep node-modules used       # packages actually imported by your code
+rev-dep node-modules unused     # declared in package.json but never imported
+rev-dep node-modules missing    # imported but not declared in package.json
+rev-dep node-modules installed  # packages present in node_modules
 ```
 
-Use config-based checks when you want these results enforced continuously. Use the standalone commands when you want quick inspection.
+`unused` and `missing` exit with the number of issues found. Pass `--zero-exit-code` to always exit `0` (useful when you only want the report).
 
-## Useful flags and grouping modes
+### Flags and grouping
 
 ```bash
-rev-dep node-modules used --group-by-module
-rev-dep node-modules missing --group-by-file
-rev-dep node-modules missing --group-by-module-files-count
-rev-dep node-modules unused --exclude-modules @types/*
 rev-dep node-modules used --entry-points src/main.ts
+rev-dep node-modules used --group-by-module
+rev-dep node-modules used --group-by-file
+rev-dep node-modules missing --group-by-module-files-count
+rev-dep node-modules unused --exclude-modules '@types/*'
+rev-dep node-modules installed --include-modules '@myorg/*'
 ```
 
-These commands share many flags with the config detectors, which makes them useful for testing assumptions before changing the config file.
+- `-p, --entry-points` restricts analysis to a subset of roots.
+- `-i, --include-modules` / `-e, --exclude-modules` filter which packages appear.
+- `-t, --ignore-type-imports` ignores type-only imports.
+
+These commands share flags with the config detectors, so they are handy for testing assumptions before changing the config file.
+
+## node_modules maintenance
+
+```bash
+rev-dep node-modules installed-duplicates            # find duplicate installs
+rev-dep node-modules installed-duplicates --optimize # symlink duplicates to save space
+rev-dep node-modules analyze-size                    # disk usage by package
+rev-dep node-modules dirs-size                       # cumulative size of node_modules dirs
+rev-dep node-modules prune-docs --defaults           # remove README/LICENSE/docs from packages
+```
+
+`prune-docs` accepts custom globs via `-p, --patterns` (e.g. `--patterns '*.md,docs/**'`); combine with `--defaults` to also remove the built-in doc patterns.

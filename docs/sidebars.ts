@@ -35,33 +35,34 @@ const sidebars: SidebarsConfig = {
       ],
     },
     // TODO full-docs
-    // {
-    //   type: 'category',
-    //   label: 'Exploratory Toolkit',
-    //   items: [
-    //     'exploratory-toolkit/overview',
-    //     'exploratory-toolkit/entry-points',
-    //     'exploratory-toolkit/files',
-    //     'exploratory-toolkit/imported-by',
-    //     'exploratory-toolkit/resolve',
-    //     'exploratory-toolkit/circular',
-    //     'exploratory-toolkit/node-modules',
-    //     'exploratory-toolkit/lines-of-code',
-    //     'exploratory-toolkit/workflows',
-    //   ],
-    // },
-    // {
-    //   type: 'category',
-    //   label: 'Other Concepts and Features',
-    //   items: [
-    //     'other-concepts-and-features/following-monorepo-packages',
-    //     'other-concepts-and-features/ignoring-files',
-    //     'other-concepts-and-features/module-resolution-and-path-aliases',
-    //     'other-concepts-and-features/supported-file-types',
-    //     'other-concepts-and-features/svelte-support',
-    //     'other-concepts-and-features/vue-support'
-    //   ],
-    // },
+    {
+      type: 'category',
+      label: 'Exploratory Toolkit',
+      items: [
+        'exploratory-toolkit/overview',
+        'exploratory-toolkit/entry-points',
+        'exploratory-toolkit/files',
+        'exploratory-toolkit/imported-by',
+        'exploratory-toolkit/resolve',
+        'exploratory-toolkit/circular',
+        'exploratory-toolkit/node-modules',
+        'exploratory-toolkit/lines-of-code',
+        'exploratory-toolkit/debug',
+        'exploratory-toolkit/workflows',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Other Concepts and Features',
+      items: [
+        'other-concepts-and-features/following-monorepo-packages',
+        'other-concepts-and-features/ignoring-files',
+        'other-concepts-and-features/module-resolution-and-path-aliases',
+        'other-concepts-and-features/supported-file-types',
+        'other-concepts-and-features/svelte-support',
+        'other-concepts-and-features/vue-support'
+      ],
+    },
     // {
     //   type: 'category',
     //   label: 'Troubleshooting',

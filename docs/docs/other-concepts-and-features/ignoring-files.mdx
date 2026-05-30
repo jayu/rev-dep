@@ -1,54 +1,105 @@
 ---
-title: ignoreFiles, glob patterns, and .gitignore
+description: "Understand the levels at which rev-dep ignores files - gitignore, ignoreFiles, processIgnoredFiles, detector graphExclude, and per-detector ignore fields."
+title: Ignoring files
 ---
 
-# ignoreFiles, glob patterns, and .gitignore
+# Ignoring files
 
-Ignored-file behavior strongly affects what enters the graph.
+rev-dep ignores files at several levels. They differ in *what* they affect: whether a file is **discovered** at all, whether it is part of a **detector's graph**, or only whether a specific **finding is reported**.
 
-## Relevant config fields
+## Discovery level
 
-- `ignoreFiles`
-- `processIgnoredFiles`
+These decide which files rev-dep reads in the first place.
 
-Example:
+1. **`.gitignore`** - gitignored files are skipped. Nested `.gitignore` files up to the repo root are honored.
+2. **`ignoreFiles`** (top-level config) - additional rev-dep-specific exclusions, applied on top of gitignore.
+3. **`processIgnoredFiles`** (top-level config) - brings specific files *back* that gitignore or `ignoreFiles` would otherwise skip. Use it for generated or build output that analysis still needs.
 
 ```jsonc
 {
   "ignoreFiles": ["**/*.stories.tsx", "**/*.generated.ts"],
-  "processIgnoredFiles": ["dist/**/*.generated.ts"],
+  "processIgnoredFiles": ["dist/**/*.generated.ts"]
+}
+```
+
+A file excluded at the discovery level is invisible to every check.
+
+## Graph level
+
+Some detectors accept `graphExclude` to drop files from *that detector's* dependency graph. This changes reachability for the detector (an excluded file is neither a node nor a reference), but does not affect discovery or other detectors.
+
+```jsonc
+{
   "rules": [
     {
       "path": ".",
       "orphanFilesDetection": {
         "enabled": true,
-        "graphExclude": ["**/*.snap.ts"]
+        "graphExclude": ["**/*.test.ts"]
       }
     }
   ]
 }
 ```
 
-## Practical rules
+The above example can be used to detect files, that are only imported in test files. Test files are naturally entry points, if we remove them from the graph, files that are not imported by remaining entry points will be listed.
+This can help identifying utility functions that are covered with tests, but not used in the production code. 
 
-- keep patterns narrow and intentional
-- be careful with root-anchored patterns
-- use `processIgnoredFiles` for files that are ignored by default but still matter to analysis
+`graphExclude` is available on `orphanFilesDetection` and `unusedExportsDetection` in config file and also on several exploratory toolkit commands
 
-## Where each mechanism applies
+## Finding level
 
-- gitignore affects file discovery
-- `ignoreFiles` adds rev-dep-specific exclusions
-- `processIgnoredFiles` selectively brings files back for processing
-- some detectors also expose their own `graphExclude` or ignore fields for detector-local suppression
+Some detectors expose ignore fields that suppress specific *findings* without changing the graph. Use these when the dependency is real and should stay in the graph, but you do not want it reported.
 
-## Command examples
+Each detector exposes the same three shapes: `ignoreFiles` is an array of file globs, `ignoreImports`/`ignoreExports` is an array of value globs, and `ignore` is an object mapping a file glob to value glob(s) - either a single string or an array.
 
-```bash
-rev-dep unresolved --process-ignored-files dist/**/*.generated.ts
-rev-dep resolve --file src/runtime.ts --graph-exclude **/*.test.ts
+### `unresolvedImportsDetection`
+
+Here a "value" is an **import request**.
+
+```jsonc
+{
+  "unresolvedImportsDetection": {
+    "enabled": true,
+    "ignoreFiles": ["src/legacy/**"],               // ignore every unresolved import in these files
+    "ignoreImports": ["virtual:*", "@internal/*"],  // ignore these requests everywhere
+    "ignore": {                                     // ignore a request only in matching files
+      "src/index.ts": "some-optional-peer",
+      "scripts/**": ["#dev/*"]
+    }
+  }
+}
 ```
 
-Use config-level fields when the behavior should be stable for the whole repo. Use command flags when you are only investigating one case.
+### `unusedExportsDetection`
 
-If analysis seems to miss or over-include files, inspect ignore behavior before changing detectors.
+Here a "value" is an **export name**.
+
+```jsonc
+{
+  "unusedExportsDetection": {
+    "enabled": true,
+    "ignoreFiles": ["**/*.generated.ts"],        // ignore every unused export in these files
+    "ignoreExports": ["default", "__legacy*"],   // ignore these export names everywhere
+    "ignore": {                                  // ignore an export only in matching files
+      "src/types.ts": "*",
+      "src/api/**": ["Internal*", "__Debug*"]
+    }
+  }
+}
+```
+
+## Command-line equivalents
+
+```bash
+rev-dep unresolved --process-ignored-files 'dist/**/*.generated.ts'
+rev-dep resolve --file src/runtime.ts --graph-exclude '**/*.test.ts'
+```
+
+Quote glob patterns so your shell does not expand them first.
+
+## Choosing the right level
+
+- Reaches too many or too few files at the source? Adjust **discovery** (`ignoreFiles` / `processIgnoredFiles`).
+- A detector counts a file it shouldn't traverse? Use **`graphExclude`**.
+- The graph is right but one finding is noise? Use a detector **ignore** field.

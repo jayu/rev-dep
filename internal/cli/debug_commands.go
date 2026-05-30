@@ -172,6 +172,27 @@ var debugTsconfigCmd = &cobra.Command{
 	},
 }
 
+// ---------------- debug list-cwd-files ----------------
+// This mirrors the root-level `list-cwd-files` command. The root command is kept
+// for semver compatibility; this is the preferred home going forward. It reuses the
+// same core function and flag variables (only one command executes per invocation,
+// so sharing the flag vars is safe).
+var debugListCwdFilesCmd = &cobra.Command{
+	Use:   "list-cwd-files",
+	Short: "List all files in the current working directory",
+	Long: `Recursively lists all files in the specified directory,
+with options to filter results.`,
+	Example: "rev-dep debug list-cwd-files --include='*.ts' --exclude='*.test.ts'",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return listCwdFilesCmdFn(
+			pathutil.ResolveAbsoluteCwd(listFilesCwd),
+			listFilesInclude,
+			listFilesExclude,
+			listFilesCount,
+		)
+	},
+}
+
 func init() {
 
 	// debug parse-file flags
@@ -189,6 +210,12 @@ func init() {
 	debugTsconfigCmd.Flags().StringVar(&debugTsconfigPath, "tsconfig", "", "Path to TypeScript configuration file")
 	debugTsconfigCmd.MarkFlagRequired("tsconfig")
 
-	debugCmd.AddCommand(debugParseFileCmd, debugGetTreeCmd, debugTsconfigCmd)
+	// debug list-cwd-files flags (mirror of the root-level command)
+	debugListCwdFilesCmd.Flags().StringVar(&listFilesCwd, "cwd", currentDir, "Directory to list files from")
+	debugListCwdFilesCmd.Flags().StringSliceVar(&listFilesExclude, "exclude", []string{}, "Exclude files matching these glob patterns")
+	debugListCwdFilesCmd.Flags().StringSliceVar(&listFilesInclude, "include", []string{}, "Only include files matching these glob patterns")
+	debugListCwdFilesCmd.Flags().BoolVar(&listFilesCount, "count", false, "Only display the count of matching files")
+
+	debugCmd.AddCommand(debugParseFileCmd, debugGetTreeCmd, debugTsconfigCmd, debugListCwdFilesCmd)
 	rootCmd.AddCommand(debugCmd)
 }

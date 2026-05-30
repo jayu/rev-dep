@@ -1,4 +1,5 @@
 ---
+description: "Detect circular dependencies with rev-dep circular, with DFS and SCC algorithms and a non-zero exit code for lightweight CI use."
 title: Detect circular dependencies
 ---
 
@@ -10,7 +11,7 @@ Use:
 rev-dep circular
 ```
 
-This gives you cycle-focused output without requiring a config file, which is useful during refactors or before adopting the full config runner.
+This gives cycle-focused output without requiring a config file, which is useful during refactors or before adopting the full config runner. Can be used as a CI check on it's own.
 
 ## Useful flags
 
@@ -18,7 +19,14 @@ This gives you cycle-focused output without requiring a config file, which is us
 rev-dep circular --ignore-type-imports
 rev-dep circular --algorithm DFS
 rev-dep circular --algorithm SCC
-rev-dep circular --process-ignored-files dist/**/*.generated.ts
+rev-dep circular --process-ignored-files 'dist/**/*.generated.ts'
 ```
 
-The command exits non-zero when cycles are found, which makes it suitable for lightweight CI use even without a config file.
+- `--ignore-type-imports` ignores type-only edges, so type-level cycles are not reported.
+- `--algorithm` selects cycle detection: `DFS` (default) reports concrete cycle chains; `SCC` groups strongly connected components and is faster on graphs with many cycles.
+
+`SCC` - Strongly Connected Components is recommended algorithm as it output less cycles. The default algo is `DFS` - Depth-first search, it's the default one because it was implement before SCC and to keep the tool semver compliant needs to remain default.
+
+## Exit code
+
+The command exits with the number of cycles found (non-zero when any exist), which makes it suitable for lightweight CI use even without a config file.

@@ -1,4 +1,5 @@
 ---
+description: "Count effective lines of code with rev-dep lines-of-code, excluding comments, blank lines, and tagged template strings."
 title: Count lines of code
 ---
 
@@ -10,10 +11,14 @@ Use:
 rev-dep lines-of-code
 ```
 
-This counts effective lines of code while excluding comments and blank lines. It is mainly useful for baseline measurement and performance discussions.
+This counts effective lines of code across the project's source files, excluding blank lines. It is mainly useful for baseline measurement and performance discussions.
 
-The output includes:
+The output is a table with three metrics:
 
-- total lines
-- lines without comments
-- lines without comments and tagged template strings
+- **total lines** - all non-blank lines
+- **without comments** - excluding comment lines
+- **without comments and template strings** - also excluding tagged template literal contents (e.g. styled-components, inline GraphQL)
+
+Each metric is shown with its percentage of the total, so you can see how much of the codebase is comments or embedded template content.
+
+Use `-c, --cwd` to measure a different directory.

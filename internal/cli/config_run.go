@@ -779,7 +779,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
-	currentConfigVersion := "1.7"
+	currentConfigVersion := "1.8"
 
 	// Check if any config file already exists
 	existingConfig, err := config.FindConfigFile(cwd)

@@ -77,6 +77,8 @@ It showcases the possibility of then overriding them with specific `validEntryPo
 - `graphExclude`: Exclude files from the dependency graph used by this detector.
 - `autofix`: Enables automatic removal of the `export` keyword for unused exports.
 
+*Tip: To suppress unused-export findings for a leftover-but-committed file, add it to the rule-level [`ignoreEntryPoints`](../entry-points-definition.mdx#ignoring-leftover-entry-points). Files matching `ignoreEntryPoints` have all their exports treated as used.*
+
 ### Also referred as
 Unused Exports is also known as:
 - Dead exports

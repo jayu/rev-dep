@@ -1,6 +1,3 @@
-//go:build dev
-// +build dev
-
 package cli
 
 import (
@@ -14,35 +11,6 @@ import (
 	"rev-dep-go/internal/resolve"
 )
 
-// ---------------- browser ----------------
-var (
-	browserCwd        string
-	browserEntryPoint string
-	browserIgnoreType bool
-)
-
-var browserCmd = &cobra.Command{
-	Use:   "browser",
-	Short: "Launch interactive dependency visualization in browser",
-	Long: `Starts a local web server with an interactive visualization
-of your project's dependency graph.`,
-	Example: "rev-dep browser --entry-point src/index.ts",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		followValue, err := getFollowMonorepoPackagesValue(cmd)
-		if err != nil {
-			return err
-		}
-		cwd := pathutil.ResolveAbsoluteCwd(browserCwd)
-		absolutePathToEntryPoint := pathutil.JoinWithCwd(cwd, browserEntryPoint)
-		excludeFiles := []string{}
-
-		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, browserIgnoreType, excludeFiles, nil, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
-
-		StartServer(minimalTree, absolutePathToEntryPoint, cwd)
-		return nil
-	},
-}
-
 type MinimalDependencyWithLabels struct {
 	ID                string                   `json:"id"`
 	Request           string                   `json:"request"`
@@ -52,16 +20,23 @@ type MinimalDependencyWithLabels struct {
 	ImportKindLabel   string                   `json:"importKindLabel"`
 }
 
-// ---------------- debug-parse-file ----------------
+// ---------------- debug ----------------
+var debugCmd = &cobra.Command{
+	Use:   "debug",
+	Short: "Debugging tools to inspect parser and resolver internals",
+	Long:  `Debugging tools to inspect how rev-dep parses files and resolves dependencies. Output does not follow semver.`,
+}
+
+// ---------------- debug parse-file ----------------
 var (
 	debugFile    string
 	debugFileCwd string
 )
 
 var debugParseFileCmd = &cobra.Command{
-	Use:   "debug-parse-file",
+	Use:   "parse-file",
 	Short: "Debug: Show parsed imports for a single file",
-	Long:  `Development tool to inspect how the parser processes a specific file.`,
+	Long:  `Debugging tool to inspect how the parser processes a specific file. Output does not follow semver.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		followValue, err := getFollowMonorepoPackagesValue(cmd)
 		if err != nil {
@@ -97,16 +72,16 @@ var debugParseFileCmd = &cobra.Command{
 	},
 }
 
-// ---------------- debug-get-tree-for-cwd ----------------
+// ---------------- debug get-tree-for-cwd ----------------
 var (
 	debugTreeCwd        string
 	debugTreeIgnoreType bool
 )
 
 var debugGetTreeCmd = &cobra.Command{
-	Use:   "debug-get-tree-for-cwd",
+	Use:   "get-tree-for-cwd",
 	Short: "Debug: Show complete dependency tree for analysis",
-	Long:  `Development tool to inspect the complete dependency tree.`,
+	Long:  `Debugging tool to inspect the complete dependency tree. Output does not follow semver.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		followValue, err := getFollowMonorepoPackagesValue(cmd)
 		if err != nil {
@@ -142,15 +117,15 @@ var debugGetTreeCmd = &cobra.Command{
 	},
 }
 
-// ---------------- debug-tsconfig ----------------
+// ---------------- debug parse-tsconfig ----------------
 var (
 	debugTsconfigPath string
 )
 
 var debugTsconfigCmd = &cobra.Command{
-	Use:   "debug-parse-tsconfig",
+	Use:   "parse-tsconfig",
 	Short: "Debug: Show parsed TypeScript configuration aliases",
-	Long:  `Development tool to inspect how TypeScript configuration is parsed and what aliases are extracted.`,
+	Long:  `Debugging tool to inspect how TypeScript configuration is parsed and what aliases are extracted. Output does not follow semver.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Resolve the tsconfig file using the existing tsconfig.go functionality
 		tsconfigContent, err := resolve.ParseTsConfig(debugTsconfigPath)
@@ -198,27 +173,22 @@ var debugTsconfigCmd = &cobra.Command{
 }
 
 func init() {
-	// browser flags
-	addSharedFlags(browserCmd)
-	browserCmd.Flags().StringVarP(&browserCwd, "cwd", "c", currentDir, "Working directory for the command")
-	browserCmd.Flags().StringVar(&browserEntryPoint, "entry-point", "", "entry point file")
-	browserCmd.Flags().BoolVarP(&browserIgnoreType, "ignore-types-imports", "t", false, "Exclude type imports from the analysis")
-	browserCmd.MarkFlagRequired("entry-point")
 
-	// debug-parse-file flags
+	// debug parse-file flags
 	addSharedFlags(debugParseFileCmd)
 	debugParseFileCmd.Flags().StringVar(&debugFile, "file", "", "file to parse")
 	debugParseFileCmd.Flags().StringVar(&debugFileCwd, "cwd", currentDir, "Working directory for the command")
 	debugParseFileCmd.MarkFlagRequired("file")
 
-	// debug-get-tree-for-cwd flags
+	// debug get-tree-for-cwd flags
 	addSharedFlags(debugGetTreeCmd)
 	debugGetTreeCmd.Flags().StringVar(&debugTreeCwd, "cwd", currentDir, "Working directory for the command")
 	debugGetTreeCmd.Flags().BoolVarP(&debugTreeIgnoreType, "ignore-type-imports", "t", false, "Exclude type imports from the analysis")
 
-	// debug-tsconfig flags
+	// debug parse-tsconfig flags
 	debugTsconfigCmd.Flags().StringVar(&debugTsconfigPath, "tsconfig", "", "Path to TypeScript configuration file")
 	debugTsconfigCmd.MarkFlagRequired("tsconfig")
 
-	rootCmd.AddCommand(browserCmd, debugParseFileCmd, debugGetTreeCmd, debugTsconfigCmd)
+	debugCmd.AddCommand(debugParseFileCmd, debugGetTreeCmd, debugTsconfigCmd)
+	rootCmd.AddCommand(debugCmd)
 }

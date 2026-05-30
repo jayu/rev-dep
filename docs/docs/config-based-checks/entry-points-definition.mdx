@@ -7,10 +7,11 @@ title: Entry points definition
 
 Entry points are the foundation of graph-based checks. They tell `rev-dep` which files should be treated as the roots of reachable code.
 
-## Two kinds of entry points
+## Kinds of entry points
 
 - `prodEntryPoints`: application code that ships or runs in production
 - `devEntryPoints`: tests, scripts, Storybook, build files, and other development-only entry points
+- `ignoreEntryPoints`: leftover entry points you no longer care about (see [Ignoring leftover entry points](#ignoring-leftover-entry-points))
 
 ## Why they matter
 
@@ -44,6 +45,26 @@ Some detectors also expose their own narrower knobs:
 - `devDepsUsageOnProdDetection` - `prodEntryPoints`
 
 Use those when one detector needs a smaller or more specific set of roots than the whole rule.
+
+## Ignoring leftover entry points
+
+Sometimes a file is no longer wired into your application but still has to stay committed to the repository - an old page, a deprecated script, or a snippet kept around for reference. Such a file is not reachable from any real entry point, so it shows up as an orphan file, and any of its exports show up as unused exports.
+
+Add these files to `ignoreEntryPoints` to tell `rev-dep` to leave them alone:
+
+```json
+{
+  "prodEntryPoints": ["src/index.ts*", "src/pages/**/*.ts*"],
+  "ignoreEntryPoints": ["src/legacy/oldDashboard.tsx"]
+}
+```
+
+Files matching `ignoreEntryPoints` are **not processed as issues**:
+
+- they are never reported as orphan files
+- their unused exports are never reported
+
+Unlike `prodEntryPoints` and `devEntryPoints`, `ignoreEntryPoints` is not a statement that the file is a real root of your app - it simply marks the file as a known leftover that should be excluded from reporting. Use `prodEntryPoints`/`devEntryPoints` for files you actively rely on, and `ignoreEntryPoints` only for dead-but-committed files.
 
 ## What belongs in dev entry points
 

@@ -85,10 +85,10 @@ type Import struct {
 	IsDynamicImport bool `json:"-"` // true for `import('...')`
 	IsLocalExport   bool `json:"-"` // true for `export const/default/function/...` without `from`
 
-	// New fields — populated only in ParseModeDetailed
+	// New fields - populated only in ParseModeDetailed
 	ExportKeyStart     uint32 `json:"-"` // Byte offset where `export` keyword starts
 	ExportKeyEnd       uint32 `json:"-"` // Byte offset right after `export `
-	ExportDeclStart    uint32 `json:"-"` // After `export [default] ` — where the declaration starts
+	ExportDeclStart    uint32 `json:"-"` // After `export [default] ` - where the declaration starts
 	ExportBraceStart   uint32 `json:"-"` // Position of `{` in brace-list exports (0 if not brace-list)
 	ExportBraceEnd     uint32 `json:"-"` // Position after `}` in brace-list exports
 	ExportStatementEnd uint32 `json:"-"` // Position after full statement including optional `;`

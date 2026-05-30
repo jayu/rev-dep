@@ -976,7 +976,7 @@ func (s *parseState) parseExportStatement(i int) (int, bool) {
 		}
 	}
 
-	// Check for export namespace/module — skip body (inner exports are namespace members).
+	// Check for export namespace/module - skip body (inner exports are namespace members).
 	// Also support `export declare namespace/module`.
 	isExportNamespace := false
 	namespaceCheckPos := i

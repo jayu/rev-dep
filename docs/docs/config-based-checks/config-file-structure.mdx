@@ -38,6 +38,7 @@ And can additionally define:
 - `followMonorepoPackages`: Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
 - `prodEntryPoints`: Rule-level production entry point patterns for detector defaults
 - `devEntryPoints`: Rule-level development entry point patterns for detector defaults
+- [`ignoreEntryPoints`](config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points): Rule-level patterns for leftover entry points to exclude from reporting. Matching files are never reported as orphan files and their unused exports are not reported.
 
 And any detector setup:
 - [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx): Array of module boundary rules
@@ -57,9 +58,9 @@ And any detector setup:
 
 ```json
 {
-  "configVersion": "1.7",
+  "configVersion": "1.8",
   // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
   "rules": [
     {
       "path": ".",
@@ -96,9 +97,9 @@ Here's a comprehensive example showing all available properties:
 
 ```json
 {
-  "configVersion": "1.7",
+  "configVersion": "1.8",
   // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true", 
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", 
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -107,6 +108,7 @@ Here's a comprehensive example showing all available properties:
       "followMonorepoPackages": true,
       "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"],
       "devEntryPoints": ["scripts/**", "**/*.test.*"],
+      "ignoreEntryPoints": ["src/legacy/oldDashboard.tsx"],
       "moduleBoundaries": [
         {
           "name": "ui-components",

@@ -90,6 +90,7 @@ type Rule struct {
 	Path                         string                                   `json:"path"` // Required
 	ProdEntryPoints              []string                                 `json:"prodEntryPoints,omitempty"`
 	DevEntryPoints               []string                                 `json:"devEntryPoints,omitempty"`
+	IgnoreEntryPoints            []string                                 `json:"ignoreEntryPoints,omitempty"`
 	FollowMonorepoPackages       model.FollowMonorepoPackagesValue        `json:"-"`
 	ModuleBoundaries             []BoundaryRule                           `json:"moduleBoundaries,omitempty"`
 	CircularImportsDetections    []*CircularImportsOptions                `json:"-"`
@@ -185,6 +186,7 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 		Path                        string                 `json:"path"`
 		ProdEntryPoints             []string               `json:"prodEntryPoints,omitempty"`
 		DevEntryPoints              []string               `json:"devEntryPoints,omitempty"`
+		IgnoreEntryPoints           []string               `json:"ignoreEntryPoints,omitempty"`
 		ModuleBoundaries            []BoundaryRule         `json:"moduleBoundaries,omitempty"`
 		CircularImportsDetection    interface{}            `json:"circularImportsDetection,omitempty"`
 		OrphanFilesDetection        interface{}            `json:"orphanFilesDetection,omitempty"`
@@ -201,6 +203,7 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 		Path:                        r.Path,
 		ProdEntryPoints:             r.ProdEntryPoints,
 		DevEntryPoints:              r.DevEntryPoints,
+		IgnoreEntryPoints:           r.IgnoreEntryPoints,
 		ModuleBoundaries:            r.ModuleBoundaries,
 		CircularImportsDetection:    marshalOneOrManyObjects(r.getCircularImportsDetections()),
 		OrphanFilesDetection:        marshalOneOrManyObjects(r.getOrphanFilesDetections()),
@@ -221,6 +224,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 		Path                        string          `json:"path"`
 		ProdEntryPoints             []string        `json:"prodEntryPoints,omitempty"`
 		DevEntryPoints              []string        `json:"devEntryPoints,omitempty"`
+		IgnoreEntryPoints           []string        `json:"ignoreEntryPoints,omitempty"`
 		ModuleBoundaries            []BoundaryRule  `json:"moduleBoundaries,omitempty"`
 		CircularImportsDetection    json.RawMessage `json:"circularImportsDetection,omitempty"`
 		OrphanFilesDetection        json.RawMessage `json:"orphanFilesDetection,omitempty"`
@@ -273,6 +277,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	r.Path = wire.Path
 	r.ProdEntryPoints = wire.ProdEntryPoints
 	r.DevEntryPoints = wire.DevEntryPoints
+	r.IgnoreEntryPoints = wire.IgnoreEntryPoints
 	r.ModuleBoundaries = wire.ModuleBoundaries
 
 	r.CircularImportsDetections = circular
@@ -312,7 +317,7 @@ func ConfigFileNameJSONC() string {
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -473,15 +478,19 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 				circularCfg.Algorithm = algo
 			}
 
+			// Ignored entry points are merged into the valid entry points for orphan and
+			// unused-exports detection. This keeps "leftover" files from being reported as
+			// orphans and suppresses unused-export findings on them, while leaving them in
+			// the tree (they are simply not processed as issues).
 			for _, orphanCfg := range config.Rules[i].getOrphanFilesDetections() {
 				if orphanCfg.ValidEntryPoints == nil {
-					orphanCfg.ValidEntryPoints = mergeAndDedupeEntryPoints(config.Rules[i].ProdEntryPoints, config.Rules[i].DevEntryPoints)
+					orphanCfg.ValidEntryPoints = mergeAndDedupeEntryPoints(config.Rules[i].ProdEntryPoints, config.Rules[i].DevEntryPoints, config.Rules[i].IgnoreEntryPoints)
 				}
 			}
 
 			for _, unusedExportsCfg := range config.Rules[i].getUnusedExportsDetections() {
 				if unusedExportsCfg.ValidEntryPoints == nil {
-					unusedExportsCfg.ValidEntryPoints = mergeAndDedupeEntryPoints(config.Rules[i].ProdEntryPoints, config.Rules[i].DevEntryPoints)
+					unusedExportsCfg.ValidEntryPoints = mergeAndDedupeEntryPoints(config.Rules[i].ProdEntryPoints, config.Rules[i].DevEntryPoints, config.Rules[i].IgnoreEntryPoints)
 				}
 			}
 
@@ -519,25 +528,24 @@ func cloneStringSlice(input []string) []string {
 	return append([]string(nil), input...)
 }
 
-func mergeAndDedupeEntryPoints(prodEntryPoints []string, devEntryPoints []string) []string {
-	if len(prodEntryPoints) == 0 && len(devEntryPoints) == 0 {
+func mergeAndDedupeEntryPoints(entryPointLists ...[]string) []string {
+	total := 0
+	for _, list := range entryPointLists {
+		total += len(list)
+	}
+	if total == 0 {
 		return nil
 	}
 
-	merged := make([]string, 0, len(prodEntryPoints)+len(devEntryPoints))
-	seen := make(map[string]bool, len(prodEntryPoints)+len(devEntryPoints))
+	merged := make([]string, 0, total)
+	seen := make(map[string]bool, total)
 
-	for _, entryPoint := range prodEntryPoints {
-		if !seen[entryPoint] {
-			seen[entryPoint] = true
-			merged = append(merged, entryPoint)
-		}
-	}
-
-	for _, entryPoint := range devEntryPoints {
-		if !seen[entryPoint] {
-			seen[entryPoint] = true
-			merged = append(merged, entryPoint)
+	for _, list := range entryPointLists {
+		for _, entryPoint := range list {
+			if !seen[entryPoint] {
+				seen[entryPoint] = true
+				merged = append(merged, entryPoint)
+			}
 		}
 	}
 
@@ -593,6 +601,9 @@ func validateRawConfig(raw map[string]interface{}) error {
 		"ignoreFiles":           true,
 		"processIgnoredFiles":   true,
 		"rules":                 true,
+		// "cloud" is accepted but intentionally not parsed, schema'd, or documented yet.
+		// It is allowed through validation so existing/forward configs do not error.
+		"cloud": true,
 	}
 
 	for field := range raw {
@@ -655,6 +666,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		"path":                        true,
 		"prodEntryPoints":             true,
 		"devEntryPoints":              true,
+		"ignoreEntryPoints":           true,
 		"followMonorepoPackages":      true,
 		"moduleBoundaries":            true,
 		"circularImportsDetection":    true,
@@ -666,6 +678,9 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		"devDepsUsageOnProdDetection": true,
 		"restrictedImportsDetection":  true,
 		"importConventions":           true,
+		// "cloud" is accepted but intentionally not parsed, schema'd, or documented yet.
+		// It is allowed through validation so existing/forward configs do not error.
+		"cloud": true,
 	}
 
 	for field := range rule {
@@ -695,7 +710,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		}
 	}
 
-	for _, field := range []string{"prodEntryPoints", "devEntryPoints"} {
+	for _, field := range []string{"prodEntryPoints", "devEntryPoints", "ignoreEntryPoints"} {
 		if value, exists := rule[field]; exists && value != nil {
 			if _, ok := value.([]interface{}); !ok {
 				return fmt.Errorf("rules[%d].%s must be an array, got %T", index, field, value)
@@ -1998,6 +2013,12 @@ func validateRuleEntryPoints(rule *Rule, prefix string) error {
 	for i, entryPoint := range rule.DevEntryPoints {
 		if entryPoint == "" {
 			return fmt.Errorf("%s.devEntryPoints[%d]: cannot be empty", prefix, i)
+		}
+	}
+
+	for i, entryPoint := range rule.IgnoreEntryPoints {
+		if entryPoint == "" {
+			return fmt.Errorf("%s.ignoreEntryPoints[%d]: cannot be empty", prefix, i)
 		}
 	}
 

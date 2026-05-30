@@ -56,6 +56,8 @@ It showcase possibility of then overriding them with specific `validEntryPoints`
 
 *Note: While the rule-level `prodEntryPoints` and `devEntryPoints` provide a baseline, you can use `validEntryPoints` within the check configuration to explicitly define the roots for your orphan analysis.*
 
+*Tip: To keep a leftover-but-committed file from being reported as orphan, add it to the rule-level [`ignoreEntryPoints`](../entry-points-definition.mdx#ignoring-leftover-entry-points) instead of deleting it or padding `validEntryPoints`.*
+
 ## Configuration with `graphExclude`
 
 This specific configuration demonstrates how to use `graphExclude` to exclude test files from the dependency graph analysis.

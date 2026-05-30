@@ -329,7 +329,7 @@ func TestFindUnusedExports_ReexportMarksSourceUsed(t *testing.T) {
 }
 
 func TestFindUnusedExports_StarReexportMarksAllUsed(t *testing.T) {
-	// export * from './utils' — no Keywords, just ID set
+	// export * from './utils' - no Keywords, just ID set
 	starReexport := mkDep("/src/utils.ts")
 	starReexport.ExportKeyEnd = 6
 	starReexport.Keywords = nil
@@ -407,7 +407,7 @@ func TestFindUnusedExports_BarrelStarReexportDetailedMode(t *testing.T) {
 	tree := MinimalDependencyTree{
 		"/src/utils.ts": {
 			mkLocalExport([]KeywordInfo{
-				{Name: "ManageDweetAdmins"},
+				{Name: "ManageAdmins"},
 			}, 0, 6, 7),
 			mkLocalExport([]KeywordInfo{
 				{Name: "unusedExport"},
@@ -418,7 +418,7 @@ func TestFindUnusedExports_BarrelStarReexportDetailedMode(t *testing.T) {
 		},
 		"/src/consumer.ts": {
 			mkImportWithKeywords("/src/index.ts", []KeywordInfo{
-				{Name: "ManageDweetAdmins"},
+				{Name: "ManageAdmins"},
 			}),
 		},
 	}
@@ -438,7 +438,7 @@ func TestFindUnusedExports_BarrelStarReexportDetailedMode(t *testing.T) {
 }
 
 func TestFindUnusedExports_StarAsNameReexport(t *testing.T) {
-	// export * as utils from './utils' — defines a named export "utils" in the barrel file
+	// export * as utils from './utils' - defines a named export "utils" in the barrel file
 	starAsReexport := mkDep("/src/utils.ts")
 	starAsReexport.ExportKeyEnd = 6
 	starAsReexport.ExportKeyStart = 0
@@ -476,7 +476,7 @@ func TestFindUnusedExports_StarAsNameReexport(t *testing.T) {
 }
 
 func TestFindUnusedExports_StarAsNameReexport_Unused(t *testing.T) {
-	// export * as utils from './utils' — nobody imports "utils"
+	// export * as utils from './utils' - nobody imports "utils"
 	starAsReexport := mkDep("/src/utils.ts")
 	starAsReexport.ExportKeyEnd = 6
 	starAsReexport.ExportKeyStart = 0
@@ -565,7 +565,7 @@ func TestFindUnusedExports_StarAsNameReexport_Autofix(t *testing.T) {
 }
 
 func TestFindUnusedExports_DynamicImportMarksAllUsed(t *testing.T) {
-	// dynamic(() => import('./utils').then(m => m.A)) — marks all exports used
+	// dynamic(() => import('./utils').then(m => m.A)) - marks all exports used
 	// because we can't statically analyze what properties are accessed
 	dynImport := mkDep("/src/utils.ts")
 	dynImport.IsDynamicImport = true
@@ -634,7 +634,7 @@ func TestFindUnusedExports_SideEffectImportDoesNotMarkUsed_NotDynamic(t *testing
 
 func TestFindUnusedExports_LocalBraceExportWithAlias(t *testing.T) {
 	// export { RetailConfirmationStatusDao as RetailConfirmationStatus }
-	// Consumer imports { RetailConfirmationStatus } — should match the alias
+	// Consumer imports { RetailConfirmationStatus } - should match the alias
 	tree := MinimalDependencyTree{
 		"/src/dao.ts": {
 			mkLocalBraceExport([]KeywordInfo{
@@ -665,7 +665,7 @@ func TestFindUnusedExports_LocalBraceExportWithAlias(t *testing.T) {
 }
 
 func TestFindUnusedExports_LocalBraceExportWithAlias_Unused(t *testing.T) {
-	// export { Dao as PublicName } — nobody imports PublicName
+	// export { Dao as PublicName } - nobody imports PublicName
 	tree := MinimalDependencyTree{
 		"/src/dao.ts": {
 			mkLocalBraceExport([]KeywordInfo{
@@ -1006,7 +1006,7 @@ func TestFindUnusedExports_Strategy3_AllBraceUnused(t *testing.T) {
 		t.Fatalf("Expected 2 results, got %d", len(results))
 	}
 
-	// Both should share the same fix (Strategy 3 — remove entire statement + line)
+	// Both should share the same fix (Strategy 3 - remove entire statement + line)
 	hasFix := false
 	for _, r := range results {
 		if r.Fix != nil {

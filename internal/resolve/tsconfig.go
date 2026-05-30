@@ -110,7 +110,7 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 	}
 
 	if baseCfg == nil {
-		// Not found — nothing to merge
+		// Not found - nothing to merge
 		ensureCompilerOptions(result)
 		return result, nil
 	}

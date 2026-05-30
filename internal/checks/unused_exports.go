@@ -44,7 +44,7 @@ func FindUnusedExports(
 	entryPointGlobs := globutil.CreateGlobMatchers(validEntryPoints, cwd)
 	graphExcludeGlobs := globutil.CreateGlobMatchers(graphExclude, cwd)
 
-	// Step 1: Build export map — file -> exportName -> exportEntry
+	// Step 1: Build export map - file -> exportName -> exportEntry
 	exportMap := make(map[string]map[string]exportEntry)
 
 	for _, file := range ruleFiles {
@@ -82,7 +82,7 @@ func FindUnusedExports(
 			if dep.ExportKeyEnd > 0 && !dep.IsLocalExport {
 				if dep.Keywords != nil {
 					for _, kw := range dep.Keywords.Keywords {
-						// Plain star re-exports (export * from './file') are passthrough —
+						// Plain star re-exports (export * from './file') are passthrough -
 						// they don't define named exports in the current file.
 						// export * as name from './file' DOES define a named export (the alias).
 						if kw.Name == "*" && kw.Alias == "" {
@@ -106,7 +106,7 @@ func FindUnusedExports(
 		}
 	}
 
-	// Step 2: Build usage map — file -> set of used export names
+	// Step 2: Build usage map - file -> set of used export names
 	usedExports := make(map[string]map[string]bool)
 
 	markAllUsed := func(targetFile string) {
@@ -145,15 +145,15 @@ func FindUnusedExports(
 				if dep.Keywords != nil {
 					for _, kw := range dep.Keywords.Keywords {
 						if kw.Name == "*" {
-							// export * from './file' — marks all of source's exports as used
+							// export * from './file' - marks all of source's exports as used
 							markAllUsed(targetFile)
 						} else {
-							// export { A, B } from './file' — marks A, B as used in source
+							// export { A, B } from './file' - marks A, B as used in source
 							markUsed(targetFile, kw.Name)
 						}
 					}
 				} else {
-					// No keywords (basic parse mode) — treat as star re-export
+					// No keywords (basic parse mode) - treat as star re-export
 					markAllUsed(targetFile)
 				}
 				continue
@@ -162,10 +162,10 @@ func FindUnusedExports(
 			// Regular import
 			if dep.Keywords == nil {
 				if dep.IsDynamicImport {
-					// Dynamic import: import('./file') or require('./file') — marks all used
+					// Dynamic import: import('./file') or require('./file') - marks all used
 					markAllUsed(targetFile)
 				}
-				// Side-effect import: import './file' — doesn't mark any exports used
+				// Side-effect import: import './file' - doesn't mark any exports used
 				continue
 			}
 
@@ -180,7 +180,7 @@ func FindUnusedExports(
 		}
 	}
 
-	// Step 3: Mark entry point files — all exports considered used
+	// Step 3: Mark entry point files - all exports considered used
 	for file := range exportMap {
 		if globutil.MatchesAnyGlobMatcher(file, entryPointGlobs, false) {
 			markAllUsed(file)
@@ -243,7 +243,7 @@ func FindUnusedExports(
 				// Compute fix if autofix is enabled
 				if autofix {
 					if dep.IsLocalExport && dep.ExportBraceStart == 0 {
-						// Strategy 1: Single-declaration — remove "export [default] " prefix
+						// Strategy 1: Single-declaration - remove "export [default] " prefix
 						if entry.Name == "default" {
 							// For default exports, only safe when followed by a named declaration
 							ue.Fix = computeDefaultExportFix(file, dep)
@@ -255,17 +255,17 @@ func FindUnusedExports(
 							}
 						}
 					} else if dep.ExportBraceStart > 0 && unusedCount == totalKeywords {
-						// Strategy 3: All keywords unused — remove entire statement
+						// Strategy 3: All keywords unused - remove entire statement
 						ue.Fix = computeFullStatementRemoval(file, dep)
 					} else if dep.ExportBraceStart > 0 && unusedCount < totalKeywords {
-						// Strategy 2: Surgical removal — only assign fix to first unused export
+						// Strategy 2: Surgical removal - only assign fix to first unused export
 						// to avoid duplicate fixes for same statement
 						ue.Fix = computeSurgicalBraceFix(file, dep, du.unusedExports)
 					} else if !dep.IsLocalExport && dep.ExportBraceStart == 0 && dep.ExportStatementEnd > 0 {
-						// Strategy 4: Named star re-export (export * as X from 'y') — remove entire statement
+						// Strategy 4: Named star re-export (export * as X from 'y') - remove entire statement
 						ue.Fix = computeFullStatementRemoval(file, dep)
 					}
-					// Star re-exports (no keywords) or other cases — Fix remains nil
+					// Star re-exports (no keywords) or other cases - Fix remains nil
 				}
 
 				results = append(results, ue)
@@ -336,11 +336,11 @@ func computeDefaultExportFix(filePath string, dep *MinimalDependency) *sourceedi
 	// Check what follows "export default "
 	ch := source[declStart]
 	if !parser.IsByteIdentifierChar(ch) {
-		// Starts with {, [, (, digit, quote, etc. — unsafe
+		// Starts with {, [, (, digit, quote, etc. - unsafe
 		return nil
 	}
 
-	// It starts with an identifier char — safe (function, class, async, or a plain identifier)
+	// It starts with an identifier char - safe (function, class, async, or a plain identifier)
 	return &sourceedit.Change{
 		Start: int32(dep.ExportKeyStart),
 		End:   int32(dep.ExportDeclStart),
@@ -393,7 +393,7 @@ func computeSurgicalBraceFix(filePath string, dep *MinimalDependency, unusedExpo
 			// Remove from previous keyword end to this keyword end
 			r = removeRange{int(keywords[i-1].End), int(kw.End)}
 		} else {
-			// Only keyword — should not happen (would be Strategy 3)
+			// Only keyword - should not happen (would be Strategy 3)
 			r = removeRange{int(kw.Start), int(kw.End)}
 		}
 

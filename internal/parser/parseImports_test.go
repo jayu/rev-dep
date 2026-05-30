@@ -2634,22 +2634,22 @@ const mod = require('./module')
 		t.Fatalf("Expected 4 imports, got %d", len(imports))
 	}
 
-	// Static named import — not dynamic
+	// Static named import - not dynamic
 	if imports[0].Request != "./utils" || imports[0].IsDynamicImport {
 		t.Errorf("Expected static import './utils', got request='%s' dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
 	}
 
-	// Side-effect import — not dynamic
+	// Side-effect import - not dynamic
 	if imports[1].Request != "./side-effect" || imports[1].IsDynamicImport {
 		t.Errorf("Expected side-effect import './side-effect', got request='%s' dynamic=%v", imports[1].Request, imports[1].IsDynamicImport)
 	}
 
-	// Dynamic import() — IS dynamic
+	// Dynamic import() - IS dynamic
 	if imports[2].Request != "./Component" || !imports[2].IsDynamicImport {
 		t.Errorf("Expected dynamic import './Component', got request='%s' dynamic=%v", imports[2].Request, imports[2].IsDynamicImport)
 	}
 
-	// require() — IS dynamic
+	// require() - IS dynamic
 	if imports[3].Request != "./module" || !imports[3].IsDynamicImport {
 		t.Errorf("Expected dynamic require './module', got request='%s' dynamic=%v", imports[3].Request, imports[3].IsDynamicImport)
 	}
@@ -3137,7 +3137,7 @@ import { modern } from './modern'
 }
 
 // =============================================================================
-// Brace-depth edge cases — these tests verify that the parser correctly handles
+// Brace-depth edge cases - these tests verify that the parser correctly handles
 // import/export/require keywords at various brace depths, inside strings,
 // comments, and template literals. Essential for brace-depth optimizations.
 // =============================================================================
@@ -3456,7 +3456,7 @@ export { bootstrap }
 	if !requests["./init"] {
 		t.Error("Expected import './init'")
 	}
-	// Dynamic import with concatenation — parser doesn't handle non-static paths,
+	// Dynamic import with concatenation - parser doesn't handle non-static paths,
 	// so './plugins/' + plugin won't be detected. This is expected behavior.
 	if !requests["./fallback"] {
 		t.Error("Expected require './fallback' inside deeply nested callback")

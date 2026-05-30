@@ -65,6 +65,17 @@ type RuleResult struct {
 	ProcessIgnoredFiles                             []string
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
+	UnmatchedEntryPointPatterns                     UnmatchedEntryPointPatterns
+}
+
+// UnmatchedEntryPointPatterns captures, per entry-point bucket, the glob patterns
+// that did not match any file in the rule's workspace. This metadata is collected
+// and persisted for future use (e.g. surfacing warnings about stale patterns) but
+// is not acted upon during processing.
+type UnmatchedEntryPointPatterns struct {
+	ProdEntryPoints   []string
+	DevEntryPoints    []string
+	IgnoreEntryPoints []string
 }
 
 // ConfigProcessingResult contains the results for processing an entire config
@@ -250,6 +261,31 @@ func FilterFilesForRule(
 	return filterFilesForRule(fullTree, rulePath, cwd, followMonorepoPackages, resolverManager)
 }
 
+// findUnmatchedEntryPointPatterns returns the subset of patterns that do not match
+// any file in ruleFiles. Patterns are matched relative to cwd, consistent with how
+// entry-point globs are matched by the reachability-based checks. Empty/whitespace
+// patterns are skipped. Returns nil when every pattern matches at least one file.
+func findUnmatchedEntryPointPatterns(patterns []string, ruleFiles []string, cwd string) []string {
+	var unmatched []string
+	for _, pattern := range patterns {
+		if strings.TrimSpace(pattern) == "" {
+			continue
+		}
+		matchers := globutil.CreateGlobMatchers([]string{pattern}, cwd)
+		matched := false
+		for _, file := range ruleFiles {
+			if globutil.MatchesAnyGlobMatcher(file, matchers, false) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			unmatched = append(unmatched, pattern)
+		}
+	}
+	return unmatched
+}
+
 // processRuleChecks runs all enabled checks for a rule in parallel
 func processRuleChecks(
 	rule Rule,
@@ -315,6 +351,16 @@ func processRuleChecks(
 	// Detect module-suffix variants to exclude from orphan/unused-exports detection.
 	// Uses per-file resolver lookup so monorepos with package-level moduleSuffixes work.
 	moduleSuffixVariants := resolve.DetectModuleSuffixVariants(ruleFiles, resolverManager)
+
+	// Capture entry-point glob patterns that do not match any file in the rule's
+	// workspace. This is metadata only - it is persisted for future use and does not
+	// affect the checks below. Computed here in the calling goroutine before the
+	// per-check goroutines start, so no synchronization is required.
+	ruleResult.UnmatchedEntryPointPatterns = UnmatchedEntryPointPatterns{
+		ProdEntryPoints:   findUnmatchedEntryPointPatterns(rule.ProdEntryPoints, ruleFiles, fullRulePath),
+		DevEntryPoints:    findUnmatchedEntryPointPatterns(rule.DevEntryPoints, ruleFiles, fullRulePath),
+		IgnoreEntryPoints: findUnmatchedEntryPointPatterns(rule.IgnoreEntryPoints, ruleFiles, fullRulePath),
+	}
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex

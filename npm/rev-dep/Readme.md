@@ -218,8 +218,8 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.7",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true",
+  "configVersion": "1.8",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
   "rules": [
     {
       "path": ".",
@@ -254,8 +254,8 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.7",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.7.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.8",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "rules": [
@@ -264,6 +264,7 @@ Here's a comprehensive example showing all available properties:
       "followMonorepoPackages": true,
       "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"],
       "devEntryPoints": ["scripts/**", "**/*.test.*"],
+      "ignoreEntryPoints": ["src/legacy/oldDashboard.tsx"],
       "moduleBoundaries": [
         {
           "name": "ui-components",
@@ -377,6 +378,7 @@ Each rule can contain the following properties:
 - **`followMonorepoPackages`** (optional): Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
 - **`prodEntryPoints`** (optional): Rule-level production entry point patterns for detector defaults
 - **`devEntryPoints`** (optional): Rule-level development entry point patterns for detector defaults
+- **`ignoreEntryPoints`** (optional): Rule-level patterns for leftover entry points you no longer care about. Files matching these patterns are not processed as issues - they are never reported as orphan files, and their unused exports are not reported. Useful for files that must stay committed but are no longer wired into the app.
 - **`moduleBoundaries`** (optional): Array of module boundary rules
 - **`circularImportsDetection`** (optional): Circular import detection configuration (single object or array of objects)
 - **`orphanFilesDetection`** (optional): Orphan files detection configuration (single object or array of objects)  

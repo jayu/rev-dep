@@ -4,9 +4,13 @@ const sidebars: SidebarsConfig = {
   tutorialSidebar: [
     'intro',
     'installation',
-    // TODO full-docs
-    // 'monorepo-integration-guide',
-    // 'single-workspace-integration-guide',
+    {
+      type: 'doc',
+      id: 'monorepo-integration-guide',
+      label: '👉 Monorepo integration guide',
+      className: 'sidebar-item--highlight',
+    },
+    'single-workspace-integration-guide',
     {
       type: 'category',
       label: 'Config-Based Checks',
@@ -34,7 +38,6 @@ const sidebars: SidebarsConfig = {
         'config-based-checks/output-formats',
       ],
     },
-    // TODO full-docs
     {
       type: 'category',
       label: 'Exploratory Toolkit',
@@ -63,16 +66,55 @@ const sidebars: SidebarsConfig = {
         'other-concepts-and-features/vue-support'
       ],
     },
-    // {
-    //   type: 'category',
-    //   label: 'Troubleshooting',
-    //   items: [
-    //     'troubleshooting/unresolved-imports-troubleshooting',
-    //     'troubleshooting/missing-or-unused-dependency-false-positives',
-    //     'troubleshooting/orphan-files-in-shared-workspace-packages',
-    //     'troubleshooting/unused-exports-in-shared-workspace-packages'
-    //   ],
-    // },
+    {
+      type: 'category',
+      label: 'Troubleshooting',
+      items: [
+        'troubleshooting/unresolved-imports-troubleshooting',
+        'troubleshooting/missing-or-unused-dependency-false-positives',
+        'troubleshooting/orphan-files-and-unused-exports-in-shared-packages'
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Migrating from other tools',
+      items: [
+        'migrating-from-other-tools/overview',
+        'migrating-from-other-tools/migrating-from-knip',
+        'migrating-from-other-tools/migrating-from-dependency-cruiser',
+        'migrating-from-other-tools/migrating-from-depcheck',
+        'migrating-from-other-tools/migrating-from-madge',
+        'migrating-from-other-tools/migrating-from-dpdm',
+        'migrating-from-other-tools/migrating-from-ts-prune',
+        'migrating-from-other-tools/migrating-from-ts-unused-exports',
+        'migrating-from-other-tools/migrating-from-unimported',
+        'migrating-from-other-tools/migrating-from-skott',
+        'migrating-from-other-tools/migrating-from-eslint-plugin-import',
+        'migrating-from-other-tools/migrating-from-good-fences',
+        'migrating-from-other-tools/migrating-from-sheriff',
+        'migrating-from-other-tools/migrating-from-npm-check',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Comparison with other tools',
+      items: [
+        'comparison-with-other-tools/overview',
+        'comparison-with-other-tools/knip-vs-rev-dep',
+        'comparison-with-other-tools/dependency-cruiser-vs-rev-dep',
+        'comparison-with-other-tools/depcheck-vs-rev-dep',
+        'comparison-with-other-tools/madge-vs-rev-dep',
+        'comparison-with-other-tools/dpdm-vs-rev-dep',
+        'comparison-with-other-tools/ts-prune-vs-rev-dep',
+        'comparison-with-other-tools/ts-unused-exports-vs-rev-dep',
+        'comparison-with-other-tools/unimported-vs-rev-dep',
+        'comparison-with-other-tools/skott-vs-rev-dep',
+        'comparison-with-other-tools/eslint-plugin-import-vs-rev-dep',
+        'comparison-with-other-tools/good-fences-vs-rev-dep',
+        'comparison-with-other-tools/sheriff-vs-rev-dep',
+        'comparison-with-other-tools/npm-check-vs-rev-dep',
+      ],
+    },
     {
       type: 'category',
       label: 'CLI Reference',

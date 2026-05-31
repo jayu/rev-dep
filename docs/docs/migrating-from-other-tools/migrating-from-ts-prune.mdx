@@ -1,0 +1,89 @@
+---
+description: "Migrate from ts-prune to rev-dep: replace unused-export detection and gain whole-graph architecture checks in a single fast pass."
+title: Migrating from ts-prune
+sidebar_label: ts-prune
+---
+
+<head>
+  <title>ts-prune alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from ts-prune
+
+[ts-prune](https://github.com/nadeesha/ts-prune) finds exported TypeScript/JavaScript code that isn't used anywhere. rev-dep does the same with [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx), and adds the rest of a dependency-hygiene suite.
+
+## Why migrate
+
+- **ts-prune is in maintenance mode.** Its own README no longer accepts feature work - so moving off it is overdue.
+- **Speed.** rev-dep is written in Go and runs in a single parallel pass - **faster** on large codebases.
+- **More than unused exports.** ts-prune does one thing. rev-dep also covers [orphan files](../config-based-checks/checks/orphan-files.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), and architecture rules - replacing several tools at once.
+
+## What carries over, what changes
+
+- **Covered well:** unused exports (named, default, types, re-exports).
+- **Different model:** ts-prune walks your `tsconfig` includes; rev-dep walks the graph from **entry points**. Define `prodEntryPoints`/`devEntryPoints` so the exports that form your public API aren't reported.
+- **Note:** ts-prune's "(used in module)" marker (exports referenced only in their own file) has no direct flag in rev-dep, which reports an export as unused when no *other* file imports it.
+
+## Feature mapping
+
+| ts-prune | rev-dep |
+| --- | --- |
+| unused exports | [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx) |
+| `-u, --unusedInModule` (skip in-module uses) | default behavior (only cross-file usage counts) |
+| `-e, --error` (non-zero exit) | `config run` exits non-zero on findings |
+| - | autofix removes the unused `export` (`--fix`) |
+
+## Translating your config
+
+A `.ts-prunerc`:
+
+```json
+{
+  "project": "tsconfig.json",
+  "ignore": "src/generated",
+  "skip": "\\.stories\\.tsx$"
+}
+```
+
+becomes a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "configVersion": "1.8",
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/index.ts"],
+      "devEntryPoints": ["**/*.test.ts"],
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true,
+        "ignoreFiles": ["src/generated/**", "**/*.stories.tsx"]
+      }
+    }
+  ]
+}
+```
+
+| ts-prune option | rev-dep equivalent |
+| --- | --- |
+| `-p, --project` | rev-dep reads `tsconfig.json` automatically (`--tsconfig-json` to override) |
+| `-i, --ignore` / `-s, --skip` (regex) | `ignoreFiles` / `ignoreExports` / `ignore` (globs) |
+
+ts-prune uses regular expressions; rev-dep uses glob patterns. See [unused exports options](../config-based-checks/checks/unused-exports.mdx) and [Ignoring files](../other-concepts-and-features/ignoring-files.mdx).
+
+## Running it
+
+```bash
+# ts-prune
+npx ts-prune
+
+# rev-dep
+rev-dep config run
+rev-dep config run --fix   # auto-removes unused exports
+```
+
+## Next steps
+
+- Define entry points first so live public-API exports aren't flagged: [entry points](../config-based-checks/entry-points-definition.mdx).
+- In monorepos, run unused-exports at the root so cross-package usage counts: [orphan files and unused exports in shared packages](../troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx).

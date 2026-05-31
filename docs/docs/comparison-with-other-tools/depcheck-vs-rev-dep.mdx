@@ -1,0 +1,44 @@
+---
+description: "depcheck vs rev-dep: compare unused and missing dependency detection, performance and scope. rev-dep is a faster, maintained alternative that covers far more."
+title: depcheck vs Rev-dep
+sidebar_label: depcheck
+---
+
+<head>
+  <title>depcheck vs Rev-dep: features &amp; performance compared</title>
+</head>
+
+# depcheck vs Rev-dep
+
+[depcheck](https://github.com/depcheck/depcheck) finds unused and missing dependencies. rev-dep does the same with two checks and adds the rest of a dependency-hygiene suite - and depcheck is no longer actively maintained.
+
+## At a glance
+
+| | depcheck | Rev-dep |
+| --- | --- | --- |
+| Primary focus | unused & missing dependencies | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**faster**) |
+| Unused / missing dependencies | yes | yes |
+| Unused exports / orphan files | no | yes |
+| Circular / boundaries / conventions | no | yes |
+| Tooling-only package detection | `specials` / `parsers` | binary/module hints |
+| Maintained | no (recommends moving on) | yes |
+| Config | `.depcheckrc` | `rev-dep.config.jsonc` |
+
+## Where rev-dep is stronger
+
+- **Actively maintained** and fast.
+- **Far broader** - beyond dependencies it covers [unused exports](../config-based-checks/checks/unused-exports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), [dev-deps in production](../config-based-checks/checks/dev-deps-on-prod.mdx), and architecture rules.
+- **Monorepo-aware**: dependencies are checked against the package that compiles the code.
+
+## Where depcheck may still fit
+
+depcheck's `specials` parsers recognize many config ecosystems out of the box. rev-dep handles the same gap with explicit hints (`pkgJsonFieldsWithBinaries`, `filesWithBinaries`, `filesWithModules`) - a little more setup for more precision. See [unused node modules](../config-based-checks/checks/unused-node-modules.mdx).
+
+## Which should you choose?
+
+For anything beyond a quick one-off dependency check, **rev-dep** - it's maintained, faster, and does much more.
+
+## Migrating
+
+See [Migrating from depcheck](../migrating-from-other-tools/migrating-from-depcheck.mdx) to translate your `.depcheckrc`.

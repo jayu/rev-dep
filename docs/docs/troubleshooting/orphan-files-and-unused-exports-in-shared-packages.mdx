@@ -1,0 +1,68 @@
+---
+description: "Why orphan files and unused exports are over-reported in monorepo shared packages, and the recommended root-level setup that sees cross-package usage."
+title: Orphan files and unused exports in shared packages
+---
+
+# Orphan files and unused exports in shared packages
+
+Both `orphanFilesDetection` and `unusedExportsDetection` answer a reachability question - "is this file reachable from an entry point?" / "is this export imported anywhere?". In a monorepo, a **shared package** exists to be consumed by *other* packages, so most of its files and exports are used across package boundaries, not inside the shared package itself.
+
+If you enable these checks **scoped to the shared package**, that cross-package usage is invisible and legitimately-used code gets reported as orphaned or unused.
+
+## Why it happens
+
+A rule only sees its own package's graph (plus the packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx)). A shared package has very few real entry points of its own - an app's `index.ts` lives in the app, not in `packages/shared`. So when the check runs against `packages/shared` in isolation, the files and exports that apps import look like they have no consumer.
+
+## The recommended setup
+
+1. **Do not enable** `orphanFilesDetection` or `unusedExportsDetection` inside shared packages.
+2. **Enable them once at the monorepo root** (`path: "."`). There rev-dep builds the whole-monorepo graph and, with workspace-package following on (the default), resolves cross-package imports into the shared source. A shared export imported by any app now counts as used; only code used by nobody *anywhere* is reported.
+3. **Do enable them in compiled leaf packages** (web/mobile apps). Those packages are not meant to be imported elsewhere, so dangling code in them is genuinely dead and safe to flag - or autofix away.
+
+The key is context: the root rule has the whole monorepo; a shared-package rule does not.
+
+## Define entry points by intent
+
+You don't have to hand-list every root. The simpler framing is **which workspaces are compilation targets and which are shared**:
+
+- **Apps** (`apps/web`, `apps/mobile`) are compiled - they hold the real entry points, so treat *everything in them* as a root.
+- **Shared packages** (`packages/shared`) are not compiled on their own; they exist only to be imported by the apps.
+
+So at the root rule, point the entry points at the app workspaces. Any shared-package code the apps reach counts as used; any shared code reached from nowhere is reported. This is coarse but effective - you can narrow it later with more specific roots (see [entry points](../config-based-checks/entry-points-definition.mdx)).
+
+## Example
+
+```jsonc
+{
+  "rules": [
+    {
+      // Root: the apps are the compilation targets, so treat everything in them
+      // as a root. Shared-package code the apps never reach is dead and gets reported.
+      "path": ".",
+      "prodEntryPoints": ["apps/web/**", "apps/mobile/**"],
+      "orphanFilesDetection": { "enabled": true, "autofix": true },
+      "unusedExportsDetection": { "enabled": true, "autofix": true }
+    },
+    {
+      // Compiled app - not imported by anything else, so dangling code here is dead too.
+      "path": "apps/web",
+      "prodEntryPoints": ["**/pages/**", "**/api/**", "server/src/index.ts"],
+      "devEntryPoints": ["*.config.*", "**/*.test.*", "**/*.stories.*"],
+      "orphanFilesDetection": { "enabled": true }
+    },
+    {
+      // Shared, just-in-time package - consumed by apps, not built on its own.
+      // Orphan / unused-exports detection is intentionally NOT enabled here.
+      "path": "packages/shared",
+      "circularImportsDetection": { "enabled": true }
+    }
+  ]
+}
+```
+
+## Notes
+
+- **Orphan files can run in both places.** Root-level catches dead *shared* files; a per-app rule catches app-local dead files. A second app-level `orphanFilesDetection` with `"graphExclude": ["**/*.test.*"]` surfaces utilities that are only used by tests (rename such a file to include `.testUtil.` if it is intentional).
+- **`autofix`** lets the root rule delete orphan files and strip unused exports once you trust the entry-point list.
+
+See [orphan files detection](../config-based-checks/checks/orphan-files.mdx), [unused exports detection](../config-based-checks/checks/unused-exports.mdx), and [entry points](../config-based-checks/entry-points-definition.mdx) for the per-check details.

@@ -85,39 +85,12 @@ Use this when you need to explicitly define an alias for a specific path. This i
 }
 ```
 
-## Mixed domains Configuration
-
-You can use both simplified and detailed domain configurations at the same time.
-
-```json
-{
-  "rules": [
-    {
-      "path": ".",
-      "importConventions": [
-        {
-          "rule": "relative-internal-absolute-external",
-          "domains": [
-            "src/utils/*",
-            {
-              "path": "src/components",
-              "alias": "@design-system"
-            }
-          ],
-          "autofix": true
-        }
-      ]
-    }
-  ]
-}
-```
-
 ## Options
 
 - `rule` (string): The type of convention rule to apply. Currently supports `relative-internal-absolute-external`.
-- `domains` (array): A list of domain definitions. Each domain can be:
-    - **Simplified (string):** A glob pattern representing the domain (e.g., `src/utils/*`).
-    - **Detailed (object):** An object containing:
+- `domains` (array): The domains to enforce conventions between. Use **one** style for the whole array - simplified and detailed cannot be mixed:
+    - **Simplified:** glob-pattern strings (e.g., `src/utils/*`), matched through your `tsconfig.json` paths.
+    - **Detailed:** objects, each with:
         - `path` (string): The path to the domain.
         - `alias` (string): The alias to use for absolute imports (e.g., `@ui`).
 - `autofix` (boolean): Whether to automatically fix import convention violations. Defaults to `false`.

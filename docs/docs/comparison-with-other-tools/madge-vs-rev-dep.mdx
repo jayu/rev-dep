@@ -1,0 +1,45 @@
+---
+description: "madge vs rev-dep: compare circular-dependency detection, graph visualization and performance. rev-dep is a faster, enforceable alternative (but not a graph renderer)."
+title: madge vs Rev-dep
+sidebar_label: madge
+---
+
+<head>
+  <title>madge vs Rev-dep: features &amp; performance compared</title>
+</head>
+
+# madge vs Rev-dep
+
+[madge](https://github.com/pahen/madge) visualizes module dependencies and finds circular dependencies. rev-dep turns the same analysis into enforceable CI checks and runs faster - but madge's signature feature, the graph image, has no rev-dep equivalent.
+
+## At a glance
+
+| | madge | Rev-dep |
+| --- | --- | --- |
+| Primary focus | graph visualization + circular deps | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**up to 207x faster**) |
+| Circular dependencies | yes | yes |
+| Graph image (SVG / DOT) | yes | no |
+| "Orphans" / "leaves" / "depends" queries | yes | yes (via exploratory commands) |
+| Unused exports / dependencies | no | yes |
+| Architecture rules | no | yes |
+| CI enforcement | manual | non-zero exit codes built in |
+
+## Where rev-dep is stronger
+
+- **Enforceable, not just informational.** `rev-dep config run` and [`circular`](../exploratory-toolkit/circular.mdx) exit non-zero, so they gate CI directly.
+- **Much broader** - [unused exports](../config-based-checks/checks/unused-exports.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), and more.
+- **Speed** on large graphs.
+
+## Where madge may still fit
+
+madge's main draw is the **visual dependency graph** (`--image`, `--dot`). rev-dep answers the same "what imports what" questions as text through the [exploratory toolkit](../exploratory-toolkit/overview.mdx) but renders no images. Keep madge if the picture matters.
+
+## Which should you choose?
+
+- Want a rendered dependency graph? **madge.**
+- Want fast, CI-enforceable circular detection plus the rest of a hygiene suite? **rev-dep.**
+
+## Migrating
+
+See [Migrating from madge](../migrating-from-other-tools/migrating-from-madge.mdx) for the command-to-check mapping.

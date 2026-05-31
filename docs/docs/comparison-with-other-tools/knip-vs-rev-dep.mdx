@@ -1,0 +1,45 @@
+---
+description: "knip vs rev-dep: compare unused-code detection, architecture checks, performance and config. rev-dep is a faster Go-based alternative that also enforces boundaries."
+title: knip vs Rev-dep
+sidebar_label: knip
+---
+
+<head>
+  <title>knip vs Rev-dep: features &amp; performance compared</title>
+</head>
+
+# knip vs Rev-dep
+
+[knip](https://knip.dev) is a Node-based tool that finds unused files, exports, and dependencies. rev-dep covers that same core in Go and adds architecture checks - but knip reports at a finer granularity in a few areas. Here's how they line up.
+
+## At a glance
+
+| | knip | Rev-dep |
+| --- | --- | --- |
+| Primary focus | unused files / exports / dependencies | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**up to 20x faster**) |
+| Unused files / exports / deps | yes | yes |
+| Member / namespace / duplicate-level | yes | no |
+| Circular, boundaries, restricted imports, conventions | no | yes |
+| Graph visualization | no | no |
+| Config | `knip.json` / `knip.ts` | one `rev-dep.config.jsonc` |
+| Monorepo | yes | yes (per-workspace rules) |
+
+## Where rev-dep is stronger
+
+- **Speed** on large codebases - one Go pass instead of Node analysis.
+- **Architecture governance** knip doesn't do: [circular imports](../config-based-checks/checks/circular-imports.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [import conventions](../config-based-checks/checks/import-conventions.mdx), and [dev-deps in production](../config-based-checks/checks/dev-deps-on-prod.mdx).
+- **One tool** for unused code *and* structure, instead of pairing knip with a boundaries linter.
+
+## Where knip may still fit
+
+knip reports things rev-dep does not: unused **class/enum members**, **namespace-level** exports, **duplicate exports**, unused **catalog** entries, and missing/optional **binaries**. If you depend on that granularity, knip remains valuable.
+
+## Which should you choose?
+
+- Want the finest-grained unused-code report and knip's plugin ecosystem? **knip.**
+- Want speed, architecture enforcement, and one config that replaces several tools? **rev-dep.**
+
+## Migrating
+
+Decided to switch? The [Migrating from knip](../migrating-from-other-tools/migrating-from-knip.mdx) guide maps every knip option to its rev-dep equivalent.

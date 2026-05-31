@@ -1,0 +1,43 @@
+---
+description: "unimported vs rev-dep: compare unused-file, unused-dependency and unresolved-import detection. rev-dep is a faster, maintained alternative that covers more."
+title: unimported vs Rev-dep
+sidebar_label: unimported
+---
+
+<head>
+  <title>unimported vs Rev-dep: features &amp; performance compared</title>
+</head>
+
+# unimported vs Rev-dep
+
+[unimported](https://github.com/smeijer/unimported) reports dangling files, unused dependencies, and unresolved imports. rev-dep covers all three and adds the rest of its suite - and unimported is archived.
+
+## At a glance
+
+| | unimported | Rev-dep |
+| --- | --- | --- |
+| Primary focus | unused files, unused & unresolved imports | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**faster**) |
+| Unused (dangling) files | yes | yes |
+| Unused dependencies | yes | yes |
+| Unresolved imports | yes | yes |
+| Unused exports / cycles / boundaries | no | yes |
+| Autofix (remove files) | yes | yes |
+| Maintained | no (archived) | yes |
+
+## Where rev-dep is stronger
+
+- **Maintained**, fast, and broader - on top of unimported's three checks it adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [missing dependencies](../config-based-checks/checks/missing-node-modules.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), and architecture rules.
+- **Monorepo-aware** per-workspace rules with cross-package resolution.
+
+## Where unimported may still fit
+
+There's little reason to start a new project on an archived tool. If you have an existing `.unimportedrc.json`, rev-dep maps its options directly.
+
+## Which should you choose?
+
+**rev-dep** - it's maintained and a strict superset of unimported's checks.
+
+## Migrating
+
+See [Migrating from unimported](../migrating-from-other-tools/migrating-from-unimported.mdx) to translate your config.

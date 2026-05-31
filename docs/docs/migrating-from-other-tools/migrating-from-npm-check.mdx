@@ -1,0 +1,79 @@
+---
+description: "Migrate from npm-check to rev-dep for unused-dependency detection - faster, config-driven, and with missing-dependency and architecture checks added."
+title: Migrating from npm-check
+sidebar_label: npm-check
+---
+
+<head>
+  <title>npm-check alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from npm-check
+
+[npm-check](https://github.com/dylang/npm-check) reports unused dependencies and out-of-date packages, with an interactive updater. rev-dep replaces its **unused-dependency** analysis and adds checks npm-check doesn't have.
+
+## Why migrate
+
+- **npm-check is effectively unmaintained** (last release 2021). rev-dep is actively developed.
+- **Speed.** rev-dep is Go-based and runs in a single parallel pass - **faster** on large repos.
+- **More than unused deps.** rev-dep also detects [missing dependencies](../config-based-checks/checks/missing-node-modules.mdx), [dev-deps in production](../config-based-checks/checks/dev-deps-on-prod.mdx), [unused exports](../config-based-checks/checks/unused-exports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx), and architecture rules.
+
+## What carries over, what changes
+
+- **Covered well:** unused dependencies.
+- **Out of scope - version updates.** npm-check's main extra feature is checking for outdated packages and updating them interactively (`-u`). rev-dep does **not** manage versions; keep `npm outdated` or `npm-check-updates` for that.
+- **Bonus:** rev-dep adds missing-dependency detection, which npm-check does not focus on.
+
+## Feature mapping
+
+| npm-check | rev-dep |
+| --- | --- |
+| unused dependencies | [`unusedNodeModulesDetection`](../config-based-checks/checks/unused-node-modules.mdx) |
+| `-i, --ignore <glob>` | `excludeModules` |
+| `-p, --production` (skip devDependencies) | enable checks on production entry points; see [dev-deps in production](../config-based-checks/checks/dev-deps-on-prod.mdx) |
+| `-u` / `-y` (update outdated packages) | - (out of scope; use `npm outdated` / `npm-check-updates`) |
+| - | [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx) |
+
+## Translating your usage
+
+```bash
+npm-check
+npm-check --ignore "@types/*"
+```
+
+become a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "configVersion": "1.8",
+  "rules": [
+    {
+      "path": ".",
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "excludeModules": ["@types/*"]
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+Tooling-only packages that aren't `import`ed (CLIs, plugins) can be pointed to with `pkgJsonFieldsWithBinaries` / `filesWithBinaries` / `filesWithModules` rather than excluded - see [unused node modules](../config-based-checks/checks/unused-node-modules.mdx).
+
+## Running it
+
+```bash
+# npm-check
+npx npm-check
+
+# rev-dep
+rev-dep config run
+```
+
+## Next steps
+
+- [Missing or unused dependency false positives](../troubleshooting/missing-or-unused-dependency-false-positives.mdx) - especially important in monorepos.
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).

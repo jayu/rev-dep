@@ -23,10 +23,9 @@ Identifying and removing orphan files is essential for maintaining a healthy cod
 
 When working with a monorepo, detecting orphan files might work best when executed at the **workspace root**. Running the check at the root allows `rev-dep` to have the full context of all packages, ensuring it can verify whether a file is truly unused across the entire monorepo, and not just within a single workspace.
 
-{/*
-// TODO full-docs
-Read more in [Orphan files in shared workspace packages](troubleshooting/orphan-files-in-shared-workspace-packages.mdx).
-*/}
+
+Read more in [Orphan files and unused exports in shared packages](../../troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx).
+
 
 ## Configuration
 

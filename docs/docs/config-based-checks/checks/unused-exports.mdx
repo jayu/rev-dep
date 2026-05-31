@@ -27,14 +27,10 @@ This allows you to identify dead code that can be safely removed to improve main
 
 When working in a monorepo, detecting unused exports might work best at the workspace root. This allows the detector to have context of all packages and check whether a dimension of a *given* export is used across the entire monorepo, not just within a single workspace.
 
-{/*
-// TODO full-docs
 
-## Troubleshooting
+If you see reported false positives, follow [Orphan files and unused exports in shared packages](../../troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) guide.
 
-If you see reported false positives, follow [Unused exports in shared workspace packages](docs/docs/troubleshooting/unused-exports-in-shared-workspace-packages.mdx) guide.
 
-*/}
 
 ## Configuration
 

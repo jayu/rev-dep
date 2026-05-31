@@ -1,0 +1,43 @@
+---
+description: "ts-prune vs rev-dep: compare unused-export detection, performance and scope. rev-dep is a faster, maintained alternative that also enforces architecture."
+title: ts-prune vs Rev-dep
+sidebar_label: ts-prune
+---
+
+<head>
+  <title>ts-prune vs Rev-dep: features &amp; performance compared</title>
+</head>
+
+# ts-prune vs Rev-dep
+
+[ts-prune](https://github.com/nadeesha/ts-prune) finds unused TypeScript exports. rev-dep does the same with [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx) and adds the rest of a dependency-hygiene suite - and unlike ts-prune, it's actively developed.
+
+## At a glance
+
+| | ts-prune | Rev-dep |
+| --- | --- | --- |
+| Primary focus | unused exports | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**faster**) |
+| Unused exports | yes | yes |
+| Autofix (remove `export`) | no | yes (`config run --fix`) |
+| Orphan files / dependencies / cycles | no | yes |
+| Architecture rules | no | yes |
+| Maintained | maintenance mode (points to knip) | yes |
+
+## Where rev-dep is stronger
+
+- **Maintained and fast.**
+- **Autofix** removes the dead `export` for you.
+- **Much broader** - [orphan files](../config-based-checks/checks/orphan-files.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), and architecture rules.
+
+## Where ts-prune may still fit
+
+ts-prune is tiny and zero-config for a quick one-off scan, and it explicitly flags exports "used in module" (referenced only within their own file). rev-dep reports an export as unused when no *other* file imports it, without that separate marker.
+
+## Which should you choose?
+
+For anything ongoing, **rev-dep** - ts-prune is in maintenance mode and far narrower.
+
+## Migrating
+
+See [Migrating from ts-prune](../migrating-from-other-tools/migrating-from-ts-prune.mdx).

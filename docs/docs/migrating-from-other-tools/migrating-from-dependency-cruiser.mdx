@@ -1,0 +1,120 @@
+---
+description: "Migrate from dependency-cruiser to rev-dep: map forbidden-dependency rules, circular and orphan detection onto rev-dep's config-driven checks."
+title: Migrating from dependency-cruiser
+sidebar_label: dependency-cruiser
+---
+
+<head>
+  <title>dependency-cruiser alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from dependency-cruiser
+
+[dependency-cruiser](https://github.com/sverweij/dependency-cruiser) validates and visualizes dependencies using custom `forbidden` rules. rev-dep expresses the same constraints as dedicated checks and runs them as a fast single pass.
+
+## Why migrate
+
+- **Speed.** rev-dep is written in Go and runs every check in parallel - **faster** on large codebases.
+- **Purpose-built checks.** Instead of hand-writing `from`/`to` rules for everything, rev-dep gives you named detectors - [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx) - and adds unused/missing dependency and unused-export detection dependency-cruiser doesn't do.
+
+## What carries over, what changes
+
+- **Covered well:** circular detection, orphan detection, and path-to-path forbidden rules.
+- **Not replaced - visualization.** dependency-cruiser renders graphs (dot/SVG, mermaid, HTML). rev-dep has **no graph rendering** - it answers reachability as text via the [exploratory toolkit](../exploratory-toolkit/overview.mdx). Keep dependency-cruiser if the diagrams matter.
+- **Rule model differs.** dependency-cruiser is one generic rule engine (`from` → `to`); rev-dep splits the intent across two checks: **module boundaries** (file-pattern → file-pattern) and **restricted imports** (entry-point reachability → denied targets).
+
+## Feature mapping
+
+| dependency-cruiser rule | rev-dep |
+| --- | --- |
+| `{ circular: true }` | [`circularImportsDetection`](../config-based-checks/checks/circular-imports.mdx) |
+| `{ orphan: true }` | [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) |
+| `forbidden` `from`/`to` between folders | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) (`pattern` / `deny` / `allow`) |
+| `forbidden` with `reachable` from entry points | [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) (`entryPoints` / `denyFiles` / `denyModules`) |
+| "not-to-dev-dep" (prod using devDependencies) | [`devDepsUsageOnProdDetection`](../config-based-checks/checks/dev-deps-on-prod.mdx) |
+| imports of undeclared packages | [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx) |
+| graph image (dot/mermaid/HTML) | - (no image output) |
+
+## Translating your config
+
+A `.dependency-cruiser.js` with a few rules:
+
+```js
+module.exports = {
+  forbidden: [
+    { name: 'no-circular', severity: 'error', from: {}, to: { circular: true } },
+    { name: 'no-orphans', severity: 'error', from: { orphan: true }, to: {} },
+    {
+      name: 'ui-not-to-api',
+      severity: 'error',
+      from: { path: '^src/ui' },
+      to: { path: '^src/api' }
+    },
+    {
+      // transitive reachability: server-only code must not be reachable from pages
+      name: 'pages-not-to-server',
+      severity: 'error',
+      from: { path: '^src/pages' },
+      to: { path: '^src/server', reachable: true }
+    }
+  ]
+};
+```
+
+becomes a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "configVersion": "1.8",
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/index.ts"],
+      // Each detector accepts an array, so you can define several of the same
+      // check with different settings. A single item works just as well.
+      "circularImportsDetection": [
+        {
+          "enabled": true
+        }
+      ],
+      "orphanFilesDetection": [
+        {
+          "enabled": true
+        }
+      ],
+      "restrictedImportsDetection": [
+        {
+          // dependency-cruiser's `reachable: true` rule
+          "enabled": true,
+          "entryPoints": ["src/pages/**"],
+          "denyFiles": ["src/server/**"]
+        }
+      ],
+      "moduleBoundaries": [
+        {
+          "name": "ui-not-to-api",
+          "pattern": "src/ui/**",
+          "deny": ["src/api/**"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+dependency-cruiser uses regular expressions in `path`/`pathNot`; rev-dep uses glob patterns. A plain `from`/`to` rule becomes a [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) rule (file-to-file), while a rule with `reachable: true` becomes a [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) check (transitive reachability from entry points).
+
+## Running it
+
+```bash
+# dependency-cruiser
+npx depcruise src --config
+
+# rev-dep
+rev-dep config run
+```
+
+## Next steps
+
+- [Module boundaries vs. restricted imports](../config-based-checks/checks/restricted-imports.mdx#restricted-imports-vs-module-boundaries) - pick the right one per rule.
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).

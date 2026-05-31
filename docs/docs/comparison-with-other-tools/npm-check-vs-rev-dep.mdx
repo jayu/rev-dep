@@ -1,0 +1,43 @@
+---
+description: "npm-check vs rev-dep: compare unused-dependency detection and scope. rev-dep is a faster, maintained alternative for dependency hygiene (npm-check also updates versions)."
+title: npm-check vs Rev-dep
+sidebar_label: npm-check
+---
+
+<head>
+  <title>npm-check vs Rev-dep: features &amp; performance compared</title>
+</head>
+
+# npm-check vs Rev-dep
+
+[npm-check](https://github.com/dylang/npm-check) reports unused dependencies and out-of-date packages, with an interactive updater. rev-dep replaces its **unused-dependency** analysis and adds far more - but it does not manage package versions.
+
+## At a glance
+
+| | npm-check | Rev-dep |
+| --- | --- | --- |
+| Primary focus | unused deps + version updates | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**faster**) |
+| Unused dependencies | yes | yes |
+| Missing dependencies | not a focus | yes |
+| Outdated / interactive update | yes | no |
+| Unused exports / orphan files / cycles | no | yes |
+| Maintained | effectively no (last release 2022) | yes |
+
+## Where rev-dep is stronger
+
+- **Maintained** and fast.
+- **Broader** - it also detects [missing dependencies](../config-based-checks/checks/missing-node-modules.mdx), [dev-deps in production](../config-based-checks/checks/dev-deps-on-prod.mdx), [unused exports](../config-based-checks/checks/unused-exports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx), and architecture rules.
+
+## Where npm-check may still fit
+
+npm-check's interactive **version updater** (`-u`) is outside rev-dep's scope entirely. For checking and bumping outdated packages, keep `npm outdated` or `npm-check-updates` - rev-dep focuses on whether dependencies are *used and declared*, not their versions.
+
+## Which should you choose?
+
+- Want an interactive "update my outdated packages" flow? **npm-check** (or npm-check-updates).
+- Want maintained, fast unused/missing-dependency detection plus broader hygiene? **rev-dep.**
+
+## Migrating
+
+See [Migrating from npm-check](../migrating-from-other-tools/migrating-from-npm-check.mdx).

@@ -1,0 +1,44 @@
+---
+description: "eslint-plugin-import vs rev-dep: compare import-graph rules (no-cycle, no-unused-modules, no-restricted-paths) for speed and scope. rev-dep is a faster whole-graph alternative."
+title: eslint-plugin-import vs Rev-dep
+sidebar_label: eslint-plugin-import
+---
+
+<head>
+  <title>eslint-plugin-import vs Rev-dep: features compared</title>
+</head>
+
+# eslint-plugin-import vs Rev-dep
+
+[eslint-plugin-import](https://github.com/import-js/eslint-plugin-import) (and the maintained fork `eslint-plugin-import-x`) provides ESLint rules for the import graph. Several map directly to rev-dep checks that run far faster on the whole graph at once.
+
+## At a glance
+
+| | eslint-plugin-import | Rev-dep |
+| --- | --- | --- |
+| Type | ESLint plugin (per-file, in-editor) | standalone whole-graph analyzer |
+| Runtime | Node / ESLint | Go - single parallel pass (**faster**) |
+| Cycles (`no-cycle`) | yes (slow on big repos) | yes |
+| Unused exports (`no-unused-modules`) | yes | yes |
+| Unresolved / extraneous deps | yes | yes |
+| Restricted paths | yes (`no-restricted-paths`) | yes ([restricted imports](../config-based-checks/checks/restricted-imports.mdx) / [boundaries](../config-based-checks/checks/module-boundaries.mdx)) |
+| In-editor squiggles | yes | no |
+
+## Where rev-dep is stronger
+
+- **Speed.** The graph-aware rules (`no-cycle`, `no-unused-modules`) are notoriously slow because ESLint re-resolves per file; rev-dep builds the graph once.
+- **Consolidation** - cycles, unused exports, unresolved/extraneous dependencies, and path restrictions in one config.
+- **Cross-package accuracy** in monorepos.
+
+## Where eslint-plugin-import may still fit
+
+It runs **in your editor and existing ESLint pipeline**, giving inline feedback as you type - something a batch analyzer doesn't. Many teams keep their ESLint setup and move only the heavy graph rules to rev-dep.
+
+## Which should you choose?
+
+- Want inline editor feedback within ESLint? **eslint-plugin-import.**
+- Want fast CI-time cycle/unused/boundary enforcement across the whole graph? **rev-dep** (it pairs well with keeping the rest of ESLint).
+
+## Migrating
+
+See [Migrating from eslint-plugin-import](../migrating-from-other-tools/migrating-from-eslint-plugin-import.mdx) for the rule-to-check mapping.

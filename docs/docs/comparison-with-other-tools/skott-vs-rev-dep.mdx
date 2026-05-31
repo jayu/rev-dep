@@ -1,0 +1,43 @@
+---
+description: "skott vs rev-dep: compare circular-dependency, unused-file and unused-dependency detection, visualization and performance. rev-dep is a faster, config-driven alternative."
+title: skott vs Rev-dep
+sidebar_label: skott
+---
+
+<head>
+  <title>skott vs Rev-dep: features &amp; performance compared</title>
+</head>
+
+# skott vs Rev-dep
+
+[skott](https://github.com/antoine-coulon/skott) builds a dependency graph and detects circular dependencies, unused files, and unused third-party dependencies, with a graph explorer. rev-dep covers the same checks in one config and runs faster - but skott also visualizes the graph, which rev-dep does not.
+
+## At a glance
+
+| | skott | Rev-dep |
+| --- | --- | --- |
+| Primary focus | graph analysis + visualization | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**up to 74x faster**) |
+| Circular dependencies | yes | yes |
+| Unused files | yes | yes |
+| Unused dependencies | yes | yes |
+| Graph visualization (webapp / SVG / PNG) | yes | no |
+| Unused exports / missing deps / boundaries | no | yes |
+
+## Where rev-dep is stronger
+
+- **One config** for the whole suite, adding [unused exports](../config-based-checks/checks/unused-exports.mdx), [missing dependencies](../config-based-checks/checks/missing-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), and [import conventions](../config-based-checks/checks/import-conventions.mdx).
+- **Speed** and CI-ready exit codes.
+
+## Where skott may still fit
+
+skott's interactive **web app and static graph images** are a real strength. rev-dep answers graph questions as text via the [exploratory toolkit](../exploratory-toolkit/overview.mdx) but renders nothing visual. Keep skott if the explorer is part of your workflow.
+
+## Which should you choose?
+
+- Want an interactive graph explorer? **skott.**
+- Want the same checks plus exports, missing deps, and architecture rules enforced fast in CI? **rev-dep.**
+
+## Migrating
+
+See [Migrating from skott](../migrating-from-other-tools/migrating-from-skott.mdx).

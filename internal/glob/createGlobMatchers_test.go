@@ -221,3 +221,62 @@ func TestGlobMatchingWithRelativePattern(t *testing.T) {
 		})
 	}
 }
+
+// TestGlobSeparatorSemantics locks in the '/'-separator behavior: a single '*'
+// (and '?') matches within a single path segment only, while '**', plain
+// directory names and trailing-slash directories still cross '/'. Each case
+// mirrors the behavior matrix documented for the separator fix. Paths are
+// analogous to (not copied from) real-world configs.
+func TestGlobSeparatorSemantics(t *testing.T) {
+	root := "/fs/root/"
+	testCases := []struct {
+		name     string
+		pattern  string
+		filePath string
+		match    bool
+	}{
+		// Single '*' must not cross '/' (the reported deny-files bug class).
+		{"'**/use*.ts' does not match a file nested under a use* directory", "**/use*.ts", "/fs/root/src/hooks/useThing/common.ts", false},
+		{"'**/use*/*.ts' does match a file nested under a use* directory", "**/use*/*.ts", "/fs/root/src/hooks/useThing/common.ts", true},
+		{"'**/use*.ts' still matches a real use*.ts file", "**/use*.ts", "/fs/root/src/hooks/useThing.ts", true},
+
+		// '*' is exactly one segment, never empty-across-slash and never multi-segment.
+		{"'src/*/index.ts' does not match a file directly in src", "src/*/index.ts", "/fs/root/src/index.ts", false},
+		{"'src/*/index.ts' matches a file one directory deep", "src/*/index.ts", "/fs/root/src/components/index.ts", true},
+		{"'a/*/b' does not match across two directories", "a/*/b", "/fs/root/a/x/y/b", false},
+		{"'a/*/b' matches across exactly one directory", "a/*/b", "/fs/root/a/x/b", true},
+
+		// '?' is a single non-separator character.
+		{"'foo?bar.ts' does not let '?' match '/'", "foo?bar.ts", "/fs/root/foo/bar.ts", false},
+		{"'foo?bar.ts' matches a single character", "foo?bar.ts", "/fs/root/fooXbar.ts", true},
+
+		// Bare wildcard patterns are segment-anchored; use '**/' for any depth.
+		{"bare '*.ts' does not match a nested file", "*.ts", "/fs/root/src/a/b.ts", false},
+		{"bare '*.ts' matches a root-level file", "*.ts", "/fs/root/index.ts", true},
+		{"'**/*.ts' matches a root-level file", "**/*.ts", "/fs/root/index.ts", true},
+		{"'**/*.ts' matches a nested file", "**/*.ts", "/fs/root/src/a/b.ts", true},
+
+		// Idiomatic ways to express a recursive directory still work.
+		{"'dist*' does not cross '/' into directory contents", "dist*", "/fs/root/dist/bundle.js", false},
+		{"'dist/**' matches directory contents recursively", "dist/**", "/fs/root/dist/bundle.js", true},
+		{"plain 'dist' name matches directory contents", "dist", "/fs/root/dist/bundle.js", true},
+		{"trailing-slash 'dist/' matches directory contents recursively", "dist/", "/fs/root/dist/sub/x.js", true},
+		{"'src/*' matches a direct child", "src/*", "/fs/root/src/a.ts", true},
+		{"'src/*' does not match a nested file", "src/*", "/fs/root/src/a/b.ts", false},
+		{"'src/**' matches a nested file", "src/**", "/fs/root/src/a/b.ts", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			globMatchers := CreateGlobMatchers([]string{tc.pattern}, root)
+			matches := MatchesAnyGlobMatcher(tc.filePath, globMatchers, debug)
+			if matches != tc.match {
+				if tc.match {
+					t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, tc.pattern, tc.filePath)
+				} else {
+					t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, tc.pattern, tc.filePath)
+				}
+			}
+		})
+	}
+}

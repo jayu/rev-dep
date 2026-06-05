@@ -108,7 +108,11 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 		patternNorm := pathutil.NormalizeGlobPattern(pattern)
 
 		item := GlobMatcher{
-			globPattern:                        glob.MustCompile(patternNorm),
+			// compile with '/' as path separator so a single '*' matches within a
+			// single path segment only (gitignore-aligned); '**' still crosses '/'.
+			// Without a separator gobwas/glob lets '*' span '/', so e.g. "**/use*.ts"
+			// would wrongly match "dir/useSearch/common.ts".
+			globPattern:                        glob.MustCompile(patternNorm, '/'),
 			inputString:                        patternNorm,
 			patternRoot:                        patternRootForPattern,
 			isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
@@ -122,7 +126,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 		if strings.HasPrefix(patternNorm, "**/") {
 			additionalPattern := strings.Replace(patternNorm, "**/", "", 1)
 			additionalItem := GlobMatcher{
-				globPattern:                        glob.MustCompile(additionalPattern),
+				globPattern:                        glob.MustCompile(additionalPattern, '/'),
 				inputString:                        additionalPattern,
 				patternRoot:                        patternRootForPattern,
 				isAnchoredToPatternRoot:            isAnchoredToPatternRoot,

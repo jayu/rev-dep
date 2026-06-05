@@ -216,7 +216,7 @@ Exported members never imported anywhere reachable. Enable it only once entry po
 }
 ```
 
-Like orphan files, run it at the **root** for shared packages so cross-package usage is counted; if shared-package exports are wrongly reported, see the [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide.
+Like orphan files, run it at the **root** for shared packages so cross-package usage is counted. To also catch app-local unused exports, enable it on the **compiled app** - but because the app follows shared source, its report will include shared-package exports; suppress those with an `ignoreFiles` pattern relative to the rule (e.g. `"ignoreFiles": ["../../packages/**"]`) and let the root rule own the shared findings. The [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide explains why unused exports leaks across packages while orphan files does not, and walks through this setup.
 
 Learn more about the [`unusedExportsDetection`](./config-based-checks/checks/unused-exports.mdx) check configuration.
 

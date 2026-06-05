@@ -132,6 +132,13 @@ npm install -g rev-dep
 pnpm global add rev-dep
 ```
 
+### Step-by-step integration guides
+
+Follow the guide that matches your project to get from zero to a working setup:
+
+- [Monorepo integration guide](https://rev-dep.com/docs/monorepo-integration-guide) - for `pnpm`/`yarn`/`npm` workspaces.
+- [Single-workspace integration guide](https://rev-dep.com/docs/single-workspace-integration-guide) - for single-package projects.
+
 ## **Quick Examples 💡**
 
 A few instant-use examples to get a feel for the tool:

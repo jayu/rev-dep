@@ -7,7 +7,8 @@ title: Single-workspace integration guide
 
 This guide takes you from zero to a working rev-dep setup in a single-package project, one step at a time. The order matters: each step builds the foundation the next one relies on.
 
-> This guide assumes rev-dep is already installed. If not, see [Installation](./installation.mdx) and the [intro](./intro.mdx) first. Working in a monorepo? Use the [monorepo integration guide](./monorepo-integration-guide.mdx) instead.
+> This guide assumes rev-dep is already installed. If not, see [Installation](./installation.mdx) and the [intro](./intro.mdx) first. 
+> Working in a monorepo? Use the [monorepo integration guide](./monorepo-integration-guide.mdx) instead.
 
 The mental model is simple: rev-dep builds one dependency graph from your source files, and each check is a query against that graph. Most of the work is making sure the graph is accurate (steps 1-4); after that, enabling checks is quick.
 

@@ -23,13 +23,17 @@ Global installation is fine for one-off CLI use, but local installation is the b
 
 ## Initialize Configuration
 
-Create a configuration file to start defining your and rules:
+Follow a step-by-step setup with the 
+- [Monorepo integration guide](../monorepo-integration-guide.mdx) 
+- [Single-workspace integration guide](../single-workspace-integration-guide.mdx).
+
+
+Or create a configuration file straight away to start defining your rules:
 
 ```bash
 npx rev-dep config init
 ```
 
-> More about [config file structure](config-based-checks/config-file-structure.mdx).
 
 Exec the configuration file:
 
@@ -37,17 +41,8 @@ Exec the configuration file:
 npx rev-dep config run
 ```
 
+> More about [config file structure](config-based-checks/config-file-structure.mdx).
 
-{/*
-// TODO full-docs
-### Working with Monorepo?
-
-Check [Detailed Monorepo Integration Guide](./monorepo-integration-guide.mdx)
-
-### Single Workspace Project?
-
-Check [Detailed Single Workspace Integration Guide](./single-workspace-integration-guide.mdx)
-*/}
 
 ## Run a Exploratory Toolkit Check
 

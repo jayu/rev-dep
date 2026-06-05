@@ -53,3 +53,41 @@ rev-dep resolve --file packages/app/src/main.tsx --follow-monorepo-packages @acm
 ## Tradeoff
 
 Following more packages broadens the graph and changes which files count as reachable. Use the smallest scope that matches how the package is actually consumed.
+
+## Node modules resolution
+
+`followMonorepoPackages` controls whether a followed package's **source** enters the graph. A separate, top-level [`nodeModulesResolution`](config-based-checks/config-file-structure.mdx#top-level-fields) option controls which `package.json` a third-party (node module) import is **validated against** once it is in the graph. It affects three checks: `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports`.
+
+It is a single top-level value applied to every rule (the same setting is exposed on the CLI as `--node-modules-resolution`).
+
+### The two modes
+
+- **`entry-package`** (default) - every import in a rule's tree is validated against that rule's entry `package.json`, so the consumer is expected to declare every dependency it pulls in, including those reached through followed packages. This fits npm and classic yarn, and is the historical behavior.
+- **`nearest-package`** - each import is validated against the `package.json` that **owns the importing file**, so every package must declare the dependencies its own files use. This fits pnpm's default layout, and any setup where a file can only resolve the dependencies its own package declares.
+
+### Why `nearest-package` exists
+
+When you follow a workspace package, its source imports its own dependencies. Under `entry-package`, those imports are checked against the **consumer's** `package.json`, so every dependency the followed package declares but the consumer does not is reported as a false-positive `missing` dependency.
+
+`nearest-package` fixes this: a followed package's import of one of its own declared dependencies is correctly considered resolved, while an import the followed package uses but **fails to declare itself** is correctly flagged - exactly what a strict pnpm install would break on.
+
+### Effect per check (`nearest-package`)
+
+- **`missingNodeModules`** - reports, per file, any import not declared by that file's own `package.json` (tree-wide). A phantom dependency anywhere in the followed graph is surfaced, because when each package resolves only its own dependencies it breaks the entry's build.
+- **`unusedNodeModules`** - reports dependencies declared by the **entry** `package.json` that none of the **entry package's own files** use. A dependency the entry declares but only a followed package consumes is flagged as unused for the entry (under `nearest-package` the followed package must declare it itself). Unlike `missing`, this stays scoped to the entry package - an unused dependency elsewhere does not affect the entry build.
+- **`unresolvedImports`** - reports every import not declared by its owning package, with no entry-package suppression.
+
+### A note on `unresolvedImports` vs `missingNodeModules` in `entry-package` mode
+
+Under `entry-package`, a dependency that a followed package declares (so it resolves fine from that package) but the entry does not declare is reported by `missingNodeModules` yet **not** by `unresolvedImports`. That difference is intentional: `unresolvedImports` reflects raw module resolution, which succeeded against the followed package, while `missingNodeModules` answers "is it declared where the entry will look for it." Under `nearest-package` the two converge, because both then ask the same question of each file's own package.
+
+### CLI
+
+The CLI exposes the same modes via `--node-modules-resolution` on the `resolve`, `unresolved`, `node-modules used|unused|missing`, and `debug parse-file|get-tree-for-cwd` commands (default `entry-package`). Because the CLI analyzes a single working directory, the mode maps directly to how imports are classified - so the `debug` commands' `resolvedType` output reflects the chosen mode, letting you see exactly what each mode resolves.
+
+```bash
+# pnpm-style validation while following a shared source package
+rev-dep node-modules missing -c packages/app --follow-monorepo-packages --node-modules-resolution nearest-package
+```
+
+> Edge case: with `--follow-monorepo-packages` and `--node-modules-resolution entry-package`, the CLI's `unresolved` command lists a followed package's undeclared-by-entry dependency that the config's `unresolvedImports` would instead report under `missing`. The primary `missing` signal is identical across both; only the secondary `unresolved` diagnostic differs. Without `--follow-monorepo-packages` the two modes are identical.

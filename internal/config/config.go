@@ -299,8 +299,19 @@ type RevDepConfig struct {
 	CustomAssetExtensions []string `json:"customAssetExtensions,omitempty"`
 	IgnoreFiles           []string `json:"ignoreFiles,omitempty"`
 	ProcessIgnoredFiles   []string `json:"processIgnoredFiles,omitempty"`
-	Rules                 []Rule   `json:"rules"`
+	// NodeModulesResolution selects which package.json each third-party import is validated against
+	// for the missing/unused/unresolved node module checks: "entry-package" (default) validates every
+	// import against the rule's entry package.json; "nearest-package" validates each import against the
+	// package.json that owns the importing file. Empty is normalized to "entry-package" by ParseConfig.
+	NodeModulesResolution string `json:"nodeModulesResolution,omitempty"`
+	Rules                 []Rule `json:"rules"`
 }
+
+// Node modules resolution modes for RevDepConfig.NodeModulesResolution.
+const (
+	NodeModulesResolutionEntryPackage   = "entry-package"
+	NodeModulesResolutionNearestPackage = "nearest-package"
+)
 
 var configFileName = "rev-dep.config.json"
 var hiddenConfigFileName = ".rev-dep.config.json"
@@ -317,7 +328,7 @@ func ConfigFileNameJSONC() string {
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -442,6 +453,12 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 	// Validate config
 	if err := ValidateConfig(&config); err != nil {
 		return RevDepConfig{}, err
+	}
+
+	// Normalize optional node modules resolution mode to its explicit default so downstream
+	// code always sees a concrete value.
+	if config.NodeModulesResolution == "" {
+		config.NodeModulesResolution = NodeModulesResolutionEntryPackage
 	}
 
 	// Validate config version against supported versions for this CLI
@@ -600,6 +617,7 @@ func validateRawConfig(raw map[string]interface{}) error {
 		"customAssetExtensions": true,
 		"ignoreFiles":           true,
 		"processIgnoredFiles":   true,
+		"nodeModulesResolution": true,
 		"rules":                 true,
 		// "cloud" is accepted but intentionally not parsed, schema'd, or documented yet.
 		// It is allowed through validation so existing/forward configs do not error.
@@ -638,6 +656,18 @@ func validateRawConfig(raw map[string]interface{}) error {
 			if _, ok := pattern.(string); !ok {
 				return fmt.Errorf("processIgnoredFiles[%d] must be a string, got %T", i, pattern)
 			}
+		}
+	}
+
+	if nodeModulesResolution, exists := raw["nodeModulesResolution"]; exists && nodeModulesResolution != nil {
+		value, ok := nodeModulesResolution.(string)
+		if !ok {
+			return fmt.Errorf("nodeModulesResolution must be a string, got %T", nodeModulesResolution)
+		}
+		switch value {
+		case "", NodeModulesResolutionEntryPackage, NodeModulesResolutionNearestPackage:
+		default:
+			return fmt.Errorf("nodeModulesResolution: must be one of '%s', '%s', got '%s'", NodeModulesResolutionEntryPackage, NodeModulesResolutionNearestPackage, value)
 		}
 	}
 

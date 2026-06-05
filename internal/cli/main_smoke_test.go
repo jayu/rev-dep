@@ -612,6 +612,7 @@ func TestNodeModules(t *testing.T) {
 				"",
 				[]string{},
 				model.FollowMonorepoPackagesValue{},
+				false,
 			)
 			fmt.Print(result)
 			return nil
@@ -648,6 +649,7 @@ func TestNodeModules(t *testing.T) {
 				"",
 				[]string{},
 				model.FollowMonorepoPackagesValue{},
+				false,
 			)
 			fmt.Print(result)
 			return nil
@@ -684,6 +686,7 @@ func TestNodeModules(t *testing.T) {
 				"",
 				[]string{"node", "imports"},
 				model.FollowMonorepoPackagesValue{},
+				false,
 			)
 			fmt.Print(result)
 			return nil
@@ -720,6 +723,7 @@ func TestNodeModules(t *testing.T) {
 				"",
 				[]string{},
 				model.FollowMonorepoPackagesValue{},
+				false,
 			)
 			fmt.Print(result)
 			return nil
@@ -756,6 +760,7 @@ func TestNodeModules(t *testing.T) {
 				"",
 				[]string{},
 				model.FollowMonorepoPackagesValue{},
+				false,
 			)
 			fmt.Print(result)
 			return nil
@@ -792,6 +797,7 @@ func TestNodeModules(t *testing.T) {
 				"",
 				[]string{},
 				model.FollowMonorepoPackagesValue{},
+				false,
 			)
 			fmt.Print(result)
 			return nil
@@ -828,6 +834,7 @@ func TestNodeModules(t *testing.T) {
 				"",
 				[]string{"node", "imports"},
 				model.FollowMonorepoPackagesValue{FollowAll: true},
+				false,
 			)
 			fmt.Print(result)
 			return nil

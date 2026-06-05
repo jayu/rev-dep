@@ -23,6 +23,7 @@ Rev-dep automatically detects project context and creates scaffolding for each w
 - `customAssetExtensions`: additional extensions that should be treated as resolvable imports.
 - `ignoreFiles`: files excluded from analysis by rev-dep config, in addition to gitignored files.
 - `processIgnoredFiles`: files that should still be processed even if gitignore or ignore patterns would normally skip them.
+- [`nodeModulesResolution`](other-concepts-and-features/following-monorepo-packages.mdx#node-modules-resolution): which `package.json` each third-party import is validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. `"entry-package"` (default) validates every import against the rule's entry `package.json`; `"nearest-package"` validates each import against the `package.json` that owns the importing file (correct for pnpm's default layout, where each package resolves only the dependencies it declares). Applies to all rules.
 - `rules`: array of rules defining checks for different parts of the codebase. Typically single rule defines checks for single workspace package. However, you can have multiple rules with the same `path` if that's needed.
 
 > Name `rules` might be confusing, it's a bad design choice made at the beginning. This will be likely renamed to `workspaces` or `scopes` in next major release to better reflect how it is actually being used.
@@ -58,9 +59,7 @@ And any detector setup:
 
 ```json
 {
-  "configVersion": "1.8",
-  // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
+  "nodeModulesResolution": "entry-package",
   "rules": [
     {
       "path": ".",
@@ -89,7 +88,7 @@ And any detector setup:
 }
 ```
 
-Use the schema URL for editor autocomplete and validation.
+Add the `$schema` field (see the comprehensive example below) for editor autocomplete and validation.
 
 ## Comprehensive Config Example
 
@@ -97,11 +96,12 @@ Here's a comprehensive example showing all available properties:
 
 ```json
 {
-  "configVersion": "1.8",
+  "configVersion": "1.9",
   // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", 
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.9.schema.json?raw=true", 
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
+  "nodeModulesResolution": "entry-package",
   "rules": [
     {
       "path": ".",

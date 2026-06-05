@@ -1,0 +1,9 @@
+{
+  "name": "main-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^18.0.0",
+    "shared-only-util": "^1.0.0",
+    "shared-lib": "workspace:*"
+  }
+}

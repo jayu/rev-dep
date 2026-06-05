@@ -42,7 +42,7 @@ Helps identify circular dependencies, unused modules, and optimize project struc
 )
 
 var (
-	docsOutputDir   string
+	docsOutputDir    string
 	docsCommandPaths []string
 )
 
@@ -241,6 +241,48 @@ func getFollowMonorepoPackagesValue(cmd *cobra.Command) (model.FollowMonorepoPac
 	return model.FollowMonorepoPackagesValue{Packages: trimmedValues}, nil
 }
 
+// ---------------- node_modules resolution flag ----------------
+
+const (
+	nodeModulesResolutionEntryPackage   = "entry-package"
+	nodeModulesResolutionNearestPackage = "nearest-package"
+)
+
+var nodeModulesResolutionFlag string
+
+// addNodeModulesResolutionFlag registers --node-modules-resolution on commands whose
+// node_modules classification depends on which package.json an import is validated against.
+func addNodeModulesResolutionFlag(command *cobra.Command) {
+	command.Flags().StringVar(&nodeModulesResolutionFlag, "node-modules-resolution", nodeModulesResolutionEntryPackage,
+		"Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json)")
+}
+
+// getNodeModulesResolutionNearest returns true when --node-modules-resolution selects
+// nearest-package mode, validating the flag value.
+func getNodeModulesResolutionNearest() (bool, error) {
+	switch strings.TrimSpace(nodeModulesResolutionFlag) {
+	case "", nodeModulesResolutionEntryPackage:
+		return false, nil
+	case nodeModulesResolutionNearestPackage:
+		return true, nil
+	default:
+		return false, fmt.Errorf("invalid --node-modules-resolution value %q: must be one of '%s', '%s'", nodeModulesResolutionFlag, nodeModulesResolutionEntryPackage, nodeModulesResolutionNearestPackage)
+	}
+}
+
+// nodeModulesResolutionStrategy maps --node-modules-resolution to the resolver strategy used when
+// building the dependency tree: nearest-package -> SelfResolver, entry-package -> CwdResolver.
+func nodeModulesResolutionStrategy() (model.NodeModulesMatchingStrategy, error) {
+	nearest, err := getNodeModulesResolutionNearest()
+	if err != nil {
+		return model.NodeModulesMatchingStrategyCwdResolver, err
+	}
+	if nearest {
+		return model.NodeModulesMatchingStrategySelfResolver, nil
+	}
+	return model.NodeModulesMatchingStrategyCwdResolver, nil
+}
+
 // ---------------- resolve ----------------
 var (
 	resolveCwd            string
@@ -262,8 +304,13 @@ func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude, p
 		return fmt.Errorf("exactly one of --file or --module must be provided")
 	}
 
+	nodeModulesStrategy, err := nodeModulesResolutionStrategy()
+	if err != nil {
+		return err
+	}
+
 	absolutePathToEntryPoints, discoveredFiles := resolve.ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude, processIgnoredFiles)
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, nodeModulesStrategy)
 
 	if len(absolutePathToEntryPoints) == 0 {
 		absolutePathToEntryPoints = graph.GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
@@ -472,7 +519,7 @@ var (
 )
 
 func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, processIgnoredFiles, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 
 	notReferencedFiles := graph.GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
 
@@ -571,7 +618,7 @@ var (
 func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) (int, error) {
 	excludeFiles := []string{}
 
-	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, circularProcessIgnored, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, circularProcessIgnored, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 	algo := strings.ToLower(strings.TrimSpace(circularAlgorithm))
 	if algo == "" {
 		algo = "dfs"
@@ -674,6 +721,10 @@ Helps keep track of your project's runtime dependencies.`,
 		if err != nil {
 			return err
 		}
+		nearestPackage, err := getNodeModulesResolutionNearest()
+		if err != nil {
+			return err
+		}
 		result, _ := node.NodeModulesCmd(
 			pathutil.ResolveAbsoluteCwd(nodeModulesCwd),
 			nodeModulesIgnoreType,
@@ -697,6 +748,7 @@ Helps keep track of your project's runtime dependencies.`,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
+			nearestPackage,
 		)
 
 		fmt.Print(result)
@@ -713,6 +765,10 @@ to identify potentially unused packages.`,
 	Example: "rev-dep node-modules unused --exclude-modules=@types/*",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		followValue, err := getFollowMonorepoPackagesValue(cmd)
+		if err != nil {
+			return err
+		}
+		nearestPackage, err := getNodeModulesResolutionNearest()
 		if err != nil {
 			return err
 		}
@@ -739,6 +795,7 @@ to identify potentially unused packages.`,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
+			nearestPackage,
 		)
 
 		fmt.Print(result)
@@ -762,6 +819,10 @@ in your package.json dependencies.`,
 		if err != nil {
 			return err
 		}
+		nearestPackage, err := getNodeModulesResolutionNearest()
+		if err != nil {
+			return err
+		}
 		result, count := node.NodeModulesCmd(
 			pathutil.ResolveAbsoluteCwd(nodeModulesCwd),
 			nodeModulesIgnoreType,
@@ -785,6 +846,7 @@ in your package.json dependencies.`,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
+			nearestPackage,
 		)
 
 		fmt.Print(result)
@@ -963,7 +1025,7 @@ func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, processIgno
 	absolutePathToEntryPoint := pathutil.JoinWithCwd(cwd, entryPoint)
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, processIgnoredFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, processIgnoredFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 
 	depsGraph := graph.BuildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false, false)
 
@@ -1114,7 +1176,7 @@ func linesOfCodeCmdFn(cwd string) error {
 func importedByCmdFn(cwd, filePath string, count, listImports bool, processIgnoredFiles []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 
 	absolutePathToFilePath := pathutil.NormalizePathForInternal(pathutil.JoinWithCwd(cwd, filePath))
 
@@ -1294,7 +1356,13 @@ func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames [
 	if options == nil {
 		options = &config.UnresolvedImportsOptions{}
 	}
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions)
+	nodeModulesStrategy, err := nodeModulesResolutionStrategy()
+	if err != nil {
+		return "", err
+	}
+	// The ignored set stays empty in both modes: the resolver strategy already classifies each
+	// import against the right package.json, so any NotResolvedModule is genuinely unresolved.
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions, nodeModulesStrategy)
 
 	unresolved := checks.DetectUnresolvedImports(minimalTree, map[string]bool{})
 	filterOpts := &checks.UnresolvedFilterOptions{
@@ -1366,6 +1434,7 @@ func addNodeModulesFlags(command *cobra.Command, skipGroupingFlags bool) {
 	command.Flags().StringSliceVarP(&nodeModulesFilesWithModules, "files-with-node-modules", "m", []string{},
 		"Additional files to search for module imports. Use paths relative to cwd")
 	addNodeModulesIncludeExcludeFlags(command)
+	addNodeModulesResolutionFlag(command)
 }
 
 func init() {
@@ -1389,6 +1458,7 @@ func init() {
 		"Show all possible resolution paths, not just the first one")
 	resolveCmd.Flags().BoolVar(&resolveCompactSummary, "compact-summary", false,
 		"Display a compact summary of found paths")
+	addNodeModulesResolutionFlag(resolveCmd)
 	// entry-points flags
 	addSharedFlags(entryPointsCmd)
 	entryPointsCmd.Flags().StringVarP(&entryPointsCwd, "cwd", "c", currentDir,
@@ -1514,6 +1584,7 @@ func init() {
 		"Additional asset extensions treated as resolvable (e.g. glb,mp3)")
 	unresolvedCmd.Flags().StringSliceVar(&unresolvedProcessIgnored, "process-ignored-files", []string{},
 		"Glob patterns to process even if they are ignored by gitignore or exclude patterns")
+	addNodeModulesResolutionFlag(unresolvedCmd)
 
 	// add commands
 	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, unresolvedCmd, docsCmd, configCmd)

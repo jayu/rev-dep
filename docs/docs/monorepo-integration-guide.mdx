@@ -39,6 +39,22 @@ When a rule encounters an import of another workspace package, `followMonorepoPa
 
 This matters for almost every check in a monorepo: follow the packages whose source is compiled by the consumer (just-in-time/shared packages), and leave pre-compiled packages unfollowed. See [Following monorepo packages](./other-concepts-and-features/following-monorepo-packages.mdx).
 
+### Node modules resolution
+
+Once you follow a package, its source brings in **its own** third-party imports. The top-level `nodeModulesResolution` option decides which `package.json` those imports are validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. Set it once; it applies to every rule.
+
+- `"entry-package"` (default) validates every import against the consuming rule's `package.json`. Use it when the consumer can resolve every dependency it pulls in (npm, classic yarn).
+- `"nearest-package"` validates each import against the `package.json` that owns the file it lives in. Use it when every package resolves only the dependencies it declares itself (pnpm's default layout).
+
+```jsonc
+{
+  "nodeModulesResolution": "nearest-package",
+  "rules": [ /* ... */ ]
+}
+```
+
+**If you use pnpm with its default layout, set `"nearest-package"`.** Otherwise a followed package's own declared dependencies get reported as `missing` against the consumer that doesn't declare them - a flood of false positives. In `nearest-package` mode each package is judged by its own `package.json`: a followed package that imports something it forgot to declare is correctly flagged (just as a strict pnpm install would break), while its properly-declared dependencies are left alone. Full details and per-check effects: [Node modules resolution](./other-concepts-and-features/following-monorepo-packages.mdx#node-modules-resolution).
+
 ## 2. Run and (auto)fix
 
 ```bash
@@ -101,7 +117,9 @@ Keep the list honest and start narrow. See [entry points definition guide](./con
 
 ## 5. Node-module hygiene
 
-rev-dep checks dependency **declarations** against the rule's `package.json` (it never scans `node_modules/`). The rule of thumb: **whoever compiles the code declares its dependencies**. Enable these on each package that owns a `package.json`.
+rev-dep checks dependency **declarations** against a `package.json` (it never scans `node_modules/`). The rule of thumb: **whoever compiles the code declares its dependencies**. Enable these on each package that owns a `package.json`.
+
+Which `package.json` is "whoever" depends on [`nodeModulesResolution`](#node-modules-resolution) from step 1 - the consuming rule's package (`entry-package`, default) or each file's own nearest package (`nearest-package`, for pnpm's default layout). Set that first, or the two checks below may report false positives.
 
 ### Unused node modules
 
@@ -131,7 +149,7 @@ Imported in code but not declared.
 }
 ```
 
-If you see false positives in a monorepo - usually a dependency declared in the wrong package, or following misconfigured - the [missing or unused dependency false positives](./troubleshooting/missing-or-unused-dependency-false-positives.mdx) troubleshooting guide explains how to fix them.
+If you see false positives in a monorepo - usually `nodeModulesResolution` not set to `nearest-package` for a pnpm-style layout, a dependency declared in the wrong package, or following misconfigured - the [missing or unused dependency false positives](./troubleshooting/missing-or-unused-dependency-false-positives.mdx) troubleshooting guide explains how to fix them.
 
 Learn more about the [`missingNodeModulesDetection`](./config-based-checks/checks/missing-node-modules.mdx) check configuration.
 

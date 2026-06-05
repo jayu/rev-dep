@@ -779,7 +779,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
-	currentConfigVersion := "1.8"
+	currentConfigVersion := "1.9"
 
 	// Check if any config file already exists
 	existingConfig, err := config.FindConfigFile(cwd)
@@ -949,9 +949,10 @@ func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
 
 	// Create config structure
 	config := config.RevDepConfig{
-		ConfigVersion: currentConfigVersion,
-		Rules:         rules,
-		Schema:        "https://github.com/jayu/rev-dep/blob/master/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
+		ConfigVersion:         currentConfigVersion,
+		Rules:                 rules,
+		Schema:                "https://github.com/jayu/rev-dep/blob/master/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
+		NodeModulesResolution: config.NodeModulesResolutionEntryPackage,
 	}
 
 	// Add schema reference if schema file exists

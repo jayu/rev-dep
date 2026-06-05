@@ -295,6 +295,7 @@ func processRuleChecks(
 	resolverManager *resolve.ResolverManager,
 	cwd string,
 	fix bool,
+	nearestPackage bool,
 ) RuleResult {
 	// Track enabled checks
 	enabledChecks := []string{}
@@ -346,6 +347,19 @@ func processRuleChecks(
 
 	if rulePathResolver != nil {
 		rulePathNodeModules = rulePathResolver.NodeModules()
+	}
+
+	// In nearest-package mode, "unused" (variant A) only counts an entry dependency as used when
+	// one of the entry package's OWN files imports it. Build that file set from the rule's files;
+	// entryOwnedFiles stays nil in entry-package mode, which means "all files".
+	var entryOwnedFiles map[string]bool
+	if nearestPackage && rulePathResolver != nil {
+		entryOwnedFiles = make(map[string]bool, len(ruleFiles))
+		for _, filePath := range ruleFiles {
+			if resolverManager.GetResolverForFile(filePath) == rulePathResolver {
+				entryOwnedFiles[filePath] = true
+			}
+		}
 	}
 
 	// Detect module-suffix variants to exclude from orphan/unused-exports detection.
@@ -491,6 +505,7 @@ func processRuleChecks(
 					"", // use empty path so it is discovered in fullRulePath
 					detection.IncludeModules,
 					detection.ExcludeModules,
+					entryOwnedFiles,
 				)
 				for _, moduleName := range found {
 					if !unusedSet[moduleName] {
@@ -535,6 +550,7 @@ func processRuleChecks(
 					detection.IncludeModules,
 					detection.ExcludeModules,
 					rulePathNodeModules,
+					nearestPackage,
 				)...)
 
 				if outputType == "" && detection.OutputType != "" {
@@ -613,15 +629,25 @@ func processRuleChecks(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// NotResolvedModule might be actually a node module, but defined rule path package (eg apps/main-app) not in just in time package (pacakges/shared)
-			// We are not able to detect that during module resolution for config file, becasue we resolve all modules without knowing which workspace contains app and which contains shared code
-			// During rule evaluation we can assume that package.json in rule path is the one that contains node modules for app build from that rule path
+			// entry-package mode: a NotResolvedModule might actually be a node module declared in the
+			// rule path package (e.g. apps/main-app) but not in the just-in-time package (packages/shared).
+			// We cannot detect that during module resolution for the config file, because we resolve all
+			// modules without knowing which workspace contains the app and which contains shared code.
+			// During rule evaluation we assume the package.json in the rule path is the one that contains
+			// node modules for the app built from that rule path, so we suppress those from unresolved.
+			//
+			// nearest-package mode: each import was resolved against the package.json that owns its file,
+			// so any NotResolvedModule is genuinely unresolved. Pass an empty set so nothing is suppressed.
+			ignoredNodeModules := rulePathNodeModules
+			if nearestPackage {
+				ignoredNodeModules = map[string]bool{}
+			}
 			unresolved := make([]checks.UnresolvedImport, 0)
 			for _, detection := range rule.getUnresolvedImportsDetections() {
 				if !detection.Enabled {
 					continue
 				}
-				found := checks.DetectUnresolvedImports(ruleTree, rulePathNodeModules)
+				found := checks.DetectUnresolvedImports(ruleTree, ignoredNodeModules)
 				filterOpts := &checks.UnresolvedFilterOptions{
 					Ignore:        detection.Ignore,
 					IgnoreFiles:   detection.IgnoreFiles,
@@ -763,6 +789,7 @@ func ProcessConfig(
 				resolverManager,
 				cwd,
 				fix,
+				config.NodeModulesResolution == NodeModulesResolutionNearestPackage,
 			)
 			ruleResult.ProcessIgnoredFiles = config.ProcessIgnoredFiles
 

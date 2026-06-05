@@ -12,7 +12,7 @@ import (
 	"rev-dep-go/internal/pathutil"
 )
 
-func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, includeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, customAssetExtensions []string) (model.MinimalDependencyTree, []string, *ResolverManager) {
+func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles []string, includeFiles []string, upfrontFilesList []string, packageJson string, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, customAssetExtensions []string, nodeModulesMatchingStrategy model.NodeModulesMatchingStrategy) (model.MinimalDependencyTree, []string, *ResolverManager) {
 	var files []string
 
 	excludePatterns := globutil.CreateGlobMatchers(excludeFiles, cwd)
@@ -37,7 +37,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, includePatterns, conditionNames, followMonorepoPackages, customAssetExtensions, model.ParseModeBasic, model.NodeModulesMatchingStrategyCwdResolver)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, includePatterns, conditionNames, followMonorepoPackages, customAssetExtensions, model.ParseModeBasic, nodeModulesMatchingStrategy)
 
 	minimalTree := model.TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

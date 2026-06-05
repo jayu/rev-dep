@@ -562,7 +562,7 @@ func TestGetMinimalDepsTreeForCwd_SupportsMtsFiles(t *testing.T) {
 		t.Fatalf("failed to write dep.mts: %v", err)
 	}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
 
 	indexPath := pathutil.NormalizePathForInternal(filepath.Join(tmpDir, "index.mts"))
 	depPath := pathutil.NormalizePathForInternal(filepath.Join(tmpDir, "dep.mts"))

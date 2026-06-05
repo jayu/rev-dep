@@ -225,8 +225,7 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.8",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
+  "nodeModulesResolution": "entry-package",
   "rules": [
     {
       "path": ".",
@@ -261,10 +260,11 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.8",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.9",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.9.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
+  "nodeModulesResolution": "entry-package",
   "rules": [
     {
       "path": ".",
@@ -376,6 +376,7 @@ Here's a comprehensive example showing all available properties:
 - **`customAssetExtensions`** (optional): Additional asset extensions treated as resolvable imports (e.g. `["glb", "mp3"]`). Default list covers common extensions for fonts, images, config files.
 - **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
 - **`processIgnoredFiles`** (optional): Global file patterns to process even if they match gitignore or `ignoreFiles`.
+- **`nodeModulesResolution`** (optional): Which `package.json` each third-party import is validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. `"entry-package"` (default) validates against the rule's entry `package.json`; `"nearest-package"` validates against the `package.json` owning each file (use for pnpm's default layout, where each package resolves only its own dependencies). Applies to all rules.
 - **`rules`** (required): Array of rule objects
 
 #### Rule Properties

@@ -179,6 +179,29 @@ func installHelpOutputSanitizer(command *cobra.Command) {
 	})
 }
 
+// silenceUsageAfterArgValidation makes cobra print the usage/help block only for
+// CLI invocation problems (unknown flags, bad/missing arguments, missing required
+// flags) and NOT for errors that surface later, during the command's own runtime
+// (e.g. a config file that fails to parse or validate).
+//
+// Cobra prints usage on any error unless SilenceUsage is set, and it validates
+// flags/args/required-flags BEFORE RunE runs. So we flip SilenceUsage on as the
+// first thing inside each command's RunE: by then all invocation validation has
+// passed, and anything returned afterwards is a runtime error that should show the
+// message alone, without the noisy usage dump.
+func silenceUsageAfterArgValidation(command *cobra.Command) {
+	for _, child := range command.Commands() {
+		silenceUsageAfterArgValidation(child)
+	}
+	if command.RunE != nil {
+		inner := command.RunE
+		command.RunE = func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			return inner(cmd, args)
+		}
+	}
+}
+
 func addSharedFlags(command *cobra.Command) {
 	command.Flags().StringVar(&packageJsonPath, "package-json", "",
 		"Path to package.json (default: ./package.json)")
@@ -1500,6 +1523,10 @@ func init() {
 	installHelpOutputSanitizer(rootCmd)
 	docsCmd.Flags().StringVar(&docsOutputDir, "output-dir", "./docs", "Directory where markdown docs should be generated")
 	docsCmd.Flags().StringSliceVar(&docsCommandPaths, "command-paths", []string{}, "Exact command paths to generate docs for (for example: 'config', 'config init', 'node-modules used')")
+	// Keep the usage block for CLI invocation errors only; suppress it for runtime
+	// errors returned from within a command (e.g. invalid config). Must run after
+	// all commands are registered.
+	silenceUsageAfterArgValidation(rootCmd)
 }
 
 func Execute() error {

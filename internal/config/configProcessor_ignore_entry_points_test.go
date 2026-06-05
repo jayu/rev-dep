@@ -79,7 +79,7 @@ func TestConfigProcessor_IgnoreEntryPoints_BaselineReportsLeftover(t *testing.T)
 
 	cfg := `{
 		"configVersion": "1.8",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"prodEntryPoints": ["src/index.ts"],
@@ -114,7 +114,7 @@ func TestConfigProcessor_IgnoreEntryPoints_SuppressesOrphanAndUnusedExports(t *t
 
 	cfg := `{
 		"configVersion": "1.8",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"prodEntryPoints": ["src/index.ts"],
@@ -146,7 +146,7 @@ func TestConfigProcessor_UnmatchedEntryPointPatterns(t *testing.T) {
 
 	cfg := `{
 		"configVersion": "1.8",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"prodEntryPoints": ["src/index.ts", "src/does-not-exist.ts"],

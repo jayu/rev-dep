@@ -1,6 +1,6 @@
 {
   "configVersion": "1.0",
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "importConventions": [

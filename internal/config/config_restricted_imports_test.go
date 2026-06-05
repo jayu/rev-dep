@@ -6,7 +6,7 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 	t.Run("valid config", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"restrictedImportsDetection": {
 					"enabled": true,
@@ -40,7 +40,7 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 	t.Run("missing entryPoints", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"restrictedImportsDetection": {
 					"enabled": true,
@@ -61,7 +61,7 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 	t.Run("missing entryPoints does not fallback to rule-level entry points", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"prodEntryPoints": ["src/main.ts"],
 				"devEntryPoints": ["src/dev.ts"],
@@ -84,7 +84,7 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 	t.Run("missing denyFiles and denyModules", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"restrictedImportsDetection": {
 					"enabled": true,
@@ -105,7 +105,7 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 	t.Run("unknown field", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"restrictedImportsDetection": {
 					"enabled": true,
@@ -128,7 +128,7 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 	t.Run("array support", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"restrictedImportsDetection": [
 					{
@@ -162,7 +162,7 @@ func TestParseConfig_RestrictedImportsDetection(t *testing.T) {
 	t.Run("relative graphExclude pattern", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"restrictedImportsDetection": {
 					"enabled": true,

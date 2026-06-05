@@ -15,7 +15,7 @@ title: Following monorepo packages
 
 ```jsonc
 {
-  "rules": [
+  "workspaces": [
     {
       "path": "packages/app",
       "followMonorepoPackages": ["@acme/shared", "@acme/ui"],
@@ -42,7 +42,7 @@ When a package is followed, its import resolves through the package's own `packa
 
 ## Defaults differ between config and CLI
 
-- **Config:** a rule with no `followMonorepoPackages` key defaults to `true` (follow all).
+- **Config:** a workspace with no `followMonorepoPackages` key defaults to `true` (follow all).
 - **CLI:** commands follow nothing unless you pass `--follow-monorepo-packages`. Passed without a value it means "follow all"; with a comma-separated list it follows those packages.
 
 ```bash

@@ -20,7 +20,7 @@ func TestParseConfig_SchemaField(t *testing.T) {
 	configJSON := `{
 		"$schema": "./config-schema/1.0.schema.json",
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"circularImportsDetection": {"enabled": true}
@@ -49,7 +49,7 @@ func TestParseConfig_SchemaField(t *testing.T) {
 func TestParseConfig_ValidMinimalConfig(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": "./src"
 			}
@@ -80,7 +80,7 @@ func TestParseConfig_ValidCompleteConfig(t *testing.T) {
 		"conditionNames": ["node", "imports"],
 		"customAssetExtensions": ["glb", "mp3"],
 		"ignoreFiles": ["dist/**/*", "build/**/*"],
-		"rules": [
+		"workspaces": [
 			{
 				"path": "./src",
 				"moduleBoundaries": [
@@ -176,7 +176,7 @@ func TestParseConfig_RequiredFields(t *testing.T) {
 		{
 			name: "missing configVersion",
 			configJSON: `{
-				"rules": [{"path": "./src"}]
+				"workspaces": [{"path": "./src"}]
 			}`,
 			expectedErr: "configVersion is required",
 		},
@@ -184,42 +184,42 @@ func TestParseConfig_RequiredFields(t *testing.T) {
 			name: "missing rule path",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{}]
+				"workspaces": [{}]
 			}`,
-			expectedErr: "rules[0].path is required",
+			expectedErr: "workspaces[0].path is required",
 		},
 		{
 			name: "missing boundary name",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{"pattern": "src/**"}]
 				}]
 			}`,
-			expectedErr: "rules[0].moduleBoundaries[0].name is required",
+			expectedErr: "workspaces[0].moduleBoundaries[0].name is required",
 		},
 		{
 			name: "missing boundary pattern",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{"name": "Test"}]
 				}]
 			}`,
-			expectedErr: "rules[0].moduleBoundaries[0].pattern is required",
+			expectedErr: "workspaces[0].moduleBoundaries[0].pattern is required",
 		},
 		{
 			name: "missing enabled field in detection options",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"circularImportsDetection": {}
 				}]
 			}`,
-			expectedErr: "rules[0].circularImportsDetection.enabled is required",
+			expectedErr: "workspaces[0].circularImportsDetection.enabled is required",
 		},
 	}
 
@@ -246,7 +246,7 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 			configJSON: `{
 				"configVersion": "1.0",
 				"unknownField": "value",
-				"rules": [{"path": "./src"}]
+				"workspaces": [{"path": "./src"}]
 			}`,
 			expectedErr: "unknown field 'unknownField' in config root",
 		},
@@ -254,18 +254,18 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 			name: "unknown rule field",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"unknownField": "value"
 				}]
 			}`,
-			expectedErr: "rules[0]: unknown field 'unknownField'",
+			expectedErr: "workspaces[0]: unknown field 'unknownField'",
 		},
 		{
 			name: "unknown boundary field",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -274,13 +274,13 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 					}]
 				}]
 			}`,
-			expectedErr: "rules[0].moduleBoundaries[0]: unknown field 'unknownField'",
+			expectedErr: "workspaces[0].moduleBoundaries[0]: unknown field 'unknownField'",
 		},
 		{
 			name: "unknown detection options field",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"circularImportsDetection": {
 						"enabled": true,
@@ -288,7 +288,7 @@ func TestParseConfig_UnknownFields(t *testing.T) {
 					}
 				}]
 			}`,
-			expectedErr: "rules[0].circularImportsDetection: unknown field 'unknownField'",
+			expectedErr: "workspaces[0].circularImportsDetection: unknown field 'unknownField'",
 		},
 	}
 
@@ -309,7 +309,7 @@ func TestParseConfig_CustomAssetExtensionsValidation(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
 			"customAssetExtensions": "not-an-array",
-			"rules": [{"path": "."}]
+			"workspaces": [{"path": "."}]
 		}`
 
 		_, err := ParseConfig([]byte(configJSON))
@@ -325,7 +325,7 @@ func TestParseConfig_CustomAssetExtensionsValidation(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
 			"customAssetExtensions": [""],
-			"rules": [{"path": "."}]
+			"workspaces": [{"path": "."}]
 		}`
 
 		_, err := ParseConfig([]byte(configJSON))
@@ -341,7 +341,7 @@ func TestParseConfig_CustomAssetExtensionsValidation(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
 			"customAssetExtensions": [".mp3"],
-			"rules": [{"path": "."}]
+			"workspaces": [{"path": "."}]
 		}`
 
 		_, err := ParseConfig([]byte(configJSON))
@@ -357,7 +357,7 @@ func TestParseConfig_CustomAssetExtensionsValidation(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
 			"customAssetExtensions": ["d.ts"],
-			"rules": [{"path": "."}]
+			"workspaces": [{"path": "."}]
 		}`
 
 		config, err := ParseConfig([]byte(configJSON))
@@ -373,7 +373,7 @@ func TestParseConfig_CustomAssetExtensionsValidation(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
 			"customAssetExtensions": ["  mp3  "],
-			"rules": [{"path": "."}]
+			"workspaces": [{"path": "."}]
 		}`
 
 		_, err := ParseConfig([]byte(configJSON))
@@ -396,39 +396,39 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 			name: "rules not array",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": {}
+				"workspaces": {}
 			}`,
-			expectedErr: "rules must be an array",
+			expectedErr: "workspaces must be an array",
 		},
 		{
 			name: "rule not object",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": ["invalid"]
+				"workspaces": ["invalid"]
 			}`,
-			expectedErr: "rules[0] must be an object",
+			expectedErr: "workspaces[0] must be an object",
 		},
 		{
 			name: "rule path not string",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{"path": 123}]
+				"workspaces": [{"path": 123}]
 			}`,
-			expectedErr: "rules[0].path must be a string",
+			expectedErr: "workspaces[0].path must be a string",
 		},
 		{
 			name: "rule path null",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{"path": null}]
+				"workspaces": [{"path": null}]
 			}`,
-			expectedErr: "rules[0].path must be a string",
+			expectedErr: "workspaces[0].path must be a string",
 		},
 		{
 			name: "moduleBoundaries not array",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": {}
 				}]
@@ -439,7 +439,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 			name: "boundary not object",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": ["invalid"]
 				}]
@@ -450,7 +450,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 			name: "boundary name not string",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": 123,
@@ -464,7 +464,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 			name: "boundary allow not array",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -479,7 +479,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 			name: "detection options not object",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"circularImportsDetection": "not-object"
 				}]
@@ -490,7 +490,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 			name: "enabled field not boolean",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"circularImportsDetection": {
 						"enabled": "not-boolean"
@@ -522,7 +522,7 @@ func TestParseConfig_RelativePatternsAllowed(t *testing.T) {
 			name: "relative boundary pattern",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -537,7 +537,7 @@ func TestParseConfig_RelativePatternsAllowed(t *testing.T) {
 			name: "relative allow pattern",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -552,7 +552,7 @@ func TestParseConfig_RelativePatternsAllowed(t *testing.T) {
 			name: "relative deny pattern",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -567,7 +567,7 @@ func TestParseConfig_RelativePatternsAllowed(t *testing.T) {
 			name: "relative graph exclude pattern",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"orphanFilesDetection": {
 						"enabled": true,
@@ -598,7 +598,7 @@ func TestParseConfig_OutputTypes(t *testing.T) {
 			name: "valid output types",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"unusedNodeModulesDetection": {
 						"enabled": true,
@@ -616,7 +616,7 @@ func TestParseConfig_OutputTypes(t *testing.T) {
 			name: "empty output type",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"unusedNodeModulesDetection": {
 						"enabled": true,
@@ -630,7 +630,7 @@ func TestParseConfig_OutputTypes(t *testing.T) {
 			name: "invalid output type",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"unusedNodeModulesDetection": {
 						"enabled": true,
@@ -672,7 +672,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 			name: "null boundary name",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": null,
@@ -687,7 +687,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 			name: "null boundary pattern",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -702,7 +702,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 			name: "null enabled field",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"circularImportsDetection": {
 						"enabled": null
@@ -716,7 +716,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 			name: "null optional fields allowed",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -757,7 +757,7 @@ func TestParseConfig_NullFields(t *testing.T) {
 func TestParseConfig_DisabledOptions(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [{
+		"workspaces": [{
 			"path": "./src",
 			"circularImportsDetection": {
 				"enabled": false,
@@ -816,7 +816,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 			name: "invalid JSON",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 			}`,
@@ -827,7 +827,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 			name: "multiple rules",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{"path": "./src"},
 					{"path": "./tests"}
 				]
@@ -839,7 +839,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 			configJSON: `{
 				// This is a comment
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src" /* inline comment */
 					}
@@ -851,7 +851,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 			name: "empty rules array",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": []
+				"workspaces": []
 			}`,
 			shouldError: false,
 		},
@@ -861,7 +861,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 				"configVersion": "1.0",
 				"conditionNames": [],
 				"ignoreFiles": [],
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -882,7 +882,7 @@ func TestParseConfig_EdgeCases(t *testing.T) {
 			name: "unicode characters",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "测试边界",
@@ -926,7 +926,7 @@ func TestParseConfig_MultipleErrors(t *testing.T) {
 				"configVersion": "1.0",
 				"unknownField1": "value1",
 				"unknownField2": "value2",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"unknownField3": "value3",
 					"moduleBoundaries": [{
@@ -942,7 +942,7 @@ func TestParseConfig_MultipleErrors(t *testing.T) {
 			name: "mixed type and pattern errors",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": 123,
 					"moduleBoundaries": [{
 						"name": "Test",
@@ -958,7 +958,7 @@ func TestParseConfig_MultipleErrors(t *testing.T) {
 			name: "multiple detection options errors",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"circularImportsDetection": {
 						"enabled": "not-boolean"
@@ -996,7 +996,7 @@ func TestParseConfig_CommentEdgeCases(t *testing.T) {
 				/* This is a
 				   multiline comment */
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src"
 				}]
 			}`,
@@ -1007,7 +1007,7 @@ func TestParseConfig_CommentEdgeCases(t *testing.T) {
 			configJSON: `{
 				// Comment with @#$%^&*() characters
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src" /* Comment with "quotes" and 'apostrophes' */
 				}]
 			}`,
@@ -1018,7 +1018,7 @@ func TestParseConfig_CommentEdgeCases(t *testing.T) {
 			configJSON: `{
 				/* Outer comment */
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src"
 				}]
 			}`,
@@ -1028,7 +1028,7 @@ func TestParseConfig_CommentEdgeCases(t *testing.T) {
 			name: "trailing commas with comments",
 			configJSON: `{
 				"configVersion": "1.0", // Version comment
-				"rules": [{
+				"workspaces": [{
 					"path": "./src", // Path comment
 				},], // Rules array comment
 			}`,
@@ -1062,7 +1062,7 @@ func TestParseConfig_RealWorldScenarios(t *testing.T) {
 			name: "minimal production config",
 			configJSON: `{
 				"configVersion": "1.0",
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [{
 						"name": "Core",
@@ -1084,7 +1084,7 @@ func TestParseConfig_RealWorldScenarios(t *testing.T) {
 				"configVersion": "1.0",
 				"conditionNames": ["node", "imports", "default"],
 				"ignoreFiles": ["dist/**/*", "build/**/*", "*.min.js", "coverage/**/*"],
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./packages/client",
 						"moduleBoundaries": [
@@ -1149,7 +1149,7 @@ func TestParseConfig_RealWorldScenarios(t *testing.T) {
 				"configVersion": "1.0",
 				"conditionNames": ["node", "imports", "default", "browser", "worker"],
 				"ignoreFiles": ["dist/**/*", "build/**/*", "*.min.js", "coverage/**/*", "*.d.ts"],
-				"rules": [{
+				"workspaces": [{
 					"path": "./src",
 					"moduleBoundaries": [
 						{
@@ -1224,7 +1224,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			content: `{
 				// This is a comment
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "src/**/*",
 						"circularImportsDetection": {
@@ -1251,7 +1251,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			content: `{
 				/* This is a block comment */
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "src/**/*",
 						"orphanFilesDetection": {
@@ -1283,7 +1283,7 @@ func TestParseConfigWithComments(t *testing.T) {
 				// Configuration file
 				"configVersion": "1.0", /* version */
 				"conditionNames": ["production"], // environment
-				"rules": [
+				"workspaces": [
 					{
 						"path": "src/**/*",
 						"moduleBoundaries": [
@@ -1318,7 +1318,7 @@ func TestParseConfigWithComments(t *testing.T) {
 			name: "invalid jsonc syntax",
 			content: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "src/**/*"
 						// Missing comma here makes it invalid JSON
@@ -1404,7 +1404,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "hidden config only",
 			createFiles: map[string]string{
-				".rev-dep.config.json": `{"configVersion": "1.0", "rules": []}`,
+				".rev-dep.config.json": `{"configVersion": "1.0", "workspaces": []}`,
 			},
 			expectedFile: ".rev-dep.config.json",
 			shouldError:  false,
@@ -1412,7 +1412,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "regular config only",
 			createFiles: map[string]string{
-				"rev-dep.config.json": `{"configVersion": "1.0", "rules": []}`,
+				"rev-dep.config.json": `{"configVersion": "1.0", "workspaces": []}`,
 			},
 			expectedFile: "rev-dep.config.json",
 			shouldError:  false,
@@ -1420,7 +1420,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "hidden jsonc config only",
 			createFiles: map[string]string{
-				".rev-dep.config.jsonc": `{"configVersion": "1.0", "rules": []}`,
+				".rev-dep.config.jsonc": `{"configVersion": "1.0", "workspaces": []}`,
 			},
 			expectedFile: ".rev-dep.config.jsonc",
 			shouldError:  false,
@@ -1428,7 +1428,7 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "regular jsonc config only",
 			createFiles: map[string]string{
-				"rev-dep.config.jsonc": `{"configVersion": "1.0", "rules": []}`,
+				"rev-dep.config.jsonc": `{"configVersion": "1.0", "workspaces": []}`,
 			},
 			expectedFile: "rev-dep.config.jsonc",
 			shouldError:  false,
@@ -1436,8 +1436,8 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "both configs present (should error)",
 			createFiles: map[string]string{
-				".rev-dep.config.json": `{"configVersion": "1.0", "rules": []}`,
-				"rev-dep.config.json":  `{"configVersion": "2.0.0", "rules": []}`,
+				".rev-dep.config.json": `{"configVersion": "1.0", "workspaces": []}`,
+				"rev-dep.config.json":  `{"configVersion": "2.0.0", "workspaces": []}`,
 			},
 			expectedFile: "",
 			shouldError:  true,
@@ -1445,8 +1445,8 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "both jsonc configs present (should error)",
 			createFiles: map[string]string{
-				".rev-dep.config.jsonc": `{"configVersion": "1.0", "rules": []}`,
-				"rev-dep.config.jsonc":  `{"configVersion": "2.0.0", "rules": []}`,
+				".rev-dep.config.jsonc": `{"configVersion": "1.0", "workspaces": []}`,
+				"rev-dep.config.jsonc":  `{"configVersion": "2.0.0", "workspaces": []}`,
 			},
 			expectedFile: "",
 			shouldError:  true,
@@ -1454,8 +1454,8 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "mixed json and jsonc configs present (should error)",
 			createFiles: map[string]string{
-				".rev-dep.config.json": `{"configVersion": "1.0", "rules": []}`,
-				"rev-dep.config.jsonc": `{"configVersion": "2.0.0", "rules": []}`,
+				".rev-dep.config.json": `{"configVersion": "1.0", "workspaces": []}`,
+				"rev-dep.config.jsonc": `{"configVersion": "2.0.0", "workspaces": []}`,
 			},
 			expectedFile: "",
 			shouldError:  true,
@@ -1463,10 +1463,10 @@ func TestFindConfigFile(t *testing.T) {
 		{
 			name: "all four config variants present (should error)",
 			createFiles: map[string]string{
-				".rev-dep.config.json":  `{"configVersion": "1.0", "rules": []}`,
-				"rev-dep.config.json":   `{"configVersion": "2.0.0", "rules": []}`,
-				".rev-dep.config.jsonc": `{"configVersion": "3.0.0", "rules": []}`,
-				"rev-dep.config.jsonc":  `{"configVersion": "4.0.0", "rules": []}`,
+				".rev-dep.config.json":  `{"configVersion": "1.0", "workspaces": []}`,
+				"rev-dep.config.json":   `{"configVersion": "2.0.0", "workspaces": []}`,
+				".rev-dep.config.jsonc": `{"configVersion": "3.0.0", "workspaces": []}`,
+				"rev-dep.config.jsonc":  `{"configVersion": "4.0.0", "workspaces": []}`,
 			},
 			expectedFile: "",
 			shouldError:  true,
@@ -1644,7 +1644,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("valid config with all options", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1699,7 +1699,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("minimal config", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true
@@ -1721,7 +1721,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("missing enabled field", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {}
 			}]
@@ -1739,7 +1739,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("unknown field", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1760,7 +1760,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("wrong type for enabled", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": "yes"
@@ -1780,7 +1780,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("wrong type for validEntryPoints", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1801,7 +1801,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("wrong type for ignoreTypeExports", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1822,7 +1822,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("relative graphExclude pattern", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1840,7 +1840,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("empty validEntryPoints string", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1861,7 +1861,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("null enabled", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": null
@@ -1881,7 +1881,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("not an object", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": "not-object"
 			}]
@@ -1899,7 +1899,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("autofix validation", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1920,7 +1920,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("wrong type for ignore", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1941,7 +1941,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("wrong type for ignoreFiles", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1962,7 +1962,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("wrong type for ignoreExports", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -1983,7 +1983,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 	t.Run("relative ignoreFiles pattern", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": "./src",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -2003,7 +2003,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("valid config with all options", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2043,7 +2043,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("missing enabled field", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {}
 			}]
@@ -2061,7 +2061,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("unknown field", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2082,7 +2082,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("wrong type for ignore", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2103,7 +2103,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("wrong type for ignoreFiles", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2124,7 +2124,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("wrong type for ignoreImports", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2145,7 +2145,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("relative ignoreFiles pattern", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2163,7 +2163,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("empty ignore import request in map", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2186,7 +2186,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 	t.Run("ignore map key can traverse parent dirs", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2218,7 +2218,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages not set should default to true",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src"
 					}
@@ -2230,7 +2230,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages explicitly set to true",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 						"followMonorepoPackages": true
@@ -2243,7 +2243,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages explicitly set to false",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 						"followMonorepoPackages": false
@@ -2256,7 +2256,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages selective package list",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 						"followMonorepoPackages": ["pkg-a", "@scope/*"]
@@ -2269,7 +2269,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages rejects mixed array",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 						"followMonorepoPackages": ["pkg-a", 1]
@@ -2282,7 +2282,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages rejects empty array",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 						"followMonorepoPackages": []
@@ -2295,7 +2295,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages rejects invalid type object",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 						"followMonorepoPackages": {}
@@ -2308,7 +2308,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages rejects invalid type string",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 						"followMonorepoPackages": "yes"
@@ -2321,7 +2321,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 			name: "followMonorepoPackages rejects empty string entry",
 			config: `{
 				"configVersion": "1.0",
-				"rules": [
+				"workspaces": [
 					{
 						"path": "./src",
 						"followMonorepoPackages": ["pkg-a", " "]
@@ -2365,7 +2365,7 @@ func TestParseConfig_FollowMonorepoPackages(t *testing.T) {
 	t.Run("multiple rules with different followMonorepoPackages values", func(t *testing.T) {
 		config := `{
 			"configVersion": "1.0",
-			"rules": [
+			"workspaces": [
 				{
 					"path": "./src",
 					"followMonorepoPackages": false
@@ -2412,7 +2412,7 @@ func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
 	t.Run("inherits merged valid entry points and prod-only entry points", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"prodEntryPoints": ["src/prod.ts", "src/shared.ts"],
 				"devEntryPoints": ["src/dev.ts", "src/shared.ts"],
@@ -2449,7 +2449,7 @@ func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
 	t.Run("detector-level arrays override inherited values", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"prodEntryPoints": ["src/prod.ts"],
 				"devEntryPoints": ["src/dev.ts"],
@@ -2488,7 +2488,7 @@ func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
 	t.Run("explicit empty detector arrays override and disable inheritance", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"prodEntryPoints": ["src/prod.ts"],
 				"devEntryPoints": ["src/dev.ts"],
@@ -2527,7 +2527,7 @@ func TestParseConfig_RuleLevelEntryPointsInheritance(t *testing.T) {
 	t.Run("detector-level null values fallback to rule-level defaults", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"prodEntryPoints": ["src/prod.ts"],
 				"devEntryPoints": ["src/dev.ts"],
@@ -2569,7 +2569,7 @@ func TestParseConfig_RuleLevelEntryPointsValidation(t *testing.T) {
 	t.Run("invalid type for rule-level entry points", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"prodEntryPoints": "src/main.ts"
 			}]
@@ -2579,7 +2579,7 @@ func TestParseConfig_RuleLevelEntryPointsValidation(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !contains(err.Error(), "rules[0].prodEntryPoints must be an array") {
+		if !contains(err.Error(), "workspaces[0].prodEntryPoints must be an array") {
 			t.Fatalf("expected prodEntryPoints type error, got: %v", err)
 		}
 	})
@@ -2587,7 +2587,7 @@ func TestParseConfig_RuleLevelEntryPointsValidation(t *testing.T) {
 	t.Run("empty string in rule-level entry points", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"devEntryPoints": [""]
 			}]
@@ -2597,7 +2597,7 @@ func TestParseConfig_RuleLevelEntryPointsValidation(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !contains(err.Error(), "rules[0].devEntryPoints[0]: cannot be empty") {
+		if !contains(err.Error(), "workspaces[0].devEntryPoints[0]: cannot be empty") {
 			t.Fatalf("expected devEntryPoints validation error, got: %v", err)
 		}
 	})
@@ -2607,7 +2607,7 @@ func TestParseConfig_IgnoreMapSupportsStringOrArrayValues(t *testing.T) {
 	t.Run("unused exports ignore supports array values", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -2632,7 +2632,7 @@ func TestParseConfig_IgnoreMapSupportsStringOrArrayValues(t *testing.T) {
 	t.Run("unresolved imports ignore supports array values", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unresolvedImportsDetection": {
 					"enabled": true,
@@ -2658,7 +2658,7 @@ func TestParseConfig_IgnoreMapSupportsStringOrArrayValues(t *testing.T) {
 func TestParseConfig_DetectorsCanBeArrays(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.6",
-		"rules": [{
+		"workspaces": [{
 			"path": ".",
 			"circularImportsDetection": [
 				{"enabled": true, "ignoreTypeImports": true},

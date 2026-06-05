@@ -7,7 +7,7 @@
   "ignoreFiles": [
     "**/*.test.ts"
   ],
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "circularImportsDetection": {

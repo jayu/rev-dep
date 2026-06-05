@@ -18,7 +18,7 @@ The mental model is simple: rev-dep builds one dependency graph from your source
 rev-dep config init
 ```
 
-Run inside your project, this creates a single rule with `path: "."` and writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. A **rule** is a scope; in a single-package project you have just one, and every check below goes inside it. See [config file structure](./config-based-checks/config-file-structure.mdx).
+Run inside your project, this creates a single workspace with `path: "."` and writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. A **workspace** is a scope; in a single-package project you have just one, and every check below goes inside it. See [config file structure](./config-based-checks/config-file-structure.mdx).
 
 ## 2. Run and (auto)fix
 
@@ -44,7 +44,7 @@ Enable this **first**. It tells you whether rev-dep can parse and resolve your p
 
 ```jsonc
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "unresolvedImportsDetection": {
@@ -65,7 +65,7 @@ Entry points are the roots of reachability - the foundation for orphan files, un
 
 ```jsonc
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
@@ -197,7 +197,7 @@ Learn more about the [`circularImportsDetection`](./config-based-checks/checks/c
 
 ## 9. Restricted imports
 
-Block specific files/modules from being reachable from chosen entry points - e.g. keep server-only code out of client bundles. Entry-point driven; `entryPoints` does **not** fall back to rule-level entry points.
+Block specific files/modules from being reachable from chosen entry points - e.g. keep server-only code out of client bundles. Entry-point driven; `entryPoints` does **not** fall back to workspace-level entry points.
 
 ```jsonc
 {

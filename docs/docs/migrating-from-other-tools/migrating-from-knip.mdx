@@ -48,7 +48,7 @@ sidebar_label: knip
 
 ## Translating your config
 
-knip infers most things from your `entry` and `project` globs. rev-dep is rule-based: each rule targets a `path` (usually a workspace) and enables checks explicitly.
+knip infers most things from your `entry` and `project` globs. rev-dep is workspace-based: each workspace targets a `path` (usually a package) and enables checks explicitly.
 
 A typical `knip.json`:
 
@@ -66,7 +66,7 @@ becomes a `rev-dep.config.jsonc`:
 ```jsonc
 {
   "configVersion": "1.8",
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/index.ts", "src/cli.ts"],
@@ -97,8 +97,8 @@ Key translations:
 | knip option | rev-dep equivalent |
 | --- | --- |
 | `entry` | `prodEntryPoints` (and `devEntryPoints` for tests/tooling) |
-| `project` | the rule's `path` - rev-dep discovers all files under it (respecting `.gitignore` and `ignoreFiles`) |
-| `workspaces` | one entry in `rules` per package |
+| `project` | the workspace's `path` - rev-dep discovers all files under it (respecting `.gitignore` and `ignoreFiles`) |
+| `workspaces` | one entry in `workspaces` per package |
 | `ignoreDependencies` | `excludeModules` on the node-modules checks |
 | `ignore` | per-check `ignoreFiles`, or top-level `ignoreFiles` or `ignoreEntryPoints` |
 | `ignoreUnresolved` | `ignoreImports` / `ignoreFiles` on [`unresolvedImportsDetection`](../config-based-checks/checks/unresolved-imports.mdx) |

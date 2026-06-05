@@ -9,7 +9,7 @@ func TestParseConfig_AllowsCloudField(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.8",
 		"cloud": { "anything": true, "nested": { "x": 1 } },
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"cloud": ["whatever", 123],
@@ -37,7 +37,7 @@ func TestParseConfig_RejectsOtherUnknownFields(t *testing.T) {
 	rootUnknown := `{
 		"configVersion": "1.8",
 		"somethingElse": true,
-		"rules": [{ "path": "." }]
+		"workspaces": [{ "path": "." }]
 	}`
 	if _, err := ParseConfig([]byte(rootUnknown)); err == nil {
 		t.Errorf("expected error for unknown root field 'somethingElse', got nil")
@@ -45,7 +45,7 @@ func TestParseConfig_RejectsOtherUnknownFields(t *testing.T) {
 
 	ruleUnknown := `{
 		"configVersion": "1.8",
-		"rules": [{ "path": ".", "somethingElse": true }]
+		"workspaces": [{ "path": ".", "somethingElse": true }]
 	}`
 	if _, err := ParseConfig([]byte(ruleUnknown)); err == nil {
 		t.Errorf("expected error for unknown rule field 'somethingElse', got nil")

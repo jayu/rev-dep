@@ -13,6 +13,55 @@ v3 is not released yet. On v2 your configuration keeps working as-is. Use this p
 
 ---
 
+## Config: the `rules` field is renamed to `workspaces`
+
+The top-level config array `rules` is renamed to `workspaces`. This is purely a rename — the field works exactly as before. The new name reflects how it is actually used: typically one entry per workspace package.
+
+The config version is bumped to `2.0` accordingly.
+
+### What changes
+
+```jsonc
+// v2
+{
+  "configVersion": "1.8",
+  "rules": [
+    { "path": ".", /* ... */ }
+  ]
+}
+```
+
+```jsonc
+// v3
+{
+  "configVersion": "2.0",
+  "workspaces": [
+    { "path": ".", /* ... */ }
+  ]
+}
+```
+
+The CLI flag and JSON output are renamed to match:
+
+| Where | v2 | v3 |
+| --- | --- | --- |
+| Config field | `"rules": [ … ]` | `"workspaces": [ … ]` |
+| `config run` flag | `--rules <paths>` | `--workspaces <paths>` |
+| `--format json` output | top-level `"rules"` array (`"version": "1.0"`) | top-level `"workspaces"` array (`"version": "2.0"`) |
+
+### How to update
+
+1. Rename the top-level `rules` key to `workspaces` in your `rev-dep.config.json(c)`.
+2. Set `"configVersion": "2.0"`.
+3. If you run `rev-dep config run --rules …` anywhere (CI, scripts), change it to `--workspaces …`.
+4. If you consume `config run --format json`, read the results from the `workspaces` array instead of `rules`. The output `version` field is now `"2.0"`.
+
+A config still using `rules` fails fast with a dedicated message:
+
+> the `rules` field was renamed to `workspaces` in v3 (it was called `rules` in v2). Please rename the top-level `rules` array to `workspaces` in your config
+
+---
+
 ## Glob patterns: `*` no longer crosses directory boundaries
 
 :::note

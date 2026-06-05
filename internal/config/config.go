@@ -299,7 +299,7 @@ type RevDepConfig struct {
 	CustomAssetExtensions []string `json:"customAssetExtensions,omitempty"`
 	IgnoreFiles           []string `json:"ignoreFiles,omitempty"`
 	ProcessIgnoredFiles   []string `json:"processIgnoredFiles,omitempty"`
-	Rules                 []Rule   `json:"rules"`
+	Rules                 []Rule   `json:"workspaces"`
 }
 
 var configFileName = "rev-dep.config.json"
@@ -317,7 +317,7 @@ func ConfigFileNameJSONC() string {
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -427,7 +427,7 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 		ImportConventions []rawImportConventionRule `json:"importConventions"`
 	}
 	var rawRules struct {
-		Rules []rawRuleItems `json:"rules"`
+		Rules []rawRuleItems `json:"workspaces"`
 	}
 	if err := json.Unmarshal(jsonc.ToJSON(content), &rawRules); err != nil {
 		return RevDepConfig{}, fmt.Errorf("failed to parse config for normalization: %w", err)
@@ -451,7 +451,7 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 
 	// Set default values for optional fields and followMonorepoPackages and process import conventions
 	for i := range config.Rules {
-		if rawRulesArray, ok := rawConfig["rules"].([]interface{}); ok && i < len(rawRulesArray) {
+		if rawRulesArray, ok := rawConfig["workspaces"].([]interface{}); ok && i < len(rawRulesArray) {
 			ruleMap, isRuleMap := rawRulesArray[i].(map[string]interface{})
 			if !isRuleMap {
 				continue
@@ -507,7 +507,7 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 			for j, rawConv := range rawRules.Rules[i].ImportConventions {
 				parsedDomains, err := parseImportConventionDomains(rawConv.Domains)
 				if err != nil {
-					return RevDepConfig{}, fmt.Errorf("failed to parse import convention domains for rules[%d].importConventions[%d]: %w", i, j, err)
+					return RevDepConfig{}, fmt.Errorf("failed to parse import convention domains for workspaces[%d].importConventions[%d]: %w", i, j, err)
 				}
 				config.Rules[i].ImportConventions[j] = ImportConventionRule{
 					Rule:    rawConv.Rule,
@@ -593,6 +593,13 @@ func NormalizeRulePath(path string) string {
 
 // validateRawConfig validates field names and basic structure before typed parsing
 func validateRawConfig(raw map[string]interface{}) error {
+	// The top-level `rules` array was renamed to `workspaces` in v3. Detect the
+	// old name and fail with a dedicated, actionable message instead of a generic
+	// "unknown field" error.
+	if _, hasLegacyRules := raw["rules"]; hasLegacyRules {
+		return fmt.Errorf("the `rules` field was renamed to `workspaces` in v3 (it was called `rules` in v2). Please rename the top-level `rules` array to `workspaces` in your config")
+	}
+
 	allowedRootFields := map[string]bool{
 		"$schema":               true,
 		"configVersion":         true,
@@ -600,7 +607,7 @@ func validateRawConfig(raw map[string]interface{}) error {
 		"customAssetExtensions": true,
 		"ignoreFiles":           true,
 		"processIgnoredFiles":   true,
-		"rules":                 true,
+		"workspaces":            true,
 		// "cloud" is accepted but intentionally not parsed, schema'd, or documented yet.
 		// It is allowed through validation so existing/forward configs do not error.
 		"cloud": true,
@@ -612,9 +619,9 @@ func validateRawConfig(raw map[string]interface{}) error {
 		}
 	}
 
-	rules, ok := raw["rules"]
+	rules, ok := raw["workspaces"]
 	if !ok {
-		return fmt.Errorf("rules field is required")
+		return fmt.Errorf("workspaces field is required")
 	}
 
 	if customAssetExtensions, exists := raw["customAssetExtensions"]; exists && customAssetExtensions != nil {
@@ -643,13 +650,13 @@ func validateRawConfig(raw map[string]interface{}) error {
 
 	rulesArray, ok := rules.([]interface{})
 	if !ok {
-		return fmt.Errorf("rules must be an array, got %T", rules)
+		return fmt.Errorf("workspaces must be an array, got %T", rules)
 	}
 
 	for i, rule := range rulesArray {
 		ruleMap, ok := rule.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("rules[%d] must be an object, got %T", i, rule)
+			return fmt.Errorf("workspaces[%d] must be an object, got %T", i, rule)
 		}
 
 		if err := validateRawRule(ruleMap, i); err != nil {
@@ -685,23 +692,23 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 
 	for field := range rule {
 		if !allowedRuleFields[field] {
-			return fmt.Errorf("rules[%d]: unknown field '%s'", index, field)
+			return fmt.Errorf("workspaces[%d]: unknown field '%s'", index, field)
 		}
 	}
 
 	// Check required path field
 	path, exists := rule["path"]
 	if !exists {
-		return fmt.Errorf("rules[%d].path is required", index)
+		return fmt.Errorf("workspaces[%d].path is required", index)
 	}
 	pathStr, ok := path.(string)
 	if !ok {
-		return fmt.Errorf("rules[%d].path must be a string, got %T", index, path)
+		return fmt.Errorf("workspaces[%d].path must be a string, got %T", index, path)
 	}
 
 	// Validate the path
 	if err := validateRulePath(pathStr); err != nil {
-		return fmt.Errorf("rules[%d].path: %v", index, err)
+		return fmt.Errorf("workspaces[%d].path: %v", index, err)
 	}
 
 	if followMonorepoPackages, exists := rule["followMonorepoPackages"]; exists {
@@ -713,7 +720,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 	for _, field := range []string{"prodEntryPoints", "devEntryPoints", "ignoreEntryPoints"} {
 		if value, exists := rule[field]; exists && value != nil {
 			if _, ok := value.([]interface{}); !ok {
-				return fmt.Errorf("rules[%d].%s must be an array, got %T", index, field, value)
+				return fmt.Errorf("workspaces[%d].%s must be an array, got %T", index, field, value)
 			}
 		}
 	}
@@ -790,21 +797,21 @@ func validateRawDetectionObjectOrArray(
 	validateInstance func(map[string]interface{}, string) error,
 ) error {
 	if detectionMap, ok := raw.(map[string]interface{}); ok {
-		return validateInstance(detectionMap, fmt.Sprintf("rules[%d].%s", ruleIndex, fieldName))
+		return validateInstance(detectionMap, fmt.Sprintf("workspaces[%d].%s", ruleIndex, fieldName))
 	}
 
 	detectionArray, ok := raw.([]interface{})
 	if !ok {
-		return fmt.Errorf("rules[%d].%s must be an object or array of objects, got %T", ruleIndex, fieldName, raw)
+		return fmt.Errorf("workspaces[%d].%s must be an object or array of objects, got %T", ruleIndex, fieldName, raw)
 	}
 
 	for i, item := range detectionArray {
 		detectionMap, ok := item.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("rules[%d].%s[%d] must be an object, got %T", ruleIndex, fieldName, i, item)
+			return fmt.Errorf("workspaces[%d].%s[%d] must be an object, got %T", ruleIndex, fieldName, i, item)
 		}
 
-		if err := validateInstance(detectionMap, fmt.Sprintf("rules[%d].%s[%d]", ruleIndex, fieldName, i)); err != nil {
+		if err := validateInstance(detectionMap, fmt.Sprintf("workspaces[%d].%s[%d]", ruleIndex, fieldName, i)); err != nil {
 			return err
 		}
 	}
@@ -816,13 +823,13 @@ func validateRawDetectionObjectOrArray(
 func validateRawModuleBoundaries(boundaries interface{}, ruleIndex int) error {
 	boundariesArray, ok := boundaries.([]interface{})
 	if !ok {
-		return fmt.Errorf("rules[%d].moduleBoundaries must be an array, got %T", ruleIndex, boundaries)
+		return fmt.Errorf("workspaces[%d].moduleBoundaries must be an array, got %T", ruleIndex, boundaries)
 	}
 
 	for i, boundary := range boundariesArray {
 		boundaryMap, ok := boundary.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("rules[%d].moduleBoundaries[%d] must be an object, got %T", ruleIndex, i, boundary)
+			return fmt.Errorf("workspaces[%d].moduleBoundaries[%d] must be an object, got %T", ruleIndex, i, boundary)
 		}
 
 		allowedBoundaryFields := map[string]bool{
@@ -834,41 +841,41 @@ func validateRawModuleBoundaries(boundaries interface{}, ruleIndex int) error {
 
 		for field := range boundaryMap {
 			if !allowedBoundaryFields[field] {
-				return fmt.Errorf("rules[%d].moduleBoundaries[%d]: unknown field '%s'", ruleIndex, i, field)
+				return fmt.Errorf("workspaces[%d].moduleBoundaries[%d]: unknown field '%s'", ruleIndex, i, field)
 			}
 		}
 
 		// Check required fields
 		if _, exists := boundaryMap["name"]; !exists {
-			return fmt.Errorf("rules[%d].moduleBoundaries[%d].name is required", ruleIndex, i)
+			return fmt.Errorf("workspaces[%d].moduleBoundaries[%d].name is required", ruleIndex, i)
 		}
 		if _, exists := boundaryMap["pattern"]; !exists {
-			return fmt.Errorf("rules[%d].moduleBoundaries[%d].pattern is required", ruleIndex, i)
+			return fmt.Errorf("workspaces[%d].moduleBoundaries[%d].pattern is required", ruleIndex, i)
 		}
 
 		// Check field types
 		if name, ok := boundaryMap["name"]; !ok || name == nil {
-			return fmt.Errorf("rules[%d].moduleBoundaries[%d].name cannot be null", ruleIndex, i)
+			return fmt.Errorf("workspaces[%d].moduleBoundaries[%d].name cannot be null", ruleIndex, i)
 		} else if _, ok := name.(string); !ok {
-			return fmt.Errorf("rules[%d].moduleBoundaries[%d].name must be a string, got %T", ruleIndex, i, name)
+			return fmt.Errorf("workspaces[%d].moduleBoundaries[%d].name must be a string, got %T", ruleIndex, i, name)
 		}
 
 		if pattern, ok := boundaryMap["pattern"]; !ok || pattern == nil {
-			return fmt.Errorf("rules[%d].moduleBoundaries[%d].pattern cannot be null", ruleIndex, i)
+			return fmt.Errorf("workspaces[%d].moduleBoundaries[%d].pattern cannot be null", ruleIndex, i)
 		} else if _, ok := pattern.(string); !ok {
-			return fmt.Errorf("rules[%d].moduleBoundaries[%d].pattern must be a string, got %T", ruleIndex, i, pattern)
+			return fmt.Errorf("workspaces[%d].moduleBoundaries[%d].pattern must be a string, got %T", ruleIndex, i, pattern)
 		}
 
 		// Check optional array fields
 		if allow, exists := boundaryMap["allow"]; exists && allow != nil {
 			if _, ok := allow.([]interface{}); !ok {
-				return fmt.Errorf("rules[%d].moduleBoundaries[%d].allow must be an array, got %T", ruleIndex, i, allow)
+				return fmt.Errorf("workspaces[%d].moduleBoundaries[%d].allow must be an array, got %T", ruleIndex, i, allow)
 			}
 		}
 
 		if deny, exists := boundaryMap["deny"]; exists && deny != nil {
 			if _, ok := deny.([]interface{}); !ok {
-				return fmt.Errorf("rules[%d].moduleBoundaries[%d].deny must be an array, got %T", ruleIndex, i, deny)
+				return fmt.Errorf("workspaces[%d].moduleBoundaries[%d].deny must be an array, got %T", ruleIndex, i, deny)
 			}
 		}
 	}
@@ -1196,30 +1203,30 @@ func ValidateConfig(config *RevDepConfig) error {
 
 	for j, rule := range config.Rules {
 		if rule.Path == "" {
-			return fmt.Errorf("rules[%d].path is required", j)
+			return fmt.Errorf("workspaces[%d].path is required", j)
 		}
-		if err := validateRuleEntryPoints(&rule, fmt.Sprintf("rules[%d]", j)); err != nil {
+		if err := validateRuleEntryPoints(&rule, fmt.Sprintf("workspaces[%d]", j)); err != nil {
 			return err
 		}
 		packageIdx := 0
 		for pattern := range rule.FollowMonorepoPackages.Packages {
 			trimmedPattern := strings.TrimSpace(pattern)
 			if trimmedPattern == "" {
-				return fmt.Errorf("rules[%d].followMonorepoPackages[%d] cannot be empty", j, packageIdx)
+				return fmt.Errorf("workspaces[%d].followMonorepoPackages[%d] cannot be empty", j, packageIdx)
 			}
 			packageIdx++
 		}
 
 		// Validate module boundaries in rules
 		for k, boundary := range rule.ModuleBoundaries {
-			if err := validateBoundaryRule(&boundary, fmt.Sprintf("rules[%d].moduleBoundaries[%d]", j, k)); err != nil {
+			if err := validateBoundaryRule(&boundary, fmt.Sprintf("workspaces[%d].moduleBoundaries[%d]", j, k)); err != nil {
 				return err
 			}
 		}
 
 		// Validate circular imports detection options
 		for idx, detection := range rule.getCircularImportsDetections() {
-			prefix := fmt.Sprintf("rules[%d].circularImportsDetection", j)
+			prefix := fmt.Sprintf("workspaces[%d].circularImportsDetection", j)
 			if len(rule.getCircularImportsDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
@@ -1230,7 +1237,7 @@ func ValidateConfig(config *RevDepConfig) error {
 
 		// Validate orphan files detection options
 		for idx, detection := range rule.getOrphanFilesDetections() {
-			prefix := fmt.Sprintf("rules[%d].orphanFilesDetection", j)
+			prefix := fmt.Sprintf("workspaces[%d].orphanFilesDetection", j)
 			if len(rule.getOrphanFilesDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
@@ -1241,7 +1248,7 @@ func ValidateConfig(config *RevDepConfig) error {
 
 		// Validate unused node modules detection options
 		for idx, detection := range rule.getUnusedNodeModulesDetections() {
-			prefix := fmt.Sprintf("rules[%d].unusedNodeModulesDetection", j)
+			prefix := fmt.Sprintf("workspaces[%d].unusedNodeModulesDetection", j)
 			if len(rule.getUnusedNodeModulesDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
@@ -1252,7 +1259,7 @@ func ValidateConfig(config *RevDepConfig) error {
 
 		// Validate missing node modules detection options
 		for idx, detection := range rule.getMissingNodeModulesDetections() {
-			prefix := fmt.Sprintf("rules[%d].missingNodeModulesDetection", j)
+			prefix := fmt.Sprintf("workspaces[%d].missingNodeModulesDetection", j)
 			if len(rule.getMissingNodeModulesDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
@@ -1263,7 +1270,7 @@ func ValidateConfig(config *RevDepConfig) error {
 
 		// Validate unused exports detection options
 		for idx, detection := range rule.getUnusedExportsDetections() {
-			prefix := fmt.Sprintf("rules[%d].unusedExportsDetection", j)
+			prefix := fmt.Sprintf("workspaces[%d].unusedExportsDetection", j)
 			if len(rule.getUnusedExportsDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
@@ -1274,7 +1281,7 @@ func ValidateConfig(config *RevDepConfig) error {
 
 		// Validate unresolved imports detection options
 		for idx, detection := range rule.getUnresolvedImportsDetections() {
-			prefix := fmt.Sprintf("rules[%d].unresolvedImportsDetection", j)
+			prefix := fmt.Sprintf("workspaces[%d].unresolvedImportsDetection", j)
 			if len(rule.getUnresolvedImportsDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
@@ -1285,7 +1292,7 @@ func ValidateConfig(config *RevDepConfig) error {
 
 		// Validate restricted dev dependencies usage detection options
 		for idx, detection := range rule.getDevDepsUsageOnProdDetections() {
-			prefix := fmt.Sprintf("rules[%d].devDepsUsageOnProdDetection", j)
+			prefix := fmt.Sprintf("workspaces[%d].devDepsUsageOnProdDetection", j)
 			if len(rule.getDevDepsUsageOnProdDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
@@ -1295,7 +1302,7 @@ func ValidateConfig(config *RevDepConfig) error {
 		}
 
 		for idx, detection := range rule.getRestrictedImportsDetections() {
-			prefix := fmt.Sprintf("rules[%d].restrictedImportsDetection", j)
+			prefix := fmt.Sprintf("workspaces[%d].restrictedImportsDetection", j)
 			if len(rule.getRestrictedImportsDetections()) > 1 {
 				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
 			}
@@ -1763,17 +1770,17 @@ func validateRestrictedImportsDetectionOptions(opts *RestrictedImportsDetectionO
 func validateRawImportConventions(conventions interface{}, ruleIndex int) error {
 	conventionsArray, ok := conventions.([]interface{})
 	if !ok {
-		return fmt.Errorf("rules[%d].importConventions must be an array, got %T", ruleIndex, conventions)
+		return fmt.Errorf("workspaces[%d].importConventions must be an array, got %T", ruleIndex, conventions)
 	}
 
 	if len(conventionsArray) == 0 {
-		return fmt.Errorf("rules[%d].importConventions cannot be empty", ruleIndex)
+		return fmt.Errorf("workspaces[%d].importConventions cannot be empty", ruleIndex)
 	}
 
 	for i, convention := range conventionsArray {
 		conventionMap, ok := convention.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("rules[%d].importConventions[%d] must be an object, got %T", ruleIndex, i, convention)
+			return fmt.Errorf("workspaces[%d].importConventions[%d] must be an object, got %T", ruleIndex, i, convention)
 		}
 
 		allowedConventionFields := map[string]bool{
@@ -1784,32 +1791,32 @@ func validateRawImportConventions(conventions interface{}, ruleIndex int) error 
 
 		for field := range conventionMap {
 			if !allowedConventionFields[field] {
-				return fmt.Errorf("rules[%d].importConventions[%d]: unknown field '%s'", ruleIndex, i, field)
+				return fmt.Errorf("workspaces[%d].importConventions[%d]: unknown field '%s'", ruleIndex, i, field)
 			}
 		}
 
 		// Check required fields
 		if _, exists := conventionMap["rule"]; !exists {
-			return fmt.Errorf("rules[%d].importConventions[%d].rule is required", ruleIndex, i)
+			return fmt.Errorf("workspaces[%d].importConventions[%d].rule is required", ruleIndex, i)
 		}
 		if _, exists := conventionMap["domains"]; !exists {
-			return fmt.Errorf("rules[%d].importConventions[%d].domains is required", ruleIndex, i)
+			return fmt.Errorf("workspaces[%d].importConventions[%d].domains is required", ruleIndex, i)
 		}
 
 		// Validate rule field
 		rule, ok := conventionMap["rule"].(string)
 		if !ok {
-			return fmt.Errorf("rules[%d].importConventions[%d].rule must be a string, got %T", ruleIndex, i, conventionMap["rule"])
+			return fmt.Errorf("workspaces[%d].importConventions[%d].rule must be a string, got %T", ruleIndex, i, conventionMap["rule"])
 		}
 
 		if rule != "relative-internal-absolute-external" {
-			return fmt.Errorf("rules[%d].importConventions[%d].rule: unknown rule '%s'. Only 'relative-internal-absolute-external' is supported", ruleIndex, i, rule)
+			return fmt.Errorf("workspaces[%d].importConventions[%d].rule: unknown rule '%s'. Only 'relative-internal-absolute-external' is supported", ruleIndex, i, rule)
 		}
 
 		// Validate autofix field (optional, defaults to false)
 		if autofix, exists := conventionMap["autofix"]; exists && autofix != nil {
 			if _, ok := autofix.(bool); !ok {
-				return fmt.Errorf("rules[%d].importConventions[%d].autofix must be a boolean, got %T", ruleIndex, i, autofix)
+				return fmt.Errorf("workspaces[%d].importConventions[%d].autofix must be a boolean, got %T", ruleIndex, i, autofix)
 			}
 		}
 
@@ -1829,11 +1836,11 @@ func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, r
 	// Check if domains is an array
 	domainsArray, ok := domains.([]interface{})
 	if !ok {
-		return fmt.Errorf("rules[%d].importConventions[%d].domains must be an array, got %T", ruleIndex, convIndex, domains)
+		return fmt.Errorf("workspaces[%d].importConventions[%d].domains must be an array, got %T", ruleIndex, convIndex, domains)
 	}
 
 	if len(domainsArray) == 0 {
-		return fmt.Errorf("rules[%d].importConventions[%d].domains cannot be empty", ruleIndex, convIndex)
+		return fmt.Errorf("workspaces[%d].importConventions[%d].domains cannot be empty", ruleIndex, convIndex)
 	}
 
 	// Check if all elements are strings or all are objects
@@ -1846,7 +1853,7 @@ func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, r
 		case string:
 			hasStrings = true
 			if v == "" {
-				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d] cannot be empty string", ruleIndex, convIndex, i)
+				return fmt.Errorf("workspaces[%d].importConventions[%d].domains[%d] cannot be empty string", ruleIndex, convIndex, i)
 			}
 			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: v, Enabled: true})
 		case map[string]interface{}:
@@ -1856,16 +1863,16 @@ func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, r
 			// Check for required path field
 			path, exists := domainMap["path"]
 			if !exists {
-				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].path is required", ruleIndex, convIndex, i)
+				return fmt.Errorf("workspaces[%d].importConventions[%d].domains[%d].path is required", ruleIndex, convIndex, i)
 			}
 
 			pathStr, ok := path.(string)
 			if !ok {
-				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].path must be a string, got %T", ruleIndex, convIndex, i, path)
+				return fmt.Errorf("workspaces[%d].importConventions[%d].domains[%d].path must be a string, got %T", ruleIndex, convIndex, i, path)
 			}
 
 			if pathStr == "" {
-				return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].path cannot be empty", ruleIndex, convIndex, i)
+				return fmt.Errorf("workspaces[%d].importConventions[%d].domains[%d].path cannot be empty", ruleIndex, convIndex, i)
 			}
 
 			// Check for optional alias field
@@ -1873,10 +1880,10 @@ func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, r
 			if aliasField, exists := domainMap["alias"]; exists {
 				aliasStr, ok := aliasField.(string)
 				if !ok {
-					return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].alias must be a string, got %T", ruleIndex, convIndex, i, aliasField)
+					return fmt.Errorf("workspaces[%d].importConventions[%d].domains[%d].alias must be a string, got %T", ruleIndex, convIndex, i, aliasField)
 				}
 				if aliasStr == "" {
-					return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].alias cannot be empty", ruleIndex, convIndex, i)
+					return fmt.Errorf("workspaces[%d].importConventions[%d].domains[%d].alias cannot be empty", ruleIndex, convIndex, i)
 				}
 				alias = aliasStr
 			}
@@ -1886,20 +1893,20 @@ func validateRelativeInternalAbsoluteExternalRule(rule map[string]interface{}, r
 			if enabledField, exists := domainMap["enabled"]; exists {
 				enabledBool, ok := enabledField.(bool)
 				if !ok {
-					return fmt.Errorf("rules[%d].importConventions[%d].domains[%d].enabled must be a boolean, got %T", ruleIndex, convIndex, i, enabledField)
+					return fmt.Errorf("workspaces[%d].importConventions[%d].domains[%d].enabled must be a boolean, got %T", ruleIndex, convIndex, i, enabledField)
 				}
 				enabled = enabledBool
 			}
 
 			parsedDomains = append(parsedDomains, ImportConventionDomain{Path: pathStr, Alias: alias, Enabled: enabled})
 		default:
-			return fmt.Errorf("rules[%d].importConventions[%d].domains[%d] must be a string or object, got %T", ruleIndex, convIndex, i, domain)
+			return fmt.Errorf("workspaces[%d].importConventions[%d].domains[%d] must be a string or object, got %T", ruleIndex, convIndex, i, domain)
 		}
 	}
 
 	// Mixed types are not allowed
 	if hasStrings && hasObjects {
-		return fmt.Errorf("rules[%d].importConventions[%d].domains cannot mix strings and objects", ruleIndex, convIndex)
+		return fmt.Errorf("workspaces[%d].importConventions[%d].domains cannot mix strings and objects", ruleIndex, convIndex)
 	}
 
 	// Validate no nested domains
@@ -1920,10 +1927,10 @@ func validateNoNestedDomains(domains []ImportConventionDomain, ruleIndex int, co
 
 			// Check if one path is a prefix of the other
 			if strings.HasPrefix(path1, path2) && (path1 == path2 || strings.HasPrefix(path1[len(path2):], string(filepath.Separator))) {
-				return fmt.Errorf("rules[%d].importConventions[%d]: nested domains not allowed: '%s' and '%s'", ruleIndex, convIndex, domains[i].Path, domains[j].Path)
+				return fmt.Errorf("workspaces[%d].importConventions[%d]: nested domains not allowed: '%s' and '%s'", ruleIndex, convIndex, domains[i].Path, domains[j].Path)
 			}
 			if strings.HasPrefix(path2, path1) && (path2 == path1 || strings.HasPrefix(path2[len(path1):], string(filepath.Separator))) {
-				return fmt.Errorf("rules[%d].importConventions[%d]: nested domains not allowed: '%s' and '%s'", ruleIndex, convIndex, domains[i].Path, domains[j].Path)
+				return fmt.Errorf("workspaces[%d].importConventions[%d]: nested domains not allowed: '%s' and '%s'", ruleIndex, convIndex, domains[i].Path, domains[j].Path)
 			}
 		}
 	}
@@ -2064,23 +2071,23 @@ func validateRawFollowMonorepoPackages(followMonorepoPackages interface{}, ruleI
 		return nil
 	case []interface{}:
 		if len(v) == 0 {
-			return fmt.Errorf("rules[%d].followMonorepoPackages must be a boolean or array of strings: array cannot be empty", ruleIndex)
+			return fmt.Errorf("workspaces[%d].followMonorepoPackages must be a boolean or array of strings: array cannot be empty", ruleIndex)
 		}
 
 		for i, item := range v {
 			strValue, ok := item.(string)
 			if !ok {
-				return fmt.Errorf("rules[%d].followMonorepoPackages must be a boolean or array of strings: rules[%d].followMonorepoPackages[%d] is %T", ruleIndex, ruleIndex, i, item)
+				return fmt.Errorf("workspaces[%d].followMonorepoPackages must be a boolean or array of strings: workspaces[%d].followMonorepoPackages[%d] is %T", ruleIndex, ruleIndex, i, item)
 			}
 
 			trimmedValue := strings.TrimSpace(strValue)
 			if trimmedValue == "" {
-				return fmt.Errorf("rules[%d].followMonorepoPackages[%d] cannot be empty", ruleIndex, i)
+				return fmt.Errorf("workspaces[%d].followMonorepoPackages[%d] cannot be empty", ruleIndex, i)
 			}
 		}
 
 		return nil
 	default:
-		return fmt.Errorf("rules[%d].followMonorepoPackages must be a boolean or array of strings, got %T", ruleIndex, followMonorepoPackages)
+		return fmt.Errorf("workspaces[%d].followMonorepoPackages must be a boolean or array of strings, got %T", ruleIndex, followMonorepoPackages)
 	}
 }

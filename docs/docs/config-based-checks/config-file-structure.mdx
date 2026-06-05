@@ -1,5 +1,5 @@
 ---
-description: "Understand the structure of the rev-dep configuration file, including top-level fields, rule-level fields, and how to define various project checks."
+description: "Understand the structure of the rev-dep configuration file, including top-level fields, workspace-level fields, and how to define various project checks."
 title: Config file structure
 ---
 
@@ -23,22 +23,22 @@ Rev-dep automatically detects project context and creates scaffolding for each w
 - `customAssetExtensions`: additional extensions that should be treated as resolvable imports.
 - `ignoreFiles`: files excluded from analysis by rev-dep config, in addition to gitignored files.
 - `processIgnoredFiles`: files that should still be processed even if gitignore or ignore patterns would normally skip them.
-- `rules`: array of rules defining checks for different parts of the codebase. Typically single rule defines checks for single workspace package. However, you can have multiple rules with the same `path` if that's needed.
+- `workspaces`: array of entries defining checks for different parts of the codebase. Typically a single entry defines checks for a single workspace package. However, you can have multiple entries with the same `path` if that's needed.
 
-> Name `rules` might be confusing, it's a bad design choice made at the beginning. This will be likely renamed to `workspaces` or `scopes` in next major release to better reflect how it is actually being used.
+> In v2 this field was called `rules`. It was renamed to `workspaces` in v3 to better reflect how it is used (typically one entry per workspace package).
 
-## Rule-level fields
+## Workspace-level fields
 
-Each rule must define:
+Each workspace must define:
 
-- `path` - relative path to the workspace package that this rule applies to. Can be `.` for the root package.
+- `path` - relative path to the workspace package that this workspace applies to. Can be `.` for the root package.
 
 And can additionally define:
 
 - `followMonorepoPackages`: Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
-- `prodEntryPoints`: Rule-level production entry point patterns for detector defaults
-- `devEntryPoints`: Rule-level development entry point patterns for detector defaults
-- [`ignoreEntryPoints`](config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points): Rule-level patterns for leftover entry points to exclude from reporting. Matching files are never reported as orphan files and their unused exports are not reported.
+- `prodEntryPoints`: Workspace-level production entry point patterns for detector defaults
+- `devEntryPoints`: Workspace-level development entry point patterns for detector defaults
+- [`ignoreEntryPoints`](config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points): Workspace-level patterns for leftover entry points to exclude from reporting. Matching files are never reported as orphan files and their unused exports are not reported.
 
 And any detector setup:
 - [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx): Array of module boundary rules
@@ -52,7 +52,7 @@ And any detector setup:
 - [`devDepsUsageOnProdDetection`](config-based-checks/checks/dev-deps-on-prod.mdx): Restricted dev dependencies usage detection configuration
 - [`unresolvedImportsDetection`](config-based-checks/checks/unresolved-imports.mdx): Unresolved imports detection configuration
 
-> Detectors can be defined as **a single object or an array of objects**. Defining multiple configurations for the same detector allows to run it multiple times with different settings (e.g., different entry points or different deny rules for restricted imports) within the same rule.
+> Detectors can be defined as **a single object or an array of objects**. Defining multiple configurations for the same detector allows to run it multiple times with different settings (e.g., different entry points or different deny rules for restricted imports) within the same workspace.
 
 ## Quick Start configuration
 
@@ -61,7 +61,7 @@ And any detector setup:
   "configVersion": "1.8",
   // enables json autocompletion
   "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
@@ -102,7 +102,7 @@ Here's a comprehensive example showing all available properties:
   "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", 
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "followMonorepoPackages": true,

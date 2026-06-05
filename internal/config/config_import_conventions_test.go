@@ -7,7 +7,7 @@ import (
 func TestParseConfig_ImportConventions_SimplifiedMode(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -48,7 +48,7 @@ func TestParseConfig_ImportConventions_SimplifiedMode(t *testing.T) {
 func TestParseConfig_ImportConventions_AdvancedMode(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -92,7 +92,7 @@ func TestParseConfig_ImportConventions_AdvancedMode(t *testing.T) {
 func TestParseConfig_ImportConventions_InvalidRuleName(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -119,7 +119,7 @@ func TestParseConfig_ImportConventions_InvalidRuleName(t *testing.T) {
 func TestParseConfig_ImportConventions_MixedDomainsRejected(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -149,7 +149,7 @@ func TestParseConfig_ImportConventions_MixedDomainsRejected(t *testing.T) {
 func TestParseConfig_ImportConventions_EmptyDomainsRejected(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -176,7 +176,7 @@ func TestParseConfig_ImportConventions_EmptyDomainsRejected(t *testing.T) {
 func TestParseConfig_ImportConventions_MissingPathRejected(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -205,7 +205,7 @@ func TestParseConfig_ImportConventions_MissingPathRejected(t *testing.T) {
 func TestParseConfig_ImportConventions_MissingAliasRejected(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -232,7 +232,7 @@ func TestParseConfig_ImportConventions_NestedDomainsRejected(t *testing.T) {
 	// Test case 1: src/auth and src/auth/utils are nested
 	configJSON1 := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -258,7 +258,7 @@ func TestParseConfig_ImportConventions_NestedDomainsRejected(t *testing.T) {
 	// Test case 2: src and src/auth are nested (src contains src/auth)
 	configJSON2 := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -284,7 +284,7 @@ func TestParseConfig_ImportConventions_NestedDomainsRejected(t *testing.T) {
 func TestParseConfig_ImportConventions_UnknownField(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -312,7 +312,7 @@ func TestParseConfig_ImportConventions_UnknownField(t *testing.T) {
 func TestParseConfig_ImportConventions_MissingRule(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -338,7 +338,7 @@ func TestParseConfig_ImportConventions_MissingRule(t *testing.T) {
 func TestParseConfig_ImportConventions_MissingDomains(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -364,7 +364,7 @@ func TestParseConfig_ImportConventions_MissingDomains(t *testing.T) {
 func TestParseConfig_ImportConventions_EmptyImportConventions(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": []
@@ -387,7 +387,7 @@ func TestParseConfig_ImportConventions_EnabledField(t *testing.T) {
 	// Test with enabled field set to false
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -447,7 +447,7 @@ func TestParseConfig_ImportConventions_EnabledFieldDefault(t *testing.T) {
 	// Test without enabled field (should default to true)
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -485,7 +485,7 @@ func TestParseConfig_ImportConventions_EnabledFieldInvalidType(t *testing.T) {
 	// Test with invalid enabled field type
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [
@@ -514,7 +514,7 @@ func TestParseConfig_ImportConventions_EnabledFieldInvalidType(t *testing.T) {
 func TestParseConfig_ImportConventions_WildcardInPathOfDomainObject(t *testing.T) {
 	configJSON := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"importConventions": [

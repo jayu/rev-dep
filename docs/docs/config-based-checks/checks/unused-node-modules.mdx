@@ -31,13 +31,13 @@ Any dependency that is listed but fails all these checks is flagged as unused.
 
 ## Configuration
 
-Below is an example of how `unusedNodeModulesDetection` fits within the `rules` array. It demonstrates defining general production and development entry points at the **rule level**.
+Below is an example of how `unusedNodeModulesDetection` fits within the `workspaces` array. It demonstrates defining general production and development entry points at the **workspace level**.
 
 It showcase possibility of then overriding them with specific `validEntryPoints` at the **check level** when necessary.
 
 ```json
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.ts"],

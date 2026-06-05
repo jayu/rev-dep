@@ -1,6 +1,6 @@
 {
   "configVersion": "1.3",
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "unusedExportsDetection": {

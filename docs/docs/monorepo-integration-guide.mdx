@@ -18,24 +18,24 @@ The mental model is simple: rev-dep builds one dependency graph from your source
 rev-dep config init
 ```
 
-Run at the **monorepo root**, this creates a root rule plus one rule per discovered workspace package. 
+Run at the **monorepo root**, this creates a root workspace plus one workspace per discovered workspace package. 
 
 It writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. See [config file structure](./config-based-checks/config-file-structure.mdx).
 
-### Rules: monorepo root vs per-package
+### Workspaces: monorepo root vs per-package
 
-A **rule** is a scope - usually one workspace. Two levels are available, and you will use both:
+A **workspace** is a scope - usually one package. Two levels are available, and you will use both:
 
-- **The root rule (`path: "."`)** sees the *whole* monorepo. Use it for checks that need cross-package context - most importantly orphan files and unused exports of **shared** packages.
-- **A per-package rule (eg. `path: "apps/web"`)** is scoped to one package (plus the packages it follows). Use it for package-local checks and for compiled apps, where not imported code is genuinely dead.
+- **The root workspace (`path: "."`)** sees the *whole* monorepo. Use it for checks that need cross-package context - most importantly orphan files and unused exports of **shared** packages.
+- **A per-package workspace (eg. `path: "apps/web"`)** is scoped to one package (plus the packages it follows). Use it for package-local checks and for compiled apps, where not imported code is genuinely dead.
 
 Every check below can be placed at either level. The guidance per check notes where it belongs.
 
-> Note that field name `rule` in config file might be confusing, it's early stage naming mistake. It would be better to name it `workspace`, because each rule refers to different workspace. 
+> In v2 this field was called `rules`. It was renamed to `workspaces` in v3 to better reflect how it is used (typically one entry per workspace package).
 
 ### Following monorepo packages
 
-When a rule encounters an import of another workspace package, `followMonorepoPackages` decides whether rev-dep traces into that package's **source** (follow) or treats it as an external boundary (don't). Rules follow **all** packages by default.
+When a workspace encounters an import of another workspace package, `followMonorepoPackages` decides whether rev-dep traces into that package's **source** (follow) or treats it as an external boundary (don't). Workspaces follow **all** packages by default.
 
 This matters for almost every check in a monorepo: follow the packages whose source is compiled by the consumer (just-in-time/shared packages), and leave pre-compiled packages unfollowed. See [Following monorepo packages](./other-concepts-and-features/following-monorepo-packages.mdx).
 
@@ -44,7 +44,7 @@ This matters for almost every check in a monorepo: follow the packages whose sou
 ```bash
 rev-dep config run                     # report (5 first issues per check)
 rev-dep config run --list-all-issues   # full report
-rev-dep config run --rules apps/web    # only selected rules/workspaces
+rev-dep config run --workspaces apps/web    # only selected workspaces
 ```
 
 Adopt checks incrementally - enable one, run it, resolve the findings, commit, repeat. That keeps CI noise manageable.
@@ -64,7 +64,7 @@ Enable this **first**. It tells you whether rev-dep can parse and resolve your p
 
 ```jsonc
 {
-  "rules": [
+  "workspaces": [
     { "path": ".", "unresolvedImportsDetection": { "enabled": true } }
   ]
 }
@@ -78,11 +78,11 @@ Learn more about the [`unresolvedImportsDetection`](./config-based-checks/checks
 
 ## 4. Define entry points
 
-Entry points are the roots of reachability - the foundation for orphan files, unused exports, and dev-dependency checks. Define them once per rule:
+Entry points are the roots of reachability - the foundation for orphan files, unused exports, and dev-dependency checks. Define them once per workspace:
 
 ```jsonc
 {
-  "rules": [
+  "workspaces": [
     {
       "path": "apps/web",
       "prodEntryPoints": ["app/**/page.tsx", "pages/**", "server/index.ts"],
@@ -101,7 +101,7 @@ Keep the list honest and start narrow. See [entry points definition guide](./con
 
 ## 5. Node-module hygiene
 
-rev-dep checks dependency **declarations** against the rule's `package.json` (it never scans `node_modules/`). The rule of thumb: **whoever compiles the code declares its dependencies**. Enable these on each package that owns a `package.json`.
+rev-dep checks dependency **declarations** against the workspace's `package.json` (it never scans `node_modules/`). The rule of thumb: **whoever compiles the code declares its dependencies**. Enable these on each package that owns a `package.json`.
 
 ### Unused node modules
 
@@ -220,7 +220,7 @@ Learn more about the [`circularImportsDetection`](./config-based-checks/checks/c
 
 ## 9. Restricted imports
 
-Block specific files/modules from being reachable from chosen entry points - e.g. keep server-only code out of client bundles. Entry-point driven; `entryPoints` does **not** fall back to rule-level entry points.
+Block specific files/modules from being reachable from chosen entry points - e.g. keep server-only code out of client bundles. Entry-point driven; `entryPoints` does **not** fall back to workspace-level entry points.
 
 ```jsonc
 {

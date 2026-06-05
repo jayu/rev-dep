@@ -29,13 +29,13 @@ Read more in [Orphan files and unused exports in shared packages](../../troubles
 
 ## Configuration
 
-Below is an example of how `orphanFilesDetection` fits within the `rules` array. It demonstrates defining general production and development entry points at the **rule level**.
+Below is an example of how `orphanFilesDetection` fits within the `workspaces` array. It demonstrates defining general production and development entry points at the **workspace level**.
 
 It showcase possibility of then overriding them with specific `validEntryPoints` at the **check level** when necessary.
 
 ```json
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.ts"],
@@ -45,7 +45,7 @@ It showcase possibility of then overriding them with specific `validEntryPoints`
         "ignoreTypeImports": false,
         // Autofix will automatically remove identified orphan file when `config run` is executed with `--fix` flag.
         "autofix": true,
-        // overrides the rule-level entry points settings for this check
+        // overrides the workspace-level entry points settings for this check
         "validEntryPoints": ["src/specific-entry.ts"] 
       }
     }
@@ -53,9 +53,9 @@ It showcase possibility of then overriding them with specific `validEntryPoints`
 }
 ```
 
-*Note: While the rule-level `prodEntryPoints` and `devEntryPoints` provide a baseline, you can use `validEntryPoints` within the check configuration to explicitly define the roots for your orphan analysis.*
+*Note: While the workspace-level `prodEntryPoints` and `devEntryPoints` provide a baseline, you can use `validEntryPoints` within the check configuration to explicitly define the roots for your orphan analysis.*
 
-*Tip: To keep a leftover-but-committed file from being reported as orphan, add it to the rule-level [`ignoreEntryPoints`](../entry-points-definition.mdx#ignoring-leftover-entry-points) instead of deleting it or padding `validEntryPoints`.*
+*Tip: To keep a leftover-but-committed file from being reported as orphan, add it to the workspace-level [`ignoreEntryPoints`](../entry-points-definition.mdx#ignoring-leftover-entry-points) instead of deleting it or padding `validEntryPoints`.*
 
 ## Configuration with `graphExclude`
 
@@ -69,7 +69,7 @@ Such files might be good removal candidates. Why keep keep unused utils?
 
 ```json
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.ts"],

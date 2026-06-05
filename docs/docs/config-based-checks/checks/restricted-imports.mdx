@@ -32,7 +32,7 @@ Below is a comprehensive example demonstrating how to use all available options.
 
 ```json
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "restrictedImportsDetection": {
@@ -59,7 +59,7 @@ Simply define `restrictedImportsDetection` as an array of detectors:
 
 ```json
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "restrictedImportsDetection": [{
@@ -83,7 +83,7 @@ Simply define `restrictedImportsDetection` as an array of detectors:
 ## Options
 
 - `enabled` (boolean): Whether to enable restricted imports detection.
-- `entryPoints` (array of strings): The starting points for the dependency graph analysis. Note that unlike other checks, these do not fall back to rule-level entry points.
+- `entryPoints` (array of strings): The starting points for the dependency graph analysis. Note that unlike other checks, these do not fall back to workspace-level entry points.
 - `graphExclude` (array of strings): Glob patterns to exclude certain files from the dependency graph analysis.
 - `denyFiles` (array of strings): Glob patterns for file paths that are forbidden from being imported.
 - `denyModules` (array of strings): Glob patterns for module names that are forbidden from being imported.

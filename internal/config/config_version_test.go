@@ -8,7 +8,7 @@ import (
 func TestParseConfig_ValidVersion(t *testing.T) {
 	content := []byte(`{
         "configVersion": "1.0",
-        "rules": [{"path": "."}]
+        "workspaces": [{"path": "."}]
     }`)
 
 	config, err := ParseConfig(content)
@@ -22,8 +22,8 @@ func TestParseConfig_ValidVersion(t *testing.T) {
 
 func TestParseConfig_UnsupportedVersion(t *testing.T) {
 	content := []byte(`{
-        "configVersion": "2.0",
-        "rules": [{"path": "."}]
+        "configVersion": "99.0",
+        "workspaces": [{"path": "."}]
     }`)
 
 	_, err := ParseConfig(content)
@@ -32,5 +32,23 @@ func TestParseConfig_UnsupportedVersion(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unsupported configVersion") {
 		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+// The top-level `rules` field was renamed to `workspaces` in v3. A config still
+// using `rules` must fail with a dedicated, actionable error rather than a
+// generic "unknown field" message.
+func TestParseConfig_LegacyRulesFieldRejected(t *testing.T) {
+	content := []byte(`{
+        "configVersion": "2.0",
+        "rules": [{"path": "."}]
+    }`)
+
+	_, err := ParseConfig(content)
+	if err == nil {
+		t.Fatalf("expected error when using the legacy `rules` field")
+	}
+	if !strings.Contains(err.Error(), "renamed to `workspaces`") {
+		t.Fatalf("expected a dedicated rename error mentioning `workspaces`, got: %v", err)
 	}
 }

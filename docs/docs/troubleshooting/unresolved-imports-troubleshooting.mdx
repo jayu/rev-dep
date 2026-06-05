@@ -9,7 +9,7 @@ An import is **unresolved** when rev-dep cannot map the request to a target it u
 
 ## First, in a monorepo: follow workspace packages
 
-Config rules follow all workspace packages **by default**, but the exploratory CLI commands follow **none** unless told to. If you investigate with `rev-dep unresolved`, `resolve`, `files`, etc. in a monorepo, pass `--follow-monorepo-packages` - otherwise cross-package imports look unresolved even when they are fine.
+Config workspaces follow all workspace packages **by default**, but the exploratory CLI commands follow **none** unless told to. If you investigate with `rev-dep unresolved`, `resolve`, `files`, etc. in a monorepo, pass `--follow-monorepo-packages` - otherwise cross-package imports look unresolved even when they are fine.
 
 ```bash
 rev-dep unresolved --follow-monorepo-packages
@@ -43,7 +43,7 @@ Two tsconfig caveats matter here:
 - only the **first** target of a `paths` array is used (TypeScript allows several)
 - alias targets must be **relative** paths; non-relative ones are skipped
 
-**Fix:** declare the alias in `tsconfig.json` paths or a package map, and make sure rev-dep reads the right config (`--tsconfig-json` / `--package-json`, or the rule's `path`). 
+**Fix:** declare the alias in `tsconfig.json` paths or a package map, and make sure rev-dep reads the right config (`--tsconfig-json` / `--package-json`, or the workspace's `path`). 
 
 See also [Module resolution and path aliases](../other-concepts-and-features/module-resolution-and-path-aliases.mdx).
 
@@ -94,7 +94,7 @@ Behavior when **not** followed:
 - if the package is declared as a dependency, rev-dep treats it as an external node module (resolved, but not traced into source)
 - if it is neither declared nor followed, the import is **unresolved**
 
-**Fix:** enable following on the rule/command, or add the package to the follow list.
+**Fix:** enable following on the workspace/command, or add the package to the follow list.
 
 ## Cause: it is actually an undeclared npm package
 

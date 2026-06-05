@@ -41,7 +41,7 @@ func TestConfigProcessor_VueUnresolvedImports(t *testing.T) {
 
 	cfg := `{
 		"configVersion": "1.6",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"unresolvedImportsDetection": { "enabled": true }
@@ -82,7 +82,7 @@ func TestConfigProcessor_VueModuleBoundaries(t *testing.T) {
 
 	cfg := `{
 		"configVersion": "1.6",
-		"rules": [
+		"workspaces": [
 			{
 				"path": ".",
 				"moduleBoundaries": [

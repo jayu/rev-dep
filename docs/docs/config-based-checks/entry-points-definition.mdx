@@ -34,9 +34,9 @@ If entry points are incomplete, reachable files may look orphaned and real tooli
 
 When in doubt, start narrow, review results, then add missing roots explicitly.
 
-## Rule-level defaults vs detector overrides
+## Workspace-level defaults vs detector overrides
 
-Most reachability-based detectors use rule-level `prodEntryPoints` and `devEntryPoints` as their foundation.
+Most reachability-based detectors use workspace-level `prodEntryPoints` and `devEntryPoints` as their foundation.
 
 Some detectors also expose their own narrower knobs:
 
@@ -44,7 +44,7 @@ Some detectors also expose their own narrower knobs:
 - `unusedExportsDetection` - `validEntryPoints`
 - `devDepsUsageOnProdDetection` - `prodEntryPoints`
 
-Use those when one detector needs a smaller or more specific set of roots than the whole rule.
+Use those when one detector needs a smaller or more specific set of roots than the whole workspace.
 
 ## Ignoring leftover entry points
 

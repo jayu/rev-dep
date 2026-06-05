@@ -9,19 +9,19 @@ Most "false positive" missing/unused reports come down to one thing: a dependenc
 
 ## How rev-dep decides
 
-rev-dep does not scan `node_modules/`. For a rule, it reads the `dependencies` and `devDependencies` of **that rule's `package.json`** and compares them against every third-party import in the rule's graph:
+rev-dep does not scan `node_modules/`. For a workspace, it reads the `dependencies` and `devDependencies` of **that workspace's `package.json`** and compares them against every third-party import in the workspace's graph:
 
 - **missing** - a module imported somewhere in the graph but not declared in that `package.json`
 - **unused** - a module declared in that `package.json` but not imported anywhere in the graph
 
-The rule's graph includes the source of any monorepo packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx) (the default is to follow all). So a single rule's check spans the compiling package **and** the just-in-time packages whose source it pulls in.
+The workspace's graph includes the source of any monorepo packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx) (the default is to follow all). So a single workspace's check spans the compiling package **and** the just-in-time packages whose source it pulls in.
 
 ## Rule of thumb: whoever compiles owns the modules
 
 > The package that compiles the code must declare every third-party module used across its compiled graph.
 
-- A **compiled or published** package is built on its own, so it declares its own dependencies. Give it a rule; a module it imports but does not declare is correctly reported *missing*.
-- A **shared, just-in-time** package is not built on its own - a consumer compiles its source. Its third-party modules belong in the **consumer's** `package.json`. Put the detection on the consumer's rule (which follows the shared package), and do **not** enable missing/unused detection on the shared package in isolation.
+- A **compiled or published** package is built on its own, so it declares its own dependencies. Give it a workspace; a module it imports but does not declare is correctly reported *missing*.
+- A **shared, just-in-time** package is not built on its own - a consumer compiles its source. Its third-party modules belong in the **consumer's** `package.json`. Put the detection on the consumer's workspace (which follows the shared package), and do **not** enable missing/unused detection on the shared package in isolation.
 
 That is exactly why a module can resolve fine at runtime yet still be reported: a hoisted layout lets shared code borrow the consumer's `node_modules`, but the *declaration* still has to live with the package that owns the build.
 
@@ -38,14 +38,14 @@ packages/
 
 ```jsonc
 {
-  "rules": [
+  "workspaces": [
     {
       "path": "packages/web",
       "followMonorepoPackages": true,
       "missingNodeModulesDetection": { "enabled": true },
       "unusedNodeModulesDetection": { "enabled": true }
     }
-    // no missing/unused rule on packages/shared
+    // no missing/unused workspace on packages/shared
   ]
 }
 ```
@@ -56,22 +56,22 @@ packages/
 
 The module is declared in the wrong place - usually the repo root or a sibling package - while the package that compiles the importing file declares nothing.
 
-**Fix:** declare the module in the `package.json` of the package that compiles that code (the rule's `path`). Moving a `dependencies` entry from the root into the workspace that actually uses it is the most common fix.
+**Fix:** declare the module in the `package.json` of the package that compiles that code (the workspace's `path`). Moving a `dependencies` entry from the root into the workspace that actually uses it is the most common fix.
 
 ## "It is declared and used, but reported unused"
 
-The module is used only by a package your rule does not follow, so that usage is invisible to the rule and the declaration looks dead.
+The module is used only by a package your workspace does not follow, so that usage is invisible to the workspace and the declaration looks dead.
 
-**Fix:** enable [`followMonorepoPackages`](../other-concepts-and-features/following-monorepo-packages.mdx) on the rule (or list the specific package) so the shared/consumed source is part of the graph. Usage in followed source then counts against the declaration.
+**Fix:** enable [`followMonorepoPackages`](../other-concepts-and-features/following-monorepo-packages.mdx) on the workspace (or list the specific package) so the shared/consumed source is part of the graph. Usage in followed source then counts against the declaration.
 
 ## "Every workspace dependency is reported missing"
 
-This is workspace discovery failing: the rule resolves against the root `package.json` instead of each workspace's, so every workspace-local dependency looks undeclared. A glob-matching bug that caused this in pnpm monorepos was fixed in **2.11.0**.
+This is workspace discovery failing: the workspace resolves against the root `package.json` instead of each workspace's, so every workspace-local dependency looks undeclared. A glob-matching bug that caused this in pnpm monorepos was fixed in **2.11.0**.
 
 **Fix:**
 
 1. Upgrade to rev-dep 2.11.0 or newer.
-2. Run `rev-dep config init` at the repo root and confirm it generates one rule per workspace. If many workspaces collapse into a single root rule, your workspace globs are not being discovered - check how workspaces are declared (`pnpm-workspace.yaml`, the `workspaces` field) and open an issue with a small reproduction.
+2. Run `rev-dep config init` at the repo root and confirm it generates one workspace entry per workspace. If many workspaces collapse into a single root workspace, your workspace globs are not being discovered - check how workspaces are declared (`pnpm-workspace.yaml`, the `workspaces` field) and open an issue with a small reproduction.
 
 ## "A build or tooling package is reported unused"
 

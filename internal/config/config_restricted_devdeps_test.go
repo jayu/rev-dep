@@ -6,7 +6,7 @@ func TestParseConfig_DevDepsUsageOnProdDetection_IgnoreTypeImports(t *testing.T)
 	t.Run("valid config", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"devDepsUsageOnProdDetection": {
 					"enabled": true,
@@ -33,7 +33,7 @@ func TestParseConfig_DevDepsUsageOnProdDetection_IgnoreTypeImports(t *testing.T)
 	t.Run("wrong type", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"devDepsUsageOnProdDetection": {
 					"enabled": true,

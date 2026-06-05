@@ -14,7 +14,7 @@ import (
 type jsonOutput struct {
 	Version     string           `json:"version"`
 	HasFailures bool             `json:"hasFailures"`
-	Rules       []jsonRuleResult `json:"rules"`
+	Rules       []jsonRuleResult `json:"workspaces"`
 	FixSummary  jsonFixSummary   `json:"fixSummary"`
 }
 
@@ -134,7 +134,7 @@ type jsonRestrictedImportIssue struct {
 
 func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, packageJsonPath string, tsconfigJsonPath string, runConfigFix bool, runConfigRecheck bool) error {
 	output := jsonOutput{
-		Version: "1.0",
+		Version: "2.0",
 		Rules:   []jsonRuleResult{},
 	}
 

@@ -768,7 +768,7 @@ func init() {
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
 	configRunCmd.Flags().BoolVar(&runConfigRecheck, "recheck", false, "Run all checks again after '--fix' to validate the final state")
 	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
-	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
+	configRunCmd.Flags().StringSliceVar(&runConfigRules, "workspaces", []string{}, "Subset of workspaces to run (comma-separated list of workspace paths)")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")
@@ -779,7 +779,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
-	currentConfigVersion := "1.8"
+	currentConfigVersion := "2.0"
 
 	// Check if any config file already exists
 	existingConfig, err := config.FindConfigFile(cwd)

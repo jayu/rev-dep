@@ -9,7 +9,7 @@ Execution of checks based on a configuration file is designed to optimize the sp
 
 All checks are executed in a single pass, each file is read and parsed only once, which allows for significant resource savings.
 
-Additionally set of detectors for each rule (typically workspace) is executed in parallel and particular detectors within each rule are also executed in parallel utilizing all available CPU cores in optimal way.
+Additionally set of detectors for each workspace is executed in parallel and particular detectors within each workspace are also executed in parallel utilizing all available CPU cores in optimal way.
 
 Adding more detectors usually increases overall execution time only by few milliseconds, which makes **rev-dep** an excellent choice for huge monorepos.
 

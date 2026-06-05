@@ -128,7 +128,7 @@ func TestConfigProcessor_UnusedExports_IgnoreOptions(t *testing.T) {
 	t.Run("ignoreFiles suppresses all exports from matching files", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -150,7 +150,7 @@ func TestConfigProcessor_UnusedExports_IgnoreOptions(t *testing.T) {
 	t.Run("ignore map supports file and export globs", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -174,7 +174,7 @@ func TestConfigProcessor_UnusedExports_IgnoreOptions(t *testing.T) {
 	t.Run("ignore map supports array of export globs", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.6",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -198,7 +198,7 @@ func TestConfigProcessor_UnusedExports_IgnoreOptions(t *testing.T) {
 	t.Run("ignoreExports supports globs", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.5",
-			"rules": [{
+			"workspaces": [{
 				"path": ".",
 				"unusedExportsDetection": {
 					"enabled": true,
@@ -224,7 +224,7 @@ func TestConfigProcessor_UnusedExports_MultipleDetections(t *testing.T) {
 
 	cfg := `{
 		"configVersion": "1.6",
-		"rules": [{
+		"workspaces": [{
 			"path": ".",
 			"unusedExportsDetection": [
 				{

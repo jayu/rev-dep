@@ -465,7 +465,7 @@ func TestConfigProcessor_MultipleRules(t *testing.T) {
 	// Create a config with multiple rules
 	multiRuleConfig := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": "src/features",
 				"circularImportsDetection": {"enabled": true}
@@ -506,7 +506,7 @@ func TestConfigProcessor_RulePathFiltering(t *testing.T) {
 	// Create a config with a specific rule path
 	specificPathConfig := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": "src/features",
 				"circularImportsDetection": {"enabled": true}
@@ -548,7 +548,7 @@ func TestConfigProcessor_NewFields(t *testing.T) {
 	// Create a config with all checks enabled to test new fields
 	allChecksConfig := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": "src/features",
 				"circularImportsDetection": {"enabled": true},

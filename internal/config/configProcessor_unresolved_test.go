@@ -61,7 +61,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("baseline unresolved imports are detected", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": { "enabled": true }
@@ -90,7 +90,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignore map suppresses exact file-request pair only", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": {
@@ -119,7 +119,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignoreFiles suppresses all unresolved imports for matching files", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": {
@@ -147,7 +147,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignoreImports suppresses matching requests globally", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": {
@@ -172,7 +172,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("combined ignore options suppress all configured violations", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": {
@@ -197,7 +197,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignore map path is resolved relative to rule path", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": "packages/subpkg",
 					"unresolvedImportsDetection": {
@@ -220,7 +220,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignore map supports glob paths", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": {
@@ -245,7 +245,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignore map supports glob import values", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": {
@@ -269,7 +269,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignore map supports array of import globs", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.6",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": {
@@ -293,7 +293,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignoreImports supports glob", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": {
@@ -314,7 +314,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 	t.Run("ignoreFiles glob is resolved relative to rule path", func(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.3",
-			"rules": [
+			"workspaces": [
 				{
 					"path": "packages/subpkg",
 					"unresolvedImportsDetection": {
@@ -350,7 +350,7 @@ func TestConfigProcessor_UnresolvedImports(t *testing.T) {
 		cfg := `{
 			"configVersion": "1.6",
 			"customAssetExtensions": ["custom"],
-			"rules": [
+			"workspaces": [
 				{
 					"path": ".",
 					"unresolvedImportsDetection": { "enabled": true }

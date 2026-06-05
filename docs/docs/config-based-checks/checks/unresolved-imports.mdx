@@ -26,12 +26,12 @@ Follow [Unresolved Imports Troubleshooting Guide](troubleshooting/unresolved-imp
 
 ## Configuration
 
-Below is an example of how `unresolvedImportsDetection` fits within the `rules` array, demonstrating how to use various ignore options:
+Below is an example of how `unresolvedImportsDetection` fits within the `workspaces` array, demonstrating how to use various ignore options:
 
 ```json
 {
   "configVersion": "1.0",
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "unresolvedImportsDetection": {
@@ -52,7 +52,7 @@ Below is an example of how `unresolvedImportsDetection` fits within the `rules` 
 - `enabled` (boolean): Whether to enable unresolved imports detection.
 - `ignoreFiles` (array of strings): Glob patterns for files whose unresolved imports should be ignored.
 - `ignoreImports` (array of strings): Import requests (or globs) to ignore globally in unresolved imports results.
-- `ignore` (object): A map where the key is a file path glob (relative to the rule path) and the value is an import request glob (or string) to ignore for that specific file. Use this when an exception depends on both the file location and the import itself.
+- `ignore` (object): A map where the key is a file path glob (relative to the workspace path) and the value is an import request glob (or string) to ignore for that specific file. Use this when an exception depends on both the file location and the import itself.
 
 ### Also referred as
 Unresolved or Broken Imports is also known as:

@@ -25,7 +25,7 @@ func TestConfigRun_RulesFilter(t *testing.T) {
 	// Create a config with 2 rules
 	configContent := `{
 		"configVersion": "1.0",
-		"rules": [
+		"workspaces": [
 			{
 				"path": "src/features/auth",
 				"orphanFilesDetection": {
@@ -44,7 +44,7 @@ func TestConfigRun_RulesFilter(t *testing.T) {
 	}`
 	os.WriteFile(filepath.Join(tempDir, "rev-dep.config.json"), []byte(configContent), 0644)
 
-	// 1. Run with --rules src/features/auth
+	// 1. Run with --workspaces src/features/auth
 	// We need to reset the flags and variables because they are global
 	SetRunConfigRules([]string{"src/features/auth"})
 	SetRunConfigCwd(tempDir)
@@ -79,7 +79,7 @@ func TestConfigRun_RulesFilter(t *testing.T) {
 		t.Errorf("Expected output NOT to contain rule src/features/users, but got: %s", output)
 	}
 
-	// 2. Run with multiple rules --rules src/features/auth,src/features/users
+	// 2. Run with multiple rules --workspaces src/features/auth,src/features/users
 	SetRunConfigRules([]string{"src/features/auth", "src/features/users"})
 	r, w, _ = os.Pipe()
 	os.Stdout = w
@@ -104,7 +104,7 @@ func TestConfigRun_RulesFilter(t *testing.T) {
 		t.Errorf("Expected output to contain rule src/features/users, but got: %s", output)
 	}
 
-	// 3. Run with --rules src/features/non-existent
+	// 3. Run with --workspaces src/features/non-existent
 	SetRunConfigRules([]string{"src/features/non-existent"})
 	err = cmd.RunE(cmd, []string{})
 	if err == nil {

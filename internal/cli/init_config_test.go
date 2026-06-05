@@ -87,8 +87,8 @@ func TestInitConfigFile(t *testing.T) {
 		t.Errorf("Failed to parse generated config: %v", err)
 	}
 
-	if cfg.ConfigVersion != "1.8" {
-		t.Errorf("Expected configVersion '1.8', got '%s'", cfg.ConfigVersion)
+	if cfg.ConfigVersion != "2.0" {
+		t.Errorf("Expected configVersion '2.0', got '%s'", cfg.ConfigVersion)
 	}
 
 	if len(cfg.Rules) != 1 {

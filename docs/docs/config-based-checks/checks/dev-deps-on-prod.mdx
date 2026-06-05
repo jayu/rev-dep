@@ -21,32 +21,32 @@ Using `devDependencies` in your production runtime code is problematic for sever
 
 ## Configuration
 
-While it is best practice to define `prodEntryPoints` and `devEntry entryPoints` at the **rule level** (to ensure consistency across all checks in that rule), you can override them at the **check level** if a specific rule requires a more granular or different set of entry points.
+While it is best practice to define `prodEntryPoints` and `devEntry entryPoints` at the **workspace level** (to ensure consistency across all checks in that workspace), you can override them at the **check level** if a specific workspace requires a more granular or different set of entry points.
 
 Below is an example demonstrating both:
 
 ```json
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.ts", "src/index.ts"],
       "devEntryPoints": ["**/*.test.ts", "**/setupTests.ts"],
       "devDepsUsageOnProdDetection": {
         "enabled": true,
-        // overrides the rule-level entry points settings for this check
+        // overrides the workspace-level entry points settings for this check
         "prodEntryPoints": ["src/pages/**/*.tsx"] 
       }
     }
   ]
 }
 ```
-*In the example above, the check specifically targets `src/pages/**/*.tsx` as entry points, overriding the rule-level defaults for this specific check.*
+*In the example above, the check specifically targets `src/pages/**/*.tsx` as entry points, overriding the workspace-level defaults for this specific check.*
 
 ## Options
 
 - `enabled` (boolean): Whether to enable dev-dependency usage detection.
-- `prodEntryPoints` (array of strings): Production entry point patterns to trace dependencies from. If not provided, the rule-level `prodEntryPoints` are used.
+- `prodEntryPoints` (array of strings): Production entry point patterns to trace dependencies from. If not provided, the workspace-level `prodEntryPoints` are used.
 - `ignoreTypeImports` (boolean): Whether to ignore type-only imports when tracing the production dependency graph.
 
 ### Also referred as

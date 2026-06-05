@@ -11,7 +11,7 @@ If you enable these checks **scoped to the shared package**, that cross-package 
 
 ## Why it happens
 
-A rule only sees its own package's graph (plus the packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx)). A shared package has very few real entry points of its own - an app's `index.ts` lives in the app, not in `packages/shared`. So when the check runs against `packages/shared` in isolation, the files and exports that apps import look like they have no consumer.
+A workspace only sees its own package's graph (plus the packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx)). A shared package has very few real entry points of its own - an app's `index.ts` lives in the app, not in `packages/shared`. So when the check runs against `packages/shared` in isolation, the files and exports that apps import look like they have no consumer.
 
 ## The recommended setup
 
@@ -19,7 +19,7 @@ A rule only sees its own package's graph (plus the packages it [follows](../othe
 2. **Enable them once at the monorepo root** (`path: "."`). There rev-dep builds the whole-monorepo graph and, with workspace-package following on (the default), resolves cross-package imports into the shared source. A shared export imported by any app now counts as used; only code used by nobody *anywhere* is reported.
 3. **Do enable them in compiled leaf packages** (web/mobile apps). Those packages are not meant to be imported elsewhere, so dangling code in them is genuinely dead and safe to flag - or autofix away.
 
-The key is context: the root rule has the whole monorepo; a shared-package rule does not.
+The key is context: the root workspace has the whole monorepo; a shared-package workspace does not.
 
 ## Define entry points by intent
 
@@ -28,13 +28,13 @@ You don't have to hand-list every root. The simpler framing is **which workspace
 - **Apps** (`apps/web`, `apps/mobile`) are compiled - they hold the real entry points, so treat *everything in them* as a root.
 - **Shared packages** (`packages/shared`) are not compiled on their own; they exist only to be imported by the apps.
 
-So at the root rule, point the entry points at the app workspaces. Any shared-package code the apps reach counts as used; any shared code reached from nowhere is reported. This is coarse but effective - you can narrow it later with more specific roots (see [entry points](../config-based-checks/entry-points-definition.mdx)).
+So at the root workspace, point the entry points at the app workspaces. Any shared-package code the apps reach counts as used; any shared code reached from nowhere is reported. This is coarse but effective - you can narrow it later with more specific roots (see [entry points](../config-based-checks/entry-points-definition.mdx)).
 
 ## Example
 
 ```jsonc
 {
-  "rules": [
+  "workspaces": [
     {
       // Root: the apps are the compilation targets, so treat everything in them
       // as a root. Shared-package code the apps never reach is dead and gets reported.
@@ -62,7 +62,7 @@ So at the root rule, point the entry points at the app workspaces. Any shared-pa
 
 ## Notes
 
-- **Orphan files can run in both places.** Root-level catches dead *shared* files; a per-app rule catches app-local dead files. A second app-level `orphanFilesDetection` with `"graphExclude": ["**/*.test.*"]` surfaces utilities that are only used by tests (rename such a file to include `.testUtil.` if it is intentional).
-- **`autofix`** lets the root rule delete orphan files and strip unused exports once you trust the entry-point list.
+- **Orphan files can run in both places.** Root-level catches dead *shared* files; a per-app workspace catches app-local dead files. A second app-level `orphanFilesDetection` with `"graphExclude": ["**/*.test.*"]` surfaces utilities that are only used by tests (rename such a file to include `.testUtil.` if it is intentional).
+- **`autofix`** lets the root workspace delete orphan files and strip unused exports once you trust the entry-point list.
 
 See [orphan files detection](../config-based-checks/checks/orphan-files.mdx), [unused exports detection](../config-based-checks/checks/unused-exports.mdx), and [entry points](../config-based-checks/entry-points-definition.mdx) for the per-check details.

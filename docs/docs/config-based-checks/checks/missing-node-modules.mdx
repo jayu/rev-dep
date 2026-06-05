@@ -21,11 +21,11 @@ Failing to declare dependencies in `package.json` can lead to several critical i
 
 ## Configuration
 
-Below is an example of how `missingNodeModulesDetection` fits within the `rules` array in your configuration:
+Below is an example of how `missingNodeModulesDetection` fits within the `workspaces` array in your configuration:
 
 ```json
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "missingNodeModulesDetection": {

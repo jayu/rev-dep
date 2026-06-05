@@ -132,6 +132,13 @@ npm install -g rev-dep
 pnpm global add rev-dep
 ```
 
+### Step-by-step integration guides
+
+Follow the guide that matches your project to get from zero to a working setup:
+
+- [Monorepo integration guide](https://rev-dep.com/docs/monorepo-integration-guide) - for `pnpm`/`yarn`/`npm` workspaces.
+- [Single-workspace integration guide](https://rev-dep.com/docs/single-workspace-integration-guide) - for single-package projects.
+
 ## **Quick Examples 💡**
 
 A few instant-use examples to get a feel for the tool:
@@ -174,7 +181,7 @@ Available checks are:
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 - `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
 
-Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
+Checks are grouped in workspaces. You can have multiple workspaces, eg. for each monorepo package.
 
 ### Getting Started
 
@@ -187,13 +194,13 @@ rev-dep config init
 
 Behavior of `rev-dep config init`:
 
-- Monorepo root: Running `rev-dep config init` at the workspace root creates a root rule and a rule for each discovered workspace package.
-- Monorepo workspace package or regular projects: Running `rev-dep config init` inside a directory creates config with a single rule with `path: "."` for this directory.
+- Monorepo root: Running `rev-dep config init` at the workspace root creates a root workspace and a workspace for each discovered workspace package.
+- Monorepo workspace package or regular projects: Running `rev-dep config init` inside a directory creates config with a single workspace with `path: "."` for this directory.
 
 Run all configured checks (dry run, not fixes applied yet):
 
 ```bash
-# Execute all rules and checks defined in the config
+# Execute all workspaces and checks defined in the config
 rev-dep config run
 ```
 
@@ -212,7 +219,7 @@ rev-dep config run --fix
 
 ### Configuration Structure
 
-The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) allows you to define multiple rules, each targeting different parts of your codebase with specific checks enabled.
+The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) allows you to define multiple workspaces, each targeting different parts of your codebase with specific checks enabled.
 
 #### Quick Start Configuration
 
@@ -220,7 +227,7 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 {
   "configVersion": "1.8",
   "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
@@ -258,7 +265,7 @@ Here's a comprehensive example showing all available properties:
   "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "followMonorepoPackages": true,
@@ -367,18 +374,18 @@ Here's a comprehensive example showing all available properties:
 - **`$schema`** (optional): JSON schema reference for validation
 - **`conditionNames`** (optional): Array of condition names for exports resolution
 - **`customAssetExtensions`** (optional): Additional asset extensions treated as resolvable imports (e.g. `["glb", "mp3"]`). Default list covers common extensions for fonts, images, config files.
-- **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
+- **`ignoreFiles`** (optional): Global file patterns to ignore across all workspaces. Git ignored files are skipped by default.
 - **`processIgnoredFiles`** (optional): Global file patterns to process even if they match gitignore or `ignoreFiles`.
-- **`rules`** (required): Array of rule objects
+- **`workspaces`** (required): Array of workspace objects
 
-#### Rule Properties
-Each rule can contain the following properties:
+#### Workspace Properties
+Each workspace can contain the following properties:
 
-- **`path`** (required): Target directory path for this rule (either `.` or path starting with sub directory name)
+- **`path`** (required): Target directory path for this workspace (either `.` or path starting with sub directory name)
 - **`followMonorepoPackages`** (optional): Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
-- **`prodEntryPoints`** (optional): Rule-level production entry point patterns for detector defaults
-- **`devEntryPoints`** (optional): Rule-level development entry point patterns for detector defaults
-- **`ignoreEntryPoints`** (optional): Rule-level patterns for leftover entry points you no longer care about. Files matching these patterns are not processed as issues - they are never reported as orphan files, and their unused exports are not reported. Useful for files that must stay committed but are no longer wired into the app.
+- **`prodEntryPoints`** (optional): Workspace-level production entry point patterns for detector defaults
+- **`devEntryPoints`** (optional): Workspace-level development entry point patterns for detector defaults
+- **`ignoreEntryPoints`** (optional): Workspace-level patterns for leftover entry points you no longer care about. Files matching these patterns are not processed as issues - they are never reported as orphan files, and their unused exports are not reported. Useful for files that must stay committed but are no longer wired into the app.
 - **`moduleBoundaries`** (optional): Array of module boundary rules
 - **`circularImportsDetection`** (optional): Circular import detection configuration (single object or array of objects)
 - **`orphanFilesDetection`** (optional): Orphan files detection configuration (single object or array of objects)  
@@ -408,7 +415,7 @@ Each rule can contain the following properties:
 
 Each detection property can be configured as:
 - a single object (one detector instance), or
-- an array of objects (multiple detector instances evaluated within the same rule).
+- an array of objects (multiple detector instances evaluated within the same workspace).
 
 **CircularImportsDetection:**
 - **`enabled`** (required): Enable/disable circular import detection
@@ -416,7 +423,7 @@ Each detection property can be configured as:
 
 **OrphanFilesDetection:**
 - **`enabled`** (required): Enable/disable orphan files detection
-- **`validEntryPoints`** (optional): Array of valid entry point patterns. If omitted, defaults to `prodEntryPoints + devEntryPoints` from rule level.
+- **`validEntryPoints`** (optional): Array of valid entry point patterns. If omitted, defaults to `prodEntryPoints + devEntryPoints` from workspace level.
 - **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
 - **`graphExclude`** (optional): File patterns to exclude from graph analysis
 - **`autofix`** (optional): Delete detected orphan files automatically when running `rev-dep config run --fix` (default: false)
@@ -438,28 +445,28 @@ Each detection property can be configured as:
 
 **UnusedExportsDetection:**
 - **`enabled`** (required): Enable/disable unused exports detection
-- **`validEntryPoints`** (optional): Glob patterns for files whose exports are never reported as unused. If omitted, defaults to `prodEntryPoints + devEntryPoints` from rule level.
+- **`validEntryPoints`** (optional): Glob patterns for files whose exports are never reported as unused. If omitted, defaults to `prodEntryPoints + devEntryPoints` from workspace level.
 - **`ignoreTypeExports`** (optional): Skip `export type` / `export interface` from analysis (default: false)
 - **`graphExclude`** (optional): File patterns to exclude from unused exports analysis
-- **`ignore`** (optional): Map of file path globs (relative to rule path directory) to export name/specifier glob(s) to suppress; each value can be a string or array of strings
+- **`ignore`** (optional): Map of file path globs (relative to workspace path directory) to export name/specifier glob(s) to suppress; each value can be a string or array of strings
 - **`ignoreFiles`** (optional): File path globs; all unused exports from matching files are suppressed
 - **`ignoreExports`** (optional): Export names/specifiers (or globs) to suppress globally (supports `"default"`)
 - **`autofix`** (optional): Automatically apply fixable unused exports changes when running `rev-dep config run --fix` (default: false)
 
 **UnresolvedImportsDetection:**
 - **`enabled`** (required): Enable/disable unresolved imports detection
-- **`ignore`** (optional): Map of file path globs (relative to rule path directory) to import request glob(s) to suppress; each value can be a string or array of strings
+- **`ignore`** (optional): Map of file path globs (relative to workspace path directory) to import request glob(s) to suppress; each value can be a string or array of strings
 - **`ignoreFiles`** (optional): File path globs; all unresolved imports from matching files are suppressed
 - **`ignoreImports`** (optional): Import requests (or globs) to suppress globally in unresolved results
 
 **DevDepsUsageOnProdDetection:**
 - **`enabled`** (required): Enable/disable restricted dev dependencies usage detection
-- **`prodEntryPoints`** (optional): Production entry point patterns to trace dependencies from. If omitted, defaults to rule-level `prodEntryPoints`.
+- **`prodEntryPoints`** (optional): Production entry point patterns to trace dependencies from. If omitted, defaults to workspace-level `prodEntryPoints`.
 - **`ignoreTypeImports`** (optional): Exclude type-only imports from graph traversal and module matching (default: false)
 
 **RestrictedImportsDetection:**
 - **`enabled`** (required): Enable/disable restricted imports detection
-- **`entryPoints`** (required when enabled): Entry point patterns used to build reachable dependency graph (rule-level entry points are not applied here)
+- **`entryPoints`** (required when enabled): Entry point patterns used to build reachable dependency graph (workspace-level entry points are not applied here)
 - **`graphExclude`** (optional): File patterns to exclude from restricted imports graph analysis
 - **`denyFiles`** (optional): Denied file path patterns (eg. ["**/*.tsx"])
 - **`denyModules`** (optional): Denied module patterns (eg. ["react", "react-*"])
@@ -470,9 +477,9 @@ Each detection property can be configured as:
 
 The configuration approach provides significant performance advantages:
 
-- **Single Dependency Tree Build**: Builds one comprehensive dependency tree for all rules
-- **Parallel Rule Execution**: Processes multiple rules simultaneously
-- **Parallel Check Execution**: Runs all enabled checks within each rule in parallel
+- **Single Dependency Tree Build**: Builds one comprehensive dependency tree for all workspaces
+- **Parallel Workspace Execution**: Processes multiple workspaces simultaneously
+- **Parallel Check Execution**: Runs all enabled checks within each workspace in parallel
 - **Optimized File Discovery**: Discovers files once and reuses across all checks
 
 This makes config-based checks faster than running individual commands sequentially, especially for large codebases with multiple sub packages.
@@ -787,9 +794,9 @@ rev-dep config run [flags]
       --list-all-issues                                             List all issues instead of limiting output
       --package-json string                                         Path to package.json (default: ./package.json)
       --recheck                                                     Run all checks again after '--fix' to validate the final state
-      --rules strings                                               Subset of rules to run (comma-separated list of rule paths)
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                                                     Show warnings and verbose output
+      --workspaces strings                                          Subset of workspaces to run (comma-separated list of workspace paths)
 ```
 
 

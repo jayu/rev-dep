@@ -34,13 +34,13 @@ If you see reported false positives, follow [Orphan files and unused exports in 
 
 ## Configuration
 
-Below is an example of how `unusedExportsDetection` fits within the `rules` array. It demonstrates defining general production and development entry points at the **rule level**.
+Below is an example of how `unusedExportsDetection` fits within the `workspaces` array. It demonstrates defining general production and development entry points at the **workspace level**.
 
 It showcases the possibility of then overriding them with specific `validEntryPoints` at the **check level** when necessary.
 
 ```json
 {
-  "rules": [
+  "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.ts"],
@@ -48,7 +48,7 @@ It showcases the possibility of then overriding them with specific `validEntryPo
       "unusedExportsDetection": {
         "enabled": true,
         "autofix": true,
-        // overrides the rule-level entry points settings for this check
+        // overrides the workspace-level entry points settings for this check
         "validEntryPoints": ["src/specific-entry.ts"],
         "ignoreFiles": ["**/legacy.ts"],
         "ignoreExports": ["legacyExport"],
@@ -73,7 +73,7 @@ It showcases the possibility of then overriding them with specific `validEntryPo
 - `graphExclude`: Exclude files from the dependency graph used by this detector.
 - `autofix`: Enables automatic removal of the `export` keyword for unused exports.
 
-*Tip: To suppress unused-export findings for a leftover-but-committed file, add it to the rule-level [`ignoreEntryPoints`](../entry-points-definition.mdx#ignoring-leftover-entry-points). Files matching `ignoreEntryPoints` have all their exports treated as used.*
+*Tip: To suppress unused-export findings for a leftover-but-committed file, add it to the workspace-level [`ignoreEntryPoints`](../entry-points-definition.mdx#ignoring-leftover-entry-points). Files matching `ignoreEntryPoints` have all their exports treated as used.*
 
 ### Also referred as
 Unused Exports is also known as:

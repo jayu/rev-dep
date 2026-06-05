@@ -1,0 +1,87 @@
+---
+description: "Breaking changes scheduled for rev-dep v3 and how to update your configuration for each one."
+title: v3 breaking changes
+---
+
+# v3 breaking changes
+
+This page tracks the breaking changes that will ship in **rev-dep v3**. It is updated as changes are collected, before the release. Each entry describes what worked in v2, what changes in v3, and how to update your configuration.
+
+:::info
+v3 is not released yet. On v2 your configuration keeps working as-is. Use this page to prepare your config ahead of the upgrade.
+:::
+
+---
+
+## Glob patterns: `*` no longer crosses directory boundaries
+
+:::note
+The v2 behavior described here is considered a bug. v3 fixes it.
+:::
+
+In v2 a single `*` in a glob pattern matched across `/`, so it could span multiple path segments. In v3 a single `*` matches **within one path segment only**. To match across directories you must use `**`.
+
+| Token | v2 (old) | v3 (new) |
+| --- | --- | --- |
+| `*` | matches anything, including `/` | matches anything **except** `/` (one segment) |
+| `?` | matches any character, including `/` | matches any single character **except** `/` |
+| `**` | matches anything, including `/` | matches anything, including `/` (unchanged) |
+
+### Why this might affect you
+
+If a pattern relied on `*` spanning directories, it matched more files in v2 than it will in v3. In v3 those patterns match **fewer** files (or none), which can cause checks to stop excluding/denying files they used to.
+
+### Where it applies
+
+The change affects config fields whose globs are matched against **file paths**:
+
+- Top-level: `ignoreFiles`, `processIgnoredFiles`
+- Per rule: `entryPoints`
+- `restrictedImportsDetection`: `denyFiles`, `entryPoints`, `graphExclude`, and the file keys of `ignore`
+- `moduleBoundaries`: `pattern`, `allow`, `deny`
+- `orphanFilesDetection` / `unusedExportsDetection`: `graphExclude`, `ignoreFiles`, and the file keys of `ignore`
+- Equivalent CLI options that take path globs (e.g. `--graph-exclude`, `--process-ignored-files`, `--include`, `--exclude`)
+
+It does **not** affect globs matched against non-path values, which keep the old behavior:
+
+- Import-request globs: `ignoreImports` (e.g. `@internal/*`, `virtual:*`)
+- Export-name globs: `ignoreExports` (e.g. `Internal*`, `__legacy*`)
+- Module-name globs: `restrictedImportsDetection.denyModules` (e.g. `lodash/*`)
+
+### What works the same (no change needed)
+
+These already use `**`, a trailing slash, or a plain name, so they behave identically in v2 and v3:
+
+| Pattern | Matches |
+| --- | --- |
+| `**/*.ts` | every `.ts` file at any depth |
+| `src/**` | everything under `src/` at any depth |
+| `dist/` | everything under `dist/` at any depth |
+| `dist` | a directory named `dist` anywhere, and its contents |
+| `**/__tests__/**` | everything under any `__tests__` directory |
+| `src/components/Button.ts` | that exact file |
+
+### What changes, and how to update
+
+| v2 pattern | v2 matched | v3 matches | Update to keep v2 behavior |
+| --- | --- | --- | --- |
+| `*.ts` | every `.ts` file at any depth | only `.ts` files in the root | `**/*.ts` |
+| `src/*` | everything under `src/` at any depth | only direct children of `src/` | `src/**` |
+| `src/*.ts` | every `.ts` under `src/` at any depth | only `.ts` directly in `src/` | `src/**/*.ts` |
+| `dist*` | the `dist` directory and its contents | only files named `dist...` in the root | `dist/**` (or `dist`) |
+| `a/*/b` | `b` at any depth under `a/` | `b` exactly one directory under `a/` | `a/**/b` (if any depth was intended) |
+| `**/use*.ts` | also files like `useThing/common.ts` | only files named `use*.ts` | `**/use*/**` or `**/use*/*.ts` (if you meant files inside a `use*` directory) |
+
+### How to check whether you are affected
+
+1. Search your `rev-dep.config.json(c)` for patterns that contain a single `*` (not `**`) or a `?`.
+2. For each one, decide whether it was meant to match across directories.
+   - If it only ever matches files in one directory level, no change is needed.
+   - If it was meant to match at any depth, replace the leading/spanning `*` with `**` as shown above.
+3. Re-run your checks after upgrading and compare the reported file counts.
+
+### Rule of thumb
+
+- Use `**` to cross directories.
+- Use `*` for a single segment.
+- Use a plain name or a trailing `/` to match a directory and everything inside it.

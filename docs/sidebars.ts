@@ -77,6 +77,13 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Upgrade Guides',
+      items: [
+        'upgrade-guides/v3-breaking-changes',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Migrating from other tools',
       items: [
         'migrating-from-other-tools/overview',

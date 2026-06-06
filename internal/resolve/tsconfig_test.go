@@ -127,6 +127,73 @@ func TestParseTsConfig_Extends(t *testing.T) {
 	}
 }
 
+// Extending a tsconfig shipped as a node_modules package (e.g.
+// "@docusaurus/tsconfig") must resolve through node_modules and capture the
+// extended config's path aliases - a bare specifier containing "/" is a package
+// name, not a relative file path.
+func TestParseTsConfig_Extends_NodeModulesPackage(t *testing.T) {
+	tmp := t.TempDir()
+
+	// node_modules/@scope/cfg with package.json main -> tsconfig.json
+	pkgDir := filepath.Join(tmp, "node_modules", "@scope", "cfg")
+	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+		t.Fatalf("mkdir pkg: %v", err)
+	}
+	pkgJSON := `{"name":"@scope/cfg","main":"tsconfig.json"}`
+	if err := os.WriteFile(filepath.Join(pkgDir, "package.json"), []byte(pkgJSON), 0o644); err != nil {
+		t.Fatalf("write pkg json: %v", err)
+	}
+	baseCfg := map[string]interface{}{
+		"compilerOptions": map[string]interface{}{
+			"paths": map[string]interface{}{
+				"@site/*": []interface{}{"./*"},
+			},
+		},
+	}
+	baseB, _ := json.Marshal(baseCfg)
+	if err := os.WriteFile(filepath.Join(pkgDir, "tsconfig.json"), baseB, 0o644); err != nil {
+		t.Fatalf("write pkg tsconfig: %v", err)
+	}
+
+	// child tsconfig that extends the package by its bare name
+	child := map[string]interface{}{
+		"extends": "@scope/cfg",
+		"compilerOptions": map[string]interface{}{
+			"paths": map[string]interface{}{
+				"@app/*": []interface{}{"src/*"},
+			},
+		},
+	}
+	childB, _ := json.Marshal(child)
+	childPath := filepath.Join(tmp, "tsconfig.json")
+	if err := os.WriteFile(childPath, childB, 0o644); err != nil {
+		t.Fatalf("write child: %v", err)
+	}
+
+	mergedB, err := ParseTsConfig(childPath)
+	if err != nil {
+		t.Fatalf("ParseTsConfig error: %v", err)
+	}
+	var out map[string]interface{}
+	if err := json.Unmarshal(mergedB, &out); err != nil {
+		t.Fatalf("unmarshal merged: %v", err)
+	}
+
+	co := out["compilerOptions"].(map[string]interface{})
+	paths, ok := co["paths"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected paths in merged compilerOptions, got %v", co)
+	}
+	// The alias from the extended package config must be captured.
+	if _, ok := paths["@site/*"]; !ok {
+		t.Fatalf("expected '@site/*' alias from extended node_modules config, got paths: %v", paths)
+	}
+	// The child's own alias must still be present.
+	if _, ok := paths["@app/*"]; !ok {
+		t.Fatalf("expected child '@app/*' alias to remain, got paths: %v", paths)
+	}
+}
+
 func TestParseTsConfig_Extends_RebasePaths(t *testing.T) {
 	// Scenario:
 	// ./tsconfig.json (child) extends ./config/tsconfig.base.json (base)

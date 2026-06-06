@@ -28,6 +28,24 @@ func NormalizePathForInternal(p string) string {
 	return s
 }
 
+// IsAbsoluteInternalPath reports whether an internal (forward-slash) path is
+// absolute. Internal paths keep their volume on Windows (see
+// NormalizePathForInternal), so absolute means either:
+//   - a leading "/" (POSIX), e.g. "/repo/src/file.ts", or
+//   - a drive prefix (Windows), e.g. "C:/repo/src/file.ts".
+//
+// Module specifiers ("react-dom/client") and other relative strings are not
+// absolute, which lets callers tell real file paths apart from non-path values.
+func IsAbsoluteInternalPath(p string) bool {
+	if strings.HasPrefix(p, "/") {
+		return true
+	}
+	if len(p) >= 2 && p[1] == ':' {
+		return true
+	}
+	return false
+}
+
 // DenormalizePathForOS converts an internal forward-slash path back to the
 // OS-native representation for os.* calls.
 func DenormalizePathForOS(internal string) string {

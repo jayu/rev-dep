@@ -140,9 +140,27 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 }
 
 func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) bool {
+	// convert candidate path to internal form (forward slashes)
+	fileInternal := pathutil.NormalizePathForInternal(filePath)
 	for _, matcher := range matchers {
-		// convert candidate path to internal form (forward slashes)
-		fileInternal := pathutil.NormalizePathForInternal(filePath)
+		// A pattern is interpreted relative to its root - the workspace, or the
+		// directory an explicit "../" climbed up to. An absolute file path outside
+		// that root is out of scope for this matcher. Without this guard an
+		// unanchored pattern like "**/api/**" leaks across workspaces: TrimPrefix
+		// below would be a no-op for a foreign absolute path and the leading "**"
+		// would happily swallow the "/repo/apps/other/..." prefix. To match other
+		// workspaces users must opt in explicitly with a relative "../" pattern,
+		// which has already rebased patternRoot upward so such files pass here.
+		//
+		// The guard applies only when BOTH the root and the candidate are absolute
+		// paths. MatchesAnyGlobMatcher is also used to match non-path strings -
+		// notably node-module specifiers like "react-dom/client" (restricted
+		// imports' ignoreMatches) - which are not workspace-relative and must not
+		// be scoped. An empty root means "no scoping" (callers that pass cwd="").
+		if pathutil.IsAbsoluteInternalPath(matcher.patternRoot) && pathutil.IsAbsoluteInternalPath(fileInternal) &&
+			!strings.HasPrefix(fileInternal, matcher.patternRoot) {
+			continue
+		}
 		fileWithoutPrefix := strings.TrimPrefix(fileInternal, matcher.patternRoot)
 		if debug {
 			fmt.Println("Matcher", matcher.globPattern, matcher.inputString, matcher.patternRoot, matcher.shouldMatchAnyFileOrDirWithPattern, matcher.isAdditional)

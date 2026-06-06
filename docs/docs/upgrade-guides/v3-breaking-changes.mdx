@@ -134,3 +134,56 @@ These already use `**`, a trailing slash, or a plain name, so they behave identi
 - Use `**` to cross directories.
 - Use `*` for a single segment.
 - Use a plain name or a trailing `/` to match a directory and everything inside it.
+
+---
+
+## Glob patterns are scoped to their workspace
+
+:::note
+The v2 behavior described here is considered a bug. v3 fixes it.
+:::
+
+A workspace's glob patterns are interpreted **relative to that workspace's `path`**. In v3 they only match files **inside** that workspace. To deliberately match files in another workspace you must say so explicitly with a relative `../` pattern.
+
+In v2 an unanchored wildcard pattern leaked across workspaces. Because a pattern like `**/api/**` is matched against the full file path, and the leading `**` matches anything, it also matched files in *sibling* workspaces that were pulled into the graph through [`followMonorepoPackages`](../other-concepts-and-features/following-monorepo-packages.mdx). So an `apps/web` workspace using `prodEntryPoints: ["**/api/**"]` could match `apps/mobile/.../api/file.ts` and treat it as one of `apps/web`'s entry points.
+
+### What changes
+
+| Pattern in the `apps/web` workspace | v2 (old) | v3 (new) |
+| --- | --- | --- |
+| `**/api/**` | matches `apps/web/**/api/**` **and** `apps/mobile/**/api/**` | matches only `apps/web/**/api/**` |
+| `**/*.test.*` | matches test files in every workspace | matches only `apps/web` test files |
+| `api` (bare name) | matches an `api` dir in any workspace | matches only `apps/web`'s `api` dir |
+
+Patterns that were already scoped are unchanged: a non-leading-wildcard like `src/**`, a root-anchored `/src/api/**`, and any explicit `../…` relative pattern all behave exactly as before.
+
+### Why this might affect you
+
+Only monorepos are affected, and only a **per-workspace** workspace (not the root `path: "."`, which legitimately spans the whole repo) that:
+
+1. has `followMonorepoPackages` pulling another workspace's source into its graph, **and**
+2. uses an unanchored wildcard (`**/…` or a bare name) in a path-matching field.
+
+For such a workspace, patterns now match **fewer** files (foreign-workspace files drop out). That can change check results: a file previously treated as an entry point may now be reported as an orphan, a previously-ignored foreign file may now surface, and so on.
+
+### Where it applies
+
+The same path-matching fields as the separator change above: `entryPoints` (prod/dev/ignore), `ignoreFiles`, `processIgnoredFiles`, `graphExclude`, `moduleBoundaries` `pattern`/`allow`/`deny`, `restrictedImportsDetection` `denyFiles`/`entryPoints`/`graphExclude`, and the file keys of `ignore`. It does **not** affect non-path globs (import-request, export-name, and module-name patterns), which are never workspace-relative.
+
+### How to update
+
+If you actually relied on matching another workspace, switch from a leading wildcard to an explicit relative pattern that points at it:
+
+| Goal (from workspace `apps/web`) | v2 (leaky) | v3 |
+| --- | --- | --- |
+| Match a sibling workspace's files | `**/mobile/**` | `../mobile/**` |
+| Match any `api` dir across the repo | `**/api/**` | `../../**/api/**` (climb to the repo root, then match at any depth) |
+| Match a specific cousin path | `api/**` | `../api/**` |
+
+The mitigation is simple: **use a relative `../` pattern when you want to reach outside the workspace; a leading wildcard now stays within it.** All relative forms work as expected - for example `../api/**`, `../../**`, `../../**/api/code`, and `../../api/**/code` each match according to their semantics from the rebased root.
+
+### How to check whether you are affected
+
+1. In each per-workspace workspace (not the root), look at path-matching fields for patterns starting with `**/` or a bare directory name.
+2. If you intended any of them to reach files in *another* workspace, rewrite them with an explicit `../` prefix as shown.
+3. Re-run your checks after upgrading and compare reported file counts; most projects will see no change, since matching foreign workspaces is rarely intentional.

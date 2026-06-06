@@ -183,11 +183,11 @@ func TestGlobMatchingWithRootAnchoredPattern(t *testing.T) {
 
 func TestGlobMatchingWithRelativePattern(t *testing.T) {
 	testCases := []struct {
-		name    string
-		root    string
-		pattern string
+		name     string
+		root     string
+		pattern  string
 		filePath string
-		match   bool
+		match    bool
 	}{
 		{"Relative pattern ../node_modules should match parent directory contents", "/fs/root/dir", "../node_modules", "/fs/root/node_modules/pkg/index.js", true},
 		{"Relative pattern ../node_modules should not match nested directory", "/fs/root/dir", "../node_modules", "/fs/root/sub/node_modules/pkg/index.js", false},
@@ -275,6 +275,103 @@ func TestGlobSeparatorSemantics(t *testing.T) {
 					t.Errorf(`Pattern "%s" is not matching path "%s" but it should`, tc.pattern, tc.filePath)
 				} else {
 					t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, tc.pattern, tc.filePath)
+				}
+			}
+		})
+	}
+}
+
+// A pattern is interpreted relative to its root (the workspace). An unanchored
+// wildcard like "**/api/**" must only match files INSIDE that root - not files in
+// sibling workspaces. Escaping the workspace must be explicit via "../".
+// The `root` is always /repo/apps/web; files under /repo/apps/mobile are foreign.
+func TestGlobMatchingScopedToWorkspaceRoot(t *testing.T) {
+	root := "/repo/apps/web/"
+	testCases := []struct {
+		name     string
+		pattern  string
+		filePath string
+		match    bool
+	}{
+		// leading "**/" wildcard
+		{"leading-** in-workspace matches", "**/api/**", "/repo/apps/web/src/api/file.ts", true},
+		{"leading-** other-workspace must NOT match", "**/api/**", "/repo/apps/mobile/path/api/file.ts", false},
+
+		// "**/*.ext" (devEntryPoints style)
+		{"**/*.test.* in-workspace matches", "**/*.test.*", "/repo/apps/web/x.test.ts", true},
+		{"**/*.test.* other-workspace must NOT match", "**/*.test.*", "/repo/apps/mobile/x.test.ts", false},
+
+		// bare directory name (gitignore-style)
+		{"bare name in-workspace matches", "api", "/repo/apps/web/api/file.ts", true},
+		{"bare name other-workspace must NOT match", "api", "/repo/apps/mobile/api/file.ts", false},
+
+		// patterns that are already scoped today (regression guards)
+		{"src/** is already scoped (other-workspace no match)", "src/**", "/repo/apps/mobile/src/file.ts", false},
+		{"root-anchored is already scoped (other-workspace no match)", "/src/api/**", "/repo/apps/mobile/src/api/file.ts", false},
+
+		// explicit escape must still work
+		{"explicit ../ escape into sibling workspace matches", "../mobile/**", "/repo/apps/mobile/file.ts", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			globMatchers := CreateGlobMatchers([]string{tc.pattern}, root)
+			matches := MatchesAnyGlobMatcher(tc.filePath, globMatchers, debug)
+			if matches != tc.match {
+				if tc.match {
+					t.Errorf(`Pattern "%s" (root %s) is not matching "%s" but it should`, tc.pattern, root, tc.filePath)
+				} else {
+					t.Errorf(`Pattern "%s" (root %s) is matching "%s" but it should not (cross-workspace leak)`, tc.pattern, root, tc.filePath)
+				}
+			}
+		})
+	}
+}
+
+// TestGlobMatchingRelativeEscapePatterns gives full coverage to the documented
+// escape hatch: to match files in another workspace you must use an explicit
+// relative ("../") pattern. Each of these four pattern shapes is valid and must
+// match files according to its semantics (and must NOT match outside its rebased
+// root). Root is always /repo/apps/web; "../" -> /repo/apps, "../../" -> /repo.
+func TestGlobMatchingRelativeEscapePatterns(t *testing.T) {
+	root := "/repo/apps/web/"
+	testCases := []struct {
+		name     string
+		pattern  string
+		filePath string
+		match    bool
+	}{
+		// "../../**/api/code" -> root /repo, glob "**/api/code": api/code at any depth under repo.
+		{"../../**/api/code matches sibling-workspace api/code", "../../**/api/code", "/repo/apps/mobile/api/code", true},
+		{"../../**/api/code matches deeply-nested api/code", "../../**/api/code", "/repo/services/billing/api/code", true},
+		{"../../**/api/code does not match outside repo root", "../../**/api/code", "/elsewhere/api/code", false},
+
+		// "../../api/**/code" -> root /repo, glob "api/**/code": api directly under repo, code below.
+		{"../../api/**/code matches api/<nested>/code under repo", "../../api/**/code", "/repo/api/v1/code", true},
+		{"../../api/**/code matches deeper nesting", "../../api/**/code", "/repo/api/v1/handlers/code", true},
+		{"../../api/**/code does not match when api is not directly under repo", "../../api/**/code", "/repo/apps/api/v1/code", false},
+
+		// "../../**" -> root /repo, glob "**": everything under repo.
+		{"../../** matches any file under repo root", "../../**", "/repo/anything/deep/file.ts", true},
+		{"../../** matches a repo-root-level file", "../../**", "/repo/file.ts", true},
+		{"../../** does not match outside repo root", "../../**", "/elsewhere/file.ts", false},
+
+		// "../api/**" -> root /repo/apps, glob "api/**": the apps-level api dir only.
+		{"../api/** matches /repo/apps/api contents", "../api/**", "/repo/apps/api/client.ts", true},
+		{"../api/** matches nested /repo/apps/api contents", "../api/**", "/repo/apps/api/v2/client.ts", true},
+		{"../api/** does not match this workspace's own api dir", "../api/**", "/repo/apps/web/api/client.ts", false},
+		{"../api/** does not match api under a different parent", "../api/**", "/repo/services/api/client.ts", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			globMatchers := CreateGlobMatchers([]string{tc.pattern}, root)
+			matches := MatchesAnyGlobMatcher(tc.filePath, globMatchers, debug)
+			if matches != tc.match {
+				if tc.match {
+					t.Errorf(`Pattern "%s" (root %s) is not matching "%s" but it should`, tc.pattern, root, tc.filePath)
+				} else {
+					t.Errorf(`Pattern "%s" (root %s) is matching "%s" but it should not`, tc.pattern, root, tc.filePath)
 				}
 			}
 		})

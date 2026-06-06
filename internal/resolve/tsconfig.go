@@ -70,7 +70,11 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 	// resolve path of extends
 	candidates := []string{}
 
-	if filepath.IsAbs(extStr) || strings.HasPrefix(extStr, ".") || strings.Contains(extStr, string(filepath.Separator)) {
+	// `extends` values in tsconfig JSON use forward slashes regardless of OS, so
+	// detect a path-like value by "/" (or a backslash, just in case) - not
+	// filepath.Separator, which is "\" on Windows and would misclassify a
+	// relative path like "configs/base.json" as a package name.
+	if filepath.IsAbs(extStr) || strings.HasPrefix(extStr, ".") || strings.ContainsAny(extStr, "/\\") {
 		// treat as file path relative to baseDir when not absolute
 		p := extStr
 		if !filepath.IsAbs(p) {

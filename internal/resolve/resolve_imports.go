@@ -295,8 +295,8 @@ func (rm *ResolverManager) CollectAllNodeModules() map[string]bool {
 }
 
 func isValidTsAliasTargetPath(path string) bool {
-	// Reject absolute paths (starting with /)
-	if strings.HasPrefix(path, "/") {
+	// Reject absolute paths (POSIX "/..." and Windows "C:/...").
+	if pathutil.IsAbsoluteInternalPath(path) {
 		return false
 	}
 

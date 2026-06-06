@@ -286,57 +286,107 @@
     },
     "BoundaryRule": {
       "type": "object",
-      "required": [
-        "name",
-        "pattern"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name of the boundary",
-          "examples": [
-            "Client Boundary",
-            "API Boundary"
-          ]
+      "description": "Either an explicit boundary (pattern + allow/deny) or a mutuallyExclusive group of globs. The two forms cannot be combined on the same rule.",
+      "oneOf": [
+        {
+          "required": [
+            "name",
+            "pattern"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the boundary",
+              "examples": [
+                "Client Boundary",
+                "API Boundary"
+              ]
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Glob pattern for files in this boundary",
+              "pattern": "^(?!\\.{1,2}[\\\\/]).+",
+              "examples": [
+                "packages/client/**",
+                "src/api/**"
+              ]
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+              },
+              "description": "Glob patterns for allowed imports",
+              "examples": [
+                [
+                  "packages/client/**",
+                  "packages/utils/**"
+                ]
+              ]
+            },
+            "deny": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+              },
+              "description": "Glob patterns for denied imports (overrides allow)",
+              "examples": [
+                [
+                  "packages/api/forbidden**"
+                ]
+              ]
+            },
+            "denyIgnore": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+              },
+              "description": "Exceptions carved out of 'deny': an import matched by 'deny' is not reported if it is also matched here. Only meaningful together with 'deny'.",
+              "examples": [
+                [
+                  "src/api/dto/**"
+                ]
+              ]
+            }
+          }
         },
-        "pattern": {
-          "type": "string",
-          "description": "Glob pattern for files in this boundary",
-          "pattern": "^(?!\\.{1,2}[\\\\/]).+",
-          "examples": [
-            "packages/client/**",
-            "src/api/**"
-          ]
-        },
-        "allow": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
-          },
-          "description": "Glob patterns for allowed imports",
-          "examples": [
-            [
-              "packages/client/**",
-              "packages/utils/**"
-            ]
-          ]
-        },
-        "deny": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
-          },
-          "description": "Glob patterns for denied imports (overrides allow)",
-          "examples": [
-            [
-              "packages/api/forbidden**"
-            ]
-          ]
+        {
+          "required": [
+            "name",
+            "mutuallyExclusive"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the boundary",
+              "examples": [
+                "feature-isolation"
+              ]
+            },
+            "mutuallyExclusive": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "string",
+                "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+              },
+              "description": "Flat list of globs that may not import across each other. A file matching one glob may not import a file matching any other glob in the list; imports within a single glob are allowed. Expands to one explicit boundary per glob.",
+              "examples": [
+                [
+                  "src/modules/analytics/**",
+                  "src/modules/billing/**",
+                  "src/modules/reporting/**"
+                ]
+              ]
+            }
+          }
         }
-      }
+      ]
     },
     "CircularImportsOptions": {
       "type": "object",

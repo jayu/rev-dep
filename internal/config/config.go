@@ -856,10 +856,12 @@ func validateRawModuleBoundaries(boundaries interface{}, ruleIndex int) error {
 		}
 
 		allowedBoundaryFields := map[string]bool{
-			"name":    true,
-			"pattern": true,
-			"allow":   true,
-			"deny":    true,
+			"name":              true,
+			"pattern":           true,
+			"allow":             true,
+			"deny":              true,
+			"denyIgnore":        true,
+			"mutuallyExclusive": true,
 		}
 
 		for field := range boundaryMap {
@@ -868,21 +870,49 @@ func validateRawModuleBoundaries(boundaries interface{}, ruleIndex int) error {
 			}
 		}
 
-		// Check required fields
+		// `name` is always required.
 		if _, exists := boundaryMap["name"]; !exists {
 			return fmt.Errorf("rules[%d].moduleBoundaries[%d].name is required", ruleIndex, i)
 		}
-		if _, exists := boundaryMap["pattern"]; !exists {
-			return fmt.Errorf("rules[%d].moduleBoundaries[%d].pattern is required", ruleIndex, i)
-		}
-
-		// Check field types
 		if name, ok := boundaryMap["name"]; !ok || name == nil {
 			return fmt.Errorf("rules[%d].moduleBoundaries[%d].name cannot be null", ruleIndex, i)
 		} else if _, ok := name.(string); !ok {
 			return fmt.Errorf("rules[%d].moduleBoundaries[%d].name must be a string, got %T", ruleIndex, i, name)
 		}
 
+		// A boundary is either an explicit pattern/allow/deny rule OR a
+		// mutuallyExclusive group - never both. Enforce the XOR.
+		_, hasMutuallyExclusive := boundaryMap["mutuallyExclusive"]
+		_, hasPattern := boundaryMap["pattern"]
+		_, hasAllow := boundaryMap["allow"]
+		_, hasDeny := boundaryMap["deny"]
+		_, hasDenyIgnore := boundaryMap["denyIgnore"]
+
+		if hasMutuallyExclusive {
+			if hasPattern || hasAllow || hasDeny || hasDenyIgnore {
+				return fmt.Errorf("rules[%d].moduleBoundaries[%d]: 'mutuallyExclusive' cannot be combined with 'pattern', 'allow', 'deny', or 'denyIgnore'", ruleIndex, i)
+			}
+
+			mutuallyExclusive := boundaryMap["mutuallyExclusive"]
+			arr, ok := mutuallyExclusive.([]interface{})
+			if !ok {
+				return fmt.Errorf("rules[%d].moduleBoundaries[%d].mutuallyExclusive must be an array, got %T", ruleIndex, i, mutuallyExclusive)
+			}
+			if len(arr) < 2 {
+				return fmt.Errorf("rules[%d].moduleBoundaries[%d].mutuallyExclusive must list at least 2 globs", ruleIndex, i)
+			}
+			for k, item := range arr {
+				if _, ok := item.(string); !ok {
+					return fmt.Errorf("rules[%d].moduleBoundaries[%d].mutuallyExclusive[%d] must be a string, got %T", ruleIndex, i, k, item)
+				}
+			}
+			continue
+		}
+
+		// Explicit boundary: `pattern` is required.
+		if !hasPattern {
+			return fmt.Errorf("rules[%d].moduleBoundaries[%d].pattern is required (or use 'mutuallyExclusive')", ruleIndex, i)
+		}
 		if pattern, ok := boundaryMap["pattern"]; !ok || pattern == nil {
 			return fmt.Errorf("rules[%d].moduleBoundaries[%d].pattern cannot be null", ruleIndex, i)
 		} else if _, ok := pattern.(string); !ok {
@@ -900,6 +930,17 @@ func validateRawModuleBoundaries(boundaries interface{}, ruleIndex int) error {
 			if _, ok := deny.([]interface{}); !ok {
 				return fmt.Errorf("rules[%d].moduleBoundaries[%d].deny must be an array, got %T", ruleIndex, i, deny)
 			}
+		}
+
+		if denyIgnore, exists := boundaryMap["denyIgnore"]; exists && denyIgnore != nil {
+			if _, ok := denyIgnore.([]interface{}); !ok {
+				return fmt.Errorf("rules[%d].moduleBoundaries[%d].denyIgnore must be an array, got %T", ruleIndex, i, denyIgnore)
+			}
+		}
+
+		// denyIgnore carves exceptions out of deny, so it is meaningless without deny.
+		if hasDenyIgnore && !hasDeny {
+			return fmt.Errorf("rules[%d].moduleBoundaries[%d].denyIgnore requires 'deny'", ruleIndex, i)
 		}
 	}
 
@@ -1346,6 +1387,23 @@ func ValidateConfig(config *RevDepConfig) error {
 
 // validateBoundaryRule validates a single boundary rule
 func validateBoundaryRule(boundary *BoundaryRule, prefix string) error {
+	// A boundary is either an explicit pattern/allow/deny rule OR a
+	// mutuallyExclusive group - never both.
+	if len(boundary.MutuallyExclusive) > 0 {
+		if boundary.Pattern != "" || len(boundary.Allow) > 0 || len(boundary.Deny) > 0 || len(boundary.DenyIgnore) > 0 {
+			return fmt.Errorf("%s: 'mutuallyExclusive' cannot be combined with 'pattern', 'allow', 'deny', or 'denyIgnore'", prefix)
+		}
+		if len(boundary.MutuallyExclusive) < 2 {
+			return fmt.Errorf("%s.mutuallyExclusive: must list at least 2 globs", prefix)
+		}
+		for l, p := range boundary.MutuallyExclusive {
+			if err := validatePattern(p); err != nil {
+				return fmt.Errorf("%s.mutuallyExclusive[%d]: %w", prefix, l, err)
+			}
+		}
+		return nil
+	}
+
 	if err := validatePattern(boundary.Pattern); err != nil {
 		return fmt.Errorf("%s.pattern: %w", prefix, err)
 	}
@@ -1359,6 +1417,16 @@ func validateBoundaryRule(boundary *BoundaryRule, prefix string) error {
 	for l, p := range boundary.Deny {
 		if err := validatePattern(p); err != nil {
 			return fmt.Errorf("%s.deny[%d]: %w", prefix, l, err)
+		}
+	}
+
+	// denyIgnore carves exceptions out of deny, so it is meaningless without deny.
+	if len(boundary.DenyIgnore) > 0 && len(boundary.Deny) == 0 {
+		return fmt.Errorf("%s.denyIgnore requires 'deny'", prefix)
+	}
+	for l, p := range boundary.DenyIgnore {
+		if err := validatePattern(p); err != nil {
+			return fmt.Errorf("%s.denyIgnore[%d]: %w", prefix, l, err)
 		}
 	}
 

@@ -1,11 +1,26 @@
 package rules
 
 // BoundaryRule describes module boundary constraints.
+//
+// A rule is one of two mutually exclusive shapes:
+//   - an explicit boundary: Pattern selects the source files, Allow/Deny select
+//     the import targets (directional, supports any allow/deny matrix); or
+//   - a MutuallyExclusive group: a flat list of globs where a file matching one
+//     glob may not import a file matching any other glob in the list (sibling
+//     isolation). It is sugar that expands to one explicit boundary per glob.
 type BoundaryRule struct {
 	Name    string   `json:"name"`
-	Pattern string   `json:"pattern"`        // Glob pattern for files in this boundary
-	Allow   []string `json:"allow"`          // Glob patterns for allowed imports
-	Deny    []string `json:"deny,omitempty"` // Glob patterns for denied imports (overrides allow)
+	Pattern string   `json:"pattern,omitempty"` // Glob pattern for files in this boundary
+	Allow   []string `json:"allow,omitempty"`   // Glob patterns for allowed imports
+	Deny    []string `json:"deny,omitempty"`    // Glob patterns for denied imports (overrides allow)
+
+	// DenyIgnore carves exceptions out of Deny: an import matched by Deny is not
+	// reported if it is also matched by DenyIgnore. Only meaningful with Deny.
+	DenyIgnore []string `json:"denyIgnore,omitempty"`
+
+	// MutuallyExclusive is a flat list of globs that may not import across each
+	// other. Mutually exclusive with Pattern/Allow/Deny on the same rule.
+	MutuallyExclusive []string `json:"mutuallyExclusive,omitempty"`
 }
 
 type RestrictedImportsDetectionOptions struct {

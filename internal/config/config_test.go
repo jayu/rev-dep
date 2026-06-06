@@ -208,7 +208,7 @@ func TestParseConfig_RequiredFields(t *testing.T) {
 					"moduleBoundaries": [{"name": "Test"}]
 				}]
 			}`,
-			expectedErr: "rules[0].moduleBoundaries[0].pattern is required",
+			expectedErr: "rules[0].moduleBoundaries[0].pattern is required (or use 'mutuallyExclusive')",
 		},
 		{
 			name: "missing enabled field in detection options",

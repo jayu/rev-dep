@@ -28,19 +28,41 @@ func CheckModuleBoundariesFromTree(
 
 	// Compile matchers for all boundaries
 	type CompiledBoundary struct {
-		Rule            rules.BoundaryRule
-		PatternMatchers []globutil.GlobMatcher
-		AllowMatchers   []globutil.GlobMatcher
-		DenyMatchers    []globutil.GlobMatcher
+		Rule               rules.BoundaryRule
+		PatternMatchers    []globutil.GlobMatcher
+		AllowMatchers      []globutil.GlobMatcher
+		DenyMatchers       []globutil.GlobMatcher
+		DenyIgnoreMatchers []globutil.GlobMatcher
 	}
 
 	compiledBoundaries := make([]CompiledBoundary, 0, len(boundaries))
 	for _, boundary := range boundaries {
+		// `mutuallyExclusive` is sugar: a flat list of globs where a file matching
+		// one glob may not import a file matching any other glob in the list. Expand
+		// it into one explicit boundary per glob whose deny is every other glob.
+		if len(boundary.MutuallyExclusive) > 0 {
+			for i, pattern := range boundary.MutuallyExclusive {
+				deny := make([]string, 0, len(boundary.MutuallyExclusive)-1)
+				for j, other := range boundary.MutuallyExclusive {
+					if i != j {
+						deny = append(deny, other)
+					}
+				}
+				compiledBoundaries = append(compiledBoundaries, CompiledBoundary{
+					Rule:            boundary,
+					PatternMatchers: globutil.CreateGlobMatchers([]string{pattern}, cwd),
+					DenyMatchers:    globutil.CreateGlobMatchers(deny, cwd),
+				})
+			}
+			continue
+		}
+
 		cb := CompiledBoundary{
-			Rule:            boundary,
-			PatternMatchers: globutil.CreateGlobMatchers([]string{boundary.Pattern}, cwd),
-			AllowMatchers:   globutil.CreateGlobMatchers(boundary.Allow, cwd),
-			DenyMatchers:    globutil.CreateGlobMatchers(boundary.Deny, cwd),
+			Rule:               boundary,
+			PatternMatchers:    globutil.CreateGlobMatchers([]string{boundary.Pattern}, cwd),
+			AllowMatchers:      globutil.CreateGlobMatchers(boundary.Allow, cwd),
+			DenyMatchers:       globutil.CreateGlobMatchers(boundary.Deny, cwd),
+			DenyIgnoreMatchers: globutil.CreateGlobMatchers(boundary.DenyIgnore, cwd),
 		}
 		compiledBoundaries = append(compiledBoundaries, cb)
 	}
@@ -60,8 +82,9 @@ func CheckModuleBoundariesFromTree(
 					if dep.ID != "" && (dep.ResolvedType == UserModule || dep.ResolvedType == MonorepoModule) {
 						resolvedPath := dep.ID
 
-						// Check if denied
-						if len(boundary.DenyMatchers) > 0 && globutil.MatchesAnyGlobMatcher(resolvedPath, boundary.DenyMatchers, false) {
+						// Check if denied, unless the import is carved out by denyIgnore.
+						if len(boundary.DenyMatchers) > 0 && globutil.MatchesAnyGlobMatcher(resolvedPath, boundary.DenyMatchers, false) &&
+							!(len(boundary.DenyIgnoreMatchers) > 0 && globutil.MatchesAnyGlobMatcher(resolvedPath, boundary.DenyIgnoreMatchers, false)) {
 							violations = append(violations, ModuleBoundaryViolation{
 								FilePath:      filePath,
 								ImportPath:    resolvedPath,

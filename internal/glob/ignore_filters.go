@@ -55,7 +55,6 @@ func (m *FileValueIgnoreMap) UnmarshalJSON(data []byte) error {
 }
 
 type FileValueIgnoreMatcher struct {
-	cwd                string
 	ignoreFilesMatcher []GlobMatcher
 	ignoreValueMatcher []glob.Glob
 	ignorePairMatcher  []fileValueIgnorePairMatcher
@@ -72,22 +71,8 @@ func NormalizeIgnoreFilePath(path string) string {
 	return normalizeIgnoreFilePath(path)
 }
 
-func getRelativeFilePathForIgnoreMatching(path string, cwd string) string {
-	filePath := pathutil.DenormalizePathForOS(path)
-	cwdPath := pathutil.DenormalizePathForOS(cwd)
-
-	if filepath.IsAbs(filePath) {
-		if relPath, err := filepath.Rel(cwdPath, filePath); err == nil {
-			return normalizeIgnoreFilePath(relPath)
-		}
-	}
-
-	return normalizeIgnoreFilePath(filePath)
-}
-
 func NewFileValueIgnoreMatcher(ignore FileValueIgnoreMap, ignoreFiles []string, ignoreValues []string, cwd string) *FileValueIgnoreMatcher {
 	matcher := &FileValueIgnoreMatcher{
-		cwd:                cwd,
 		ignoreFilesMatcher: CreateGlobMatchers(ignoreFiles, cwd),
 		ignoreValueMatcher: []glob.Glob{},
 		ignorePairMatcher:  []fileValueIgnorePairMatcher{},
@@ -140,9 +125,11 @@ func (m *FileValueIgnoreMatcher) ShouldIgnore(filePath string, value string) boo
 		return true
 	}
 
-	relativePath := getRelativeFilePathForIgnoreMatching(filePath, m.cwd)
 	for _, pairMatcher := range m.ignorePairMatcher {
-		if !pairMatcher.fileMatcher.globPattern.Match(relativePath) {
+		// Match via MatchesAnyGlobMatcher (patternRoot-aware) so the file-key glob
+		// behaves exactly like ignoreFiles - including relative patterns such as
+		// "../../apps/mobile/**" that point at a sibling workspace.
+		if !MatchesAnyGlobMatcher(filePath, []GlobMatcher{pairMatcher.fileMatcher}, false) {
 			continue
 		}
 		for _, valueMatcher := range pairMatcher.valueMatchers {

@@ -132,6 +132,13 @@ npm install -g rev-dep
 pnpm global add rev-dep
 ```
 
+### Step-by-step integration guides
+
+Follow the guide that matches your project to get from zero to a working setup:
+
+- [Monorepo integration guide](https://rev-dep.com/docs/monorepo-integration-guide) - for `pnpm`/`yarn`/`npm` workspaces.
+- [Single-workspace integration guide](https://rev-dep.com/docs/single-workspace-integration-guide) - for single-package projects.
+
 ## **Quick Examples 💡**
 
 A few instant-use examples to get a feel for the tool:
@@ -218,8 +225,7 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.8",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
+  "nodeModulesResolution": "entry-package",
   "rules": [
     {
       "path": ".",
@@ -254,10 +260,11 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.8",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.9",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.9.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
+  "nodeModulesResolution": "entry-package",
   "rules": [
     {
       "path": ".",
@@ -369,6 +376,7 @@ Here's a comprehensive example showing all available properties:
 - **`customAssetExtensions`** (optional): Additional asset extensions treated as resolvable imports (e.g. `["glb", "mp3"]`). Default list covers common extensions for fonts, images, config files.
 - **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
 - **`processIgnoredFiles`** (optional): Global file patterns to process even if they match gitignore or `ignoreFiles`.
+- **`nodeModulesResolution`** (optional): Which `package.json` each third-party import is validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. `"entry-package"` (default) validates against the rule's entry `package.json`; `"nearest-package"` validates against the `package.json` owning each file (use for pnpm's default layout, where each package resolves only its own dependencies). Applies to all rules.
 - **`rules`** (required): Array of rule objects
 
 #### Rule Properties
@@ -999,6 +1007,7 @@ rev-dep unresolved [flags]
       --ignore stringToString                                       Map of file path (relative to cwd) to exact import request to ignore (e.g. --ignore src/index.ts=some-module) (default [])
       --ignore-files strings                                        File path glob patterns to ignore in unresolved output
       --ignore-imports strings                                      Import requests to ignore globally in unresolved output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1153,6 +1162,7 @@ rev-dep node-modules missing --entry-points=src/main.ts
   -h, --help                                                        help for missing
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
   -i, --include-modules strings                                     list of modules to include in the output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings                            Additional package.json fields to check for binary usages
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1194,6 +1204,7 @@ rev-dep node-modules unused --exclude-modules=@types/*
   -h, --help                                                        help for unused
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
   -i, --include-modules strings                                     list of modules to include in the output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings                            Additional package.json fields to check for binary usages
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1242,6 +1253,7 @@ rev-dep node-modules used -p src/index.ts --group-by-module
   -h, --help                                                        help for used
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
   -i, --include-modules strings                                     list of modules to include in the output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings                            Additional package.json fields to check for binary usages
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1282,6 +1294,7 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --module string                                               Target node module name to check for dependencies
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)

@@ -37,6 +37,7 @@ rev-dep node-modules missing --entry-points=src/main.ts
   -h, --help                                                        help for missing
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
   -i, --include-modules strings                                     list of modules to include in the output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings                            Additional package.json fields to check for binary usages
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)

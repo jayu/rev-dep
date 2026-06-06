@@ -24,19 +24,33 @@
 
 ## Publishing
 
-`node scripts/setVersions.js`
+1. `node scripts/setVersions.js <version>`   (e.g. `2.15.0`)
+2. `scripts/buildProdBinaries.sh`
+3. `node scripts/addCliRefToReadmeAndDocs.js`
+4. `git add . && git commit -m "chore: release <version>"`
+5. `npm login`
+6. `scripts/publish.sh`
+7. `node scripts/release.js`   — tag + GitHub release (notes, binaries, checksums)
+8. `git push origin HEAD`
 
-`scripts/buildProdBinaries.sh`
+`scripts/release.js` reads the version from `npm/rev-dep/package.json`, pushes the
+`<version>` tag, and creates a GitHub release with categorized notes (Features /
+Bug Fixes / Documentation / Other Changes, built from the commits since the
+previous tag - see `scripts/releaseNotes.js`), the three platform binaries, and a
+`checksums.txt` (sha256). Requires `gh` authenticated. Pre-release versions
+(`X.Y.Z-...`) are marked as pre-releases automatically.
 
-`node scripts/addCliRefToReadmeAndDocs.js`
+### Verifying a downloaded binary
 
-`git add . && git commit -m "chore: release`
+Download the binary and `checksums.txt` from the release page, place them in the
+same folder, then:
 
-`npm login`
+```
+shasum -a 256 -c checksums.txt
+```
 
-`scripts/publish.sh` 
-
-`git push origin HEAD` 
+(Users installing via npm get integrity verification automatically from the
+lockfile; the checksums are for people downloading the raw binary.)
 
 ## Resolution steps contribution to overall performance
 

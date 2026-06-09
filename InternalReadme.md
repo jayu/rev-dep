@@ -1,20 +1,20 @@
 ## Build native development
 
-`go build -tags "dev" -o rev-dep-go-dev .`
+`go build -tags "dev" -o rev-dep-go-dev ./cmd/cli`
 
 ## Build native production
 
-`go build -o rev-dep-go .`
+`go build -o rev-dep-go ./cmd/cli`
 
 ## Build native production without debug info in binary (smaller size)
 
-`go build -o rev-dep-go -ldflags="-s -w" .`
+`go build -o rev-dep-go -ldflags="-s -w" ./cmd/cli `
 
 ## Build linux
 
-`GOOS=linux GOARCH=amd64 go build -o rev-dep-go-linux .`
+`GOOS=linux GOARCH=amd64 go build -o rev-dep-go-linux ./cmd/cli `
 
-`GOOS=linux GOARCH=amd64 go build -o rev-dep-go-linux -ldflags="-s -w" .`
+`GOOS=linux GOARCH=amd64 go build -o rev-dep-go-linux -ldflags="-s -w" ./cmd/cli `
 
 
 ## CPU profiling 

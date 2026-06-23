@@ -6,6 +6,8 @@ type BoundaryRule = rules.BoundaryRule
 
 type RestrictedImportsDetectionOptions = rules.RestrictedImportsDetectionOptions
 
+type RestrictedImportersDetectionOptions = rules.RestrictedImportersDetectionOptions
+
 type ImportConventionDomain = rules.ImportConventionDomain
 
 type ImportConventionRule = rules.ImportConventionRule

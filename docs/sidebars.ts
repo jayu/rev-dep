@@ -24,6 +24,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'config-based-checks/checks/module-boundaries',
             'config-based-checks/checks/restricted-imports',
+            'config-based-checks/checks/restricted-importers',
             'config-based-checks/checks/import-conventions',
             'config-based-checks/checks/circular-imports',
             'config-based-checks/checks/orphan-files',
@@ -59,6 +60,7 @@ const sidebars: SidebarsConfig = {
       label: 'Other Concepts and Features',
       items: [
         'other-concepts-and-features/following-monorepo-packages',
+        'other-concepts-and-features/node-modules-resolution',
         'other-concepts-and-features/ignoring-files',
         'other-concepts-and-features/glob-patterns',
         'other-concepts-and-features/module-resolution-and-path-aliases',

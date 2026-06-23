@@ -5,7 +5,7 @@ description: How file-path glob patterns are matched in rev-dep - gitignore-styl
 
 # Glob patterns
 
-Wherever rev-dep takes a file path or pattern - entry points, `protectedFiles`, `denyFiles`, `ignoreMatches`, `ignoreFiles`, `graphExclude`, and so on - the value is matched as a **glob pattern**.
+Wherever rev-dep takes a file path or pattern - entry points, `files`, `denyFiles`, `ignoreMatches`, `ignoreFiles`, `graphExclude`, and so on - the value is matched as a **glob pattern**.
 
 Different tools implement slightly different glob "flavors". **rev-dep aims to mimic [`.gitignore`](https://git-scm.com/docs/gitignore) matching behavior**, so patterns you already use in `.gitignore` should behave the same way here.
 
@@ -30,7 +30,7 @@ To match such a path literally, **escape the special characters with a backslash
       "path": ".",
       "restrictedImportersDetection": {
         "enabled": true,
-        "protectedFiles": ["app/legacy/**"],
+        "files": ["app/legacy/**"],
         "allowedEntryPoints": [
           "pages/admin/clients/\\[clientId\\]/edit.tsx"
         ]

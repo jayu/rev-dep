@@ -34,6 +34,12 @@ If entry points are incomplete, reachable files may look orphaned and real tooli
 
 When in doubt, start narrow, review results, then add missing roots explicitly.
 
+## Paths with `[ ]` or `{ }` (e.g. Next.js routes)
+
+Entry-point patterns are matched as [glob patterns](../other-concepts-and-features/glob-patterns.mdx), so `[`, `]`, `{`, and `}` are **special characters**. A literal path that contains them - such as a Next.js dynamic route `pages/admin/[clientId]/edit.tsx` - is read as a glob (`[clientId]` becomes a character class) and matches **nothing**, so the entry point is silently ignored.
+
+**If an entry-point path contains square or curly brackets, escape them** - for example `"pages/admin/\\[clientId\\]/edit.tsx"`. See [Glob patterns](../other-concepts-and-features/glob-patterns.mdx) for the full explanation and more examples.
+
 ## Rule-level defaults vs detector overrides
 
 Most reachability-based detectors use rule-level `prodEntryPoints` and `devEntryPoints` as their foundation.

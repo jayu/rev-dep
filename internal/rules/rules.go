@@ -35,6 +35,28 @@ type RestrictedImportsDetectionOptions struct {
 
 func (o *RestrictedImportsDetectionOptions) IsEnabled() bool { return o != nil && o.Enabled }
 
+// RestrictedImportersDetectionOptions configures the inverse of restricted imports: it whitelists
+// which entry points may transitively reach (import) a set of files and/or node modules. Any entry
+// point NOT matching allowedEntryPoints that reaches one of those targets is a violation.
+//
+// The policy verb sits on the entry points (allowedEntryPoints), so the targets stay bare (files /
+// modules) - the mirror image of restrictedImportsDetection, which puts the verb on the targets
+// (denyFiles / denyModules) and leaves entryPoints bare.
+//
+// (The "blacklist" direction - forbidding specific entry points from reaching a target - is covered
+// by restrictedImportsDetection, so it is intentionally not duplicated here.)
+type RestrictedImportersDetectionOptions struct {
+	Enabled            bool     `json:"enabled"`
+	Files              []string `json:"files,omitempty"`
+	Modules            []string `json:"modules,omitempty"`
+	AllowedEntryPoints []string `json:"allowedEntryPoints,omitempty"`
+	GraphExclude       []string `json:"graphExclude,omitempty"`
+	IgnoreMatches      []string `json:"ignoreMatches,omitempty"`
+	IgnoreTypeImports  bool     `json:"ignoreTypeImports,omitempty"`
+}
+
+func (o *RestrictedImportersDetectionOptions) IsEnabled() bool { return o != nil && o.Enabled }
+
 // ImportConventionDomain represents a single domain definition.
 type ImportConventionDomain struct {
 	Path    string `json:"path,omitempty"`

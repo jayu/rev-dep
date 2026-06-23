@@ -125,6 +125,7 @@ func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
 		totalIssues += len(ruleResult.UnresolvedImports)
 		totalIssues += len(ruleResult.RestrictedDevDependenciesUsageViolations)
 		totalIssues += len(ruleResult.RestrictedImportsViolations)
+		totalIssues += len(ruleResult.RestrictedImportersViolations)
 
 		fixableIssues += len(ruleResult.OrphanFilesAutofixable)
 
@@ -621,6 +622,57 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 				} else {
 					fmt.Printf("  ✅ Restricted Imports\n")
 				}
+			case "restricted-importers":
+				if len(ruleResult.RestrictedImportersViolations) > 0 {
+					fmt.Printf("  ❌ Restricted Importers Issues (%d):\n", len(ruleResult.RestrictedImportersViolations))
+
+					violationsToDisplay := ruleResult.RestrictedImportersViolations
+					remaining := 0
+					if !listAll && len(violationsToDisplay) > maxIssuesToList {
+						remaining = len(violationsToDisplay) - maxIssuesToList
+						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
+					}
+
+					violationsByEntryPoint := make(map[string][]string)
+					seenByEntryPoint := make(map[string]map[string]bool)
+					var sortedEntryPoints []string
+
+					for _, violation := range violationsToDisplay {
+						entryPoint := getRelativePath(violation.EntryPoint)
+						if _, ok := seenByEntryPoint[entryPoint]; !ok {
+							seenByEntryPoint[entryPoint] = make(map[string]bool)
+							sortedEntryPoints = append(sortedEntryPoints, entryPoint)
+						}
+
+						item := violation.Module
+						if item == "" {
+							item = getRelativePath(violation.File)
+						}
+
+						if !seenByEntryPoint[entryPoint][item] {
+							violationsByEntryPoint[entryPoint] = append(violationsByEntryPoint[entryPoint], item)
+							seenByEntryPoint[entryPoint][item] = true
+						}
+					}
+
+					slices.Sort(sortedEntryPoints)
+					for _, entryPoint := range sortedEntryPoints {
+						fmt.Printf("    %s\n", entryPoint)
+						items := violationsByEntryPoint[entryPoint]
+						slices.Sort(items)
+						for _, item := range items {
+							fmt.Printf("     ➞ %s\n", item)
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more restricted importer issues\n", remaining)
+					}
+
+					printRestrictedImportersResolveHint(ruleResult, cwd)
+				} else {
+					fmt.Printf("  ✅ Restricted Importers\n")
+				}
 			}
 		}
 
@@ -672,96 +724,6 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 	}
 }
 
-func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string) {
-	absRulePath := filepath.Clean(filepath.Join(cwd, ruleResult.RulePath))
-	ruleCwdArg, err := filepath.Rel(cwd, absRulePath)
-	if err != nil || ruleCwdArg == "" {
-		ruleCwdArg = ruleResult.RulePath
-	}
-	ruleCwdArg = filepath.ToSlash(ruleCwdArg)
-
-	relToRule := func(absPath string) string {
-		if absPath == "" {
-			return absPath
-		}
-		rel, err := filepath.Rel(absRulePath, absPath)
-		if err != nil {
-			return filepath.ToSlash(absPath)
-		}
-		return filepath.ToSlash(rel)
-	}
-
-	getResolveExtraFlagsPart := func(violation *checks.RestrictedImportViolation) string {
-		resolveExtraFlags := []string{}
-		if violation != nil && violation.IgnoreType {
-			resolveExtraFlags = append(resolveExtraFlags, "--ignore-type-imports")
-		}
-		if violation != nil && len(violation.GraphExclude) > 0 {
-			for _, pattern := range violation.GraphExclude {
-				resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--graph-exclude %q", pattern))
-			}
-		}
-		if ruleResult.RestrictedImportsFollowMonorepoPackages.ShouldFollowAll() {
-			resolveExtraFlags = append(resolveExtraFlags, "--follow-monorepo-packages")
-		} else if len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages) > 0 {
-			pkgs := make([]string, 0, len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages))
-			for pkg := range ruleResult.RestrictedImportsFollowMonorepoPackages.Packages {
-				pkgs = append(pkgs, pkg)
-			}
-			slices.Sort(pkgs)
-			resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--follow-monorepo-packages \"%s\"", strings.Join(pkgs, ",")))
-		}
-		if len(ruleResult.ProcessIgnoredFiles) > 0 {
-			patterns := append([]string(nil), ruleResult.ProcessIgnoredFiles...)
-			slices.Sort(patterns)
-			for _, pattern := range patterns {
-				resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--process-ignored-files %q", pattern))
-			}
-		}
-		if len(resolveExtraFlags) == 0 {
-			return ""
-		}
-		return " " + strings.Join(resolveExtraFlags, " ")
-	}
-
-	var sampleFileViolation *checks.RestrictedImportViolation
-	var sampleModuleViolation *checks.RestrictedImportViolation
-	for i := range ruleResult.RestrictedImportsViolations {
-		v := &ruleResult.RestrictedImportsViolations[i]
-		if sampleFileViolation == nil && v.ViolationType == "file" && v.DeniedFile != "" {
-			sampleFileViolation = v
-		}
-		if sampleModuleViolation == nil && v.ViolationType == "module" {
-			sampleModuleViolation = v
-		}
-		if sampleFileViolation != nil && sampleModuleViolation != nil {
-			break
-		}
-	}
-
-	fmt.Printf("    Hint: trace resolution paths with `rev-dep resolve` from this rule cwd.\n")
-	if sampleFileViolation != nil {
-		fmt.Printf("    Example: `rev-dep resolve --file \"%s\" --entry-points \"%s\" --cwd \"%s\"%s`\n",
-			relToRule(sampleFileViolation.DeniedFile),
-			relToRule(sampleFileViolation.EntryPoint),
-			ruleCwdArg,
-			getResolveExtraFlagsPart(sampleFileViolation),
-		)
-	}
-	if sampleModuleViolation != nil {
-		moduleArg := sampleModuleViolation.ImportRequest
-		if moduleArg == "" {
-			moduleArg = sampleModuleViolation.DeniedModule
-		}
-		fmt.Printf("    Example: `rev-dep resolve --module %s --entry-points \"%s\" --cwd \"%s\"%s`\n",
-			moduleArg,
-			relToRule(sampleModuleViolation.EntryPoint),
-			ruleCwdArg,
-			getResolveExtraFlagsPart(sampleModuleViolation),
-		)
-	}
-}
-
 func init() {
 	// config command
 	configCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")
@@ -784,7 +746,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
-	currentConfigVersion := "1.9"
+	currentConfigVersion := "1.10"
 
 	// Check if any config file already exists
 	existingConfig, err := config.FindConfigFile(cwd)
@@ -961,10 +923,13 @@ func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
 
 	// Create config structure
 	config := config.RevDepConfig{
-		ConfigVersion:         currentConfigVersion,
-		Rules:                 rules,
-		Schema:                "https://github.com/jayu/rev-dep/blob/master/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
-		NodeModulesResolution: config.NodeModulesResolutionEntryPackage,
+		ConfigVersion: currentConfigVersion,
+		Rules:         rules,
+		Schema:        "https://github.com/jayu/rev-dep/blob/master/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
+		NodeModulesResolution: &config.NodeModulesResolutionConfig{
+			ResolutionType:         config.NodeModulesResolutionEntryPackage,
+			IncludeDevDepsFromRoot: false,
+		},
 	}
 
 	// Add schema reference if schema file exists

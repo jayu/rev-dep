@@ -225,7 +225,7 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "nodeModulesResolution": "entry-package",
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "rules": [
     {
       "path": ".",
@@ -260,11 +260,11 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.9",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.9.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.10",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.10.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
-  "nodeModulesResolution": "entry-package",
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "rules": [
     {
       "path": ".",
@@ -376,7 +376,7 @@ Here's a comprehensive example showing all available properties:
 - **`customAssetExtensions`** (optional): Additional asset extensions treated as resolvable imports (e.g. `["glb", "mp3"]`). Default list covers common extensions for fonts, images, config files.
 - **`ignoreFiles`** (optional): Global file patterns to ignore across all rules. Git ignored files are skipped by default.
 - **`processIgnoredFiles`** (optional): Global file patterns to process even if they match gitignore or `ignoreFiles`.
-- **`nodeModulesResolution`** (optional): Which `package.json` each third-party import is validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. `"entry-package"` (default) validates against the rule's entry `package.json`; `"nearest-package"` validates against the `package.json` owning each file (use for pnpm's default layout, where each package resolves only its own dependencies). Applies to all rules.
+- **`nodeModulesResolution`** (optional): Which `package.json` each third-party import is validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. Configure it as an object `{ "resolutionType": ..., "includeDevDepsFromRoot": ... }` - the form `rev-dep config init` generates. `resolutionType` is `"entry-package"` (default, validates against the rule's entry `package.json`) or `"nearest-package"` (validates against the `package.json` owning each file - use for pnpm's default layout, where each package resolves only its own dependencies). `includeDevDepsFromRoot` (default `false`) lets package code use dev dependencies declared only at the monorepo root without `missingNodeModules` or `unresolvedImports` flagging them. A bare string (e.g. `"nearest-package"`) is also accepted as a backward-compatible shorthand for `resolutionType`. Applies to all rules. See the [docs](https://rev-dep.com/docs/other-concepts-and-features/node-modules-resolution).
 - **`rules`** (required): Array of rule objects
 
 #### Rule Properties
@@ -1007,6 +1007,7 @@ rev-dep unresolved [flags]
       --ignore stringToString                                       Map of file path (relative to cwd) to exact import request to ignore (e.g. --ignore src/index.ts=some-module) (default [])
       --ignore-files strings                                        File path glob patterns to ignore in unresolved output
       --ignore-imports strings                                      Import requests to ignore globally in unresolved output
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
@@ -1161,6 +1162,7 @@ rev-dep node-modules missing --entry-points=src/main.ts
       --group-by-module-files-count                                 Organize output by npm package name and show count of files using it
   -h, --help                                                        help for missing
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
   -i, --include-modules strings                                     list of modules to include in the output
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
@@ -1203,6 +1205,7 @@ rev-dep node-modules unused --exclude-modules=@types/*
       --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
   -h, --help                                                        help for unused
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
   -i, --include-modules strings                                     list of modules to include in the output
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
@@ -1252,6 +1255,7 @@ rev-dep node-modules used -p src/index.ts --group-by-module
       --group-by-module-show-entry-points                           Organize output by npm package name and list entry points using it
   -h, --help                                                        help for used
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
   -i, --include-modules strings                                     list of modules to include in the output
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
@@ -1293,6 +1297,7 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
       --graph-exclude strings                                       Glob patterns to exclude files from dependency analysis
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
       --module string                                               Target node module name to check for dependencies
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)

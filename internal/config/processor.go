@@ -61,6 +61,7 @@ type RuleResult struct {
 	UnresolvedImports                               []checks.UnresolvedImport
 	RestrictedDevDependenciesUsageViolations        []checks.RestrictedDevDependenciesUsageViolation
 	RestrictedImportsViolations                     []checks.RestrictedImportViolation
+	RestrictedImportersViolations                   []checks.RestrictedImporterViolation
 	RestrictedImportsFollowMonorepoPackages         model.FollowMonorepoPackagesValue
 	ProcessIgnoredFiles                             []string
 	MissingPackageJson                              bool
@@ -296,6 +297,7 @@ func processRuleChecks(
 	cwd string,
 	fix bool,
 	nearestPackage bool,
+	includeDevDepsFromRoot bool,
 ) RuleResult {
 	// Track enabled checks
 	enabledChecks := []string{}
@@ -328,6 +330,9 @@ func processRuleChecks(
 	if anyEnabled(rule.getRestrictedImportsDetections()) {
 		enabledChecks = append(enabledChecks, "restricted-imports")
 	}
+	if anyEnabled(rule.getRestrictedImportersDetections()) {
+		enabledChecks = append(enabledChecks, "restricted-importers")
+	}
 	if len(rule.ImportConventions) > 0 {
 		enabledChecks = append(enabledChecks, "import-conventions")
 	}
@@ -347,6 +352,18 @@ func processRuleChecks(
 
 	if rulePathResolver != nil {
 		rulePathNodeModules = rulePathResolver.NodeModules()
+	}
+
+	// When includeDevDepsFromRoot is enabled, the monorepo root (cwd) package.json
+	// devDependencies are treated as available to package code, so importing a dev dependency
+	// declared only at the root is not reported as missing. These are passed to the missing
+	// check as extra allowed modules in both resolution modes. They are intentionally NOT added
+	// to the unused check's candidate set, since they belong to the root, not the package.
+	var rootDevDependencies map[string]bool
+	if includeDevDepsFromRoot {
+		if rootResolver := resolverManager.RootResolver(); rootResolver != nil {
+			rootDevDependencies = rootResolver.DevNodeModules()
+		}
 	}
 
 	// In nearest-package mode, "unused" (variant A) only counts an entry dependency as used when
@@ -550,6 +567,7 @@ func processRuleChecks(
 					detection.IncludeModules,
 					detection.ExcludeModules,
 					rulePathNodeModules,
+					rootDevDependencies,
 					nearestPackage,
 				)...)
 
@@ -642,6 +660,20 @@ func processRuleChecks(
 			if nearestPackage {
 				ignoredNodeModules = map[string]bool{}
 			}
+			// includeDevDepsFromRoot: the monorepo root devDependencies are treated as available to
+			// package code, so a root-declared dependency is not reported as unresolved (mirrors the
+			// missing check). Applied in both modes via a fresh copy so the resolver's own
+			// rulePathNodeModules map is never mutated.
+			if len(rootDevDependencies) > 0 {
+				merged := make(map[string]bool, len(ignoredNodeModules)+len(rootDevDependencies))
+				for moduleName := range ignoredNodeModules {
+					merged[moduleName] = true
+				}
+				for moduleName := range rootDevDependencies {
+					merged[moduleName] = true
+				}
+				ignoredNodeModules = merged
+			}
 			unresolved := make([]checks.UnresolvedImport, 0)
 			for _, detection := range rule.getUnresolvedImportsDetections() {
 				if !detection.Enabled {
@@ -668,9 +700,71 @@ func processRuleChecks(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			var devDependencies map[string]bool
-			if rulePathResolver != nil {
-				devDependencies = rulePathResolver.DevNodeModules()
+
+			// The dev dependency set checked against a production import follows nodeModulesResolution,
+			// so a dev dependency leaking into production is reported regardless of where it is
+			// declared: entry-package uses the entry package's devDependencies for every file;
+			// nearest-package uses each file's own nearest package devDependencies; and
+			// includeDevDepsFromRoot adds the monorepo root devDependencies on top in either mode.
+			// The applicable dev-dependency set is constant within a workspace, so it is computed
+			// once per workspace up front rather than recomputed for every file. mergeWithRoot folds
+			// in the monorepo root devDependencies (includeDevDepsFromRoot) and returns the base
+			// untouched when there are none.
+			mergeWithRoot := func(base map[string]bool) map[string]bool {
+				if len(rootDevDependencies) == 0 {
+					return base
+				}
+				merged := make(map[string]bool, len(base)+len(rootDevDependencies))
+				for moduleName := range base {
+					merged[moduleName] = true
+				}
+				for moduleName := range rootDevDependencies {
+					merged[moduleName] = true
+				}
+				return merged
+			}
+
+			var devDepsForFile func(filePath string) map[string]bool
+			if nearestPackage {
+				// nearest-package: each file is checked against its own nearest package's
+				// devDependencies. Precompute one merged set per resolver root (keyed by the
+				// resolver root path) and attribute each file to a root via the canonical
+				// prefix-matching resolver lookup.
+				devDepsByResolverRoot := map[string]map[string]bool{}
+				registerResolver := func(resolver *resolve.ModuleResolver) {
+					if resolver == nil {
+						return
+					}
+					root := resolver.ResolverRoot()
+					if _, exists := devDepsByResolverRoot[root]; exists {
+						return
+					}
+					devDepsByResolverRoot[root] = mergeWithRoot(resolver.DevNodeModules())
+				}
+				registerResolver(resolverManager.RootResolver())
+				registerResolver(resolverManager.CwdResolver())
+				for _, subPkg := range resolverManager.SubpackageResolvers() {
+					registerResolver(subPkg.Resolver)
+				}
+
+				devDepsForFile = func(filePath string) map[string]bool {
+					fileResolver := resolverManager.GetResolverForFile(filePath)
+					if fileResolver == nil {
+						return nil
+					}
+					return devDepsByResolverRoot[fileResolver.ResolverRoot()]
+				}
+			} else {
+				// entry-package: every file in the rule is checked against the entry package's
+				// devDependencies, so the set is identical for all files and built once.
+				var entryDevDependencies map[string]bool
+				if rulePathResolver != nil {
+					entryDevDependencies = rulePathResolver.DevNodeModules()
+				}
+				entryMerged := mergeWithRoot(entryDevDependencies)
+				devDepsForFile = func(filePath string) map[string]bool {
+					return entryMerged
+				}
 			}
 
 			violations := make([]checks.RestrictedDevDependenciesUsageViolation, 0)
@@ -683,7 +777,7 @@ func processRuleChecks(
 					detection.ProdEntryPoints,
 					detection.IgnoreTypeImports,
 					fullRulePath,
-					devDependencies,
+					devDepsForFile,
 				)...)
 			}
 
@@ -712,6 +806,34 @@ func processRuleChecks(
 
 			mu.Lock()
 			ruleResult.RestrictedImportsViolations = violations
+			mu.Unlock()
+		}()
+	}
+
+	if anyEnabled(rule.getRestrictedImportersDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Universe of entry points for the allowlist policy: the rule's prod + dev entry points.
+			ruleEntryPoints := make([]string, 0, len(rule.ProdEntryPoints)+len(rule.DevEntryPoints))
+			ruleEntryPoints = append(ruleEntryPoints, rule.ProdEntryPoints...)
+			ruleEntryPoints = append(ruleEntryPoints, rule.DevEntryPoints...)
+
+			violations := make([]checks.RestrictedImporterViolation, 0)
+			for _, detection := range rule.getRestrictedImportersDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				violations = append(violations, checks.FindRestrictedImporters(
+					ruleTree,
+					detection,
+					fullRulePath,
+					ruleEntryPoints,
+				)...)
+			}
+
+			mu.Lock()
+			ruleResult.RestrictedImportersViolations = violations
 			mu.Unlock()
 		}()
 	}
@@ -789,7 +911,8 @@ func ProcessConfig(
 				resolverManager,
 				cwd,
 				fix,
-				config.NodeModulesResolution == NodeModulesResolutionNearestPackage,
+				config.UsesNearestPackage(),
+				config.IncludeDevDepsFromRoot(),
 			)
 			ruleResult.ProcessIgnoredFiles = config.ProcessIgnoredFiles
 
@@ -806,7 +929,8 @@ func ProcessConfig(
 				len(ruleResult.UnusedExports) > 0 ||
 				len(ruleResult.UnresolvedImports) > 0 ||
 				len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 ||
-				len(ruleResult.RestrictedImportsViolations) > 0
+				len(ruleResult.RestrictedImportsViolations) > 0 ||
+				len(ruleResult.RestrictedImportersViolations) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

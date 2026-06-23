@@ -105,6 +105,7 @@ func TestUsedNodeModules(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
@@ -142,6 +143,7 @@ func TestUsedNodeModules(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "6\n"
@@ -177,6 +179,7 @@ func TestUsedNodeModules(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -214,6 +217,7 @@ func TestUsedNodeModules(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "\n @types/dep-types-1\n    ➞ tsconfig.json\n\n\n @types/dep-types-2\n    ➞ index.ts\n\n\n dep1\n    ➞ package.json\n\n\n dep2\n    ➞ index.ts\n\n\n dep4\n    ➞ file.ts\n\n\n dep5\n    ➞ file.ts\n\n"
@@ -248,6 +252,7 @@ func TestUsedNodeModules(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -299,6 +304,7 @@ func TestUnusedNodeModules(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "dep3\n"
@@ -333,6 +339,7 @@ func TestUnusedNodeModules(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -385,6 +392,7 @@ func TestMissingNodeModules(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "dep5\n"
@@ -420,6 +428,7 @@ func TestMissingNodeModules(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -457,6 +466,7 @@ func TestMissingNodeModules(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "\n file.ts\n    ➞ dep5\n\n"
@@ -492,6 +502,7 @@ func TestMissingNodeModules(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -544,6 +555,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "\n"
@@ -578,6 +590,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -614,6 +627,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "\n"
@@ -648,6 +662,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -700,6 +715,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -734,6 +750,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -770,6 +787,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep3\ndep4\ndep5\n"
@@ -804,6 +822,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -856,6 +875,7 @@ func TestIncludeExclude(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "@types/dep-types-2\ndep4\n"
@@ -890,6 +910,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -927,6 +948,7 @@ func TestIncludeExclude(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "dep3\n"
@@ -962,6 +984,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -999,6 +1022,7 @@ func TestIncludeExclude(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "dep5\n"
@@ -1034,6 +1058,7 @@ func TestIncludeExclude(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -1084,6 +1109,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
@@ -1118,6 +1144,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -1154,6 +1181,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "@types/dep-types-1\n@types/dep-types-2\ndep1\ndep2\ndep4\ndep5\n"
@@ -1189,6 +1217,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			[]string{},
 			FollowMonorepoPackagesValue{},
 			false,
+			false,
 		)
 
 		expected := "\n"
@@ -1223,6 +1252,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 			"",
 			[]string{},
 			FollowMonorepoPackagesValue{},
+			false,
 			false,
 		)
 
@@ -1296,6 +1326,7 @@ func TestTsConfigTypesComplexRealWorld(t *testing.T) {
 			[]string{},                    // conditionNames
 			FollowMonorepoPackagesValue{}, // followMonorepoPackages
 			false,                         // nearestPackage
+			false,
 		)
 
 		// This test reproduces the original bug scenario:
@@ -1380,6 +1411,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		[]string{},
 		FollowMonorepoPackagesValue{},
 		false,
+		false,
 	)
 
 	expectedGrouped := "\n entryA.ts\n    ➞ dep-a\n    ➞ dep-shared\n\n\n entryB.ts\n    ➞ dep-b\n    ➞ dep-shared\n\n"
@@ -1410,6 +1442,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		"",
 		[]string{},
 		FollowMonorepoPackagesValue{},
+		false,
 		false,
 	)
 
@@ -1446,6 +1479,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		[]string{},
 		FollowMonorepoPackagesValue{},
 		false,
+		false,
 	)
 
 	expectedGroupByModuleEntryPoints := "\n dep-a\n    ➞ entryA.ts\n\n\n dep-b\n    ➞ entryB.ts\n\n\n dep-shared\n    ➞ entryA.ts\n    ➞ entryB.ts\n\n"
@@ -1476,6 +1510,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		"",
 		[]string{},
 		FollowMonorepoPackagesValue{},
+		false,
 		false,
 	)
 
@@ -1508,6 +1543,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		[]string{},
 		FollowMonorepoPackagesValue{},
 		false,
+		false,
 	)
 	if moduleEntryPointsAutoEntryPointsResult != expectedGroupByModuleEntryPoints {
 		t.Errorf("Incorrect grouped-by-module entry points output with auto entry points '%s'. Expected '%s'", moduleEntryPointsAutoEntryPointsResult, expectedGroupByModuleEntryPoints)
@@ -1536,6 +1572,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		"",
 		[]string{},
 		FollowMonorepoPackagesValue{},
+		false,
 		false,
 	)
 

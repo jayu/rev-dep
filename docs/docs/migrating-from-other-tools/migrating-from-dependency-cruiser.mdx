@@ -15,13 +15,13 @@ sidebar_label: dependency-cruiser
 ## Why migrate
 
 - **Speed.** rev-dep is written in Go and runs every check in parallel - **faster** on large codebases.
-- **Purpose-built checks.** Instead of hand-writing `from`/`to` rules for everything, rev-dep gives you named detectors - [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx) - and adds unused/missing dependency and unused-export detection dependency-cruiser doesn't do.
+- **Purpose-built checks.** Instead of hand-writing `from`/`to` rules for everything, rev-dep gives you named detectors - [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [restricted importers](../config-based-checks/checks/restricted-importers.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx) - and adds unused/missing dependency and unused-export detection dependency-cruiser doesn't do.
 
 ## What carries over, what changes
 
-- **Covered well:** circular detection, orphan detection, and path-to-path forbidden rules.
+- **Covered well:** circular detection, orphan detection, path-to-path forbidden rules, and reachability rules in **both directions** - deny (entry point must not reach a target) and whitelist (only specific entry points may reach a target).
 - **Not replaced - visualization.** dependency-cruiser renders graphs (dot/SVG, mermaid, HTML). rev-dep has **no graph rendering** - it answers reachability as text via the [exploratory toolkit](../exploratory-toolkit/overview.mdx). Keep dependency-cruiser if the diagrams matter.
-- **Rule model differs.** dependency-cruiser is one generic rule engine (`from` → `to`); rev-dep splits the intent across two checks: **module boundaries** (file-pattern → file-pattern) and **restricted imports** (entry-point reachability → denied targets).
+- **Rule model differs.** dependency-cruiser is one generic rule engine (`from` → `to`); rev-dep splits the intent across dedicated checks: **module boundaries** (file-pattern → file-pattern), **restricted imports** (entry points → denied targets), and **restricted importers** (the reverse - a whitelist of entry points allowed to reach a target).
 
 ## Feature mapping
 
@@ -31,6 +31,7 @@ sidebar_label: dependency-cruiser
 | `{ orphan: true }` | [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) |
 | `forbidden` `from`/`to` between folders | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) (`pattern` / `deny` / `allow`) |
 | `forbidden` with `reachable` from entry points | [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) (`entryPoints` / `denyFiles` / `denyModules`) |
+| `forbidden` with negated `from` (`pathNot`) + `to.reachable` - only specific sources may reach a target / banned package | [`restrictedImportersDetection`](../config-based-checks/checks/restricted-importers.mdx) (`allowedEntryPoints` / `files` / `modules`) |
 | "not-to-dev-dep" (prod using devDependencies) | [`devDepsUsageOnProdDetection`](../config-based-checks/checks/dev-deps-on-prod.mdx) |
 | imports of undeclared packages | [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx) |
 | graph image (dot/mermaid/HTML) | - (no image output) |
@@ -102,6 +103,56 @@ becomes a `rev-dep.config.jsonc`:
 ```
 
 dependency-cruiser uses regular expressions in `path`/`pathNot`; rev-dep uses glob patterns. A plain `from`/`to` rule becomes a [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) rule (file-to-file), while a rule with `reachable: true` becomes a [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) check (transitive reachability from entry points).
+
+### Whitelisting importers (the reverse direction)
+
+dependency-cruiser expresses "**only** these may reach X" by negating the `from` side of a reachability rule with `pathNot` - forbid everything *except* the allowed source from reaching the target:
+
+```js
+module.exports = {
+  forbidden: [
+    {
+      // only the legacy shell may reach legacy code
+      name: 'legacy-only-from-shell',
+      severity: 'error',
+      from: { pathNot: '^src/(legacy|legacy-shell)' },
+      to: { path: '^src/legacy', reachable: true }
+    },
+    {
+      // only the legacy shell may pull in the banned `moment` dependency
+      name: 'moment-only-from-shell',
+      severity: 'error',
+      from: { pathNot: '^src/legacy-shell' },
+      to: { path: 'node_modules/moment', reachable: true }
+    }
+  ]
+};
+```
+
+rev-dep has a dedicated check for this whitelist direction - [`restrictedImportersDetection`](../config-based-checks/checks/restricted-importers.mdx). List the targets (`files` and/or `modules`) and the `allowedEntryPoints` permitted to reach them; every other entry point that reaches a target is flagged:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/**/main.ts"],
+      "restrictedImportersDetection": [
+        {
+          "enabled": true,
+          "files": ["src/legacy/**"],
+          "modules": ["moment"],
+          "allowedEntryPoints": ["src/legacy-shell/**"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+This is especially handy **after** a migration: with the legacy boundary already drawn, the same check doubles as a ratchet that keeps a banned dependency (`modules`) from being reintroduced, and stops new entry points from coupling to the legacy surface (`files`).
+
+One semantic difference to keep in mind: dependency-cruiser's `from` matches **any module** on the reaching side, while rev-dep applies the whitelist to the rule's **entry points** (`prodEntryPoints` + `devEntryPoints`). That is usually what you want - you care which app surfaces are allowed to depend on the legacy code or the banned package, not which intermediate file happens to sit on the path.
 
 ## Running it
 

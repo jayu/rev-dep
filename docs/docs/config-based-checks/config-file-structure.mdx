@@ -19,11 +19,11 @@ Rev-dep automatically detects project context and creates scaffolding for each w
 
 - `configVersion`: Configuration version string
 - `$schema`: JSON schema reference for validation
-- `conditionNames`: custom condition order for `package.json` imports/exports resolution.
-- `customAssetExtensions`: additional extensions that should be treated as resolvable imports.
-- `ignoreFiles`: files excluded from analysis by rev-dep config, in addition to gitignored files.
-- `processIgnoredFiles`: files that should still be processed even if gitignore or ignore patterns would normally skip them.
-- [`nodeModulesResolution`](other-concepts-and-features/following-monorepo-packages.mdx#node-modules-resolution): which `package.json` each third-party import is validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. `"entry-package"` (default) validates every import against the rule's entry `package.json`; `"nearest-package"` validates each import against the `package.json` that owns the importing file (correct for pnpm's default layout, where each package resolves only the dependencies it declares). Applies to all rules.
+- [`conditionNames`](other-concepts-and-features/module-resolution-and-path-aliases.mdx#condition-names): custom condition order for `package.json` imports/exports resolution.
+- [`customAssetExtensions`](other-concepts-and-features/supported-file-types.mdx#extending-asset-extensions): additional extensions that should be treated as resolvable imports.
+- [`ignoreFiles`](other-concepts-and-features/ignoring-files.mdx): files excluded from analysis by rev-dep config, in addition to gitignored files.
+- [`processIgnoredFiles`](other-concepts-and-features/ignoring-files.mdx): files that should still be processed even if gitignore or ignore patterns would normally skip them.
+- [`nodeModulesResolution`](other-concepts-and-features/node-modules-resolution.mdx): controls which `package.json` third-party imports are validated against (and whether monorepo-root devDependencies count as available).
 - `rules`: array of rules defining checks for different parts of the codebase. Typically single rule defines checks for single workspace package. However, you can have multiple rules with the same `path` if that's needed.
 
 > Name `rules` might be confusing, it's a bad design choice made at the beginning. This will be likely renamed to `workspaces` or `scopes` in next major release to better reflect how it is actually being used.
@@ -36,14 +36,15 @@ Each rule must define:
 
 And can additionally define:
 
-- `followMonorepoPackages`: Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
-- `prodEntryPoints`: Rule-level production entry point patterns for detector defaults
-- `devEntryPoints`: Rule-level development entry point patterns for detector defaults
+- [`followMonorepoPackages`](other-concepts-and-features/following-monorepo-packages.mdx): Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
+- [`prodEntryPoints`](config-based-checks/entry-points-definition.mdx): Rule-level production entry point patterns for detector defaults
+- [`devEntryPoints`](config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points): Rule-level development entry point patterns for detector defaults
 - [`ignoreEntryPoints`](config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points): Rule-level patterns for leftover entry points to exclude from reporting. Matching files are never reported as orphan files and their unused exports are not reported.
 
 And any detector setup:
 - [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx): Array of module boundary rules
 - [`restrictedImportsDetection`](config-based-checks/checks/restricted-imports.mdx): Restrict importing denied files/modules from selected entry points
+- [`restrictedImportersDetection`](config-based-checks/checks/restricted-importers.mdx): Whitelist which entry points may transitively reach a set of files or modules
 - [`importConventions`](config-based-checks/checks/import-conventions.mdx): Array of import convention rules
 - [`circularImportsDetection`](config-based-checks/checks/circular-imports.mdx): Circular import detection configuration
 - [`orphanFilesDetection`](config-based-checks/checks/orphan-files.mdx): Orphan files detection configuration
@@ -59,7 +60,7 @@ And any detector setup:
 
 ```json
 {
-  "nodeModulesResolution": "entry-package",
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "rules": [
     {
       "path": ".",
@@ -96,12 +97,12 @@ Here's a comprehensive example showing all available properties:
 
 ```json
 {
-  "configVersion": "1.9",
+  "configVersion": "1.10",
   // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.9.schema.json?raw=true", 
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.10.schema.json?raw=true", 
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
-  "nodeModulesResolution": "entry-package",
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "rules": [
     {
       "path": ".",
@@ -197,6 +198,15 @@ Here's a comprehensive example showing all available properties:
         "denyFiles": ["**/*.tsx"],
         "denyModules": ["react", "react-*"],
         "ignoreMatches": ["src/server/allowed-view.tsx", "react-awesome-lib"],
+        "ignoreTypeImports": true
+      },
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "files": ["src/legacy/**"],
+        "modules": ["moment", "@legacy/*"],
+        "allowedImporters": ["src/legacy-adapter.ts"],
+        "graphExclude": ["**/*.test.*"],
+        "ignoreMatches": ["src/legacy/public-api.ts"],
         "ignoreTypeImports": true
       }
     }

@@ -87,21 +87,22 @@ type RestrictedDevDependenciesUsageOptions struct {
 func (o *RestrictedDevDependenciesUsageOptions) IsEnabled() bool { return o != nil && o.Enabled }
 
 type Rule struct {
-	Path                         string                                   `json:"path"` // Required
-	ProdEntryPoints              []string                                 `json:"prodEntryPoints,omitempty"`
-	DevEntryPoints               []string                                 `json:"devEntryPoints,omitempty"`
-	IgnoreEntryPoints            []string                                 `json:"ignoreEntryPoints,omitempty"`
-	FollowMonorepoPackages       model.FollowMonorepoPackagesValue        `json:"-"`
-	ModuleBoundaries             []BoundaryRule                           `json:"moduleBoundaries,omitempty"`
-	CircularImportsDetections    []*CircularImportsOptions                `json:"-"`
-	OrphanFilesDetections        []*OrphanFilesOptions                    `json:"-"`
-	UnusedNodeModulesDetections  []*UnusedNodeModulesOptions              `json:"-"`
-	MissingNodeModulesDetections []*MissingNodeModulesOptions             `json:"-"`
-	UnusedExportsDetections      []*UnusedExportsOptions                  `json:"-"`
-	UnresolvedImportsDetections  []*UnresolvedImportsOptions              `json:"-"`
-	DevDepsUsageOnProdDetections []*RestrictedDevDependenciesUsageOptions `json:"-"`
-	RestrictedImportsDetections  []*RestrictedImportsDetectionOptions     `json:"-"`
-	ImportConventions            []ImportConventionRule                   `json:"-"`
+	Path                          string                                   `json:"path"` // Required
+	ProdEntryPoints               []string                                 `json:"prodEntryPoints,omitempty"`
+	DevEntryPoints                []string                                 `json:"devEntryPoints,omitempty"`
+	IgnoreEntryPoints             []string                                 `json:"ignoreEntryPoints,omitempty"`
+	FollowMonorepoPackages        model.FollowMonorepoPackagesValue        `json:"-"`
+	ModuleBoundaries              []BoundaryRule                           `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetections     []*CircularImportsOptions                `json:"-"`
+	OrphanFilesDetections         []*OrphanFilesOptions                    `json:"-"`
+	UnusedNodeModulesDetections   []*UnusedNodeModulesOptions              `json:"-"`
+	MissingNodeModulesDetections  []*MissingNodeModulesOptions             `json:"-"`
+	UnusedExportsDetections       []*UnusedExportsOptions                  `json:"-"`
+	UnresolvedImportsDetections   []*UnresolvedImportsOptions              `json:"-"`
+	DevDepsUsageOnProdDetections  []*RestrictedDevDependenciesUsageOptions `json:"-"`
+	RestrictedImportsDetections   []*RestrictedImportsDetectionOptions     `json:"-"`
+	RestrictedImportersDetections []*RestrictedImportersDetectionOptions   `json:"-"`
+	ImportConventions             []ImportConventionRule                   `json:"-"`
 }
 
 func (r *Rule) getCircularImportsDetections() []*CircularImportsOptions {
@@ -134,6 +135,10 @@ func (r *Rule) getDevDepsUsageOnProdDetections() []*RestrictedDevDependenciesUsa
 
 func (r *Rule) getRestrictedImportsDetections() []*RestrictedImportsDetectionOptions {
 	return r.RestrictedImportsDetections
+}
+
+func (r *Rule) getRestrictedImportersDetections() []*RestrictedImportersDetectionOptions {
+	return r.RestrictedImportersDetections
 }
 
 func parseOneOrManyObjects[T any](raw json.RawMessage) ([]*T, error) {
@@ -183,37 +188,39 @@ func marshalOneOrManyObjects[T any](items []*T) interface{} {
 
 func (r Rule) MarshalJSON() ([]byte, error) {
 	type ruleWire struct {
-		Path                        string                 `json:"path"`
-		ProdEntryPoints             []string               `json:"prodEntryPoints,omitempty"`
-		DevEntryPoints              []string               `json:"devEntryPoints,omitempty"`
-		IgnoreEntryPoints           []string               `json:"ignoreEntryPoints,omitempty"`
-		ModuleBoundaries            []BoundaryRule         `json:"moduleBoundaries,omitempty"`
-		CircularImportsDetection    interface{}            `json:"circularImportsDetection,omitempty"`
-		OrphanFilesDetection        interface{}            `json:"orphanFilesDetection,omitempty"`
-		UnusedNodeModulesDetection  interface{}            `json:"unusedNodeModulesDetection,omitempty"`
-		MissingNodeModulesDetection interface{}            `json:"missingNodeModulesDetection,omitempty"`
-		UnusedExportsDetection      interface{}            `json:"unusedExportsDetection,omitempty"`
-		UnresolvedImportsDetection  interface{}            `json:"unresolvedImportsDetection,omitempty"`
-		DevDepsUsageOnProdDetection interface{}            `json:"devDepsUsageOnProdDetection,omitempty"`
-		RestrictedImportsDetection  interface{}            `json:"restrictedImportsDetection,omitempty"`
-		ImportConventions           []ImportConventionRule `json:"importConventions,omitempty"`
+		Path                         string                 `json:"path"`
+		ProdEntryPoints              []string               `json:"prodEntryPoints,omitempty"`
+		DevEntryPoints               []string               `json:"devEntryPoints,omitempty"`
+		IgnoreEntryPoints            []string               `json:"ignoreEntryPoints,omitempty"`
+		ModuleBoundaries             []BoundaryRule         `json:"moduleBoundaries,omitempty"`
+		CircularImportsDetection     interface{}            `json:"circularImportsDetection,omitempty"`
+		OrphanFilesDetection         interface{}            `json:"orphanFilesDetection,omitempty"`
+		UnusedNodeModulesDetection   interface{}            `json:"unusedNodeModulesDetection,omitempty"`
+		MissingNodeModulesDetection  interface{}            `json:"missingNodeModulesDetection,omitempty"`
+		UnusedExportsDetection       interface{}            `json:"unusedExportsDetection,omitempty"`
+		UnresolvedImportsDetection   interface{}            `json:"unresolvedImportsDetection,omitempty"`
+		DevDepsUsageOnProdDetection  interface{}            `json:"devDepsUsageOnProdDetection,omitempty"`
+		RestrictedImportsDetection   interface{}            `json:"restrictedImportsDetection,omitempty"`
+		RestrictedImportersDetection interface{}            `json:"restrictedImportersDetection,omitempty"`
+		ImportConventions            []ImportConventionRule `json:"importConventions,omitempty"`
 	}
 
 	wire := ruleWire{
-		Path:                        r.Path,
-		ProdEntryPoints:             r.ProdEntryPoints,
-		DevEntryPoints:              r.DevEntryPoints,
-		IgnoreEntryPoints:           r.IgnoreEntryPoints,
-		ModuleBoundaries:            r.ModuleBoundaries,
-		CircularImportsDetection:    marshalOneOrManyObjects(r.getCircularImportsDetections()),
-		OrphanFilesDetection:        marshalOneOrManyObjects(r.getOrphanFilesDetections()),
-		UnusedNodeModulesDetection:  marshalOneOrManyObjects(r.getUnusedNodeModulesDetections()),
-		MissingNodeModulesDetection: marshalOneOrManyObjects(r.getMissingNodeModulesDetections()),
-		UnusedExportsDetection:      marshalOneOrManyObjects(r.getUnusedExportsDetections()),
-		UnresolvedImportsDetection:  marshalOneOrManyObjects(r.getUnresolvedImportsDetections()),
-		DevDepsUsageOnProdDetection: marshalOneOrManyObjects(r.getDevDepsUsageOnProdDetections()),
-		RestrictedImportsDetection:  marshalOneOrManyObjects(r.getRestrictedImportsDetections()),
-		ImportConventions:           r.ImportConventions,
+		Path:                         r.Path,
+		ProdEntryPoints:              r.ProdEntryPoints,
+		DevEntryPoints:               r.DevEntryPoints,
+		IgnoreEntryPoints:            r.IgnoreEntryPoints,
+		ModuleBoundaries:             r.ModuleBoundaries,
+		CircularImportsDetection:     marshalOneOrManyObjects(r.getCircularImportsDetections()),
+		OrphanFilesDetection:         marshalOneOrManyObjects(r.getOrphanFilesDetections()),
+		UnusedNodeModulesDetection:   marshalOneOrManyObjects(r.getUnusedNodeModulesDetections()),
+		MissingNodeModulesDetection:  marshalOneOrManyObjects(r.getMissingNodeModulesDetections()),
+		UnusedExportsDetection:       marshalOneOrManyObjects(r.getUnusedExportsDetections()),
+		UnresolvedImportsDetection:   marshalOneOrManyObjects(r.getUnresolvedImportsDetections()),
+		DevDepsUsageOnProdDetection:  marshalOneOrManyObjects(r.getDevDepsUsageOnProdDetections()),
+		RestrictedImportsDetection:   marshalOneOrManyObjects(r.getRestrictedImportsDetections()),
+		RestrictedImportersDetection: marshalOneOrManyObjects(r.getRestrictedImportersDetections()),
+		ImportConventions:            r.ImportConventions,
 	}
 
 	return json.Marshal(wire)
@@ -221,19 +228,20 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 
 func (r *Rule) UnmarshalJSON(data []byte) error {
 	type ruleWire struct {
-		Path                        string          `json:"path"`
-		ProdEntryPoints             []string        `json:"prodEntryPoints,omitempty"`
-		DevEntryPoints              []string        `json:"devEntryPoints,omitempty"`
-		IgnoreEntryPoints           []string        `json:"ignoreEntryPoints,omitempty"`
-		ModuleBoundaries            []BoundaryRule  `json:"moduleBoundaries,omitempty"`
-		CircularImportsDetection    json.RawMessage `json:"circularImportsDetection,omitempty"`
-		OrphanFilesDetection        json.RawMessage `json:"orphanFilesDetection,omitempty"`
-		UnusedNodeModulesDetection  json.RawMessage `json:"unusedNodeModulesDetection,omitempty"`
-		MissingNodeModulesDetection json.RawMessage `json:"missingNodeModulesDetection,omitempty"`
-		UnusedExportsDetection      json.RawMessage `json:"unusedExportsDetection,omitempty"`
-		UnresolvedImportsDetection  json.RawMessage `json:"unresolvedImportsDetection,omitempty"`
-		DevDepsUsageOnProdDetection json.RawMessage `json:"devDepsUsageOnProdDetection,omitempty"`
-		RestrictedImportsDetection  json.RawMessage `json:"restrictedImportsDetection,omitempty"`
+		Path                         string          `json:"path"`
+		ProdEntryPoints              []string        `json:"prodEntryPoints,omitempty"`
+		DevEntryPoints               []string        `json:"devEntryPoints,omitempty"`
+		IgnoreEntryPoints            []string        `json:"ignoreEntryPoints,omitempty"`
+		ModuleBoundaries             []BoundaryRule  `json:"moduleBoundaries,omitempty"`
+		CircularImportsDetection     json.RawMessage `json:"circularImportsDetection,omitempty"`
+		OrphanFilesDetection         json.RawMessage `json:"orphanFilesDetection,omitempty"`
+		UnusedNodeModulesDetection   json.RawMessage `json:"unusedNodeModulesDetection,omitempty"`
+		MissingNodeModulesDetection  json.RawMessage `json:"missingNodeModulesDetection,omitempty"`
+		UnusedExportsDetection       json.RawMessage `json:"unusedExportsDetection,omitempty"`
+		UnresolvedImportsDetection   json.RawMessage `json:"unresolvedImportsDetection,omitempty"`
+		DevDepsUsageOnProdDetection  json.RawMessage `json:"devDepsUsageOnProdDetection,omitempty"`
+		RestrictedImportsDetection   json.RawMessage `json:"restrictedImportsDetection,omitempty"`
+		RestrictedImportersDetection json.RawMessage `json:"restrictedImportersDetection,omitempty"`
 	}
 
 	var wire ruleWire
@@ -273,6 +281,10 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	restrictedImporters, err := parseOneOrManyObjects[RestrictedImportersDetectionOptions](wire.RestrictedImportersDetection)
+	if err != nil {
+		return err
+	}
 
 	r.Path = wire.Path
 	r.ProdEntryPoints = wire.ProdEntryPoints
@@ -288,6 +300,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	r.UnresolvedImportsDetections = unresolvedImports
 	r.DevDepsUsageOnProdDetections = devDeps
 	r.RestrictedImportsDetections = restrictedImports
+	r.RestrictedImportersDetections = restrictedImporters
 
 	return nil
 }
@@ -300,18 +313,85 @@ type RevDepConfig struct {
 	IgnoreFiles           []string `json:"ignoreFiles,omitempty"`
 	ProcessIgnoredFiles   []string `json:"processIgnoredFiles,omitempty"`
 	// NodeModulesResolution selects which package.json each third-party import is validated against
-	// for the missing/unused/unresolved node module checks: "entry-package" (default) validates every
-	// import against the rule's entry package.json; "nearest-package" validates each import against the
-	// package.json that owns the importing file. Empty is normalized to "entry-package" by ParseConfig.
-	NodeModulesResolution string `json:"nodeModulesResolution,omitempty"`
-	Rules                 []Rule `json:"rules"`
+	// for the missing/unused/unresolved node module checks, and whether the monorepo root
+	// devDependencies are treated as available to package code. It accepts either a bare string
+	// (the resolution type, kept for backward compatibility) or an object. ParseConfig normalizes
+	// the string form and the empty/omitted case into the object form with defaults
+	// {resolutionType: "entry-package", includeDevDepsFromRoot: false}.
+	NodeModulesResolution *NodeModulesResolutionConfig `json:"nodeModulesResolution,omitempty"`
+	Rules                 []Rule                       `json:"rules"`
 }
 
-// Node modules resolution modes for RevDepConfig.NodeModulesResolution.
+// Node modules resolution modes for NodeModulesResolutionConfig.ResolutionType.
 const (
 	NodeModulesResolutionEntryPackage   = "entry-package"
 	NodeModulesResolutionNearestPackage = "nearest-package"
 )
+
+// NodeModulesResolutionConfig configures how third-party imports are validated for the
+// missing/unused/unresolved node module checks.
+type NodeModulesResolutionConfig struct {
+	// ResolutionType is "entry-package" (default) — validate every import against the rule's
+	// entry package.json — or "nearest-package" — validate each import against the package.json
+	// that owns the importing file.
+	ResolutionType string `json:"resolutionType"`
+	// IncludeDevDepsFromRoot, when true, unions the monorepo root (cwd) package.json
+	// devDependencies into the set of dependencies available to package code, so importing a dev
+	// dependency declared only at the monorepo root is not reported as missing. Opt-in; defaults
+	// to false.
+	IncludeDevDepsFromRoot bool `json:"includeDevDepsFromRoot"`
+}
+
+// UnmarshalJSON accepts either a bare string (the resolution type, kept for backward
+// compatibility) or the object form.
+func (n *NodeModulesResolutionConfig) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	if trimmed[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		n.ResolutionType = s
+		n.IncludeDevDepsFromRoot = false
+		return nil
+	}
+	type alias NodeModulesResolutionConfig
+	var obj alias
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	*n = NodeModulesResolutionConfig(obj)
+	return nil
+}
+
+// MarshalJSON always emits the object form so freshly generated configs use the modern shape.
+func (n NodeModulesResolutionConfig) MarshalJSON() ([]byte, error) {
+	type alias NodeModulesResolutionConfig
+	return json.Marshal(alias(n))
+}
+
+// ResolutionType returns the effective node modules resolution type, defaulting to
+// "entry-package" when unset.
+func (c *RevDepConfig) ResolutionType() string {
+	if c.NodeModulesResolution == nil || c.NodeModulesResolution.ResolutionType == "" {
+		return NodeModulesResolutionEntryPackage
+	}
+	return c.NodeModulesResolution.ResolutionType
+}
+
+// UsesNearestPackage reports whether the config selects nearest-package resolution.
+func (c *RevDepConfig) UsesNearestPackage() bool {
+	return c.ResolutionType() == NodeModulesResolutionNearestPackage
+}
+
+// IncludeDevDepsFromRoot reports whether monorepo root devDependencies should be treated as
+// available to package code.
+func (c *RevDepConfig) IncludeDevDepsFromRoot() bool {
+	return c.NodeModulesResolution != nil && c.NodeModulesResolution.IncludeDevDepsFromRoot
+}
 
 var configFileName = "rev-dep.config.json"
 var hiddenConfigFileName = ".rev-dep.config.json"
@@ -328,7 +408,7 @@ func ConfigFileNameJSONC() string {
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -455,10 +535,13 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 		return RevDepConfig{}, err
 	}
 
-	// Normalize optional node modules resolution mode to its explicit default so downstream
+	// Normalize optional node modules resolution into its explicit object form so downstream
 	// code always sees a concrete value.
-	if config.NodeModulesResolution == "" {
-		config.NodeModulesResolution = NodeModulesResolutionEntryPackage
+	if config.NodeModulesResolution == nil {
+		config.NodeModulesResolution = &NodeModulesResolutionConfig{}
+	}
+	if config.NodeModulesResolution.ResolutionType == "" {
+		config.NodeModulesResolution.ResolutionType = NodeModulesResolutionEntryPackage
 	}
 
 	// Validate config version against supported versions for this CLI
@@ -660,14 +743,8 @@ func validateRawConfig(raw map[string]interface{}) error {
 	}
 
 	if nodeModulesResolution, exists := raw["nodeModulesResolution"]; exists && nodeModulesResolution != nil {
-		value, ok := nodeModulesResolution.(string)
-		if !ok {
-			return fmt.Errorf("nodeModulesResolution must be a string, got %T", nodeModulesResolution)
-		}
-		switch value {
-		case "", NodeModulesResolutionEntryPackage, NodeModulesResolutionNearestPackage:
-		default:
-			return fmt.Errorf("nodeModulesResolution: must be one of '%s', '%s', got '%s'", NodeModulesResolutionEntryPackage, NodeModulesResolutionNearestPackage, value)
+		if err := validateRawNodeModulesResolution(nodeModulesResolution); err != nil {
+			return err
 		}
 	}
 
@@ -690,24 +767,67 @@ func validateRawConfig(raw map[string]interface{}) error {
 	return nil
 }
 
+// validateRawNodeModulesResolution validates the nodeModulesResolution field, which accepts
+// either a bare string (the resolution type) or an object {resolutionType, includeDevDepsFromRoot}.
+func validateRawNodeModulesResolution(value interface{}) error {
+	validResolutionType := func(resolutionType string) error {
+		switch resolutionType {
+		case "", NodeModulesResolutionEntryPackage, NodeModulesResolutionNearestPackage:
+			return nil
+		default:
+			return fmt.Errorf("nodeModulesResolution.resolutionType: must be one of '%s', '%s', got '%s'", NodeModulesResolutionEntryPackage, NodeModulesResolutionNearestPackage, resolutionType)
+		}
+	}
+
+	switch typed := value.(type) {
+	case string:
+		return validResolutionType(typed)
+	case map[string]interface{}:
+		allowed := map[string]bool{"resolutionType": true, "includeDevDepsFromRoot": true}
+		for field := range typed {
+			if !allowed[field] {
+				return fmt.Errorf("unknown field '%s' in nodeModulesResolution", field)
+			}
+		}
+		if resolutionType, exists := typed["resolutionType"]; exists && resolutionType != nil {
+			str, ok := resolutionType.(string)
+			if !ok {
+				return fmt.Errorf("nodeModulesResolution.resolutionType must be a string, got %T", resolutionType)
+			}
+			if err := validResolutionType(str); err != nil {
+				return err
+			}
+		}
+		if includeDevDeps, exists := typed["includeDevDepsFromRoot"]; exists && includeDevDeps != nil {
+			if _, ok := includeDevDeps.(bool); !ok {
+				return fmt.Errorf("nodeModulesResolution.includeDevDepsFromRoot must be a boolean, got %T", includeDevDeps)
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("nodeModulesResolution must be a string or an object, got %T", value)
+	}
+}
+
 // validateRawRule validates a single rule object
 func validateRawRule(rule map[string]interface{}, index int) error {
 	allowedRuleFields := map[string]bool{
-		"path":                        true,
-		"prodEntryPoints":             true,
-		"devEntryPoints":              true,
-		"ignoreEntryPoints":           true,
-		"followMonorepoPackages":      true,
-		"moduleBoundaries":            true,
-		"circularImportsDetection":    true,
-		"orphanFilesDetection":        true,
-		"unusedNodeModulesDetection":  true,
-		"missingNodeModulesDetection": true,
-		"unusedExportsDetection":      true,
-		"unresolvedImportsDetection":  true,
-		"devDepsUsageOnProdDetection": true,
-		"restrictedImportsDetection":  true,
-		"importConventions":           true,
+		"path":                         true,
+		"prodEntryPoints":              true,
+		"devEntryPoints":               true,
+		"ignoreEntryPoints":            true,
+		"followMonorepoPackages":       true,
+		"moduleBoundaries":             true,
+		"circularImportsDetection":     true,
+		"orphanFilesDetection":         true,
+		"unusedNodeModulesDetection":   true,
+		"missingNodeModulesDetection":  true,
+		"unusedExportsDetection":       true,
+		"unresolvedImportsDetection":   true,
+		"devDepsUsageOnProdDetection":  true,
+		"restrictedImportsDetection":   true,
+		"restrictedImportersDetection": true,
+		"importConventions":            true,
 		// "cloud" is accepted but intentionally not parsed, schema'd, or documented yet.
 		// It is allowed through validation so existing/forward configs do not error.
 		"cloud": true,
@@ -1375,6 +1495,16 @@ func ValidateConfig(config *RevDepConfig) error {
 			}
 		}
 
+		for idx, detection := range rule.getRestrictedImportersDetections() {
+			prefix := fmt.Sprintf("rules[%d].restrictedImportersDetection", j)
+			if len(rule.getRestrictedImportersDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateRestrictedImportersDetectionOptions(detection, prefix); err != nil {
+				return err
+			}
+		}
+
 		// Validate import conventions
 		if len(rule.ImportConventions) > 0 {
 			// Additional validation can be added here if needed
@@ -1851,6 +1981,61 @@ func validateRestrictedImportsDetectionOptions(opts *RestrictedImportsDetectionO
 		}
 		if _, err := glob.Compile(trimmed); err != nil {
 			return fmt.Errorf("%s.denyModules[%d]: invalid glob pattern '%s': %v", prefix, i, trimmed, err)
+		}
+	}
+
+	return nil
+}
+
+func validateRestrictedImportersDetectionOptions(opts *RestrictedImportersDetectionOptions, prefix string) error {
+	if !opts.Enabled {
+		return nil
+	}
+
+	if len(opts.Files) == 0 && len(opts.Modules) == 0 {
+		return fmt.Errorf("%s: either files or modules must be provided when enabled", prefix)
+	}
+
+	if len(opts.AllowedEntryPoints) == 0 {
+		return fmt.Errorf("%s.allowedEntryPoints is required when enabled", prefix)
+	}
+
+	validatePatternList := func(field string, patterns []string) error {
+		for i, pattern := range patterns {
+			if strings.TrimSpace(pattern) == "" {
+				return fmt.Errorf("%s.%s[%d]: cannot be empty", prefix, field, i)
+			}
+			if err := validatePattern(pattern); err != nil {
+				return fmt.Errorf("%s.%s[%d]: %w", prefix, field, i, err)
+			}
+		}
+		return nil
+	}
+
+	if err := validatePatternList("files", opts.Files); err != nil {
+		return err
+	}
+	if err := validatePatternList("allowedEntryPoints", opts.AllowedEntryPoints); err != nil {
+		return err
+	}
+	if err := validatePatternList("ignoreMatches", opts.IgnoreMatches); err != nil {
+		return err
+	}
+
+	// modules are matched as module-name globs (like restrictedImports' denyModules).
+	for i, pattern := range opts.Modules {
+		trimmed := strings.TrimSpace(pattern)
+		if trimmed == "" {
+			return fmt.Errorf("%s.modules[%d]: cannot be empty", prefix, i)
+		}
+		if _, err := glob.Compile(trimmed); err != nil {
+			return fmt.Errorf("%s.modules[%d]: invalid glob pattern '%s': %v", prefix, i, trimmed, err)
+		}
+	}
+
+	for i, pattern := range opts.GraphExclude {
+		if err := validatePattern(pattern); err != nil {
+			return fmt.Errorf("%s.graphExclude[%d]: %w", prefix, i, err)
 		}
 	}
 

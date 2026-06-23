@@ -249,12 +249,22 @@ const (
 )
 
 var nodeModulesResolutionFlag string
+var includeDevDepsFromRootFlag bool
 
-// addNodeModulesResolutionFlag registers --node-modules-resolution on commands whose
-// node_modules classification depends on which package.json an import is validated against.
+// addNodeModulesResolutionFlag registers --node-modules-resolution and --include-dev-deps-from-root
+// on commands whose node_modules classification depends on which package.json an import is
+// validated against. The flag names mirror the config `nodeModulesResolution` option so a config
+// setup can be replicated from the CLI.
 func addNodeModulesResolutionFlag(command *cobra.Command) {
 	command.Flags().StringVar(&nodeModulesResolutionFlag, "node-modules-resolution", nodeModulesResolutionEntryPackage,
 		"Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json)")
+	command.Flags().BoolVar(&includeDevDepsFromRootFlag, "include-dev-deps-from-root", false,
+		"Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot")
+}
+
+// getIncludeDevDepsFromRoot returns whether --include-dev-deps-from-root was set.
+func getIncludeDevDepsFromRoot() bool {
+	return includeDevDepsFromRootFlag
 }
 
 // getNodeModulesResolutionNearest returns true when --node-modules-resolution selects
@@ -749,6 +759,7 @@ Helps keep track of your project's runtime dependencies.`,
 			conditionNames,
 			followValue,
 			nearestPackage,
+			getIncludeDevDepsFromRoot(),
 		)
 
 		fmt.Print(result)
@@ -796,6 +807,7 @@ to identify potentially unused packages.`,
 			conditionNames,
 			followValue,
 			nearestPackage,
+			getIncludeDevDepsFromRoot(),
 		)
 
 		fmt.Print(result)
@@ -847,6 +859,7 @@ in your package.json dependencies.`,
 			conditionNames,
 			followValue,
 			nearestPackage,
+			getIncludeDevDepsFromRoot(),
 		)
 
 		fmt.Print(result)
@@ -1362,9 +1375,18 @@ func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames [
 	}
 	// The ignored set stays empty in both modes: the resolver strategy already classifies each
 	// import against the right package.json, so any NotResolvedModule is genuinely unresolved.
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions, nodeModulesStrategy)
+	// Exception: --include-dev-deps-from-root treats the monorepo root devDependencies as available,
+	// so they are not reported as unresolved (mirrors the config option and the missing check).
+	minimalTree, _, resolverManager := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions, nodeModulesStrategy)
 
-	unresolved := checks.DetectUnresolvedImports(minimalTree, map[string]bool{})
+	ignoredNodeModules := map[string]bool{}
+	if getIncludeDevDepsFromRoot() && resolverManager != nil {
+		if rootResolver := resolverManager.RootResolver(); rootResolver != nil {
+			ignoredNodeModules = rootResolver.DevNodeModules()
+		}
+	}
+
+	unresolved := checks.DetectUnresolvedImports(minimalTree, ignoredNodeModules)
 	filterOpts := &checks.UnresolvedFilterOptions{
 		Ignore:        options.Ignore,
 		IgnoreFiles:   options.IgnoreFiles,

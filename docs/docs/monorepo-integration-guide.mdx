@@ -43,17 +43,25 @@ This matters for almost every check in a monorepo: follow the packages whose sou
 
 Once you follow a package, its source brings in **its own** third-party imports. The top-level `nodeModulesResolution` option decides which `package.json` those imports are validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. Set it once; it applies to every rule.
 
+Configure it as an object and set `resolutionType` to one of:
+
 - `"entry-package"` (default) validates every import against the consuming rule's `package.json`. Use it when the consumer can resolve every dependency it pulls in (npm, classic yarn).
 - `"nearest-package"` validates each import against the `package.json` that owns the file it lives in. Use it when every package resolves only the dependencies it declares itself (pnpm's default layout).
 
 ```jsonc
 {
-  "nodeModulesResolution": "nearest-package",
+  "nodeModulesResolution": { "resolutionType": "nearest-package", "includeDevDepsFromRoot": false },
   "rules": [ /* ... */ ]
 }
 ```
 
-**If you use pnpm with its default layout, set `"nearest-package"`.** Otherwise a followed package's own declared dependencies get reported as `missing` against the consumer that doesn't declare them - a flood of false positives. In `nearest-package` mode each package is judged by its own `package.json`: a followed package that imports something it forgot to declare is correctly flagged (just as a strict pnpm install would break), while its properly-declared dependencies are left alone. Full details and per-check effects: [Node modules resolution](./other-concepts-and-features/following-monorepo-packages.mdx#node-modules-resolution).
+This is the form `rev-dep config init` generates.
+
+**If you use pnpm with its default layout, set `resolutionType: "nearest-package"`.** Otherwise a followed package's own declared dependencies get reported as `missing` against the consumer that doesn't declare them - a flood of false positives. In `nearest-package` mode each package is judged by its own `package.json`: a followed package that imports something it forgot to declare is correctly flagged (just as a strict pnpm install would break), while its properly-declared dependencies are left alone. Full details and per-check effects: [Node modules resolution](./other-concepts-and-features/node-modules-resolution.mdx).
+
+The object also accepts `includeDevDepsFromRoot` (default `false`). If your monorepo declares shared dev dependencies (linters, test runners, build tools, type packages) **once at the repo root** instead of in each package, set it to `true` so importing them from package code isn't reported as `missing` or `unresolved`. It is strictly opt-in because root-shared devDeps make dependency ownership less explicit - enable it only if your project deliberately follows that approach. See [Including root devDependencies](./other-concepts-and-features/node-modules-resolution.mdx#including-root-devdependencies-includedevdepsfromroot).
+
+> A bare string (e.g. `"nodeModulesResolution": "nearest-package"`) is also accepted as a shorthand for `resolutionType`, kept for backward compatibility - prefer the object form shown above.
 
 ## 2. Run and (auto)fix
 
@@ -109,11 +117,13 @@ Entry points are the roots of reachability - the foundation for orphan files, un
 }
 ```
 
-- `prodEntryPoints` - real application roots (what ships).
-- `devEntryPoints` - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
+- [`prodEntryPoints`](./config-based-checks/entry-points-definition.mdx#kinds-of-entry-points) - real application roots (what ships).
+- [`devEntryPoints`](./config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points) - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
 - [`ignoreEntryPoints`](./config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points) - leftover-but-committed files you no longer use. Matching files are excluded from reporting: never flagged as orphan files, and their unused exports are suppressed.
 
 Keep the list honest and start narrow. See [entry points definition guide](./config-based-checks/entry-points-definition.mdx).
+
+> **Paths with brackets?** Entry-point patterns are globs, so a literal path containing `[ ]` or `{ }` - such as a Next.js dynamic route `pages/[clientId]/edit.tsx` - won't match unless you escape the brackets: `"pages/\\[clientId\\]/edit.tsx"`. See [Glob patterns](./other-concepts-and-features/glob-patterns.mdx).
 
 ## 5. Node-module hygiene
 

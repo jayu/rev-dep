@@ -16,16 +16,16 @@ func TestBuildMetrics(t *testing.T) {
 				"path": "packages/a",
 				"circularImportsDetection": { "enabled": true },
 				"restrictedImportersDetection": [
-					{ "enabled": true, "protectedFiles": ["legacy/**"], "allowedEntryPoints": ["src/admin/**"] },
-					{ "enabled": true, "protectedFiles": ["old/**"], "allowedEntryPoints": ["src/admin/**"] },
-					{ "enabled": false, "protectedFiles": ["dead/**"] }
+					{ "enabled": true, "files": ["legacy/**"], "allowedEntryPoints": ["src/admin/**"] },
+					{ "enabled": true, "files": ["old/**"], "allowedEntryPoints": ["src/admin/**"] },
+					{ "enabled": false, "files": ["dead/**"] }
 				],
 				"unusedExportsDetection": { "enabled": false }
 			},
 			{
 				"path": "packages/b",
 				"circularImportsDetection": { "enabled": true },
-				"restrictedImportersDetection": { "enabled": true, "protectedFiles": ["legacy/**"], "allowedEntryPoints": ["src/admin/**"] }
+				"restrictedImportersDetection": { "enabled": true, "files": ["legacy/**"], "allowedEntryPoints": ["src/admin/**"] }
 			}
 		]
 	}`

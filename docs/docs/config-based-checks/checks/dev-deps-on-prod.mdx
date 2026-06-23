@@ -11,6 +11,8 @@ description: Detect when packages listed in `devDependencies` are imported by pr
 
 The check traces the dependency graph starting from your production entry points. If it encounters an import that points to a package listed under `devDependencies` in your `package.json`, it flags it as a violation.
 
+Which `package.json`'s `devDependencies` are checked is determined by the top-level [`nodeModulesResolution`](../../other-concepts-and-features/node-modules-resolution.mdx) setting.
+
 ## Why it is a problem
 
 Using `devDependencies` in your production runtime code is problematic for several reasons:

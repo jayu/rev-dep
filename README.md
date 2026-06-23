@@ -1366,6 +1366,12 @@ A dependency listed in **package.json** that is **never imported** in the source
 
 The top-level directory used as the starting point for dependency analysis.
 
+## Telemetry
+
+Rev-Dep collects a single **anonymous** event, only during `rev-dep config run`. Read more in [Telemetry docs](https://rev-dep.com/docs/telemetry).
+
+Opt out completely by setting `REV_DEP_TELEMETRY_OFF=true`.
+
 ## Made in 🇵🇱 and 🇯🇵 with 🧠 by [@jayu](https://github.com/jayu)
 
 I hope that this small piece of software will help you discover and understood complexity of your project hence make you more confident while refactoring. If this tool was useful, don't hesitate to give it a ⭐!

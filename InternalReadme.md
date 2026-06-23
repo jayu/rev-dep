@@ -24,6 +24,11 @@
 
 ## Publishing
 
+> One-time setup: copy `cli-telemetry.env.example` to `cli-telemetry.env` (git-ignored) and
+> fill in the connection string. `scripts/buildProdBinaries.sh` reads it, bakes
+> it into the binaries, and fails the build if it is missing or did not link in — so a release can
+> never ship with telemetry silently disabled.
+
 1. `node scripts/setVersions.js <version>`   (e.g. `2.15.0`)
 2. `scripts/buildProdBinaries.sh`
 3. `node scripts/addCliRefToReadmeAndDocs.js`

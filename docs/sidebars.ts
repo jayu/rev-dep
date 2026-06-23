@@ -154,6 +154,7 @@ const sidebars: SidebarsConfig = {
         // cli-reference-generated-end
       ],
     },
+    'telemetry',
     'glossary',
   ],
 };

@@ -17,6 +17,7 @@ import (
 	"rev-dep-go/internal/monorepo"
 	"rev-dep-go/internal/node"
 	"rev-dep-go/internal/pathutil"
+	"rev-dep-go/internal/telemetry"
 )
 
 // ---------------- config ----------------
@@ -156,6 +157,10 @@ func processConfigRun(
 	if err != nil {
 		return nil, err
 	}
+
+	// Fire anonymous telemetry for this config run. This spawns a detached reporter and returns
+	// immediately; it is a no-op under tests, when opted out, or in builds without a baked-in key.
+	telemetry.Dispatch(cwd, cfg, len(result.FullTree))
 
 	if !fix || !recheck {
 		return result, nil

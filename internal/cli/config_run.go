@@ -797,8 +797,15 @@ func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
 
 	if monorepoCtx != nil {
 		// If invoked from inside a monorepo but not at the workspace root,
-		// create a config only for the current sub-package (single rule with Path '.')
-		if pathutil.StandardiseDirPath(cwd) != pathutil.StandardiseDirPath(monorepoCtx.WorkspaceRoot) {
+		// create a config only for the current sub-package (single rule with Path '.').
+		// cwd is in OS form (backslash on Windows, with a trailing separator) while WorkspaceRoot is
+		// in internal forward-slash form (no trailing slash). Normalize BOTH the separators
+		// (NormalizePathForInternal) and the trailing slash (StandardiseDirPathInternal) before
+		// comparing - a plain string compare silently mismatches on Windows and makes the workspace
+		// root look like a sub-package (no per-package rules created).
+		cwdInternal := pathutil.StandardiseDirPathInternal(pathutil.NormalizePathForInternal(cwd))
+		rootInternal := pathutil.StandardiseDirPathInternal(pathutil.NormalizePathForInternal(monorepoCtx.WorkspaceRoot))
+		if cwdInternal != rootInternal {
 			packageRule := config.Rule{
 				Path: ".",
 				CircularImportsDetections: []*config.CircularImportsOptions{{

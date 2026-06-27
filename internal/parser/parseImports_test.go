@@ -1719,8 +1719,8 @@ func TestDetailedExportEnum(t *testing.T) {
 		t.Fatalf("Expected 1 import, got %d", len(imports))
 	}
 	k := imports[0].Keywords.Keywords[0]
-	if k.Name != "E" || !k.IsType {
-		t.Errorf("Expected type E, got: %+v", k)
+	if k.Name != "E" || k.IsType {
+		t.Errorf("Expected value E (enum emits runtime code), got: %+v", k)
 	}
 }
 
@@ -2136,7 +2136,7 @@ func TestDetailedKeywordsComprehensive(t *testing.T) {
 		{
 			name: "local export enum", code: `export enum E {}`,
 			wantCount: 1, isLocalExport: true,
-			keywords: []expectedKw{{Name: "E", IsType: true}},
+			keywords: []expectedKw{{Name: "E"}}, // enum is a runtime value, not type-only
 		},
 		{
 			name: "local export list", code: `export { A, B }`,

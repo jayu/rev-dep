@@ -771,8 +771,8 @@ func parseLocalExportKeyword(code []byte, i int) (keyword KeywordInfo, next int)
 		return KeywordInfo{}, j
 	}
 
-	// `namespace`, `module`
-	for _, kw := range []string{"namespace", "module"} {
+	// `namespace`, `module`, `enum` — runtime values, NOT type-only.
+	for _, kw := range []string{"namespace", "module", "enum"} {
 		kwLen := len(kw)
 		if bytes.HasPrefix(code[i:], []byte(kw)) && (i+kwLen >= n || !isByteIdentifierChar(code[i+kwLen])) {
 			j := i + kwLen
@@ -785,8 +785,8 @@ func parseLocalExportKeyword(code []byte, i int) (keyword KeywordInfo, next int)
 		}
 	}
 
-	// `type`, `interface`, `enum` (IsType = true)
-	for _, kw := range []string{"type", "interface", "enum"} {
+	// `type`, `interface` (IsType = true)
+	for _, kw := range []string{"type", "interface"} {
 		kwLen := len(kw)
 		if bytes.HasPrefix(code[i:], []byte(kw)) && (i+kwLen >= n || !isByteIdentifierChar(code[i+kwLen])) {
 			j := i + kwLen

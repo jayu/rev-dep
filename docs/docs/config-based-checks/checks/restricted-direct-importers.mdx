@@ -42,7 +42,7 @@ Whitelist - only the approved wrapper may import the server config directly:
       "path": ".",
       "restrictedDirectImportersDetection": {
         "enabled": true,
-        "files": ["utils/configs/serverConfig/index.ts"],
+        "files": ["utils/configs/internal.ts"],
         "allowImporters": ["utils/configs/**"]
       }
     }
@@ -50,7 +50,7 @@ Whitelist - only the approved wrapper may import the server config directly:
 }
 ```
 
-Any file outside `utils/configs/**` that directly imports `utils/configs/serverConfig/index.ts` is reported.
+Any file outside `utils/configs/**` that directly imports `utils/configs/internal.ts` is reported.
 
 Blacklist - forbid public code from importing internal modules directly:
 
@@ -126,4 +126,10 @@ Like other detectors, `restrictedDirectImportersDetection` can be a single objec
     }
   ]
 }
+
 ```
+## Related checks
+
+- [`restrictedImporters`](config-based-checks/checks/restricted-importers.mdx) - the transitive reacher counterpart.
+- [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx) - the dual: restrict what entry points may reach.
+- [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx) - directional allow/deny rules between groups of files.

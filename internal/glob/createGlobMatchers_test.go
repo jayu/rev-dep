@@ -183,11 +183,11 @@ func TestGlobMatchingWithRootAnchoredPattern(t *testing.T) {
 
 func TestGlobMatchingWithRelativePattern(t *testing.T) {
 	testCases := []struct {
-		name    string
-		root    string
-		pattern string
+		name     string
+		root     string
+		pattern  string
 		filePath string
-		match   bool
+		match    bool
 	}{
 		{"Relative pattern ../node_modules should match parent directory contents", "/fs/root/dir", "../node_modules", "/fs/root/node_modules/pkg/index.js", true},
 		{"Relative pattern ../node_modules should not match nested directory", "/fs/root/dir", "../node_modules", "/fs/root/sub/node_modules/pkg/index.js", false},
@@ -217,6 +217,53 @@ func TestGlobMatchingWithRelativePattern(t *testing.T) {
 				} else {
 					t.Errorf(`Pattern "%s" is matching path "%s" but it should not`, tc.pattern, tc.filePath)
 				}
+			}
+		})
+	}
+}
+
+func TestGlobNegation(t *testing.T) {
+	root := "/fs/root/"
+	testCases := []struct {
+		name     string
+		patterns []string
+		filePath string
+		match    bool
+	}{
+		{"positive matches, no exception", []string{"src/**", "!src/vendor/**"}, "/fs/root/src/app/x.ts", true},
+		{"exception cancels a positive", []string{"src/**", "!src/vendor/**"}, "/fs/root/src/vendor/y.ts", false},
+
+		// gitignore-style directory pattern re-included by an exception
+		{"dir pattern matches", []string{"build/", "!build/keep/**"}, "/fs/root/build/foo.ts", true},
+		{"dir pattern re-included by exception", []string{"build/", "!build/keep/**"}, "/fs/root/build/keep/bar.ts", false},
+
+		// a negation only cancels the target it names, not other positives
+		{"negation is scoped to its own subtree", []string{"a/**", "b/**", "!a/skip/**"}, "/fs/root/b/skip/x.ts", true},
+		{"negation cancels its own subtree", []string{"a/**", "b/**", "!a/skip/**"}, "/fs/root/a/skip/x.ts", false},
+
+		// anchored negation
+		{"anchored positive matches", []string{"/dist/**", "!/dist/public/**"}, "/fs/root/dist/app.ts", true},
+		{"anchored exception cancels", []string{"/dist/**", "!/dist/public/**"}, "/fs/root/dist/public/app.ts", false},
+
+		// a set with only negations matches nothing (no positive to cancel)
+		{"only negations match nothing", []string{"!src/**"}, "/fs/root/src/app/x.ts", false},
+
+		// order independence: exception declared before the positive still applies
+		{"exception before positive still cancels", []string{"!src/vendor/**", "src/**"}, "/fs/root/src/vendor/y.ts", false},
+
+		// a lone "!" is skipped and does not disable the sibling positive
+		{"lone bang is ignored", []string{"file.ts", "!"}, "/fs/root/file.ts", true},
+
+		// escaped leading bang is a literal '!', not a negation
+		{"escaped bang is literal, not negation", []string{"\\!keep.ts"}, "/fs/root/!keep.ts", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			globMatchers := CreateGlobMatchers(tc.patterns, root)
+			matches := MatchesAnyGlobMatcher(tc.filePath, globMatchers, debug)
+			if matches != tc.match {
+				t.Errorf(`Patterns %v against path "%s": got match=%v, want %v`, tc.patterns, tc.filePath, matches, tc.match)
 			}
 		})
 	}

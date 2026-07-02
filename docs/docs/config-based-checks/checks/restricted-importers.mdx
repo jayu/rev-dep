@@ -91,7 +91,7 @@ Use `modules` to constrain which entry points may transitively import a node mod
 - `modules` (array of strings): Node-module name glob patterns whose transitive importers are constrained. At least one of `files` or `modules` is required when enabled.
 - `allowedEntryPoints` (array of strings, required when enabled): Whitelist of entry points permitted to reach the targets. Any other entry point that reaches a target file or module is a violation.
 - `graphExclude` (array of strings, optional): Glob patterns to prune from the dependency graph before the analysis.
-- `ignoreMatches` (array of strings, optional): Entry-point/target patterns to drop from the results.
+- `ignoreMatches` (array of strings, optional): Entry-point patterns to exempt - a suspect entry point matching any of these is never reported.
 - `ignoreTypeImports` (boolean, optional): Ignore type-only imports when tracing entry points to targets (default: false).
 
 ## Defining multiple restricted importers rules

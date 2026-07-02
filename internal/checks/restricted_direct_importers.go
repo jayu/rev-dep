@@ -84,12 +84,13 @@ func FindRestrictedDirectImporters(
 			}
 
 			// File target: a direct import edge resolving to a user/monorepo file matching Files.
+			// Note: ignoreMatches carves exceptions out of the IMPORTER side only (handled above,
+			// per-importer); it never filters the target files list.
 			if len(fileMatchers) > 0 &&
 				dep.ID != "" &&
 				(dep.ResolvedType == UserModule || dep.ResolvedType == MonorepoModule) &&
 				importerFile != dep.ID &&
 				globutil.MatchesAnyGlobMatcher(dep.ID, fileMatchers, false) &&
-				!matchesIgnoredPattern(dep.ID, ignoreMatchers) &&
 				isViolatingImporter(importerFile) {
 
 				key := "file|" + importerFile + "|" + dep.ID
@@ -114,10 +115,7 @@ func FindRestrictedDirectImporters(
 				if !matchesAnyModulePattern(moduleMatchers, moduleName, dep.Request) {
 					continue
 				}
-				if matchesIgnoredPattern(moduleName, ignoreMatchers) ||
-					matchesIgnoredPattern(dep.Request, ignoreMatchers) {
-					continue
-				}
+				// ignoreMatches applies to the importer only (handled above), not target modules.
 				if !isViolatingImporter(importerFile) {
 					continue
 				}

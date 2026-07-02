@@ -894,7 +894,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Entry-point/target patterns to ignore in restricted importers results"
+          "description": "Entry-point patterns to ignore in restricted importers results"
         },
         "ignoreTypeImports": {
           "type": "boolean",
@@ -975,7 +975,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Importer/target patterns to ignore in restricted direct importers results"
+          "description": "Importer glob patterns to exempt from restricted direct importers results. Filters the importer side only; does not narrow the files/modules targets."
         },
         "ignoreTypeImports": {
           "type": "boolean",

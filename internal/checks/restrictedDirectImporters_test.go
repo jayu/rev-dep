@@ -150,6 +150,19 @@ var restrictedDirectImportersScenarios = []struct {
 		},
 	},
 	{
+		// ignoreMatches carves exceptions out of the IMPORTER side only. A pattern that matches the
+		// target file must NOT suppress the violation.
+		name: "ignore_matches_does_not_filter_targets",
+		tree: directImportersTree(),
+		opts: &rules.RestrictedDirectImportersDetectionOptions{
+			Enabled:       true,
+			Files:         []string{"config/**"},
+			DenyImporters: []string{"src/feature/**"},
+			IgnoreMatches: []string{"config/**"}, // matches the target, not the importer
+		},
+		want: []RestrictedDirectImporterViolation{dv("/repo/src/feature/leak.ts", secret)},
+	},
+	{
 		name: "module_target_denylist",
 		tree: directImportersTree(),
 		opts: &rules.RestrictedDirectImportersDetectionOptions{

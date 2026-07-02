@@ -881,7 +881,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Entry-point/target patterns to ignore in restricted importers results"
+          "description": "Entry-point patterns to ignore in restricted importers results"
         },
         "ignoreTypeImports": {
           "type": "boolean",

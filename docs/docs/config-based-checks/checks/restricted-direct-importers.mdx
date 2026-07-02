@@ -97,7 +97,7 @@ Use `modules` (instead of `files`) to constrain which files may directly import 
 - `modules` (array of strings): Node-module name glob patterns for the targets whose direct importers are constrained. Mutually exclusive with `files`; exactly one is required when enabled.
 - `allowImporters` (array of strings): Whitelist of files permitted to directly import a target. Any other direct importer is a violation. Mutually exclusive with `denyImporters`; exactly one is required when enabled.
 - `denyImporters` (array of strings): Blacklist of files forbidden from directly importing a target. Any matching direct importer is a violation. Mutually exclusive with `allowImporters`; exactly one is required when enabled.
-- `ignoreMatches` (array of strings, optional): Importer/target patterns to drop from the results.
+- `ignoreMatches` (array of strings, optional): Importer patterns to exempt - a direct importer matching any of these is never reported. This filters the **importer** side only; it does not narrow the `files`/`modules` targets.
 - `ignoreTypeImports` (boolean, optional): Ignore type-only imports when determining direct importers (default: false).
 
 All path and module fields (`files`, `modules`, `allowImporters`, `denyImporters`, `ignoreMatches`) support [glob patterns](other-concepts-and-features/glob-patterns.mdx).

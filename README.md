@@ -80,6 +80,8 @@ Available checks:
 - `circularImportsDetection` - detect circular imports.
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 - `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
+- `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
+- `restrictedDirectImportersDetection` - constrain which files may directly import a set of files/modules (non-transitive).
 
 ### Exploratory analysis (CLI-based) 🔍
 
@@ -180,6 +182,8 @@ Available checks are:
 - `circularImportsDetection` - detect circular imports.
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 - `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
+- `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
+- `restrictedDirectImportersDetection` - constrain which files may directly import a set of files/modules (non-transitive).
 
 Checks are grouped in rules. You can have multiple rules, eg. for each monorepo package.
 
@@ -396,6 +400,8 @@ Each rule can contain the following properties:
 - **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration (single object or array of objects)
 - **`devDepsUsageOnProdDetection`** (optional): Restricted dev dependencies usage detection configuration (single object or array of objects)
 - **`restrictedImportsDetection`** (optional): Restrict importing denied files/modules from selected entry points (single object or array of objects)
+- **`restrictedImportersDetection`** (optional): Whitelist which entry points may transitively reach a set of files/modules (single object or array of objects)
+- **`restrictedDirectImportersDetection`** (optional): Constrain which files may directly import a set of files/modules; non-transitive (single object or array of objects)
 - **`importConventions`** (optional): Array of import convention rules
 
 #### Module Boundary Properties

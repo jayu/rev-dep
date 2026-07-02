@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestJSONOutputSchemaNoDrift guards output-schema/1.1.schema.json against silent drift from the Go
+// TestJSONOutputSchemaNoDrift guards output-schema/1.2.schema.json against silent drift from the Go
 // structs that produce `config run --format json`. Every object in the schema sets
 // additionalProperties:false, so a struct field whose JSON key is missing from the schema would make
 // real output fail validation, and a schema property with no backing struct field is dead weight.
@@ -21,7 +21,7 @@ import (
 // basic mode by default and the locator can return nil even under detailed parsing, so locations are
 // best-effort, not guaranteed. This test pins the key *vocabulary*, not presence.
 func TestJSONOutputSchemaNoDrift(t *testing.T) {
-	schemaPath := filepath.Join("..", "..", "output-schema", "1.1.schema.json")
+	schemaPath := filepath.Join("..", "..", "output-schema", "1.2.schema.json")
 	raw, err := os.ReadFile(schemaPath)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
@@ -45,6 +45,7 @@ func TestJSONOutputSchemaNoDrift(t *testing.T) {
 		RestrictedDevDependenciesUsage: &jsonCheckResult{Issues: []interface{}{}},
 		RestrictedImports:              &jsonCheckResult{Issues: []interface{}{}},
 		RestrictedImporters:            &jsonCheckResult{Issues: []interface{}{}},
+		RestrictedDirectImporters:      &jsonCheckResult{Issues: []interface{}{}},
 	}
 
 	cases := []struct {
@@ -52,7 +53,7 @@ func TestJSONOutputSchemaNoDrift(t *testing.T) {
 		pointer []string // path of keys into the schema to the object node ({} = root)
 		value   interface{}
 	}{
-		{"output (root)", nil, jsonOutput{Version: "1.1", Rules: []jsonRuleResult{}}},
+		{"output (root)", nil, jsonOutput{Version: "1.2", Rules: []jsonRuleResult{}}},
 		{"ruleResult", []string{"definitions", "ruleResult"}, jsonRuleResult{}},
 		{"checks", []string{"definitions", "checks"}, allChecks},
 		{"checkResult", []string{"definitions", "checkResult"}, jsonCheckResult{Issues: []interface{}{}}},
@@ -69,6 +70,7 @@ func TestJSONOutputSchemaNoDrift(t *testing.T) {
 		{"restrictedDevDepsIssue", []string{"definitions", "restrictedDevDepsIssue"}, jsonRestrictedDevDepsIssue{jsonLocationFields: loc}},
 		{"restrictedImportIssue", []string{"definitions", "restrictedImportIssue"}, jsonRestrictedImportIssue{DeniedFile: "f", DeniedModule: "m", ImportRequest: "r", jsonLocationFields: loc}},
 		{"restrictedImporterIssue", []string{"definitions", "restrictedImporterIssue"}, jsonRestrictedImporterIssue{File: "f", Module: "m"}},
+		{"restrictedDirectImporterIssue", []string{"definitions", "restrictedDirectImporterIssue"}, jsonRestrictedDirectImporterIssue{File: "f", Module: "m", ImportRequest: "r"}},
 	}
 
 	for _, tc := range cases {

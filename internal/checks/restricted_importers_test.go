@@ -8,18 +8,23 @@ import (
 )
 
 // importersTreeRich is a small tree covering the behaviors FindRestrictedImporters must get right:
+//
 //   - src/app/main.ts reaches legacy/core.ts transitively (through src/service.ts)
+//
 //   - src/admin/main.ts reaches legacy/core.ts directly
+//
 //   - scripts/orphan.ts imports legacy/core.ts but is unreachable from any entry point and is not
 //     itself an entry point, so it must never produce a violation
+//
 //   - src/types/main.ts imports legacy/core.ts with a type-only import (IgnoreTypeImports)
+//
 //   - src/service.ts imports the "moment" node module (modules)
 //
-//	src/app/main.ts   -> src/service.ts -> legacy/core.ts        (transitive)
-//	src/admin/main.ts -> legacy/core.ts                          (direct)
-//	scripts/orphan.ts -> legacy/core.ts                          (unreachable from entry points)
-//	src/types/main.ts -> legacy/core.ts                          (type-only)
-//	src/app/main.ts   -> src/service.ts -> moment (node module)  (via service)
+//     src/app/main.ts   -> src/service.ts -> legacy/core.ts        (transitive)
+//     src/admin/main.ts -> legacy/core.ts                          (direct)
+//     scripts/orphan.ts -> legacy/core.ts                          (unreachable from entry points)
+//     src/types/main.ts -> legacy/core.ts                          (type-only)
+//     src/app/main.ts   -> src/service.ts -> moment (node module)  (via service)
 func importersTreeRich() MinimalDependencyTree {
 	return MinimalDependencyTree{
 		"/repo/src/app/main.ts": {
@@ -76,10 +81,23 @@ var restrictedImportersScenarios = []struct {
 			Enabled:            true,
 			Files:              []string{"legacy/**"},
 			AllowedEntryPoints: []string{"src/admin/**"},
-			IgnoreMatches:      []string{"src/app/**"},
+			IgnoreMatches:      []string{"src/app/**"}, // matches the suspect entry point
 		},
 		ruleEntryPoints: []string{"src/app/main.ts", "src/admin/main.ts"},
 		want:            []RestrictedImporterViolation{},
+	},
+	{
+		// ignoreMatches exempts entry points only; a pattern matching the target file must NOT suppress.
+		name: "ignore_matches_does_not_filter_targets",
+		tree: importersTreeRich(),
+		opts: &rules.RestrictedImportersDetectionOptions{
+			Enabled:            true,
+			Files:              []string{"legacy/**"},
+			AllowedEntryPoints: []string{"src/admin/**"},
+			IgnoreMatches:      []string{"legacy/**"}, // matches the target, not the entry point
+		},
+		ruleEntryPoints: []string{"src/app/main.ts", "src/admin/main.ts"},
+		want:            []RestrictedImporterViolation{v("/repo/src/app/main.ts", "/repo/legacy/core.ts")},
 	},
 	{
 		name: "type_import_ignored",

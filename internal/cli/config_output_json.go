@@ -36,6 +36,7 @@ type jsonChecks struct {
 	RestrictedDevDependenciesUsage *jsonCheckResult `json:"restrictedDevDependenciesUsage,omitempty"`
 	RestrictedImports              *jsonCheckResult `json:"restrictedImports,omitempty"`
 	RestrictedImporters            *jsonCheckResult `json:"restrictedImporters,omitempty"`
+	RestrictedDirectImporters      *jsonCheckResult `json:"restrictedDirectImporters,omitempty"`
 }
 
 type jsonCheckResult struct {
@@ -137,11 +138,19 @@ type jsonRestrictedImporterIssue struct {
 	Module     string `json:"module,omitempty"`
 }
 
+type jsonRestrictedDirectImporterIssue struct {
+	ViolationType string `json:"violationType"`
+	ImporterFile  string `json:"importerFile"`
+	File          string `json:"file,omitempty"`
+	Module        string `json:"module,omitempty"`
+	ImportRequest string `json:"importRequest,omitempty"`
+}
+
 // ---------------- JSON output logic ----------------
 
 func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, packageJsonPath string, tsconfigJsonPath string, runConfigFix bool, runConfigRecheck bool) error {
 	output := jsonOutput{
-		Version: "1.1",
+		Version: "1.2",
 		Rules:   []jsonRuleResult{},
 	}
 
@@ -419,6 +428,24 @@ func buildJSONRuleResult(ruleResult config.RuleResult, cwd string, locator *file
 				cr.Status = "pass"
 			}
 			jr.Checks.RestrictedImporters = cr
+
+		case "restricted-direct-importers":
+			cr := &jsonCheckResult{Issues: []interface{}{}}
+			if len(ruleResult.RestrictedDirectImportersViolations) > 0 {
+				cr.Status = "fail"
+				for _, v := range ruleResult.RestrictedDirectImportersViolations {
+					cr.Issues = append(cr.Issues, jsonRestrictedDirectImporterIssue{
+						ViolationType: v.ViolationType,
+						ImporterFile:  relPath(v.ImporterFile),
+						File:          relPath(v.File),
+						Module:        v.Module,
+						ImportRequest: v.ImportRequest,
+					})
+				}
+			} else {
+				cr.Status = "pass"
+			}
+			jr.Checks.RestrictedDirectImporters = cr
 		}
 	}
 

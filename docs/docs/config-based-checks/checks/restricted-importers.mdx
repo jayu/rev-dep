@@ -25,12 +25,14 @@ The primary use case is **migrating away from legacy code**: list the legacy fil
 - **Architecture hygiene:** keep a clear boundary around code that should have limited reach.
 - **Quarantine a banned dependency:** list a legacy node module so it cannot spread beyond the entry points already allowed to use it, and cannot be reintroduced into new code.
 
-## Restricted Importers vs. Restricted Imports
+## Restricted Importers vs. Restricted Imports vs. Restricted Direct Importers
 
 They are duals - same dependency edges, opposite ends:
 
 - **`restrictedImports`** restricts **what** an entry point may reach (deny targets reachable from entry points).
 - **`restrictedImporters`** whitelists **which entry points** may reach a target (only the allowed entry points may transitively reach the listed files/modules).
+- **`restrictedDirectImporters`** is the non-transitive version of `restrictedImporters`: it only checks the direct importers of a target, not the transitive reachers.
+
 
 ## Configuration
 
@@ -83,7 +85,7 @@ Use `modules` to constrain which entry points may transitively import a node mod
 - `modules` (array of strings): Node-module name glob patterns whose transitive importers are constrained. At least one of `files` or `modules` is required when enabled.
 - `allowedEntryPoints` (array of strings, required when enabled): Whitelist of entry points permitted to reach the targets. Any other entry point that reaches a target file or module is a violation.
 - `graphExclude` (array of strings, optional): Glob patterns to prune from the dependency graph before the analysis.
-- `ignoreMatches` (array of strings, optional): Entry-point/target patterns to drop from the results.
+- `ignoreMatches` (array of strings, optional): Entry-point patterns to drop from the results.
 - `ignoreTypeImports` (boolean, optional): Ignore type-only imports when tracing entry points to targets (default: false).
 
 ## Defining multiple restricted importers rules
@@ -112,3 +114,10 @@ Like other detectors, `restrictedImportersDetection` can be a single object or a
   ]
 }
 ```
+
+## Related checks
+
+- [`restrictedDirectImporters`](config-based-checks/checks/restricted-direct-importers.mdx) - the direct-edge (non-transitive) counterpart.
+- [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx) - the dual: restrict what entry points may reach.
+- [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx) - directional allow/deny rules between groups of files.
+

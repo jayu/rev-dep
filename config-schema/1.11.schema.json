@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.10.schema.json",
+  "$id": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.11.schema.json",
   "title": "Rev-Dep Configuration",
   "description": "Configuration file for rev-dep dependency analysis tool",
   "type": "object",
@@ -313,6 +313,19 @@
               "type": "array",
               "items": {
                 "$ref": "#/definitions/RestrictedImportersDetectionOptions"
+              }
+            }
+          ]
+        },
+        "restrictedDirectImportersDetection": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/RestrictedDirectImportersDetectionOptions"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/RestrictedDirectImportersDetectionOptions"
               }
             }
           ]
@@ -886,6 +899,87 @@
         "ignoreTypeImports": {
           "type": "boolean",
           "description": "Ignore type-only imports when tracing entry points to targets",
+          "default": false
+        }
+      }
+    },
+    "RestrictedDirectImportersDetectionOptions": {
+      "type": "object",
+      "description": "A non-transitive importer policy: for a set of target files XOR node modules, constrain which files may DIRECTLY import them. Unlike restrictedImportersDetection (transitive reachability from entry points), this only inspects direct import edges and never builds a dependency graph. Provide exactly one of files/modules and exactly one of allowImporters/denyImporters.",
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable restricted direct importers detection"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "File glob patterns for the targets whose direct importers are constrained. Mutually exclusive with modules; exactly one is required when enabled.",
+          "examples": [
+            [
+              "utils/configs/serverConfig/index.ts",
+              "src/legacy/**/*.ts"
+            ]
+          ]
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Node module name glob patterns for the targets whose direct importers are constrained. Mutually exclusive with files; exactly one is required when enabled.",
+          "examples": [
+            [
+              "axios",
+              "@legacy/*"
+            ]
+          ]
+        },
+        "allowImporters": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Whitelist: only files matching these patterns may directly import a target. Any other direct importer is a violation. Mutually exclusive with denyImporters; exactly one is required when enabled.",
+          "examples": [
+            [
+              "src/config/**"
+            ]
+          ]
+        },
+        "denyImporters": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Blacklist: files matching these patterns may not directly import a target. Any matching direct importer is a violation. Mutually exclusive with allowImporters; exactly one is required when enabled.",
+          "examples": [
+            [
+              "src/public/**"
+            ]
+          ]
+        },
+        "ignoreMatches": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Importer glob patterns to exempt from restricted direct importers results. Filters the importer side only; does not narrow the files/modules targets."
+        },
+        "ignoreTypeImports": {
+          "type": "boolean",
+          "description": "Ignore type-only imports when determining direct importers",
           "default": false
         }
       }

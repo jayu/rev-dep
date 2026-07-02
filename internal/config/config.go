@@ -87,22 +87,23 @@ type RestrictedDevDependenciesUsageOptions struct {
 func (o *RestrictedDevDependenciesUsageOptions) IsEnabled() bool { return o != nil && o.Enabled }
 
 type Rule struct {
-	Path                          string                                   `json:"path"` // Required
-	ProdEntryPoints               []string                                 `json:"prodEntryPoints,omitempty"`
-	DevEntryPoints                []string                                 `json:"devEntryPoints,omitempty"`
-	IgnoreEntryPoints             []string                                 `json:"ignoreEntryPoints,omitempty"`
-	FollowMonorepoPackages        model.FollowMonorepoPackagesValue        `json:"-"`
-	ModuleBoundaries              []BoundaryRule                           `json:"moduleBoundaries,omitempty"`
-	CircularImportsDetections     []*CircularImportsOptions                `json:"-"`
-	OrphanFilesDetections         []*OrphanFilesOptions                    `json:"-"`
-	UnusedNodeModulesDetections   []*UnusedNodeModulesOptions              `json:"-"`
-	MissingNodeModulesDetections  []*MissingNodeModulesOptions             `json:"-"`
-	UnusedExportsDetections       []*UnusedExportsOptions                  `json:"-"`
-	UnresolvedImportsDetections   []*UnresolvedImportsOptions              `json:"-"`
-	DevDepsUsageOnProdDetections  []*RestrictedDevDependenciesUsageOptions `json:"-"`
-	RestrictedImportsDetections   []*RestrictedImportsDetectionOptions     `json:"-"`
-	RestrictedImportersDetections []*RestrictedImportersDetectionOptions   `json:"-"`
-	ImportConventions             []ImportConventionRule                   `json:"-"`
+	Path                                string                                       `json:"path"` // Required
+	ProdEntryPoints                     []string                                     `json:"prodEntryPoints,omitempty"`
+	DevEntryPoints                      []string                                     `json:"devEntryPoints,omitempty"`
+	IgnoreEntryPoints                   []string                                     `json:"ignoreEntryPoints,omitempty"`
+	FollowMonorepoPackages              model.FollowMonorepoPackagesValue            `json:"-"`
+	ModuleBoundaries                    []BoundaryRule                               `json:"moduleBoundaries,omitempty"`
+	CircularImportsDetections           []*CircularImportsOptions                    `json:"-"`
+	OrphanFilesDetections               []*OrphanFilesOptions                        `json:"-"`
+	UnusedNodeModulesDetections         []*UnusedNodeModulesOptions                  `json:"-"`
+	MissingNodeModulesDetections        []*MissingNodeModulesOptions                 `json:"-"`
+	UnusedExportsDetections             []*UnusedExportsOptions                      `json:"-"`
+	UnresolvedImportsDetections         []*UnresolvedImportsOptions                  `json:"-"`
+	DevDepsUsageOnProdDetections        []*RestrictedDevDependenciesUsageOptions     `json:"-"`
+	RestrictedImportsDetections         []*RestrictedImportsDetectionOptions         `json:"-"`
+	RestrictedImportersDetections       []*RestrictedImportersDetectionOptions       `json:"-"`
+	RestrictedDirectImportersDetections []*RestrictedDirectImportersDetectionOptions `json:"-"`
+	ImportConventions                   []ImportConventionRule                       `json:"-"`
 }
 
 func (r *Rule) getCircularImportsDetections() []*CircularImportsOptions {
@@ -139,6 +140,10 @@ func (r *Rule) getRestrictedImportsDetections() []*RestrictedImportsDetectionOpt
 
 func (r *Rule) getRestrictedImportersDetections() []*RestrictedImportersDetectionOptions {
 	return r.RestrictedImportersDetections
+}
+
+func (r *Rule) getRestrictedDirectImportersDetections() []*RestrictedDirectImportersDetectionOptions {
+	return r.RestrictedDirectImportersDetections
 }
 
 func parseOneOrManyObjects[T any](raw json.RawMessage) ([]*T, error) {
@@ -188,39 +193,41 @@ func marshalOneOrManyObjects[T any](items []*T) interface{} {
 
 func (r Rule) MarshalJSON() ([]byte, error) {
 	type ruleWire struct {
-		Path                         string                 `json:"path"`
-		ProdEntryPoints              []string               `json:"prodEntryPoints,omitempty"`
-		DevEntryPoints               []string               `json:"devEntryPoints,omitempty"`
-		IgnoreEntryPoints            []string               `json:"ignoreEntryPoints,omitempty"`
-		ModuleBoundaries             []BoundaryRule         `json:"moduleBoundaries,omitempty"`
-		CircularImportsDetection     interface{}            `json:"circularImportsDetection,omitempty"`
-		OrphanFilesDetection         interface{}            `json:"orphanFilesDetection,omitempty"`
-		UnusedNodeModulesDetection   interface{}            `json:"unusedNodeModulesDetection,omitempty"`
-		MissingNodeModulesDetection  interface{}            `json:"missingNodeModulesDetection,omitempty"`
-		UnusedExportsDetection       interface{}            `json:"unusedExportsDetection,omitempty"`
-		UnresolvedImportsDetection   interface{}            `json:"unresolvedImportsDetection,omitempty"`
-		DevDepsUsageOnProdDetection  interface{}            `json:"devDepsUsageOnProdDetection,omitempty"`
-		RestrictedImportsDetection   interface{}            `json:"restrictedImportsDetection,omitempty"`
-		RestrictedImportersDetection interface{}            `json:"restrictedImportersDetection,omitempty"`
-		ImportConventions            []ImportConventionRule `json:"importConventions,omitempty"`
+		Path                               string                 `json:"path"`
+		ProdEntryPoints                    []string               `json:"prodEntryPoints,omitempty"`
+		DevEntryPoints                     []string               `json:"devEntryPoints,omitempty"`
+		IgnoreEntryPoints                  []string               `json:"ignoreEntryPoints,omitempty"`
+		ModuleBoundaries                   []BoundaryRule         `json:"moduleBoundaries,omitempty"`
+		CircularImportsDetection           interface{}            `json:"circularImportsDetection,omitempty"`
+		OrphanFilesDetection               interface{}            `json:"orphanFilesDetection,omitempty"`
+		UnusedNodeModulesDetection         interface{}            `json:"unusedNodeModulesDetection,omitempty"`
+		MissingNodeModulesDetection        interface{}            `json:"missingNodeModulesDetection,omitempty"`
+		UnusedExportsDetection             interface{}            `json:"unusedExportsDetection,omitempty"`
+		UnresolvedImportsDetection         interface{}            `json:"unresolvedImportsDetection,omitempty"`
+		DevDepsUsageOnProdDetection        interface{}            `json:"devDepsUsageOnProdDetection,omitempty"`
+		RestrictedImportsDetection         interface{}            `json:"restrictedImportsDetection,omitempty"`
+		RestrictedImportersDetection       interface{}            `json:"restrictedImportersDetection,omitempty"`
+		RestrictedDirectImportersDetection interface{}            `json:"restrictedDirectImportersDetection,omitempty"`
+		ImportConventions                  []ImportConventionRule `json:"importConventions,omitempty"`
 	}
 
 	wire := ruleWire{
-		Path:                         r.Path,
-		ProdEntryPoints:              r.ProdEntryPoints,
-		DevEntryPoints:               r.DevEntryPoints,
-		IgnoreEntryPoints:            r.IgnoreEntryPoints,
-		ModuleBoundaries:             r.ModuleBoundaries,
-		CircularImportsDetection:     marshalOneOrManyObjects(r.getCircularImportsDetections()),
-		OrphanFilesDetection:         marshalOneOrManyObjects(r.getOrphanFilesDetections()),
-		UnusedNodeModulesDetection:   marshalOneOrManyObjects(r.getUnusedNodeModulesDetections()),
-		MissingNodeModulesDetection:  marshalOneOrManyObjects(r.getMissingNodeModulesDetections()),
-		UnusedExportsDetection:       marshalOneOrManyObjects(r.getUnusedExportsDetections()),
-		UnresolvedImportsDetection:   marshalOneOrManyObjects(r.getUnresolvedImportsDetections()),
-		DevDepsUsageOnProdDetection:  marshalOneOrManyObjects(r.getDevDepsUsageOnProdDetections()),
-		RestrictedImportsDetection:   marshalOneOrManyObjects(r.getRestrictedImportsDetections()),
-		RestrictedImportersDetection: marshalOneOrManyObjects(r.getRestrictedImportersDetections()),
-		ImportConventions:            r.ImportConventions,
+		Path:                               r.Path,
+		ProdEntryPoints:                    r.ProdEntryPoints,
+		DevEntryPoints:                     r.DevEntryPoints,
+		IgnoreEntryPoints:                  r.IgnoreEntryPoints,
+		ModuleBoundaries:                   r.ModuleBoundaries,
+		CircularImportsDetection:           marshalOneOrManyObjects(r.getCircularImportsDetections()),
+		OrphanFilesDetection:               marshalOneOrManyObjects(r.getOrphanFilesDetections()),
+		UnusedNodeModulesDetection:         marshalOneOrManyObjects(r.getUnusedNodeModulesDetections()),
+		MissingNodeModulesDetection:        marshalOneOrManyObjects(r.getMissingNodeModulesDetections()),
+		UnusedExportsDetection:             marshalOneOrManyObjects(r.getUnusedExportsDetections()),
+		UnresolvedImportsDetection:         marshalOneOrManyObjects(r.getUnresolvedImportsDetections()),
+		DevDepsUsageOnProdDetection:        marshalOneOrManyObjects(r.getDevDepsUsageOnProdDetections()),
+		RestrictedImportsDetection:         marshalOneOrManyObjects(r.getRestrictedImportsDetections()),
+		RestrictedImportersDetection:       marshalOneOrManyObjects(r.getRestrictedImportersDetections()),
+		RestrictedDirectImportersDetection: marshalOneOrManyObjects(r.getRestrictedDirectImportersDetections()),
+		ImportConventions:                  r.ImportConventions,
 	}
 
 	return json.Marshal(wire)
@@ -228,20 +235,21 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 
 func (r *Rule) UnmarshalJSON(data []byte) error {
 	type ruleWire struct {
-		Path                         string          `json:"path"`
-		ProdEntryPoints              []string        `json:"prodEntryPoints,omitempty"`
-		DevEntryPoints               []string        `json:"devEntryPoints,omitempty"`
-		IgnoreEntryPoints            []string        `json:"ignoreEntryPoints,omitempty"`
-		ModuleBoundaries             []BoundaryRule  `json:"moduleBoundaries,omitempty"`
-		CircularImportsDetection     json.RawMessage `json:"circularImportsDetection,omitempty"`
-		OrphanFilesDetection         json.RawMessage `json:"orphanFilesDetection,omitempty"`
-		UnusedNodeModulesDetection   json.RawMessage `json:"unusedNodeModulesDetection,omitempty"`
-		MissingNodeModulesDetection  json.RawMessage `json:"missingNodeModulesDetection,omitempty"`
-		UnusedExportsDetection       json.RawMessage `json:"unusedExportsDetection,omitempty"`
-		UnresolvedImportsDetection   json.RawMessage `json:"unresolvedImportsDetection,omitempty"`
-		DevDepsUsageOnProdDetection  json.RawMessage `json:"devDepsUsageOnProdDetection,omitempty"`
-		RestrictedImportsDetection   json.RawMessage `json:"restrictedImportsDetection,omitempty"`
-		RestrictedImportersDetection json.RawMessage `json:"restrictedImportersDetection,omitempty"`
+		Path                               string          `json:"path"`
+		ProdEntryPoints                    []string        `json:"prodEntryPoints,omitempty"`
+		DevEntryPoints                     []string        `json:"devEntryPoints,omitempty"`
+		IgnoreEntryPoints                  []string        `json:"ignoreEntryPoints,omitempty"`
+		ModuleBoundaries                   []BoundaryRule  `json:"moduleBoundaries,omitempty"`
+		CircularImportsDetection           json.RawMessage `json:"circularImportsDetection,omitempty"`
+		OrphanFilesDetection               json.RawMessage `json:"orphanFilesDetection,omitempty"`
+		UnusedNodeModulesDetection         json.RawMessage `json:"unusedNodeModulesDetection,omitempty"`
+		MissingNodeModulesDetection        json.RawMessage `json:"missingNodeModulesDetection,omitempty"`
+		UnusedExportsDetection             json.RawMessage `json:"unusedExportsDetection,omitempty"`
+		UnresolvedImportsDetection         json.RawMessage `json:"unresolvedImportsDetection,omitempty"`
+		DevDepsUsageOnProdDetection        json.RawMessage `json:"devDepsUsageOnProdDetection,omitempty"`
+		RestrictedImportsDetection         json.RawMessage `json:"restrictedImportsDetection,omitempty"`
+		RestrictedImportersDetection       json.RawMessage `json:"restrictedImportersDetection,omitempty"`
+		RestrictedDirectImportersDetection json.RawMessage `json:"restrictedDirectImportersDetection,omitempty"`
 	}
 
 	var wire ruleWire
@@ -285,6 +293,10 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	restrictedDirectImporters, err := parseOneOrManyObjects[RestrictedDirectImportersDetectionOptions](wire.RestrictedDirectImportersDetection)
+	if err != nil {
+		return err
+	}
 
 	r.Path = wire.Path
 	r.ProdEntryPoints = wire.ProdEntryPoints
@@ -301,6 +313,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	r.DevDepsUsageOnProdDetections = devDeps
 	r.RestrictedImportsDetections = restrictedImports
 	r.RestrictedImportersDetections = restrictedImporters
+	r.RestrictedDirectImportersDetections = restrictedDirectImporters
 
 	return nil
 }
@@ -408,7 +421,7 @@ func ConfigFileNameJSONC() string {
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11"}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -812,22 +825,23 @@ func validateRawNodeModulesResolution(value interface{}) error {
 // validateRawRule validates a single rule object
 func validateRawRule(rule map[string]interface{}, index int) error {
 	allowedRuleFields := map[string]bool{
-		"path":                         true,
-		"prodEntryPoints":              true,
-		"devEntryPoints":               true,
-		"ignoreEntryPoints":            true,
-		"followMonorepoPackages":       true,
-		"moduleBoundaries":             true,
-		"circularImportsDetection":     true,
-		"orphanFilesDetection":         true,
-		"unusedNodeModulesDetection":   true,
-		"missingNodeModulesDetection":  true,
-		"unusedExportsDetection":       true,
-		"unresolvedImportsDetection":   true,
-		"devDepsUsageOnProdDetection":  true,
-		"restrictedImportsDetection":   true,
-		"restrictedImportersDetection": true,
-		"importConventions":            true,
+		"path":                               true,
+		"prodEntryPoints":                    true,
+		"devEntryPoints":                     true,
+		"ignoreEntryPoints":                  true,
+		"followMonorepoPackages":             true,
+		"moduleBoundaries":                   true,
+		"circularImportsDetection":           true,
+		"orphanFilesDetection":               true,
+		"unusedNodeModulesDetection":         true,
+		"missingNodeModulesDetection":        true,
+		"unusedExportsDetection":             true,
+		"unresolvedImportsDetection":         true,
+		"devDepsUsageOnProdDetection":        true,
+		"restrictedImportsDetection":         true,
+		"restrictedImportersDetection":       true,
+		"restrictedDirectImportersDetection": true,
+		"importConventions":                  true,
 		// "cloud" is accepted but intentionally not parsed, schema'd, or documented yet.
 		// It is allowed through validation so existing/forward configs do not error.
 		"cloud": true,
@@ -1505,6 +1519,16 @@ func ValidateConfig(config *RevDepConfig) error {
 			}
 		}
 
+		for idx, detection := range rule.getRestrictedDirectImportersDetections() {
+			prefix := fmt.Sprintf("rules[%d].restrictedDirectImportersDetection", j)
+			if len(rule.getRestrictedDirectImportersDetections()) > 1 {
+				prefix = fmt.Sprintf("%s[%d]", prefix, idx)
+			}
+			if err := validateRestrictedDirectImportersDetectionOptions(detection, prefix); err != nil {
+				return err
+			}
+		}
+
 		// Validate import conventions
 		if len(rule.ImportConventions) > 0 {
 			// Additional validation can be added here if needed
@@ -2036,6 +2060,70 @@ func validateRestrictedImportersDetectionOptions(opts *RestrictedImportersDetect
 	for i, pattern := range opts.GraphExclude {
 		if err := validatePattern(pattern); err != nil {
 			return fmt.Errorf("%s.graphExclude[%d]: %w", prefix, i, err)
+		}
+	}
+
+	return nil
+}
+
+func validateRestrictedDirectImportersDetectionOptions(opts *RestrictedDirectImportersDetectionOptions, prefix string) error {
+	if !opts.Enabled {
+		return nil
+	}
+
+	// Targets: exactly one of files / modules.
+	hasFiles := len(opts.Files) > 0
+	hasModules := len(opts.Modules) > 0
+	if hasFiles && hasModules {
+		return fmt.Errorf("%s: 'files' and 'modules' are mutually exclusive - provide only one", prefix)
+	}
+	if !hasFiles && !hasModules {
+		return fmt.Errorf("%s: either files or modules must be provided when enabled", prefix)
+	}
+
+	// Policy: exactly one of allowImporters / denyImporters.
+	hasAllow := len(opts.AllowImporters) > 0
+	hasDeny := len(opts.DenyImporters) > 0
+	if hasAllow && hasDeny {
+		return fmt.Errorf("%s: 'allowImporters' and 'denyImporters' are mutually exclusive - provide only one", prefix)
+	}
+	if !hasAllow && !hasDeny {
+		return fmt.Errorf("%s: either allowImporters or denyImporters must be provided when enabled", prefix)
+	}
+
+	validatePatternList := func(field string, patterns []string) error {
+		for i, pattern := range patterns {
+			if strings.TrimSpace(pattern) == "" {
+				return fmt.Errorf("%s.%s[%d]: cannot be empty", prefix, field, i)
+			}
+			if err := validatePattern(pattern); err != nil {
+				return fmt.Errorf("%s.%s[%d]: %w", prefix, field, i, err)
+			}
+		}
+		return nil
+	}
+
+	if err := validatePatternList("files", opts.Files); err != nil {
+		return err
+	}
+	if err := validatePatternList("allowImporters", opts.AllowImporters); err != nil {
+		return err
+	}
+	if err := validatePatternList("denyImporters", opts.DenyImporters); err != nil {
+		return err
+	}
+	if err := validatePatternList("ignoreMatches", opts.IgnoreMatches); err != nil {
+		return err
+	}
+
+	// modules are matched as module-name globs (like restrictedImports' denyModules).
+	for i, pattern := range opts.Modules {
+		trimmed := strings.TrimSpace(pattern)
+		if trimmed == "" {
+			return fmt.Errorf("%s.modules[%d]: cannot be empty", prefix, i)
+		}
+		if _, err := glob.Compile(trimmed); err != nil {
+			return fmt.Errorf("%s.modules[%d]: invalid glob pattern '%s': %v", prefix, i, trimmed, err)
 		}
 	}
 

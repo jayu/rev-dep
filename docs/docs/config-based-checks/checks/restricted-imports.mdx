@@ -92,6 +92,12 @@ Simply define `restrictedImportsDetection` as an array of detectors:
 
 **Note:** At least one of `denyFiles` or `denyModules` must be provided for the check to be valid.
 
+## Related checks
+
+- [`restrictedImporters`](config-based-checks/checks/restricted-importers.mdx) - the dual: whitelist which entry points may transitively reach a target.
+- [`restrictedDirectImporters`](config-based-checks/checks/restricted-direct-importers.mdx) - constrain which files may **directly** import a target (non-transitive, graph-free).
+- [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx) - directional allow/deny rules between groups of files.
+
 ### Also referred as
 Forbidden or Restricted Imports is also known as:
 - Restricted imports

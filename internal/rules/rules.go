@@ -57,6 +57,30 @@ type RestrictedImportersDetectionOptions struct {
 
 func (o *RestrictedImportersDetectionOptions) IsEnabled() bool { return o != nil && o.Enabled }
 
+// RestrictedDirectImportersDetectionOptions configures a NON-transitive importer policy: for a set of
+// target files XOR node modules, it constrains which files may DIRECTLY import them. Unlike
+// restrictedImportersDetection (which reasons about transitive reachability from entry points and needs
+// a dependency graph), this detector only inspects direct import edges, so it never builds a graph.
+//
+// The policy is one of two mutually exclusive shapes:
+//   - AllowImporters (whitelist): only files matching AllowImporters may directly import a target; any
+//     other direct importer is a violation.
+//   - DenyImporters (blacklist): files matching DenyImporters may not directly import a target; such a
+//     direct importer is a violation.
+//
+// Files and Modules are mutually exclusive; AllowImporters and DenyImporters are mutually exclusive.
+type RestrictedDirectImportersDetectionOptions struct {
+	Enabled           bool     `json:"enabled"`
+	Files             []string `json:"files,omitempty"`
+	Modules           []string `json:"modules,omitempty"`
+	AllowImporters    []string `json:"allowImporters,omitempty"`
+	DenyImporters     []string `json:"denyImporters,omitempty"`
+	IgnoreMatches     []string `json:"ignoreMatches,omitempty"`
+	IgnoreTypeImports bool     `json:"ignoreTypeImports,omitempty"`
+}
+
+func (o *RestrictedDirectImportersDetectionOptions) IsEnabled() bool { return o != nil && o.Enabled }
+
 // ImportConventionDomain represents a single domain definition.
 type ImportConventionDomain struct {
 	Path    string `json:"path,omitempty"`

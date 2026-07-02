@@ -11,17 +11,18 @@ type Metrics struct {
 	// Per-detector: the maximum number of ENABLED definitions across all workspaces. A single
 	// detector object counts as 1, an array counts its enabled entries, and a detector that is
 	// absent or disabled in every workspace is 0 - so 0 doubles as "feature unused in this project".
-	CircularImports     int `json:"circularImports"`
-	OrphanFiles         int `json:"orphanFiles"`
-	UnusedNodeModules   int `json:"unusedNodeModules"`
-	MissingNodeModules  int `json:"missingNodeModules"`
-	UnusedExports       int `json:"unusedExports"`
-	UnresolvedImports   int `json:"unresolvedImports"`
-	DevDepsUsageOnProd  int `json:"devDepsUsageOnProd"`
-	RestrictedImports   int `json:"restrictedImports"`
-	RestrictedImporters int `json:"restrictedImporters"`
-	ModuleBoundaries    int `json:"moduleBoundaries"`
-	ImportConventions   int `json:"importConventions"`
+	CircularImports           int `json:"circularImports"`
+	OrphanFiles               int `json:"orphanFiles"`
+	UnusedNodeModules         int `json:"unusedNodeModules"`
+	MissingNodeModules        int `json:"missingNodeModules"`
+	UnusedExports             int `json:"unusedExports"`
+	UnresolvedImports         int `json:"unresolvedImports"`
+	DevDepsUsageOnProd        int `json:"devDepsUsageOnProd"`
+	RestrictedImports         int `json:"restrictedImports"`
+	RestrictedImporters       int `json:"restrictedImporters"`
+	RestrictedDirectImporters int `json:"restrictedDirectImporters"`
+	ModuleBoundaries          int `json:"moduleBoundaries"`
+	ImportConventions         int `json:"importConventions"`
 
 	// Root-level option usage: 1 when the option is set to a non-default value, else 0.
 	UsesNearestPackageResolution int `json:"usesNearestPackageResolution"`
@@ -65,6 +66,7 @@ func BuildMetrics(cfg *config.RevDepConfig, fileCount int) Metrics {
 		m.DevDepsUsageOnProd = max(m.DevDepsUsageOnProd, countEnabled(rule.DevDepsUsageOnProdDetections))
 		m.RestrictedImports = max(m.RestrictedImports, countEnabled(rule.RestrictedImportsDetections))
 		m.RestrictedImporters = max(m.RestrictedImporters, countEnabled(rule.RestrictedImportersDetections))
+		m.RestrictedDirectImporters = max(m.RestrictedDirectImporters, countEnabled(rule.RestrictedDirectImportersDetections))
 		// ModuleBoundaries and ImportConventions are presence-based (no enabled flag).
 		m.ModuleBoundaries = max(m.ModuleBoundaries, len(rule.ModuleBoundaries))
 		m.ImportConventions = max(m.ImportConventions, len(rule.ImportConventions))
@@ -106,6 +108,7 @@ func (m Metrics) asMeasurements() map[string]float64 {
 		"devDepsUsageOnProd":           float64(m.DevDepsUsageOnProd),
 		"restrictedImports":            float64(m.RestrictedImports),
 		"restrictedImporters":          float64(m.RestrictedImporters),
+		"restrictedDirectImporters":    float64(m.RestrictedDirectImporters),
 		"moduleBoundaries":             float64(m.ModuleBoundaries),
 		"importConventions":            float64(m.ImportConventions),
 		"usesNearestPackageResolution": float64(m.UsesNearestPackageResolution),

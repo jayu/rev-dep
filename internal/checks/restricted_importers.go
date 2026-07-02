@@ -83,9 +83,6 @@ func FindRestrictedImporters(
 				if !matchesAnyModulePattern(moduleMatchers, moduleName, dep.Request) {
 					continue
 				}
-				if matchesIgnoredPattern(moduleName, ignoreMatchers) || matchesIgnoredPattern(dep.Request, ignoreMatchers) {
-					continue
-				}
 				set := moduleFrontier[filePath]
 				if set == nil {
 					set = map[string]bool{}
@@ -136,9 +133,6 @@ func FindRestrictedImporters(
 
 	// File violations: a suspect that reaches a target file (but is not itself that file).
 	for _, targetFile := range targetFiles {
-		if matchesIgnoredPattern(targetFile, ignoreMatchers) {
-			continue
-		}
 		reaches := reach.RootReachesTarget[targetFile]
 		if len(reaches) == 0 {
 			continue

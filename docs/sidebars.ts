@@ -25,6 +25,7 @@ const sidebars: SidebarsConfig = {
             'config-based-checks/checks/module-boundaries',
             'config-based-checks/checks/restricted-imports',
             'config-based-checks/checks/restricted-importers',
+            'config-based-checks/checks/restricted-direct-importers',
             'config-based-checks/checks/import-conventions',
             'config-based-checks/checks/circular-imports',
             'config-based-checks/checks/orphan-files',

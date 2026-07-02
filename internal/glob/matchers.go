@@ -17,6 +17,7 @@ type GlobMatcher struct {
 	patternRoot                        string
 	isAnchoredToPatternRoot            bool
 	isAdditional                       bool
+	isNegated                          bool
 }
 
 func rebaseRelativePattern(pattern string, patternRoot string) (string, string, bool, bool) {
@@ -65,6 +66,20 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 
 	for _, pattern := range patterns {
 		pattern = strings.TrimSpace(pattern)
+
+		// Negation (gitignore-style): a leading `!` marks an exception that re-includes paths a
+		// positive pattern would otherwise match. A leading `\!` is an escaped literal `!`.
+		isNegated := false
+		if strings.HasPrefix(pattern, "!") {
+			isNegated = true
+			pattern = pattern[1:]
+		} else if strings.HasPrefix(pattern, "\\!") {
+			pattern = pattern[1:] // drop the escaping backslash, keep the literal '!'
+		}
+		if isNegated && pattern == "" {
+			continue // a lone "!" is not a usable pattern
+		}
+
 		pattern = pathutil.NormalizeGlobPattern(pattern)
 
 		patternRootForPattern := patternRootNorm
@@ -114,6 +129,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 			isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
 			shouldMatchAnyFileOrDirWithPattern: shouldMatchAnyFileOrDirWithPattern,
 			isAdditional:                       false,
+			isNegated:                          isNegated,
 		}
 		globMatchers = append(globMatchers, item)
 		// !!! This glob library does not match files in using directory wildcard (**/) if file is in root directory. eg `**/*.log`` will not match against `file.log`, but will match against `dir/file.log`
@@ -128,6 +144,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 				isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
 				shouldMatchAnyFileOrDirWithPattern: false,
 				isAdditional:                       true,
+				isNegated:                          isNegated,
 			}
 			globMatchers = append(globMatchers, additionalItem)
 		}
@@ -135,44 +152,64 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 	return globMatchers
 }
 
-func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) bool {
-	for _, matcher := range matchers {
-		// convert candidate path to internal form (forward slashes)
-		fileInternal := pathutil.NormalizePathForInternal(filePath)
-		fileWithoutPrefix := strings.TrimPrefix(fileInternal, matcher.patternRoot)
-		if debug {
-			fmt.Println("Matcher", matcher.globPattern, matcher.inputString, matcher.patternRoot, matcher.shouldMatchAnyFileOrDirWithPattern, matcher.isAdditional)
-			fmt.Println("Input", fileWithoutPrefix, filePath)
-		}
-		if matcher.globPattern.Match(fileWithoutPrefix) {
-			if debug {
-				fmt.Println(fileWithoutPrefix, "return matches pattern", matcher.globPattern)
-			}
-			return true
-		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
-			// matches file/dir with name exactly as the pattern (unnanchored only - anchored patterns like /boot must only match at root)
-			if debug {
-				fmt.Println(fileWithoutPrefix, "return matches file name exactly", matcher.inputString)
-			}
-			return true
-		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && matcher.isAnchoredToPatternRoot && strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/") {
-			// anchored patterns (e.g. /node_modules) should only match at this matcher root
-			if debug {
-				fmt.Println(fileWithoutPrefix, "return matches anchored directory", matcher.inputString)
-			}
-
-			return true
-		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && (strings.Contains(fileWithoutPrefix, "/"+matcher.inputString+"/") || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/")) {
-			// matches directory with name exactly as the pattern
-			if debug {
-				fmt.Println(fileWithoutPrefix, "return matches directory", matcher.inputString)
-			}
-
-			return true
-		}
+// matchesOne reports whether a single matcher matches the (already internal-form) path.
+func (matcher GlobMatcher) matchesOne(fileInternal string, debug bool) bool {
+	fileWithoutPrefix := strings.TrimPrefix(fileInternal, matcher.patternRoot)
+	if debug {
+		fmt.Println("Matcher", matcher.globPattern, matcher.inputString, matcher.patternRoot, matcher.shouldMatchAnyFileOrDirWithPattern, matcher.isAdditional, "negated:", matcher.isNegated)
+		fmt.Println("Input", fileWithoutPrefix, fileInternal)
+	}
+	if matcher.globPattern.Match(fileWithoutPrefix) {
+		return true
+	}
+	if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
+		// matches file/dir with name exactly as the pattern (unnanchored only - anchored patterns like /boot must only match at root)
+		return true
+	}
+	if matcher.shouldMatchAnyFileOrDirWithPattern && matcher.isAnchoredToPatternRoot && strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/") {
+		// anchored patterns (e.g. /node_modules) should only match at this matcher root
+		return true
+	}
+	if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && (strings.Contains(fileWithoutPrefix, "/"+matcher.inputString+"/") || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/")) {
+		// matches directory with name exactly as the pattern
+		return true
 	}
 	return false
+}
+
+func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) bool {
+	fileInternal := pathutil.NormalizePathForInternal(filePath)
+
+	positiveMatched := false
+	hasNegated := false
+	for i := range matchers {
+		if matchers[i].isNegated {
+			hasNegated = true
+			continue
+		}
+		if positiveMatched {
+			continue // keep scanning cheaply to learn whether any negation exists
+		}
+		if matchers[i].matchesOne(fileInternal, debug) {
+			positiveMatched = true
+		}
+	}
+
+	if !positiveMatched {
+		return false
+	}
+	if !hasNegated {
+		return true
+	}
+
+	// A positive matched and the set has exceptions - a negated match cancels the result.
+	for i := range matchers {
+		if matchers[i].isNegated && matchers[i].matchesOne(fileInternal, debug) {
+			if debug {
+				fmt.Println(fileInternal, "cancelled by negated matcher", matchers[i].inputString)
+			}
+			return false
+		}
+	}
+	return true
 }

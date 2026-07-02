@@ -142,6 +142,12 @@ A boundary rule comes in one of two forms - an explicit boundary or a mutuallyEx
 
 - `mutuallyExclusive` (array of strings, at least two): A flat list of globs that may not import across each other. Cannot be combined with `pattern`, `allow`, or `deny`.
 
+## Related checks
+
+- [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx) - deny specific files/modules reachable from selected entry points.
+- [`restrictedImporters`](config-based-checks/checks/restricted-importers.mdx) - whitelist which entry points may transitively reach a target.
+- [`restrictedDirectImporters`](config-based-checks/checks/restricted-direct-importers.mdx) - constrain which files may directly import a target (non-transitive).
+
 ### Also referred as
 Module Boundary Enforcement is also known as:
 - Module boundaries

@@ -191,6 +191,17 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 				}
 			}
 		}
+		if rule.Checks.RestrictedDirectImporters != nil {
+			for _, issue := range rule.Checks.RestrictedDirectImporters.Issues {
+				if v, ok := issue.(jsonRestrictedDirectImporterIssue); ok {
+					target := v.File
+					if target == "" {
+						target = "module " + v.Module
+					}
+					add("Restricted Direct Importers Issues", target, v.ImporterFile)
+				}
+			}
+		}
 	}
 
 	order := []string{
@@ -205,6 +216,7 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 		"Dev Deps Usage On Prod Issues",
 		"Restricted Imports Issues",
 		"Restricted Importers Issues",
+		"Restricted Direct Importers Issues",
 	}
 
 	groups := make([]issuesListGroup, 0, len(order))

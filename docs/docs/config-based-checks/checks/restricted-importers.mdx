@@ -32,6 +32,14 @@ They are duals - same dependency edges, opposite ends:
 - **`restrictedImports`** restricts **what** an entry point may reach (deny targets reachable from entry points).
 - **`restrictedImporters`** whitelists **which entry points** may reach a target (only the allowed entry points may transitively reach the listed files/modules).
 
+If you only care about **direct** importers of a target (the exact files that write `import ... from 'target'`, not transitive reachers), use [`restrictedDirectImporters`](config-based-checks/checks/restricted-direct-importers.mdx) instead - it is graph-free and non-transitive.
+
+## Related checks
+
+- [`restrictedDirectImporters`](config-based-checks/checks/restricted-direct-importers.mdx) - the direct-edge (non-transitive) counterpart.
+- [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx) - the dual: restrict what entry points may reach.
+- [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx) - directional allow/deny rules between groups of files.
+
 ## Configuration
 
 Whitelist - only `src/admin/main.ts` may reach the legacy code:

@@ -25,7 +25,8 @@ func TestBuildMetrics(t *testing.T) {
 			{
 				"path": "packages/b",
 				"circularImportsDetection": { "enabled": true },
-				"restrictedImportersDetection": { "enabled": true, "files": ["legacy/**"], "allowedEntryPoints": ["src/admin/**"] }
+				"restrictedImportersDetection": { "enabled": true, "files": ["legacy/**"], "allowedEntryPoints": ["src/admin/**"] },
+				"restrictedDirectImportersDetection": { "enabled": true, "files": ["config/**"], "denyImporters": ["src/public/**"] }
 			}
 		]
 	}`
@@ -43,7 +44,8 @@ func TestBuildMetrics(t *testing.T) {
 		"circularImports": {m.CircularImports, 1},
 		// max across workspaces: package a has 2 enabled (the 3rd is disabled), package b has 1.
 		"restrictedImporters":          {m.RestrictedImporters, 2},
-		"unusedExports":                {m.UnusedExports, 0}, // disabled everywhere -> 0
+		"restrictedDirectImporters":    {m.RestrictedDirectImporters, 1}, // only package b
+		"unusedExports":                {m.UnusedExports, 0},             // disabled everywhere -> 0
 		"usesNearestPackageResolution": {m.UsesNearestPackageResolution, 1},
 		"usesIncludeDevDepsFromRoot":   {m.UsesIncludeDevDepsFromRoot, 1},
 		"usesIgnoreFiles":              {m.UsesIgnoreFiles, 1},

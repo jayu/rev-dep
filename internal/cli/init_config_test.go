@@ -87,8 +87,8 @@ func TestInitConfigFile(t *testing.T) {
 		t.Errorf("Failed to parse generated config: %v", err)
 	}
 
-	if cfg.ConfigVersion != "1.10" {
-		t.Errorf("Expected configVersion '1.10', got '%s'", cfg.ConfigVersion)
+	if cfg.ConfigVersion != "1.11" {
+		t.Errorf("Expected configVersion '1.11', got '%s'", cfg.ConfigVersion)
 	}
 
 	if cfg.ResolutionType() != config.NodeModulesResolutionEntryPackage {

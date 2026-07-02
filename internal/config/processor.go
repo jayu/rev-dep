@@ -62,6 +62,7 @@ type RuleResult struct {
 	RestrictedDevDependenciesUsageViolations        []checks.RestrictedDevDependenciesUsageViolation
 	RestrictedImportsViolations                     []checks.RestrictedImportViolation
 	RestrictedImportersViolations                   []checks.RestrictedImporterViolation
+	RestrictedDirectImportersViolations             []checks.RestrictedDirectImporterViolation
 	RestrictedImportsFollowMonorepoPackages         model.FollowMonorepoPackagesValue
 	ProcessIgnoredFiles                             []string
 	MissingPackageJson                              bool
@@ -332,6 +333,9 @@ func processRuleChecks(
 	}
 	if anyEnabled(rule.getRestrictedImportersDetections()) {
 		enabledChecks = append(enabledChecks, "restricted-importers")
+	}
+	if anyEnabled(rule.getRestrictedDirectImportersDetections()) {
+		enabledChecks = append(enabledChecks, "restricted-direct-importers")
 	}
 	if len(rule.ImportConventions) > 0 {
 		enabledChecks = append(enabledChecks, "import-conventions")
@@ -838,6 +842,28 @@ func processRuleChecks(
 		}()
 	}
 
+	if anyEnabled(rule.getRestrictedDirectImportersDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			violations := make([]checks.RestrictedDirectImporterViolation, 0)
+			for _, detection := range rule.getRestrictedDirectImportersDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				violations = append(violations, checks.FindRestrictedDirectImporters(
+					ruleTree,
+					detection,
+					fullRulePath,
+				)...)
+			}
+
+			mu.Lock()
+			ruleResult.RestrictedDirectImportersViolations = violations
+			mu.Unlock()
+		}()
+	}
+
 	wg.Wait()
 	return ruleResult
 }
@@ -930,7 +956,8 @@ func ProcessConfig(
 				len(ruleResult.UnresolvedImports) > 0 ||
 				len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 ||
 				len(ruleResult.RestrictedImportsViolations) > 0 ||
-				len(ruleResult.RestrictedImportersViolations) > 0
+				len(ruleResult.RestrictedImportersViolations) > 0 ||
+				len(ruleResult.RestrictedDirectImportersViolations) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

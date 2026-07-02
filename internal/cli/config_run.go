@@ -126,6 +126,7 @@ func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
 		totalIssues += len(ruleResult.RestrictedDevDependenciesUsageViolations)
 		totalIssues += len(ruleResult.RestrictedImportsViolations)
 		totalIssues += len(ruleResult.RestrictedImportersViolations)
+		totalIssues += len(ruleResult.RestrictedDirectImportersViolations)
 
 		fixableIssues += len(ruleResult.OrphanFilesAutofixable)
 
@@ -673,6 +674,56 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 				} else {
 					fmt.Printf("  ✅ Restricted Importers\n")
 				}
+			case "restricted-direct-importers":
+				if len(ruleResult.RestrictedDirectImportersViolations) > 0 {
+					fmt.Printf("  ❌ Restricted Direct Importers Issues (%d):\n", len(ruleResult.RestrictedDirectImportersViolations))
+
+					violationsToDisplay := ruleResult.RestrictedDirectImportersViolations
+					remaining := 0
+					if !listAll && len(violationsToDisplay) > maxIssuesToList {
+						remaining = len(violationsToDisplay) - maxIssuesToList
+						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
+					}
+
+					// Group by importer file (the actionable location), listing the targets it imports.
+					targetsByImporter := make(map[string][]string)
+					seenByImporter := make(map[string]map[string]bool)
+					var sortedImporters []string
+
+					for _, violation := range violationsToDisplay {
+						importer := getRelativePath(violation.ImporterFile)
+						if _, ok := seenByImporter[importer]; !ok {
+							seenByImporter[importer] = make(map[string]bool)
+							sortedImporters = append(sortedImporters, importer)
+						}
+
+						item := violation.Module
+						if item == "" {
+							item = getRelativePath(violation.File)
+						}
+
+						if !seenByImporter[importer][item] {
+							targetsByImporter[importer] = append(targetsByImporter[importer], item)
+							seenByImporter[importer][item] = true
+						}
+					}
+
+					slices.Sort(sortedImporters)
+					for _, importer := range sortedImporters {
+						fmt.Printf("    %s\n", importer)
+						items := targetsByImporter[importer]
+						slices.Sort(items)
+						for _, item := range items {
+							fmt.Printf("     ➞ %s\n", item)
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more restricted direct importer issues\n", remaining)
+					}
+				} else {
+					fmt.Printf("  ✅ Restricted Direct Importers\n")
+				}
 			}
 		}
 
@@ -746,7 +797,7 @@ func init() {
 
 // initConfigFileCore creates the config file without printing results
 func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
-	currentConfigVersion := "1.10"
+	currentConfigVersion := "1.11"
 
 	// Check if any config file already exists
 	existingConfig, err := config.FindConfigFile(cwd)

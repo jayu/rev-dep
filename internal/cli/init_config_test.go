@@ -24,10 +24,11 @@ func TestInitConfigFile(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Test basic init
-	configPath, _, _, err := initConfigFileCore(tempDir)
+	result, err := initConfigFileCore(tempDir)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
+	configPath := result.configPath
 
 	// Check that config file was created
 	if _, err := os.Stat(configPath); err != nil {
@@ -35,7 +36,7 @@ func TestInitConfigFile(t *testing.T) {
 	}
 
 	// Test that init fails when config already exists
-	_, _, _, err = initConfigFileCore(tempDir)
+	_, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when config already exists, got nil")
 	}
@@ -46,7 +47,7 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with .rev-dep.config.json
 	hiddenConfigPath := filepath.Join(tempDir, ".rev-dep.config.json")
 	_ = os.WriteFile(hiddenConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, _, err = initConfigFileCore(tempDir)
+	_, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when hidden config exists, got nil")
 	}
@@ -55,7 +56,7 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with rev-dep.config.jsonc
 	jsoncConfigPath := filepath.Join(tempDir, "rev-dep.config.jsonc")
 	_ = os.WriteFile(jsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, _, err = initConfigFileCore(tempDir)
+	_, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when jsonc config exists, got nil")
 	}
@@ -64,17 +65,18 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with .rev-dep.config.jsonc
 	hiddenJsoncConfigPath := filepath.Join(tempDir, ".rev-dep.config.jsonc")
 	_ = os.WriteFile(hiddenJsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, _, err = initConfigFileCore(tempDir)
+	_, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when hidden jsonc config exists, got nil")
 	}
 	_ = os.Remove(hiddenJsoncConfigPath)
 
 	// Now test that it works when no config files exist
-	configPath, _, _, err = initConfigFileCore(tempDir)
+	result, err = initConfigFileCore(tempDir)
 	if err != nil {
 		t.Errorf("Expected no error when no config files exist, got %v", err)
 	}
+	configPath = result.configPath
 
 	// Read and verify the generated config
 	content, err := os.ReadFile(configPath)
@@ -170,12 +172,14 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	}
 
 	// Run init in the sub-package directory
-	configPath, rules, createdForSubPackage, err := initConfigFileCore(pkgDir)
+	subResult, err := initConfigFileCore(pkgDir)
 	if err != nil {
 		t.Fatalf("initConfigFileCore failed: %v", err)
 	}
-	if !createdForSubPackage {
-		t.Fatalf("Expected createdForSubPackage to be true when running inside a workspace package")
+	configPath := subResult.configPath
+	rules := subResult.rules
+	if !subResult.createdForMonorepoSubPackage {
+		t.Fatalf("Expected createdForMonorepoSubPackage to be true when running inside a workspace package")
 	}
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("Expected config file to exist at %s", configPath)
@@ -210,11 +214,13 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	// Remove config created in package
 	_ = os.Remove(configPath)
 
-	rootConfigPath, rootRules, createdForRoot, err := initConfigFileCore(tempDir)
+	rootResult, err := initConfigFileCore(tempDir)
 	if err != nil {
 		t.Fatalf("initConfigFileCore failed at root: %v", err)
 	}
-	if createdForRoot {
+	rootConfigPath := rootResult.configPath
+	rootRules := rootResult.rules
+	if rootResult.createdForMonorepoSubPackage {
 		t.Fatalf("Expected createdForMonorepoSubPackage=false when running at monorepo root")
 	}
 	if _, err := os.Stat(rootConfigPath); err != nil {

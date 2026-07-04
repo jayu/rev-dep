@@ -116,10 +116,16 @@ type RootParams struct {
 	PkgJsonPath     string
 	SortedFiles     []string
 	Cwd             string
+	// ExplicitPackageDirs are absolute, internal-form package directories that should be
+	// treated as workspace packages even when there is no root package.json "workspaces"
+	// declaration. These come from rev-dep config rule paths (already resolved to absolute
+	// paths by the caller) so that setups with package subdirectories but no workspace-aware
+	// root manifest still resolve per-package node_modules dependencies.
+	ExplicitPackageDirs []string
 }
 
 func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, conditionNames []string, rootParams RootParams, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher) *ResolverManager {
-	monorepoCtx := detectMonorepoContext(rootParams.Cwd, followMonorepoPackages, excludeFilePatterns, includeFilePatterns)
+	monorepoCtx := detectMonorepoContext(rootParams.Cwd, followMonorepoPackages, rootParams.ExplicitPackageDirs, excludeFilePatterns, includeFilePatterns)
 
 	rm := &ResolverManager{
 		monorepoContext:        monorepoCtx,
@@ -154,15 +160,30 @@ func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, cond
 	return rm
 }
 
-func detectMonorepoContext(cwd string, followMonorepoPackages FollowMonorepoPackagesValue, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher) *monorepo.MonorepoContext {
+func detectMonorepoContext(cwd string, followMonorepoPackages FollowMonorepoPackagesValue, explicitPackageDirs []string, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher) *monorepo.MonorepoContext {
 	if !followMonorepoPackages.IsEnabled() {
 		return nil
 	}
 	monorepoCtx := monorepo.DetectMonorepo(cwd)
 	if monorepoCtx == nil {
-		return nil
+		// No root package.json "workspaces" declaration (or no root package.json at all).
+		// Fall back to explicit config-provided package dirs: treat cwd as the workspace
+		// root and register those subdirectories directly so their package.json
+		// dependencies are resolved instead of being reported as unresolved.
+		if len(explicitPackageDirs) == 0 {
+			return nil
+		}
+		monorepoCtx = monorepo.NewMonorepoContext(pathutil.NormalizePathForInternal(filepath.Clean(cwd)))
+		monorepoCtx.RegisterExplicitPackages(explicitPackageDirs)
+		if len(monorepoCtx.PackageToPath) == 0 {
+			return nil
+		}
+		return monorepoCtx
 	}
 	monorepoCtx.FindWorkspacePackages(excludeFilePatterns, includeFilePatterns)
+	// Also register any explicit config-provided package dirs that workspace-glob
+	// discovery may not cover (e.g. a rule path outside the declared workspaces globs).
+	monorepoCtx.RegisterExplicitPackages(explicitPackageDirs)
 	return monorepoCtx
 }
 
@@ -1177,7 +1198,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	return "", NotResolvedModule, &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, customAssetExtensions []string, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, explicitPackageDirs []string, customAssetExtensions []string, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
 	tsConfigPath := pathutil.JoinWithCwd(cwd, tsconfigJson)
 	pkgJsonPath := pathutil.JoinWithCwd(cwd, packageJson)
 
@@ -1209,11 +1230,12 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	}
 
 	resolverManager = NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
-		TsConfigContent: tsconfigContent,
-		PkgJsonContent:  pkgJsonContent,
-		PkgJsonPath:     pkgJsonPath,
-		SortedFiles:     sortedFiles,
-		Cwd:             cwd,
+		TsConfigContent:     tsconfigContent,
+		PkgJsonContent:      pkgJsonContent,
+		PkgJsonPath:         pkgJsonPath,
+		SortedFiles:         sortedFiles,
+		Cwd:                 cwd,
+		ExplicitPackageDirs: explicitPackageDirs,
 	}, excludeFilePatterns, includeFilePatterns)
 
 	missingResolutionFailedAttempts := map[string]bool{}

@@ -439,6 +439,19 @@ func (ctx *MonorepoContext) walkForPackagesWithWorkerPool(basePath string, exclu
 	wg.Wait()
 }
 
+// RegisterExplicitPackages registers directories that should be treated as workspace
+// packages regardless of whether they are declared in a root package.json "workspaces"
+// field (or a pnpm-workspace file). Each dir must already be an absolute, internal-form
+// path; it is registered as a package only if it contains a parseable package.json with a
+// "name". This supports monorepo-style setups where the rev-dep config lists package
+// subdirectories directly and there is no root package.json, or a root package.json that
+// does not declare those directories as workspaces.
+func (ctx *MonorepoContext) RegisterExplicitPackages(packageDirs []string) {
+	for _, dir := range packageDirs {
+		ctx.processPossiblePackage(dir)
+	}
+}
+
 func (ctx *MonorepoContext) processPossiblePackage(path string) {
 	path = pathutil.NormalizePathForInternal(path)
 	pkgJsonPath := filepath.Join(pathutil.DenormalizePathForOS(path), "package.json")

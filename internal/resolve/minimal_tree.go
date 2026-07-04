@@ -37,7 +37,7 @@ func GetMinimalDepsTreeForCwd(cwd string, ignoreTypeImports bool, excludeFiles [
 
 	skipResolveMissing := false
 
-	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, includePatterns, conditionNames, followMonorepoPackages, customAssetExtensions, model.ParseModeBasic, nodeModulesMatchingStrategy)
+	fileImportsArr, sortedFiles, resolverManager := ResolveImports(fileImportsArr, files, cwd, ignoreTypeImports, skipResolveMissing, packageJson, tsconfigJson, allExcludePatterns, includePatterns, conditionNames, followMonorepoPackages, nil, customAssetExtensions, model.ParseModeBasic, nodeModulesMatchingStrategy)
 
 	minimalTree := model.TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
 

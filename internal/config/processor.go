@@ -145,6 +145,7 @@ func buildDependencyTreeForConfig(
 	tsconfigJson string,
 	customAssetExtensions []string,
 	parseMode model.ParseMode,
+	explicitPackageDirs []string,
 ) (model.MinimalDependencyTree, *resolve.ResolverManager, error) {
 	// For config processing, we always resolve type imports (we filter later per-check)
 	ignoreTypeImports := false
@@ -173,6 +174,7 @@ func buildDependencyTreeForConfig(
 		includePatterns,
 		conditionNames,
 		followMonorepoPackages,
+		explicitPackageDirs,
 		customAssetExtensions,
 		parseMode,
 		model.NodeModulesMatchingStrategySelfResolver,
@@ -889,6 +891,19 @@ func ProcessConfig(
 		parseMode = model.ParseModeDetailed
 	}
 
+	// Resolve the config's rule paths (always relative to cwd) to absolute, internal-form
+	// package directories. This lets the resolver register each rule directory that has its
+	// own package.json as a workspace package even when there is no workspace-aware root
+	// package.json, so per-package node_modules dependencies resolve instead of being
+	// reported as unresolved.
+	rulePackageDirs := make([]string, 0, len(config.Rules))
+	for _, rule := range config.Rules {
+		if rule.Path == "" {
+			continue
+		}
+		rulePackageDirs = append(rulePackageDirs, pathutil.NormalizePathForInternal(filepath.Clean(pathutil.JoinWithCwd(cwd, rule.Path))))
+	}
+
 	fullTree, resolverManager, err := buildDependencyTreeForConfig(
 		allFiles,
 		excludePatterns,
@@ -899,6 +914,7 @@ func ProcessConfig(
 		tsconfigJson,
 		config.CustomAssetExtensions,
 		parseMode,
+		rulePackageDirs,
 	)
 	if err != nil {
 		return nil, err

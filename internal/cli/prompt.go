@@ -7,10 +7,29 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Interactive terminal prompts (stdlib only). These are generic CLI helpers, independent of
 // any particular command.
+
+// fprintBox draws lines inside a rounded box, left-aligned and padded to the widest line, to
+// visually group a prompt (question, options, and the select line) and separate it from the
+// surrounding output.
+func fprintBox(out io.Writer, lines []string) {
+	width := 0
+	for _, line := range lines {
+		if w := utf8.RuneCountInString(line); w > width {
+			width = w
+		}
+	}
+	border := strings.Repeat("─", width+2)
+	fmt.Fprintf(out, "╭%s╮\n", border)
+	for _, line := range lines {
+		fmt.Fprintf(out, "│ %s%s │\n", line, strings.Repeat(" ", width-utf8.RuneCountInString(line)))
+	}
+	fmt.Fprintf(out, "╰%s╯\n", border)
+}
 
 // stdinIsInteractive reports whether stdin is connected to a terminal (a character device)
 // rather than a pipe or file. Used to skip interactive prompts in CI / piped invocations.
@@ -34,19 +53,24 @@ func selectOne(in io.Reader, out io.Writer, prompt string, options []string, def
 	reader := bufio.NewReader(in)
 
 	for {
-		fmt.Fprintln(out, prompt)
+		// Build the whole prompt (question, options, and select line) as one boxed block, then
+		// read the answer on the line below the box.
+		lines := make([]string, 0, len(options)+3)
+		lines = append(lines, prompt, "")
 		for i, opt := range options {
 			marker := " "
 			if hasDefault && i == defaultIndex {
 				marker = "*"
 			}
-			fmt.Fprintf(out, " %s %2d) %s\n", marker, i+1, opt)
+			lines = append(lines, fmt.Sprintf(" %s %2d) %s", marker, i+1, opt))
 		}
 		if hasDefault {
-			fmt.Fprintf(out, "Select 1-%d [default: %d]: ", len(options), defaultIndex+1)
+			lines = append(lines, "", fmt.Sprintf("Type 1-%d [default: %d]:", len(options), defaultIndex+1))
 		} else {
-			fmt.Fprintf(out, "Select 1-%d: ", len(options))
+			lines = append(lines, "", fmt.Sprintf("Type 1-%d:", len(options)))
 		}
+		fprintBox(out, lines)
+		fmt.Fprint(out, "> ")
 
 		line, err := reader.ReadString('\n')
 		if err != nil && strings.TrimSpace(line) == "" {
@@ -56,6 +80,7 @@ func selectOne(in io.Reader, out io.Writer, prompt string, options []string, def
 
 		if line == "" {
 			if hasDefault {
+				fmt.Fprintln(out)
 				return defaultIndex, options[defaultIndex], nil
 			}
 			fmt.Fprintf(out, "  ⚠️  please choose a number between 1 and %d.\n\n", len(options))
@@ -67,6 +92,7 @@ func selectOne(in io.Reader, out io.Writer, prompt string, options []string, def
 			fmt.Fprintf(out, "  ⚠️  %q is not a valid choice (1-%d).\n\n", line, len(options))
 			continue
 		}
+		fmt.Fprintln(out)
 		return n - 1, options[n-1], nil
 	}
 }

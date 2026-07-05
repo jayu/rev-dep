@@ -89,8 +89,8 @@ func TestInitConfigFile(t *testing.T) {
 		t.Errorf("Failed to parse generated config: %v", err)
 	}
 
-	if cfg.ConfigVersion != "1.11" {
-		t.Errorf("Expected configVersion '1.11', got '%s'", cfg.ConfigVersion)
+	if cfg.ConfigVersion != config.CurrentConfigVersion {
+		t.Errorf("Expected configVersion '%s', got '%s'", config.CurrentConfigVersion, cfg.ConfigVersion)
 	}
 
 	if cfg.ResolutionType() != config.NodeModulesResolutionEntryPackage {
@@ -140,8 +140,8 @@ func TestInitConfigFile(t *testing.T) {
 		t.Errorf("Expected dev deps usage detection to be disabled")
 	}
 
-	if firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections) == nil || firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections).Enabled {
-		t.Errorf("Expected restricted imports detection to be disabled")
+	if len(cfg.Rules[0].RestrictedImportsDetections) != 0 {
+		t.Errorf("Expected no restricted imports detection (it needs extra config)")
 	}
 }
 
@@ -206,8 +206,8 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	if firstDetectionOrNil(cfg.Rules[0].DevDepsUsageOnProdDetections) == nil || firstDetectionOrNil(cfg.Rules[0].DevDepsUsageOnProdDetections).Enabled {
 		t.Fatalf("Expected devDepsUsageOnProdDetection disabled in generated sub-package config")
 	}
-	if firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections) == nil || firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections).Enabled {
-		t.Fatalf("Expected restrictedImportsDetection disabled in generated sub-package config")
+	if len(cfg.Rules[0].RestrictedImportsDetections) != 0 {
+		t.Fatalf("Expected no restrictedImportsDetection in generated sub-package config (it needs extra config)")
 	}
 
 	// Now run init at the workspace root and expect multiple rules

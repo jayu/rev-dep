@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -23,7 +24,7 @@ var configInitCmd = &cobra.Command{
 	Long:  `Create a new rev-dep.config.json configuration file in the current directory with default settings.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd := pathutil.ResolveAbsoluteCwd(configCwd)
-		result, err := initConfigFileCore(cwd)
+		result, err := initConfigInteractive(cwd, promptIncludeStandalone, promptAutoDetectEntryPoints, promptDetectorPreset)
 		if err != nil {
 			return err
 		}
@@ -32,17 +33,522 @@ var configInitCmd = &cobra.Command{
 	},
 }
 
-// initConfigResult captures what initConfigFileCore produced so callers can report it.
+// initConfigResult captures what config init produced so callers can report it.
 type initConfigResult struct {
 	configPath                   string
 	rules                        []config.Rule
 	isMonorepo                   bool
 	monorepoPackageCount         int      // workspace-package rules created (excludes the root rule)
-	standalonePackagePaths       []string // relative paths of standalone packages discovered in subdirectories
+	standalonePackagePaths       []string // relative paths of standalone packages included in the config
 	createdForMonorepoSubPackage bool
 	rootRuleCreated              bool // whether a "." root rule was created
 	rootHasPackageJson           bool
+	entryPointsDetected          bool // entry-point auto-detection was run
+	entryPointPackageCount       int  // number of package rules that got entry points
 }
+
+// ---------------- project detection ----------------
+
+// projectStructure describes how a project is laid out. It drives which init questions to ask
+// and which rules to generate.
+type projectStructure struct {
+	cwd                   string
+	isMonorepo            bool     // a workspace root was detected at/above cwd
+	isMonorepoSubPackage  bool     // cwd is inside a monorepo but not at its root
+	rootHasPackageJson    bool     // cwd itself has a package.json
+	workspacePackageDirs  []string // internal-form absolute dirs of monorepo workspace packages (root case)
+	standalonePackageDirs []string // internal-form absolute dirs of standalone subdir packages (not workspaces)
+}
+
+// detectProjectStructure inspects cwd to determine whether it is a monorepo, a single-package
+// project, or neither, and which standalone subdirectory packages exist alongside it.
+func detectProjectStructure(cwd string) projectStructure {
+	ps := projectStructure{cwd: cwd, rootHasPackageJson: hasPackageJson(cwd)}
+	excludePatterns := globutil.CreateGlobMatchers([]string{}, cwd)
+
+	monorepoCtx := monorepo.DetectMonorepo(cwd)
+	if monorepoCtx != nil {
+		ps.isMonorepo = true
+
+		// cwd is in OS form (backslash on Windows, with a trailing separator) while WorkspaceRoot
+		// is in internal forward-slash form (no trailing slash). Normalize BOTH the separators and
+		// the trailing slash before comparing - a plain string compare silently mismatches on
+		// Windows and makes the workspace root look like a sub-package.
+		cwdInternal := pathutil.StandardiseDirPathInternal(pathutil.NormalizePathForInternal(cwd))
+		rootInternal := pathutil.StandardiseDirPathInternal(pathutil.NormalizePathForInternal(monorepoCtx.WorkspaceRoot))
+		if cwdInternal != rootInternal {
+			// Inside a workspace package, not at the root: scope to the current package only.
+			ps.isMonorepoSubPackage = true
+			return ps
+		}
+
+		monorepoCtx.FindWorkspacePackages(excludePatterns, nil)
+		ps.workspacePackageDirs = mapValues(monorepoCtx.PackageToPath)
+		ps.standalonePackageDirs = monorepoCtx.DiscoverStandalonePackages(excludePatterns)
+		return ps
+	}
+
+	// No monorepo: still discover standalone subdirectory packages.
+	rootCtx := monorepo.NewMonorepoContext(pathutil.NormalizePathForInternal(filepath.Clean(cwd)))
+	ps.standalonePackageDirs = rootCtx.DiscoverStandalonePackages(excludePatterns)
+	return ps
+}
+
+// standaloneChoiceApplies reports whether the standalone-packages question should be asked:
+//   - When a base project (monorepo or single root package) was detected AND standalone
+//     subdirectory packages exist alongside it, the user chooses base-only vs including them.
+//   - When there is no base project (only subdir packages), there is no base-only choice, but we
+//     still ask when curation would make a difference (some folders look like fixtures/tests) so
+//     the user can pick all vs the curated subset.
+//
+// Otherwise there is nothing to choose between.
+func standaloneChoiceApplies(ps projectStructure, standalone standalonePackages) bool {
+	if ps.isMonorepoSubPackage || len(standalone.all) == 0 {
+		return false
+	}
+	if ps.isMonorepo || ps.rootHasPackageJson {
+		return true // base-only vs including standalone packages is always a choice
+	}
+	// No base project: only meaningful when curation actually splits the set.
+	return len(standalone.filteredOut) > 0 && len(standalone.curated) > 0
+}
+
+// ---------------- standalone package selection ----------------
+
+// standaloneSelection is how many of the discovered standalone subdirectory packages should be
+// included in the config.
+type standaloneSelection int
+
+const (
+	standaloneNone    standaloneSelection = iota // base project only
+	standaloneCurated                            // base + real packages (fixture-like folders filtered out)
+	standaloneAll                                // base + every discovered standalone package
+)
+
+// standalonePackages holds the standalone subdirectory packages discovered for a project,
+// partitioned into curated (real) packages and those filtered out by non-package
+// directory-name heuristics (fixtures, __*__, tests, examples, ...).
+type standalonePackages struct {
+	all         []string // all standalone package rel paths (sorted)
+	curated     []string // subset that does not match any non-package pattern (sorted)
+	filteredOut []string // subset that matched a non-package pattern (sorted)
+	patterns    []string // distinct matched patterns, in order of first appearance
+}
+
+// selected returns the standalone rel paths to include for the given selection.
+func (sp standalonePackages) selected(sel standaloneSelection) []string {
+	switch sel {
+	case standaloneAll:
+		return sp.all
+	case standaloneCurated:
+		return sp.curated
+	default:
+		return nil
+	}
+}
+
+// classifyStandalonePackages converts the discovered standalone package dirs to sorted
+// cwd-relative paths and partitions them into curated vs filtered-out based on non-package
+// directory-name heuristics, recording the distinct patterns that triggered filtering.
+func classifyStandalonePackages(cwd string, dirs []string) standalonePackages {
+	sp := standalonePackages{all: packageDirsToSortedRelPaths(cwd, dirs)}
+	seen := map[string]bool{}
+	for _, relPath := range sp.all {
+		if pattern := matchNonPackagePattern(relPath); pattern != "" {
+			sp.filteredOut = append(sp.filteredOut, relPath)
+			if key := strings.ToLower(pattern); !seen[key] {
+				seen[key] = true
+				sp.patterns = append(sp.patterns, pattern)
+			}
+		} else {
+			sp.curated = append(sp.curated, relPath)
+		}
+	}
+	return sp
+}
+
+// ---------------- config generation ----------------
+
+// standaloneAsker decides which standalone subdirectory packages to include in the config. It
+// is only consulted when standaloneChoiceApplies(ps) is true.
+type standaloneAsker func(ps projectStructure, standalone standalonePackages) standaloneSelection
+
+// initConfigInteractive detects the project layout, asks the standalone-packages question when
+// applicable (via askStandalone) and the entry-points question (via askEntryPoints), then builds
+// and writes the config file.
+func initConfigInteractive(cwd string, askStandalone standaloneAsker, askEntryPoints func() bool, askDetectors func() detectorPreset) (*initConfigResult, error) {
+	if existing, err := config.FindConfigFile(cwd); err == nil && existing != "" {
+		return nil, fmt.Errorf("config file already exists at %s", existing)
+	}
+
+	ps := detectProjectStructure(cwd)
+	standalone := classifyStandalonePackages(cwd, ps.standalonePackageDirs)
+
+	// Default: include everything (used when no question applies and by the non-interactive core).
+	selection := standaloneAll
+	if standaloneChoiceApplies(ps, standalone) {
+		selection = askStandalone(ps, standalone)
+	}
+
+	autoDetectEntryPoints := askEntryPoints()
+	preset := askDetectors()
+
+	result := buildConfigResult(ps, standalone, selection, preset)
+	if autoDetectEntryPoints {
+		result.entryPointPackageCount = applyEntryPointsToRules(cwd, ps, result.rules)
+		result.entryPointsDetected = true
+	}
+	if err := writeInitConfig(cwd, result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// applyEntryPointsToRules analyzes each package rule and fills in its prodEntryPoints /
+// devEntryPoints. The monorepo root rule is skipped (it is a boundaries-only rule spanning all
+// packages, not a package). Returns the number of package rules processed.
+func applyEntryPointsToRules(cwd string, ps projectStructure, rules []config.Rule) int {
+	count := 0
+	for i := range rules {
+		rule := &rules[i]
+		if ps.isMonorepo && !ps.isMonorepoSubPackage && rule.Path == "." {
+			continue // monorepo root: boundaries only, not a package
+		}
+		pkgDir := pathutil.StandardiseDirPath(filepath.Join(cwd, rule.Path))
+		rule.ProdEntryPoints, rule.DevEntryPoints, rule.IgnoreEntryPoints = detectPackageEntryPoints(pkgDir)
+		count++
+	}
+	return count
+}
+
+// buildConfigResult produces the rules and reporting metadata for the detected structure. The
+// selection controls which standalone subdirectory packages get their own rules. When there is no
+// base project (no monorepo, no root package.json) the standalone packages are all there is, so
+// the selection is at least the curated set (never "none").
+func buildConfigResult(ps projectStructure, standalone standalonePackages, selection standaloneSelection, preset detectorPreset) *initConfigResult {
+	result := &initConfigResult{
+		isMonorepo:         ps.isMonorepo,
+		rootHasPackageJson: ps.rootHasPackageJson,
+	}
+	var rules []config.Rule
+
+	switch {
+	case ps.isMonorepoSubPackage:
+		rules = append(rules, makePackageRule(".", preset))
+		result.createdForMonorepoSubPackage = true
+		result.rootRuleCreated = true
+	case ps.isMonorepo:
+		rules = append(rules, makeMonorepoRootRule())
+		result.rootRuleCreated = true
+		workspacePaths := packageDirsToSortedRelPaths(ps.cwd, ps.workspacePackageDirs)
+		for _, relPath := range workspacePaths {
+			rules = append(rules, makePackageRule(relPath, preset))
+		}
+		result.monorepoPackageCount = len(workspacePaths)
+	case ps.rootHasPackageJson:
+		rules = append(rules, makeSrcRootRule(preset))
+		result.rootRuleCreated = true
+	default:
+		// No base project: no root rule; the standalone packages are all that gets configured.
+		// Guard against an empty config if a "none" selection reaches here (shouldn't, since the
+		// no-base question only offers curated/all) by falling back to the curated set.
+		if selection == standaloneNone {
+			selection = standaloneCurated
+		}
+	}
+
+	standalonePaths := standalone.selected(selection)
+	for _, relPath := range standalonePaths {
+		rules = append(rules, makePackageRule(relPath, preset))
+	}
+	result.standalonePackagePaths = standalonePaths
+
+	// Fallback: nothing discovered at all -> a single root rule so the config isn't empty.
+	if len(rules) == 0 {
+		rules = append(rules, makeSrcRootRule(preset))
+		result.rootRuleCreated = true
+	}
+
+	result.rules = rules
+	return result
+}
+
+// writeInitConfig marshals the generated rules to the standard config file and records the path.
+func writeInitConfig(cwd string, result *initConfigResult) error {
+	configPath := filepath.Join(cwd, ".rev-dep.config.jsonc")
+	result.configPath = configPath
+
+	cfg := config.RevDepConfig{
+		ConfigVersion: config.CurrentConfigVersion,
+		Rules:         result.rules,
+		Schema:        "https://github.com/jayu/rev-dep/blob/master/config-schema/" + config.CurrentConfigVersion + ".schema.json?raw=true",
+		NodeModulesResolution: &config.NodeModulesResolutionConfig{
+			ResolutionType:         config.NodeModulesResolutionEntryPackage,
+			IncludeDevDepsFromRoot: false,
+		},
+	}
+
+	configJSON, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %v", err)
+	}
+	if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %v", err)
+	}
+	return nil
+}
+
+// initConfigFileCore detects the project layout and writes a config that includes every
+// discovered package (standalone subdirectory packages included). This is the non-interactive
+// entry point used by tests and the exported wrapper.
+func initConfigFileCore(cwd string) (*initConfigResult, error) {
+	return initConfigInteractive(cwd,
+		func(projectStructure, standalonePackages) standaloneSelection { return standaloneAll },
+		func() bool { return false },
+		func() detectorPreset { return detectorsScaffold },
+	)
+}
+
+// ---------------- non-interactive API ----------------
+
+// StandaloneChoice selects which discovered standalone subdirectory packages a generated config
+// should cover.
+type StandaloneChoice int
+
+const (
+	StandaloneNone    StandaloneChoice = iota // base project only, no subfolder packages
+	StandaloneCurated                         // base + real packages (fixture/test-like folders filtered out)
+	StandaloneAll                             // base + every discovered standalone package
+)
+
+func (c StandaloneChoice) toSelection() standaloneSelection {
+	switch c {
+	case StandaloneAll:
+		return standaloneAll
+	case StandaloneCurated:
+		return standaloneCurated
+	default:
+		return standaloneNone
+	}
+}
+
+// DetectorChoice selects which detectors the generated rules enable.
+type DetectorChoice int
+
+const (
+	DetectorsNone               DetectorChoice = iota // no detectors
+	DetectorsUnresolvedOnly                           // only unresolved imports
+	DetectorsUnresolvedCircular                       // unresolved + circular imports
+	DetectorsScaffold                                 // circular + unresolved enabled, others listed but disabled
+	DetectorsAll                                      // all listed detectors enabled
+)
+
+func (c DetectorChoice) toPreset() detectorPreset {
+	switch c {
+	case DetectorsAll:
+		return detectorsAll
+	case DetectorsScaffold:
+		return detectorsScaffold
+	case DetectorsUnresolvedCircular:
+		return detectorsUnresolvedCircular
+	case DetectorsUnresolvedOnly:
+		return detectorsUnresolvedOnly
+	default:
+		return detectorsNone
+	}
+}
+
+// InitOptions configures a non-interactive config init run.
+type InitOptions struct {
+	// Standalone selects which standalone subdirectory packages to include. It is applied when a
+	// standalone choice actually exists (see standaloneChoiceApplies); otherwise all discovered
+	// standalone packages are included.
+	Standalone StandaloneChoice
+	// DetectEntryPoints analyzes each package and fills in prod/dev/ignore entry points.
+	DetectEntryPoints bool
+	// Detectors selects which detectors the generated rules enable.
+	Detectors DetectorChoice
+}
+
+// InitConfigResult reports what a non-interactive config init produced.
+type InitConfigResult struct {
+	ConfigPath             string
+	Rules                  []config.Rule
+	IsMonorepo             bool
+	MonorepoPackageCount   int
+	StandalonePackagePaths []string
+	EntryPointsDetected    bool
+	EntryPointPackageCount int
+}
+
+// InitConfig creates a .rev-dep.config.jsonc at cwd non-interactively, applying the given options.
+// It runs the full init pipeline — project detection, standalone-subfolder filtering, entry-point
+// detection, and detector selection — in a single call, with no terminal prompts. It errors if a
+// config file already exists at cwd.
+func InitConfig(cwd string, opts InitOptions) (*InitConfigResult, error) {
+	result, err := initConfigInteractive(cwd,
+		func(projectStructure, standalonePackages) standaloneSelection { return opts.Standalone.toSelection() },
+		func() bool { return opts.DetectEntryPoints },
+		func() detectorPreset { return opts.Detectors.toPreset() },
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &InitConfigResult{
+		ConfigPath:             result.configPath,
+		Rules:                  result.rules,
+		IsMonorepo:             result.isMonorepo,
+		MonorepoPackageCount:   result.monorepoPackageCount,
+		StandalonePackagePaths: result.standalonePackagePaths,
+		EntryPointsDetected:    result.entryPointsDetected,
+		EntryPointPackageCount: result.entryPointPackageCount,
+	}, nil
+}
+
+// ---------------- first question: which packages should the config cover? ----------------
+
+// maxReportedFilterPatterns caps how many non-package patterns are named in the curated option.
+const maxReportedFilterPatterns = 2
+
+// promptIncludeStandalone asks which standalone subdirectory packages the config should cover and
+// returns the chosen selection. The options depend on whether a base project was detected:
+//   - With a base project: "base only" (default), an optional curated middle option (base + real
+//     packages, when fixture/test-like folders were filtered out), and "base + all".
+//   - Without a base project (only subfolders): "curated" (default) and "all". There is no
+//     base-only option — the subfolders are all there is to configure.
+//
+// The default is always the first (most conservative) option, and that same default is returned
+// when stdin is not a terminal so scripted runs never block. It is only called when
+// standaloneChoiceApplies is true.
+func promptIncludeStandalone(ps projectStructure, standalone standalonePackages) standaloneSelection {
+	baseDetected := ps.isMonorepo || ps.rootHasPackageJson
+	hasCuratedDistinct := len(standalone.filteredOut) > 0 && len(standalone.curated) > 0
+	curatedLabelSuffix := fmt.Sprintf("%d curated %s in subfolders (excluding %s)", len(standalone.curated), packagesWord(len(standalone.curated)), previewPatterns(standalone.patterns))
+
+	var options []string
+	var selections []standaloneSelection
+
+	if baseDetected {
+		baseLabel := "Root package only"
+		if ps.isMonorepo {
+			baseLabel = fmt.Sprintf("Monorepo only — root + %d workspace %s", len(ps.workspacePackageDirs), packagesWord(len(ps.workspacePackageDirs)))
+		}
+		options = append(options, baseLabel)
+		selections = append(selections, standaloneNone)
+
+		if hasCuratedDistinct {
+			options = append(options, fmt.Sprintf("%s + %s", baseLabel, curatedLabelSuffix))
+			selections = append(selections, standaloneCurated)
+		}
+		options = append(options, fmt.Sprintf("%s + all %d standalone %s in subfolders", baseLabel, len(standalone.all), packagesWord(len(standalone.all))))
+		selections = append(selections, standaloneAll)
+	} else {
+		// No base project: choose between the curated subset and all subfolders. This is only
+		// reached when curation splits the set (see standaloneChoiceApplies), so both are non-empty.
+		options = append(options, strings.ToUpper(curatedLabelSuffix[:1])+curatedLabelSuffix[1:])
+		selections = append(selections, standaloneCurated)
+		options = append(options, fmt.Sprintf("All %d %s in subfolders", len(standalone.all), packagesWord(len(standalone.all))))
+		selections = append(selections, standaloneAll)
+	}
+
+	const defaultIndex = 0
+	if !stdinIsInteractive() {
+		return selections[defaultIndex]
+	}
+
+	idx, _, err := selectOne(os.Stdin, os.Stdout, "Standalone packages were found in subfolders. What should the config cover?", options, defaultIndex)
+	if err != nil {
+		return selections[defaultIndex]
+	}
+	return selections[idx]
+}
+
+// nonPackageDirNames are lowercase directory basenames that typically hold fixtures, test data,
+// examples, or generated artifacts rather than a shippable package. A standalone package whose
+// path contains any of these segments is treated as a likely non-package.
+var nonPackageDirNames = map[string]bool{
+	"fixtures": true, "fixture": true,
+	"mocks": true, "mock": true, "__mocks__": true,
+	"test": true, "tests": true, "__tests__": true, "testdata": true, "test-data": true,
+	"examples": true, "example": true,
+	"demo": true, "demos": true,
+	"sample": true, "samples": true,
+	"snapshots": true, "__snapshots__": true,
+	"stories": true,
+	".next":   true, // Next.js build output
+}
+
+// matchNonPackagePattern returns the path segment of relPath that marks it as a likely
+// non-package folder (a known fixture/test/example/etc. name, or any __double-underscored__
+// name), or "" if relPath looks like a real package.
+func matchNonPackagePattern(relPath string) string {
+	for _, segment := range strings.Split(relPath, "/") {
+		if segment == "" {
+			continue
+		}
+		if nonPackageDirNames[strings.ToLower(segment)] || isUnderscoreWrapped(segment) {
+			return segment
+		}
+	}
+	return ""
+}
+
+// isUnderscoreWrapped reports whether s is a __double-underscore-wrapped__ name (e.g. the
+// convention used for __fixtures__, __mocks__, __generated__).
+func isUnderscoreWrapped(s string) bool {
+	return len(s) >= 5 && strings.HasPrefix(s, "__") && strings.HasSuffix(s, "__")
+}
+
+// packagesWord returns the correctly pluralized noun "package"/"packages" for a count.
+func packagesWord(n int) string {
+	if n == 1 {
+		return "package"
+	}
+	return "packages"
+}
+
+// previewPatterns joins up to maxReportedFilterPatterns patterns for display, appending an
+// ellipsis when more were detected.
+func previewPatterns(patterns []string) string {
+	if len(patterns) <= maxReportedFilterPatterns {
+		return strings.Join(patterns, ", ")
+	}
+	return strings.Join(patterns[:maxReportedFilterPatterns], ", ") + ", …"
+}
+
+// ---------------- third question: which detectors to enable? ----------------
+
+// promptDetectorPreset asks which detectors the generated rules should enable. The default is
+// "unresolved + circular imports" — the recommended starting point. When stdin is not a terminal
+// it returns that default.
+func promptDetectorPreset() detectorPreset {
+	presets := []detectorPreset{
+		detectorsNone,
+		detectorsUnresolvedOnly,
+		detectorsUnresolvedCircular,
+		detectorsScaffold,
+		detectorsAll,
+	}
+	options := []string{
+		"No detectors",
+		"Unresolved imports only (a good start to confirm your setup and that resolution works)",
+		"Unresolved + circular imports (circular usually works out of the box once resolution is fine)",
+		"Circular + unresolved enabled, other detectors listed but disabled",
+		"All detectors enabled (likely surfaces issues to fix and needs manual config adjustment)",
+	}
+
+	const defaultIndex = 2 // unresolved + circular imports
+	if !stdinIsInteractive() {
+		return presets[defaultIndex]
+	}
+	idx, _, err := selectOne(os.Stdin, os.Stdout, "Which detectors should the config enable?", options, defaultIndex)
+	if err != nil {
+		return presets[defaultIndex]
+	}
+	return presets[idx]
+}
+
+// ---------------- rule builders ----------------
 
 // hasPackageJson reports whether dir contains a package.json file.
 func hasPackageJson(dir string) bool {
@@ -50,30 +556,54 @@ func hasPackageJson(dir string) bool {
 	return err == nil
 }
 
-// makePackageRule builds the standard per-package rule (circular + unresolved imports
-// enabled, everything else disabled, no module boundaries) used for monorepo workspace
-// packages, standalone subdirectory packages, and monorepo sub-package configs.
-func makePackageRule(path string) config.Rule {
-	return config.Rule{
-		Path: path,
-		CircularImportsDetections: []*config.CircularImportsOptions{{
-			Enabled:           true,
-			IgnoreTypeImports: false,
-		}},
-		OrphanFilesDetections:        []*config.OrphanFilesOptions{{Enabled: false}},
-		UnusedNodeModulesDetections:  []*config.UnusedNodeModulesOptions{{Enabled: false}},
-		MissingNodeModulesDetections: []*config.MissingNodeModulesOptions{{Enabled: false}},
-		UnusedExportsDetections:      []*config.UnusedExportsOptions{{Enabled: false}},
-		UnresolvedImportsDetections:  []*config.UnresolvedImportsOptions{{Enabled: true}},
-		DevDepsUsageOnProdDetections: []*config.RestrictedDevDependenciesUsageOptions{{Enabled: false}},
-		RestrictedImportsDetections:  []*config.RestrictedImportsDetectionOptions{{Enabled: false}},
+// detectorPreset selects which detectors a generated rule enables.
+type detectorPreset int
+
+const (
+	detectorsNone               detectorPreset = iota // no detectors
+	detectorsUnresolvedOnly                           // only unresolved imports
+	detectorsUnresolvedCircular                       // unresolved + circular imports
+	detectorsScaffold                                 // circular + unresolved enabled, other detectors listed but disabled
+	detectorsAll                                      // all detectors listed and enabled
+)
+
+// applyDetectorPreset sets a rule's detection fields according to preset.
+func applyDetectorPreset(rule *config.Rule, preset detectorPreset) {
+	if preset == detectorsNone {
+		return
+	}
+	// Unresolved imports is enabled by every non-empty preset.
+	rule.UnresolvedImportsDetections = []*config.UnresolvedImportsOptions{{Enabled: true}}
+	// Circular imports is enabled by everything except the unresolved-only preset.
+	if preset != detectorsUnresolvedOnly {
+		rule.CircularImportsDetections = []*config.CircularImportsOptions{{Enabled: true, IgnoreTypeImports: false}}
+	}
+	// The remaining detectors are only listed for the scaffold (disabled) and all (enabled) presets.
+	// Detectors that need extra config to do anything (restricted imports/importers, import
+	// conventions, module boundaries) are intentionally left out.
+	if preset == detectorsScaffold || preset == detectorsAll {
+		on := preset == detectorsAll
+		rule.OrphanFilesDetections = []*config.OrphanFilesOptions{{Enabled: on}}
+		rule.UnusedNodeModulesDetections = []*config.UnusedNodeModulesOptions{{Enabled: on}}
+		rule.MissingNodeModulesDetections = []*config.MissingNodeModulesOptions{{Enabled: on}}
+		rule.UnusedExportsDetections = []*config.UnusedExportsOptions{{Enabled: on}}
+		rule.DevDepsUsageOnProdDetections = []*config.RestrictedDevDependenciesUsageOptions{{Enabled: on}}
 	}
 }
 
-// makeSrcRootRule builds the example root rule used for a plain (non-monorepo) single-package
-// project: all per-package checks plus an exemplary src/**/* module boundary.
-func makeSrcRootRule() config.Rule {
-	rule := makePackageRule(".")
+// makePackageRule builds a per-package rule (no module boundaries) for the given detector preset,
+// used for monorepo workspace packages, standalone subdirectory packages, and monorepo sub-package
+// configs.
+func makePackageRule(path string, preset detectorPreset) config.Rule {
+	rule := config.Rule{Path: path}
+	applyDetectorPreset(&rule, preset)
+	return rule
+}
+
+// makeSrcRootRule builds the root rule for a plain (non-monorepo) single-package project: the
+// selected detectors plus an exemplary src/**/* module boundary.
+func makeSrcRootRule(preset detectorPreset) config.Rule {
+	rule := makePackageRule(".", preset)
 	rule.ModuleBoundaries = []config.BoundaryRule{{
 		Name:    "src",
 		Pattern: "src/**/*",
@@ -125,130 +655,19 @@ func packageDirsToSortedRelPaths(cwd string, packageDirs []string) []string {
 	return relPaths
 }
 
-// initConfigFileCore creates the config file without printing results
-func initConfigFileCore(cwd string) (*initConfigResult, error) {
-	currentConfigVersion := "1.11"
-
-	// Check if any config file already exists
-	existingConfig, err := config.FindConfigFile(cwd)
-	if err == nil && existingConfig != "" {
-		return nil, fmt.Errorf("config file already exists at %s", existingConfig)
-	}
-
-	// Define the path for the new config file (always use the standard name)
-	configPath := filepath.Join(cwd, ".rev-dep.config.jsonc")
-
-	result := &initConfigResult{configPath: configPath}
-	var rules []config.Rule
-
-	monorepoCtx := monorepo.DetectMonorepo(cwd)
-
-	// appendStandaloneRules discovers package.json directories in subdirectories that are not
-	// part of any monorepo workspace (and not gitignored) and appends a rule for each. It
-	// records the discovered relative paths on the result for reporting.
-	appendStandaloneRules := func(ctx *monorepo.MonorepoContext) {
-		excludePatterns := globutil.CreateGlobMatchers([]string{}, cwd)
-		standaloneRelPaths := packageDirsToSortedRelPaths(cwd, ctx.DiscoverStandalonePackages(excludePatterns))
-		for _, relPath := range standaloneRelPaths {
-			rules = append(rules, makePackageRule(relPath))
-		}
-		result.standalonePackagePaths = standaloneRelPaths
-	}
-
-	if monorepoCtx != nil {
-		result.isMonorepo = true
-		// If invoked from inside a monorepo but not at the workspace root,
-		// create a config only for the current sub-package (single rule with Path '.').
-		// cwd is in OS form (backslash on Windows, with a trailing separator) while WorkspaceRoot is
-		// in internal forward-slash form (no trailing slash). Normalize BOTH the separators
-		// (NormalizePathForInternal) and the trailing slash (StandardiseDirPathInternal) before
-		// comparing - a plain string compare silently mismatches on Windows and makes the workspace
-		// root look like a sub-package (no per-package rules created).
-		cwdInternal := pathutil.StandardiseDirPathInternal(pathutil.NormalizePathForInternal(cwd))
-		rootInternal := pathutil.StandardiseDirPathInternal(pathutil.NormalizePathForInternal(monorepoCtx.WorkspaceRoot))
-		if cwdInternal != rootInternal {
-			rules = append(rules, makePackageRule("."))
-			result.createdForMonorepoSubPackage = true
-			result.rootRuleCreated = true
-			result.rootHasPackageJson = true
-		} else {
-			// Monorepo root: root rule (module boundaries) + one rule per workspace package.
-			rules = append(rules, makeMonorepoRootRule())
-			result.rootRuleCreated = true
-			result.rootHasPackageJson = true
-
-			excludePatterns := globutil.CreateGlobMatchers([]string{}, cwd)
-			monorepoCtx.FindWorkspacePackages(excludePatterns, nil)
-
-			packagePaths := packageDirsToSortedRelPaths(cwd, mapValues(monorepoCtx.PackageToPath))
-			for _, relPath := range packagePaths {
-				rules = append(rules, makePackageRule(relPath))
-			}
-			result.monorepoPackageCount = len(packagePaths)
-
-			// Also surface standalone packages that live outside the declared workspaces.
-			appendStandaloneRules(monorepoCtx)
-		}
-	} else {
-		// No monorepo. Decide whether a root rule makes sense based on whether the root itself
-		// is a package, then discover standalone packages in subdirectories.
-		rootCtx := monorepo.NewMonorepoContext(pathutil.NormalizePathForInternal(filepath.Clean(cwd)))
-		result.rootHasPackageJson = hasPackageJson(cwd)
-
-		if result.rootHasPackageJson {
-			// Root is a single (non-workspace) package: keep the root rule, then add any
-			// standalone subdirectory packages.
-			rules = append(rules, makeSrcRootRule())
-			result.rootRuleCreated = true
-			appendStandaloneRules(rootCtx)
-		} else {
-			// No root package.json: create rules only for standalone subdirectory packages.
-			appendStandaloneRules(rootCtx)
-			// Fallback: nothing discovered at all -> a single root rule so the config isn't empty.
-			if len(result.standalonePackagePaths) == 0 {
-				rules = append(rules, makeSrcRootRule())
-				result.rootRuleCreated = true
-			}
-		}
-	}
-
-	result.rules = rules
-
-	// Create config structure
-	cfg := config.RevDepConfig{
-		ConfigVersion: currentConfigVersion,
-		Rules:         rules,
-		Schema:        "https://github.com/jayu/rev-dep/blob/master/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
-		NodeModulesResolution: &config.NodeModulesResolutionConfig{
-			ResolutionType:         config.NodeModulesResolutionEntryPackage,
-			IncludeDevDepsFromRoot: false,
-		},
-	}
-
-	// Marshal config to JSON with proper formatting
-	configJSON, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config: %v", err)
-	}
-
-	// Write config file
-	if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
-		return nil, fmt.Errorf("failed to write config file: %v", err)
-	}
-
-	return result, nil
-}
+// ---------------- reporting ----------------
 
 // printInitConfigResults prints the results of config initialization
 func printInitConfigResults(result *initConfigResult) {
 	fmt.Printf("✅ Created .rev-dep.config.jsonc at %s\n", result.configPath)
 
+	fmt.Println()
 	switch {
 	case result.createdForMonorepoSubPackage:
 		fmt.Printf("⚠️  Created config for monorepo sub-package. This file targets the current package only.\n")
 	case result.isMonorepo:
 		if result.monorepoPackageCount > 0 {
-			fmt.Printf("📦 Monorepo detected: discovered %d workspace package(s) and created a rule for each.\n", result.monorepoPackageCount)
+			fmt.Printf("📦 Monorepo detected: discovered %d workspace %s and created a rule for each.\n", result.monorepoPackageCount, packagesWord(result.monorepoPackageCount))
 		} else {
 			fmt.Printf("📦 Monorepo detected: no workspace packages found.\n")
 		}
@@ -262,12 +681,27 @@ func printInitConfigResults(result *initConfigResult) {
 
 	// Separate section for standalone packages discovered in subdirectories.
 	if len(result.standalonePackagePaths) > 0 {
-		fmt.Printf("🧩 Discovered %d standalone package(s) in subdirectories (not part of a monorepo) and created a rule for each:\n", len(result.standalonePackagePaths))
+		fmt.Println()
+		fmt.Printf("🧩 Discovered %d standalone %s in subdirectories (not part of a monorepo) and created a rule for each:\n", len(result.standalonePackagePaths), packagesWord(len(result.standalonePackagePaths)))
 		for _, relPath := range result.standalonePackagePaths {
 			fmt.Printf("   - %s\n", relPath)
 		}
 	}
 
-	fmt.Println("Adjust rules to make them relevant to your project setup.\nGenerated module boundaries config is exemplary and does not make much sense.")
-	fmt.Println("Hint: feed LLM with config file JSON schema to get started.")
+	if result.entryPointsDetected {
+		fmt.Println()
+		fmt.Printf("🔎 Auto-detected entry points for %d %s (production/development classified by path).\n", result.entryPointPackageCount, packagesWord(result.entryPointPackageCount))
+	}
+
+	fmt.Println()
+	fmt.Println("Adjust rules to make them relevant to your project setup.")
+
+	integrationGuide := "https://rev-dep.com/init/single-workspace"
+	if result.isMonorepo {
+		integrationGuide = "https://rev-dep.com/init/monorepo"
+	}
+
+	fmt.Println()
+	fmt.Printf("📖 Integration guide: %s\n", integrationGuide)
+	fmt.Printf("🛟  Troubleshooting: https://rev-dep.com/troubleshooting\n\n")
 }

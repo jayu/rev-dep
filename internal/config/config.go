@@ -419,9 +419,13 @@ func ConfigFileNameJSONC() string {
 	return configFileNameJsonc
 }
 
+// CurrentConfigVersion is the config schema version this CLI release treats as current — the one
+// `config init` writes into generated configs. Keep it as the last entry of supportedConfigVersions.
+const CurrentConfigVersion = "1.11"
+
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11"}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", CurrentConfigVersion}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.

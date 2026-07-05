@@ -73,6 +73,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Troubleshooting',
+      link: {type: 'doc', id: 'troubleshooting/index'},
       items: [
         'troubleshooting/unresolved-imports-troubleshooting',
         'troubleshooting/missing-or-unused-dependency-false-positives',

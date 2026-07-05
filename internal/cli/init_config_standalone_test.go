@@ -149,8 +149,8 @@ func TestInitConfig_MonorepoWithStandalonePackagesOutsideWorkspaces(t *testing.T
 	if !result.isMonorepo {
 		t.Errorf("Expected isMonorepo=true")
 	}
-	if result.monorepoPackageCount != 1 {
-		t.Errorf("Expected 1 workspace package, got %d", result.monorepoPackageCount)
+	if !slices.Equal(result.workspacePackagePaths, []string{"packages/pkg1"}) {
+		t.Errorf("Expected 1 workspace package [packages/pkg1], got %v", result.workspacePackagePaths)
 	}
 	if !slices.Equal(result.standalonePackagePaths, []string{"tools/cli"}) {
 		t.Errorf("Expected standalone [tools/cli], got %v", result.standalonePackagePaths)

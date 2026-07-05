@@ -38,7 +38,7 @@ type initConfigResult struct {
 	configPath                   string
 	rules                        []config.Rule
 	isMonorepo                   bool
-	monorepoPackageCount         int      // workspace-package rules created (excludes the root rule)
+	workspacePackagePaths        []string // relative paths of monorepo workspace packages (each got a rule)
 	standalonePackagePaths       []string // relative paths of standalone packages included in the config
 	createdForMonorepoSubPackage bool
 	rootRuleCreated              bool // whether a "." root rule was created
@@ -244,7 +244,7 @@ func buildConfigResult(ps projectStructure, standalone standalonePackages, selec
 		for _, relPath := range workspacePaths {
 			rules = append(rules, makePackageRule(relPath, preset))
 		}
-		result.monorepoPackageCount = len(workspacePaths)
+		result.workspacePackagePaths = workspacePaths
 	case ps.rootHasPackageJson:
 		rules = append(rules, makeSrcRootRule(preset))
 		result.rootRuleCreated = true
@@ -376,6 +376,7 @@ type InitConfigResult struct {
 	Rules                  []config.Rule
 	IsMonorepo             bool
 	MonorepoPackageCount   int
+	WorkspacePackagePaths  []string
 	StandalonePackagePaths []string
 	EntryPointsDetected    bool
 	EntryPointPackageCount int
@@ -398,7 +399,8 @@ func InitConfig(cwd string, opts InitOptions) (*InitConfigResult, error) {
 		ConfigPath:             result.configPath,
 		Rules:                  result.rules,
 		IsMonorepo:             result.isMonorepo,
-		MonorepoPackageCount:   result.monorepoPackageCount,
+		MonorepoPackageCount:   len(result.workspacePackagePaths),
+		WorkspacePackagePaths:  result.workspacePackagePaths,
 		StandalonePackagePaths: result.standalonePackagePaths,
 		EntryPointsDetected:    result.entryPointsDetected,
 		EntryPointPackageCount: result.entryPointPackageCount,
@@ -425,6 +427,13 @@ func promptIncludeStandalone(ps projectStructure, standalone standalonePackages)
 	hasCuratedDistinct := len(standalone.filteredOut) > 0 && len(standalone.curated) > 0
 	curatedLabelSuffix := fmt.Sprintf("%d curated %s in subfolders (excluding %s)", len(standalone.curated), packagesWord(len(standalone.curated)), previewPatterns(standalone.patterns))
 
+	// The "all" option includes the fixture/build-output folders our heuristics flagged, so name
+	// them — this is the only way the user sees, e.g., an "apps/web/.next" that is otherwise filtered.
+	filteredNote := ""
+	if len(standalone.filteredOut) > 0 {
+		filteredNote = fmt.Sprintf(" (including filtered: %s)", previewPatterns(standalone.patterns))
+	}
+
 	var options []string
 	var selections []standaloneSelection
 
@@ -440,14 +449,14 @@ func promptIncludeStandalone(ps projectStructure, standalone standalonePackages)
 			options = append(options, fmt.Sprintf("%s + %s", baseLabel, curatedLabelSuffix))
 			selections = append(selections, standaloneCurated)
 		}
-		options = append(options, fmt.Sprintf("%s + all %d standalone %s in subfolders", baseLabel, len(standalone.all), packagesWord(len(standalone.all))))
+		options = append(options, fmt.Sprintf("%s + all %d standalone %s in subfolders%s", baseLabel, len(standalone.all), packagesWord(len(standalone.all)), filteredNote))
 		selections = append(selections, standaloneAll)
 	} else {
 		// No base project: choose between the curated subset and all subfolders. This is only
 		// reached when curation splits the set (see standaloneChoiceApplies), so both are non-empty.
 		options = append(options, strings.ToUpper(curatedLabelSuffix[:1])+curatedLabelSuffix[1:])
 		selections = append(selections, standaloneCurated)
-		options = append(options, fmt.Sprintf("All %d %s in subfolders", len(standalone.all), packagesWord(len(standalone.all))))
+		options = append(options, fmt.Sprintf("All %d %s in subfolders%s", len(standalone.all), packagesWord(len(standalone.all)), filteredNote))
 		selections = append(selections, standaloneAll)
 	}
 
@@ -666,8 +675,11 @@ func printInitConfigResults(result *initConfigResult) {
 	case result.createdForMonorepoSubPackage:
 		fmt.Printf("⚠️  Created config for monorepo sub-package. This file targets the current package only.\n")
 	case result.isMonorepo:
-		if result.monorepoPackageCount > 0 {
-			fmt.Printf("📦 Monorepo detected: discovered %d workspace %s and created a rule for each.\n", result.monorepoPackageCount, packagesWord(result.monorepoPackageCount))
+		if len(result.workspacePackagePaths) > 0 {
+			fmt.Printf("📦 Monorepo detected: discovered %d workspace %s and created a rule for each:\n", len(result.workspacePackagePaths), packagesWord(len(result.workspacePackagePaths)))
+			for _, relPath := range result.workspacePackagePaths {
+				fmt.Printf("   - %s\n", relPath)
+			}
 		} else {
 			fmt.Printf("📦 Monorepo detected: no workspace packages found.\n")
 		}

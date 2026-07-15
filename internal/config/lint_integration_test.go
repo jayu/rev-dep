@@ -451,6 +451,56 @@ func TestLintConfig_OverlapDetection(t *testing.T) {
 	}
 }
 
+func TestLintConfig_TrailingCommas(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	mustWrite("package.json", `{"name":"root"}`)
+	mustWrite("src/x.ts", "export const a = 1\n")
+	mustWrite("rev-dep.config.jsonc", `{
+  "configVersion": "1.11",
+  "rules": [
+    { "path": "src", "devEntryPoints": ["x.ts", "x.ts", ], },
+  ],
+}`)
+
+	cfg, _ := LoadConfig(dir)
+	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleTrailingCommas})
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+	// Trailing commas: after 2nd "x.ts", after devEntryPoints ], after rule }, after rules ].
+	if result.TrailingCommaCount != 4 {
+		t.Fatalf("TrailingCommaCount = %d, want 4", result.TrailingCommaCount)
+	}
+	// Trailing-commas-only run must not do file discovery work or produce pattern findings.
+	if len(result.DeadPatterns) != 0 || len(result.Overlaps) != 0 {
+		t.Errorf("trailing-commas run produced pattern findings: %+v %+v", result.DeadPatterns, result.Overlaps)
+	}
+
+	fix, err := ApplyLintFix(result)
+	if err != nil {
+		t.Fatalf("ApplyLintFix: %v", err)
+	}
+	if fix.TrailingCommasRemoved != 4 {
+		t.Errorf("TrailingCommasRemoved = %d, want 4", fix.TrailingCommasRemoved)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "rev-dep.config.jsonc"))
+	if TrailingCommaCount(out) != 0 {
+		t.Errorf("trailing commas remain after fix:\n%s", out)
+	}
+	if _, err := ParseConfig(out); err != nil {
+		t.Fatalf("fixed config no longer parses: %v\n%s", err, out)
+	}
+}
+
 func TestParseLintRules(t *testing.T) {
 	all, err := ParseLintRules(nil)
 	if err != nil || len(all) != len(AllLintRules) {

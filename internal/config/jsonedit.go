@@ -340,6 +340,79 @@ func ReplaceNode(n *JSONNode, text string) Edit {
 	return Edit{Start: n.Start, End: n.End, Text: text}
 }
 
+// findTrailingCommaPositions returns the byte offsets of redundant trailing commas —
+// a comma whose next significant token (skipping whitespace and comments) is a closing
+// `}` or `]`. It is string- and comment-aware so commas inside strings or comments are
+// never counted. The offsets index into content and each spans exactly one byte.
+func findTrailingCommaPositions(content []byte) []int {
+	var positions []int
+	lastComma := -1 // offset of the most recent comma not yet followed by a value
+	n := len(content)
+	for i := 0; i < n; {
+		c := content[i]
+		switch {
+		case c == '"':
+			// Skip the string literal (a value) — the preceding comma was a separator.
+			i++
+			for i < n {
+				if content[i] == '\\' {
+					i += 2
+					continue
+				}
+				if content[i] == '"' {
+					i++
+					break
+				}
+				i++
+			}
+			lastComma = -1
+		case c == '/' && i+1 < n && content[i+1] == '/':
+			i += 2
+			for i < n && content[i] != '\n' {
+				i++
+			}
+			// A comment does not reset lastComma: `, // note\n]` is still a trailing comma.
+		case c == '/' && i+1 < n && content[i+1] == '*':
+			i += 2
+			for i+1 < n && !(content[i] == '*' && content[i+1] == '/') {
+				i++
+			}
+			i += 2
+		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
+			i++
+		case c == ',':
+			lastComma = i
+			i++
+		case c == '}' || c == ']':
+			if lastComma >= 0 {
+				positions = append(positions, lastComma)
+			}
+			lastComma = -1
+			i++
+		default:
+			// Any other value token (number, true/false/null, or an opening bracket).
+			lastComma = -1
+			i++
+		}
+	}
+	return positions
+}
+
+// TrailingCommaCount returns the number of redundant trailing commas in content.
+func TrailingCommaCount(content []byte) int {
+	return len(findTrailingCommaPositions(content))
+}
+
+// RemoveTrailingCommas returns the edits that delete every redundant trailing comma.
+func RemoveTrailingCommas(content []byte) []Edit {
+	positions := findTrailingCommaPositions(content)
+	edits := make([]Edit, 0, len(positions))
+	for _, p := range positions {
+		edits = append(edits, Edit{Start: p, End: p + 1})
+	}
+	return edits
+}
+
 // ---- comment-safe structural removal ----
 
 // span is the byte range [start,end) of a comma-separated item (array element or

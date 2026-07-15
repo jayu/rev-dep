@@ -56,7 +56,7 @@ them by hand.`,
 
 		printConfigLintResults(result, cwd)
 
-		if lintConfigFix && len(result.DeadPatterns) > 0 {
+		if lintConfigFix && (len(result.DeadPatterns) > 0 || result.TrailingCommaCount > 0) {
 			fixResult, err := config.ApplyLintFix(result)
 			if err != nil {
 				return fmt.Errorf("Error applying fixes: %v", err)
@@ -64,9 +64,9 @@ them by hand.`,
 			printConfigLintFixSummary(fixResult)
 		}
 
-		// Exit code is driven by ERRORS only; warnings (dead negation patterns and all
-		// overlap findings) are advisory. A removable error is cleared by --fix; a
-		// report-only error (required entry points, rule paths, etc.) still fails.
+		// Exit code is driven by ERRORS only; warnings (dead negation patterns, overlap
+		// findings, and trailing commas) are advisory. A removable error is cleared by
+		// --fix; a report-only error (required entry points, rule paths, etc.) still fails.
 		errorsRemaining := 0
 		warnings := 0
 		for _, dp := range result.DeadPatterns {
@@ -80,6 +80,9 @@ them by hand.`,
 			errorsRemaining++
 		}
 		warnings += len(result.Overlaps)
+		if !lintConfigFix {
+			warnings += result.TrailingCommaCount // removed when --fix, so not "remaining"
+		}
 
 		printConfigLintStatus(errorsRemaining, warnings, lintConfigFix)
 		fmt.Printf("✨  Done in %dms.\n", time.Since(startTime).Milliseconds())
@@ -138,16 +141,16 @@ func printConfigLintResults(result *config.LintResult, cwd string) {
 		}
 	}
 
-	if len(errorDeads) == 0 && len(warningDeads) == 0 && len(result.Overlaps) == 0 {
-		fmt.Printf("\n✅ No issues found — every glob matches something and no patterns overlap.\n")
+	if len(errorDeads) == 0 && len(warningDeads) == 0 && len(result.Overlaps) == 0 && result.TrailingCommaCount == 0 {
+		fmt.Printf("\n✅ No issues found — every glob matches something, no patterns overlap, no trailing commas.\n")
 		return
 	}
 
 	if len(errorDeads) > 0 {
 		printErrorSection(errorDeads)
 	}
-	if len(warningDeads) > 0 || len(result.Overlaps) > 0 {
-		printWarningSection(warningDeads, result.Overlaps)
+	if len(warningDeads) > 0 || len(result.Overlaps) > 0 || result.TrailingCommaCount > 0 {
+		printWarningSection(warningDeads, result.Overlaps, result.TrailingCommaCount)
 	}
 }
 
@@ -209,9 +212,21 @@ type warnLine struct {
 	text          string
 }
 
-// printWarningSection lists advisory findings — dead negation patterns and overlapping
-// patterns — grouped by rule and option so both kinds sit together.
-func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.OverlapFinding) {
+// printWarningSection lists advisory findings — dead negation patterns, overlapping
+// patterns, and redundant trailing commas — grouped by rule and option. Trailing commas
+// are reported as an aggregate count (a document-level, not per-rule, finding).
+func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.OverlapFinding, trailingCommas int) {
+	fmt.Printf("\n── Warnings ──\n")
+
+	if trailingCommas > 0 {
+		fmt.Printf("\n📄 File\n")
+		fmt.Printf("    ⚠ %d redundant trailing comma(s) — run --fix to remove\n", trailingCommas)
+	}
+
+	if len(warningDeads) == 0 && len(overlaps) == 0 {
+		return
+	}
+
 	lines := make([]warnLine, 0, len(warningDeads)+len(overlaps))
 
 	for _, dp := range warningDeads {
@@ -260,7 +275,6 @@ func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.Ov
 		}
 	})
 
-	fmt.Printf("\n── Warnings ──\n")
 	hdr := newRuleHeaderPrinter()
 	lastLabel := ""
 	for _, l := range lines {
@@ -293,10 +307,13 @@ func printConfigLintFixSummary(fix *config.FixResult) {
 	if fix.RemovedCount > 0 {
 		fmt.Printf("\n✍️  Removed %d dead pattern(s).\n", fix.RemovedCount)
 	}
+	if fix.TrailingCommasRemoved > 0 {
+		fmt.Printf("✍️  Removed %d redundant trailing comma(s).\n", fix.TrailingCommasRemoved)
+	}
 	if fix.ReportOnlyKept > 0 {
 		fmt.Printf("⚠️  %d dead pattern(s) not auto-removed (removing them could change a check's behavior or make the config invalid) — review and remove manually.\n", fix.ReportOnlyKept)
 	}
-	if fix.RemovedCount == 0 && fix.ReportOnlyKept == 0 {
+	if fix.RemovedCount == 0 && fix.ReportOnlyKept == 0 && fix.TrailingCommasRemoved == 0 {
 		fmt.Printf("\n✅ Nothing to remove.\n")
 	}
 }
@@ -305,7 +322,7 @@ func init() {
 	addSharedFlags(configLintCmd)
 	configLintCmd.Flags().StringVarP(&lintConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configLintCmd.Flags().BoolVar(&lintConfigFix, "fix", false, "Remove dead patterns from the config file (preserves comments and formatting)")
-	configLintCmd.Flags().StringSliceVar(&lintConfigRules, "rules", nil, "Lint rules to run (comma-separated): orphan-file-globs, orphan-module-globs, overlapping-globs. Default: all. orphan-file-globs and overlapping-globs run from file discovery alone (fast); orphan-module-globs parses the dependency tree.")
+	configLintCmd.Flags().StringSliceVar(&lintConfigRules, "rules", nil, "Lint rules to run (comma-separated): orphan-file-globs, orphan-module-globs, overlapping-globs, trailing-commas. Default: all. orphan-file-globs/overlapping-globs run from file discovery alone; orphan-module-globs parses the dependency tree; trailing-commas scans only the config file.")
 
 	configCmd.AddCommand(configLintCmd)
 }

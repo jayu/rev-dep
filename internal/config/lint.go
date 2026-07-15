@@ -108,10 +108,14 @@ const (
 	// empirical (based on the current file set) so findings are always warnings and are
 	// never auto-removed. File discovery only; no dependency-tree parse.
 	RuleOverlappingGlobs LintRuleName = "overlapping-globs"
+	// RuleTrailingCommas reports the count of redundant trailing commas in the config
+	// file (a warning). It operates on the raw file only — no discovery or parse — and its
+	// findings are auto-removed by --fix.
+	RuleTrailingCommas LintRuleName = "trailing-commas"
 )
 
 // AllLintRules is the default set run when no selection is given, in output order.
-var AllLintRules = []LintRuleName{RuleOrphanFileGlobs, RuleOrphanModuleGlobs, RuleOverlappingGlobs}
+var AllLintRules = []LintRuleName{RuleOrphanFileGlobs, RuleOrphanModuleGlobs, RuleOverlappingGlobs, RuleTrailingCommas}
 
 // ParseLintRules validates a list of rule names (as typed on the CLI) and returns them
 // as LintRuleName values. An empty input selects all rules. Unknown names are an error.
@@ -154,10 +158,11 @@ func joinLintRules(rules []LintRuleName) string {
 
 // LintResult is the outcome of a config lint run.
 type LintResult struct {
-	ConfigFilePath string
-	RulesRun       []LintRuleName
-	DeadPatterns   []DeadPattern
-	Overlaps       []OverlapFinding
+	ConfigFilePath     string
+	RulesRun           []LintRuleName
+	DeadPatterns       []DeadPattern
+	Overlaps           []OverlapFinding
+	TrailingCommaCount int // redundant trailing commas in the config file (a warning)
 }
 
 // lintCtx holds the discovered universes for one lint run.
@@ -179,7 +184,7 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 	if len(rules) == 0 {
 		rules = AllLintRules
 	}
-	runFile, runModule, runOverlap := false, false, false
+	runFile, runModule, runOverlap, runTrailingCommas := false, false, false, false
 	for _, r := range rules {
 		switch r {
 		case RuleOrphanFileGlobs:
@@ -188,6 +193,8 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 			runModule = true
 		case RuleOverlappingGlobs:
 			runOverlap = true
+		case RuleTrailingCommas:
+			runTrailingCommas = true
 		}
 	}
 
@@ -205,56 +212,69 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 		}
 	}
 
-	// File discovery (respecting gitignore + the config's ignoreFiles) is needed by both
-	// rules: the file rule matches globs against it, the module rule needs per-rule files
-	// for the file side of ignoreMatches.
-	allFiles, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, cfg.IgnoreFiles, cfg.ProcessIgnoredFiles)
-	if err != nil {
-		return nil, err
-	}
-
 	ctx := &lintCtx{cwd: cwd, doc: doc, runFile: runFile, runOverlap: runOverlap}
 
-	// The module universe requires the parsed dependency tree — build it only when the
-	// module rule runs, so file-only rule selections skip parsing entirely.
-	if runModule {
-		universe, err := buildModuleUniverseForConfig(cfg, cwd, packageJson, tsconfigJson, allFiles, excludePatterns, includePatterns)
+	// Only the file/module/overlap rules need file discovery. When only trailing-commas
+	// is selected, skip discovery entirely — it is a pure document scan.
+	if runFile || runModule || runOverlap {
+		// File discovery (respecting gitignore + the config's ignoreFiles) is needed by the
+		// file/overlap rules (glob matching) and the module rule (per-rule files for the
+		// file side of ignoreMatches).
+		allFiles, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, cfg.IgnoreFiles, cfg.ProcessIgnoredFiles)
 		if err != nil {
 			return nil, err
 		}
-		ctx.moduleUniverse = universe
-	}
 
-	// The file traversal serves both the file-dead-pattern rule and the overlap rule, so
-	// run it when either is selected. Each check inside gates its own emission on the
-	// relevant flag.
-	if runFile || runOverlap {
-		// Top-level file globs. Tested against a superset discovered WITHOUT the config's
-		// own ignoreFiles, so a self-erasing ignoreFiles pattern is checked against files
-		// it would otherwise hide.
-		supersetFiles, _, _, err := discoverAllFilesForConfig(cwd, nil, cfg.ProcessIgnoredFiles)
-		if err != nil {
-			return nil, err
-		}
-		ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles"}, cfg.IgnoreFiles, cwd, supersetFiles, true)
-		ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "processIgnoredFiles"}, cfg.ProcessIgnoredFiles, cwd, supersetFiles, true)
-	}
-
-	for i := range cfg.Rules {
-		rule := cfg.Rules[i]
-		fullRulePath := pathutil.StandardiseDirPath(filepath.Join(cwd, rule.Path))
-		ruleFiles := filesUnderRulePath(allFiles, cwd, rule.Path)
-		if runFile || runOverlap {
-			ctx.checkRuleFileGlobs(i, rule, fullRulePath, ruleFiles)
-		}
+		// The module universe requires the parsed dependency tree — build it only when the
+		// module rule runs, so file-only rule selections skip parsing entirely.
 		if runModule {
-			ctx.checkRuleModuleGlobs(i, rule, fullRulePath, ruleFiles)
+			universe, err := buildModuleUniverseForConfig(cfg, cwd, packageJson, tsconfigJson, allFiles, excludePatterns, includePatterns)
+			if err != nil {
+				return nil, err
+			}
+			ctx.moduleUniverse = universe
+		}
+
+		if runFile || runOverlap {
+			// Top-level file globs. Tested against a superset discovered WITHOUT the config's
+			// own ignoreFiles, so a self-erasing ignoreFiles pattern is checked against files
+			// it would otherwise hide.
+			supersetFiles, _, _, err := discoverAllFilesForConfig(cwd, nil, cfg.ProcessIgnoredFiles)
+			if err != nil {
+				return nil, err
+			}
+			ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles"}, cfg.IgnoreFiles, cwd, supersetFiles, true)
+			ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "processIgnoredFiles"}, cfg.ProcessIgnoredFiles, cwd, supersetFiles, true)
+		}
+
+		for i := range cfg.Rules {
+			rule := cfg.Rules[i]
+			fullRulePath := pathutil.StandardiseDirPath(filepath.Join(cwd, rule.Path))
+			ruleFiles := filesUnderRulePath(allFiles, cwd, rule.Path)
+			if runFile || runOverlap {
+				ctx.checkRuleFileGlobs(i, rule, fullRulePath, ruleFiles)
+			}
+			if runModule {
+				ctx.checkRuleModuleGlobs(i, rule, fullRulePath, ruleFiles)
+			}
 		}
 	}
 
 	sortDeadPatterns(ctx.deads)
 	sortOverlaps(ctx.overlaps)
-	return &LintResult{ConfigFilePath: configFilePath, RulesRun: rules, DeadPatterns: ctx.deads, Overlaps: ctx.overlaps}, nil
+
+	trailingCommaCount := 0
+	if runTrailingCommas && doc != nil {
+		trailingCommaCount = len(findTrailingCommaPositions(doc.Original))
+	}
+
+	return &LintResult{
+		ConfigFilePath:     configFilePath,
+		RulesRun:           rules,
+		DeadPatterns:       ctx.deads,
+		Overlaps:           ctx.overlaps,
+		TrailingCommaCount: trailingCommaCount,
+	}, nil
 }
 
 // filesUnderRulePath returns the discovered files that live under the rule's directory,

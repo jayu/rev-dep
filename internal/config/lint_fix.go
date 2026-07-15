@@ -7,8 +7,9 @@ import (
 
 // FixResult reports the outcome of `config lint --fix`.
 type FixResult struct {
-	RemovedCount   int // dead patterns actually removed
-	ReportOnlyKept int // dead patterns left in place (not auto-removed / could not navigate)
+	RemovedCount          int // dead patterns actually removed
+	ReportOnlyKept        int // dead patterns left in place (not auto-removed / could not navigate)
+	TrailingCommasRemoved int // redundant trailing commas removed
 }
 
 // ownerKey identifies the object that directly owns a set of option members (a rule, a
@@ -74,6 +75,23 @@ func ApplyLintFix(result *LintResult) (*FixResult, error) {
 	}
 
 	var edits []Edit
+
+	// Strip redundant trailing commas when the rule ran. These single-byte deletions are
+	// applied together with the pattern removals; ApplyEdits drops any that overlap a
+	// larger removal (which already deleted the comma), so the two never conflict.
+	trailingCommasRequested := false
+	for _, r := range result.RulesRun {
+		if r == RuleTrailingCommas {
+			trailingCommasRequested = true
+			break
+		}
+	}
+	if trailingCommasRequested {
+		commaEdits := RemoveTrailingCommas(doc.Original)
+		edits = append(edits, commaEdits...)
+		fix.TrailingCommasRemoved = len(commaEdits)
+	}
+
 	for _, ok := range ownerOrder {
 		owner := locateOwner(doc, sample[ok])
 		if owner == nil || owner.Kind != JSONObject {

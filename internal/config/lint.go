@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,6 +32,16 @@ const (
 	KindDir    PatternKind = "dir"    // a directory/rule path that resolves to no files
 )
 
+// Severity classifies how a finding affects the exit code.
+type Severity string
+
+const (
+	// SeverityError fails the lint (non-zero exit) when it remains after --fix.
+	SeverityError Severity = "error"
+	// SeverityWarning is advisory and never affects the exit code.
+	SeverityWarning Severity = "warning"
+)
+
 // DeadPattern is a single config pattern that matched nothing.
 type DeadPattern struct {
 	RuleIndex     int    // index into config.Rules, or -1 for top-level options
@@ -42,7 +53,41 @@ type DeadPattern struct {
 	ElementIndex  int    // index within the option array; -1 for scalar options
 	Value         string // the dead pattern text
 	Kind          PatternKind
-	Removable     bool // whether --fix may auto-remove it (load-bearing patterns are report-only)
+	Severity      Severity // negation patterns are warnings; other dead patterns are errors
+	Removable     bool     // whether --fix may auto-remove it (load-bearing patterns are report-only)
+}
+
+// OverlapKind describes how two patterns' matched-file sets relate.
+type OverlapKind string
+
+const (
+	// OverlapDuplicate: the two patterns match exactly the same files.
+	OverlapDuplicate OverlapKind = "duplicate"
+	// OverlapContained: one pattern's files are a strict subset of the other's.
+	OverlapContained OverlapKind = "contained"
+	// OverlapPartial: the patterns share files but neither contains the other.
+	OverlapPartial OverlapKind = "partial"
+)
+
+// OverlapFinding reports two patterns in the same option array whose matched-file sets
+// overlap. Findings are always warnings (empirical — the relationship can change as
+// files are added) and are never auto-removed.
+type OverlapFinding struct {
+	RuleIndex     int
+	RulePath      string
+	DetectorType  string
+	DetectorIndex int
+	BoundaryIndex int
+	OptionKey     string
+
+	Kind OverlapKind
+	// PatternA/PatternB are the two patterns. For OverlapContained, PatternA is the
+	// redundant (subset) one and PatternB is the one that covers it.
+	PatternA        string
+	ElementIndexA   int
+	PatternB        string
+	ElementIndexB   int
+	SharedFileCount int // number of files matched by both
 }
 
 // LintRuleName identifies a selectable lint rule. The linter is a registry of rules so
@@ -58,10 +103,15 @@ const (
 	// modules, restricted modules, and the file-or-module ignoreMatches) that match no
 	// module. It requires the parsed dependency tree to know which modules are imported.
 	RuleOrphanModuleGlobs LintRuleName = "orphan-module-globs"
+	// RuleOverlappingGlobs flags file globs within the same option that match overlapping
+	// sets of files (one contained in another, identical, or partially overlapping). It is
+	// empirical (based on the current file set) so findings are always warnings and are
+	// never auto-removed. File discovery only; no dependency-tree parse.
+	RuleOverlappingGlobs LintRuleName = "overlapping-globs"
 )
 
 // AllLintRules is the default set run when no selection is given, in output order.
-var AllLintRules = []LintRuleName{RuleOrphanFileGlobs, RuleOrphanModuleGlobs}
+var AllLintRules = []LintRuleName{RuleOrphanFileGlobs, RuleOrphanModuleGlobs, RuleOverlappingGlobs}
 
 // ParseLintRules validates a list of rule names (as typed on the CLI) and returns them
 // as LintRuleName values. An empty input selects all rules. Unknown names are an error.
@@ -107,6 +157,7 @@ type LintResult struct {
 	ConfigFilePath string
 	RulesRun       []LintRuleName
 	DeadPatterns   []DeadPattern
+	Overlaps       []OverlapFinding
 }
 
 // lintCtx holds the discovered universes for one lint run.
@@ -114,7 +165,10 @@ type lintCtx struct {
 	cwd            string
 	moduleUniverse []string      // populated only when the module rule runs
 	doc            *JSONDocument // parsed config file; used to check physical presence
+	runFile        bool          // orphan-file-globs selected
+	runOverlap     bool          // overlapping-globs selected
 	deads          []DeadPattern
+	overlaps       []OverlapFinding
 }
 
 // LintConfig analyzes cfg and returns every dead pattern for the selected rules (all
@@ -125,13 +179,15 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 	if len(rules) == 0 {
 		rules = AllLintRules
 	}
-	runFile, runModule := false, false
+	runFile, runModule, runOverlap := false, false, false
 	for _, r := range rules {
 		switch r {
 		case RuleOrphanFileGlobs:
 			runFile = true
 		case RuleOrphanModuleGlobs:
 			runModule = true
+		case RuleOverlappingGlobs:
+			runOverlap = true
 		}
 	}
 
@@ -157,10 +213,10 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 		return nil, err
 	}
 
-	ctx := &lintCtx{cwd: cwd, doc: doc}
+	ctx := &lintCtx{cwd: cwd, doc: doc, runFile: runFile, runOverlap: runOverlap}
 
 	// The module universe requires the parsed dependency tree — build it only when the
-	// module rule runs, so `--rules orphan-file-globs` skips parsing entirely.
+	// module rule runs, so file-only rule selections skip parsing entirely.
 	if runModule {
 		universe, err := buildModuleUniverseForConfig(cfg, cwd, packageJson, tsconfigJson, allFiles, excludePatterns, includePatterns)
 		if err != nil {
@@ -169,7 +225,10 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 		ctx.moduleUniverse = universe
 	}
 
-	if runFile {
+	// The file traversal serves both the file-dead-pattern rule and the overlap rule, so
+	// run it when either is selected. Each check inside gates its own emission on the
+	// relevant flag.
+	if runFile || runOverlap {
 		// Top-level file globs. Tested against a superset discovered WITHOUT the config's
 		// own ignoreFiles, so a self-erasing ignoreFiles pattern is checked against files
 		// it would otherwise hide.
@@ -185,7 +244,7 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 		rule := cfg.Rules[i]
 		fullRulePath := pathutil.StandardiseDirPath(filepath.Join(cwd, rule.Path))
 		ruleFiles := filesUnderRulePath(allFiles, cwd, rule.Path)
-		if runFile {
+		if runFile || runOverlap {
 			ctx.checkRuleFileGlobs(i, rule, fullRulePath, ruleFiles)
 		}
 		if runModule {
@@ -194,7 +253,8 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 	}
 
 	sortDeadPatterns(ctx.deads)
-	return &LintResult{ConfigFilePath: configFilePath, RulesRun: rules, DeadPatterns: ctx.deads}, nil
+	sortOverlaps(ctx.overlaps)
+	return &LintResult{ConfigFilePath: configFilePath, RulesRun: rules, DeadPatterns: ctx.deads, Overlaps: ctx.overlaps}, nil
 }
 
 // filesUnderRulePath returns the discovered files that live under the rule's directory,
@@ -224,6 +284,15 @@ type patternLoc struct {
 }
 
 func (ctx *lintCtx) add(loc patternLoc, elementIndex int, value string, kind PatternKind, removable bool) {
+	// A dead negation pattern (`!foo`) is a warning, not an error: negations exclude
+	// files that legitimately may not exist, so "matches nothing" is expected and is not
+	// a failure. Negations are also never auto-removed (removing an exclusion changes
+	// behavior, and the file may exist later).
+	severity := SeverityError
+	if isNegationPattern(value) {
+		severity = SeverityWarning
+		removable = false
+	}
 	ctx.deads = append(ctx.deads, DeadPattern{
 		RuleIndex:     loc.RuleIndex,
 		RulePath:      loc.RulePath,
@@ -234,8 +303,15 @@ func (ctx *lintCtx) add(loc patternLoc, elementIndex int, value string, kind Pat
 		ElementIndex:  elementIndex,
 		Value:         value,
 		Kind:          kind,
+		Severity:      severity,
 		Removable:     removable,
 	})
+}
+
+// isNegationPattern reports whether a pattern is a gitignore-style negation (`!foo`).
+// A backslash-escaped `\!foo` is a literal, not a negation.
+func isNegationPattern(pattern string) bool {
+	return strings.HasPrefix(strings.TrimSpace(pattern), "!")
 }
 
 // optionPresent reports whether the option at loc physically exists as an array in the
@@ -253,17 +329,24 @@ func (ctx *lintCtx) optionPresent(loc patternLoc) bool {
 	return owner.Get(loc.OptionKey) != nil
 }
 
-// checkFileArray flags each pattern in values that matches no file. base is the glob
-// resolution root; files is the file set to test against.
+// checkFileArray serves both file-based rules over one option array: it flags patterns
+// that match no file (orphan-file-globs) and reports overlapping patterns
+// (overlapping-globs). base is the glob resolution root; files is the file set to test
+// against. Each half is gated on its rule being selected.
 func (ctx *lintCtx) checkFileArray(loc patternLoc, values []string, base string, files []string, removable bool) {
 	if len(values) == 0 || !ctx.optionPresent(loc) {
 		return
 	}
-	for idx, v := range values {
-		if patternMatchesAnyFile(v, base, files) {
-			continue
+	if ctx.runFile {
+		for idx, v := range values {
+			if patternMatchesAnyFile(v, base, files) {
+				continue
+			}
+			ctx.add(loc, idx, v, KindFile, removable)
 		}
-		ctx.add(loc, idx, v, KindFile, removable)
+	}
+	if ctx.runOverlap {
+		ctx.checkOverlaps(loc, values, base, files)
 	}
 }
 
@@ -301,7 +384,8 @@ func (ctx *lintCtx) checkRuleFileGlobs(ruleIndex int, rule Rule, fullRulePath st
 	}
 
 	// Whole rule matches no files at all — report the rule path (never auto-removed).
-	if len(ruleFiles) == 0 && strings.TrimSpace(rule.Path) != "" {
+	// This is a dead-pattern finding only (there is nothing to overlap).
+	if ctx.runFile && len(ruleFiles) == 0 && strings.TrimSpace(rule.Path) != "" {
 		ctx.add(base("path"), -1, rule.Path, KindDir, false)
 	}
 
@@ -363,7 +447,7 @@ func (ctx *lintCtx) checkRuleFileGlobs(ruleIndex int, rule Rule, fullRulePath st
 		bl := func(k string) patternLoc {
 			return patternLoc{RuleIndex: ruleIndex, RulePath: rule.Path, DetectorType: "moduleBoundaries", DetectorIndex: bi, BoundaryIndex: bi, OptionKey: k}
 		}
-		if strings.TrimSpace(b.Pattern) != "" && !patternMatchesAnyFile(b.Pattern, fullRulePath, ruleFiles) {
+		if ctx.runFile && strings.TrimSpace(b.Pattern) != "" && !patternMatchesAnyFile(b.Pattern, fullRulePath, ruleFiles) {
 			ctx.add(bl("pattern"), -1, b.Pattern, KindFile, false)
 		}
 		ctx.checkFileArray(bl("allow"), b.Allow, fullRulePath, ruleFiles, true)
@@ -447,6 +531,143 @@ func patternMatchesAnyModule(pattern string, universe []string) bool {
 		}
 	}
 	return false
+}
+
+// ---- overlapping-globs ----
+
+// checkOverlaps compares every pair of patterns in one option array by the sets of
+// files they match, reporting duplicates, containment, and partial overlaps as
+// warnings. Patterns matching no file (dead — handled by the file rule) and negations
+// are skipped.
+func (ctx *lintCtx) checkOverlaps(loc patternLoc, values []string, base string, files []string) {
+	type pat struct {
+		elemIdx int
+		value   string
+		bs      *bitset
+	}
+	pats := make([]pat, 0, len(values))
+	for idx, v := range values {
+		if isNegationPattern(v) || strings.TrimSpace(v) == "" {
+			continue
+		}
+		bs := computeMatchBitset(v, base, files)
+		if bs.count == 0 {
+			continue
+		}
+		pats = append(pats, pat{idx, v, bs})
+	}
+
+	for a := 0; a < len(pats); a++ {
+		for b := a + 1; b < len(pats); b++ {
+			A, B := pats[a], pats[b]
+			aInB := A.bs.subsetOf(B.bs)
+			bInA := B.bs.subsetOf(A.bs)
+			shared := A.bs.intersectionCount(B.bs)
+			switch {
+			case aInB && bInA:
+				ctx.addOverlap(loc, OverlapDuplicate, A.value, A.elemIdx, B.value, B.elemIdx, shared)
+			case aInB:
+				// A's files ⊂ B's files → A is the redundant (subset) one.
+				ctx.addOverlap(loc, OverlapContained, A.value, A.elemIdx, B.value, B.elemIdx, shared)
+			case bInA:
+				// B's files ⊂ A's files → B is redundant; list it first.
+				ctx.addOverlap(loc, OverlapContained, B.value, B.elemIdx, A.value, A.elemIdx, shared)
+			case shared > 0:
+				ctx.addOverlap(loc, OverlapPartial, A.value, A.elemIdx, B.value, B.elemIdx, shared)
+			}
+		}
+	}
+}
+
+func (ctx *lintCtx) addOverlap(loc patternLoc, kind OverlapKind, aVal string, aIdx int, bVal string, bIdx int, shared int) {
+	ctx.overlaps = append(ctx.overlaps, OverlapFinding{
+		RuleIndex:       loc.RuleIndex,
+		RulePath:        loc.RulePath,
+		DetectorType:    loc.DetectorType,
+		DetectorIndex:   loc.DetectorIndex,
+		BoundaryIndex:   loc.BoundaryIndex,
+		OptionKey:       loc.OptionKey,
+		Kind:            kind,
+		PatternA:        aVal,
+		ElementIndexA:   aIdx,
+		PatternB:        bVal,
+		ElementIndexB:   bIdx,
+		SharedFileCount: shared,
+	})
+}
+
+// computeMatchBitset returns the set of file indices (into files) the pattern matches,
+// using the same matcher the tool uses at runtime.
+func computeMatchBitset(pattern, base string, files []string) *bitset {
+	bs := newBitset(len(files))
+	matchers := globutil.CreateGlobMatchers([]string{pattern}, base)
+	if len(matchers) == 0 {
+		return bs
+	}
+	for i, f := range files {
+		if globutil.MatchesAnyGlobMatcher(f, matchers, false) {
+			bs.set(i)
+		}
+	}
+	return bs
+}
+
+// bitset is a fixed-size set of file indices.
+type bitset struct {
+	words []uint64
+	count int
+}
+
+func newBitset(n int) *bitset {
+	return &bitset{words: make([]uint64, (n+63)/64)}
+}
+
+func (b *bitset) set(i int) {
+	w, m := i>>6, uint64(1)<<(uint(i)&63)
+	if b.words[w]&m == 0 {
+		b.words[w] |= m
+		b.count++
+	}
+}
+
+// subsetOf reports whether every bit set in b is also set in o.
+func (b *bitset) subsetOf(o *bitset) bool {
+	for i, w := range b.words {
+		if w&^o.words[i] != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (b *bitset) intersectionCount(o *bitset) int {
+	n := 0
+	for i, w := range b.words {
+		n += bits.OnesCount64(w & o.words[i])
+	}
+	return n
+}
+
+func sortOverlaps(overlaps []OverlapFinding) {
+	sort.SliceStable(overlaps, func(i, j int) bool {
+		a, b := overlaps[i], overlaps[j]
+		if a.RuleIndex != b.RuleIndex {
+			return a.RuleIndex < b.RuleIndex
+		}
+		if a.DetectorType != b.DetectorType {
+			return a.DetectorType < b.DetectorType
+		}
+		if a.DetectorIndex != b.DetectorIndex {
+			return a.DetectorIndex < b.DetectorIndex
+		}
+		if a.OptionKey != b.OptionKey {
+			return a.OptionKey < b.OptionKey
+		}
+		if a.ElementIndexA != b.ElementIndexA {
+			return a.ElementIndexA < b.ElementIndexA
+		}
+		return a.ElementIndexB < b.ElementIndexB
+	})
 }
 
 // buildModuleUniverseForConfig builds the dependency tree (parsing every file, the

@@ -6,18 +6,20 @@ import (
 	"rev-dep-go/internal/config"
 )
 
-func TestDeadPatternLabel(t *testing.T) {
+func TestOptionLabel(t *testing.T) {
 	cases := []struct {
-		dp   config.DeadPattern
-		want string
+		detectorType  string
+		boundaryIndex int
+		optionKey     string
+		want          string
 	}{
-		{config.DeadPattern{OptionKey: "ignoreFiles"}, "ignoreFiles"},
-		{config.DeadPattern{DetectorType: "orphanFilesDetection", OptionKey: "validEntryPoints"}, "orphanFilesDetection.validEntryPoints"},
-		{config.DeadPattern{DetectorType: "moduleBoundaries", BoundaryIndex: 2, OptionKey: "allow"}, "moduleBoundaries[2].allow"},
+		{"", -1, "ignoreFiles", "ignoreFiles"},
+		{"orphanFilesDetection", -1, "validEntryPoints", "orphanFilesDetection.validEntryPoints"},
+		{"moduleBoundaries", 2, "allow", "moduleBoundaries[2].allow"},
 	}
 	for _, c := range cases {
-		if got := deadPatternLabel(c.dp); got != c.want {
-			t.Errorf("deadPatternLabel(%+v)=%q, want %q", c.dp, got, c.want)
+		if got := optionLabel(c.detectorType, c.boundaryIndex, c.optionKey); got != c.want {
+			t.Errorf("optionLabel(%q,%d,%q)=%q, want %q", c.detectorType, c.boundaryIndex, c.optionKey, got, c.want)
 		}
 	}
 }

@@ -345,6 +345,112 @@ func TestLintConfig_IgnoresInheritedEntryPoints(t *testing.T) {
 	}
 }
 
+func TestLintConfig_NegationSeverity(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	mustWrite("package.json", `{"name":"root"}`)
+	mustWrite("src/index.ts", "export const a = 1\n")
+	mustWrite("rev-dep.config.jsonc", `{
+  "configVersion": "1.11",
+  "rules": [ { "path": "src", "devEntryPoints": ["!missing.ts", "ghost.ts"] } ]
+}`)
+
+	cfg, _ := LoadConfig(dir)
+	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+	got := map[string]Severity{}
+	for _, d := range result.DeadPatterns {
+		got[d.Value] = d.Severity
+	}
+	if got["!missing.ts"] != SeverityWarning {
+		t.Errorf("negation pattern severity = %q, want warning", got["!missing.ts"])
+	}
+	if got["ghost.ts"] != SeverityError {
+		t.Errorf("positive dead pattern severity = %q, want error", got["ghost.ts"])
+	}
+	// A dead negation must never be marked auto-removable.
+	for _, d := range result.DeadPatterns {
+		if d.Value == "!missing.ts" && d.Removable {
+			t.Error("negation pattern must not be removable")
+		}
+	}
+}
+
+func TestLintConfig_OverlapDetection(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	mustWrite("package.json", `{"name":"root"}`)
+	for _, f := range []string{"src/a/x.ts", "src/a/y.ts", "src/b/z.ts", "src/p/a/x.ts", "src/p/a/y.ts", "src/p/b/x.ts"} {
+		mustWrite(f, "export const a = 1\n")
+	}
+	mustWrite("rev-dep.config.jsonc", `{
+  "configVersion": "1.11",
+  "rules": [
+    {
+      "path": "src",
+      "prodEntryPoints": ["p/**/x.ts", "p/a/**"],
+      "devEntryPoints": ["a/**", "a/x.ts", "b/**"]
+    }
+  ]
+}`)
+
+	cfg, _ := LoadConfig(dir)
+	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOverlappingGlobs})
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+
+	// overlapping-globs alone must not produce dead patterns.
+	if len(result.DeadPatterns) != 0 {
+		t.Errorf("overlap-only run produced dead patterns: %+v", result.DeadPatterns)
+	}
+
+	find := func(kind OverlapKind, a, b string) *OverlapFinding {
+		for i := range result.Overlaps {
+			o := result.Overlaps[i]
+			if o.Kind == kind && ((o.PatternA == a && o.PatternB == b) || (o.PatternA == b && o.PatternB == a)) {
+				return &result.Overlaps[i]
+			}
+		}
+		return nil
+	}
+
+	// Containment: a/x.ts ⊂ a/** (redundant one listed first).
+	if c := find(OverlapContained, "a/x.ts", "a/**"); c == nil {
+		t.Errorf("expected containment a/x.ts ⊂ a/**; got %+v", result.Overlaps)
+	} else if c.PatternA != "a/x.ts" {
+		t.Errorf("containment redundant side should be a/x.ts, got %q", c.PatternA)
+	}
+	// Partial overlap: p/**/x.ts and p/a/** share exactly p/a/x.ts.
+	if p := find(OverlapPartial, "p/**/x.ts", "p/a/**"); p == nil {
+		t.Errorf("expected partial overlap p/**/x.ts ~ p/a/**; got %+v", result.Overlaps)
+	} else if p.SharedFileCount != 1 {
+		t.Errorf("partial overlap shared count = %d, want 1", p.SharedFileCount)
+	}
+	// b/** is disjoint from the a/* patterns — must not be reported.
+	if find(OverlapContained, "b/**", "a/**") != nil || find(OverlapPartial, "b/**", "a/**") != nil {
+		t.Error("b/** should not overlap a/**")
+	}
+}
+
 func TestParseLintRules(t *testing.T) {
 	all, err := ParseLintRules(nil)
 	if err != nil || len(all) != len(AllLintRules) {

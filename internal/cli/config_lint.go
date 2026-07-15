@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -55,38 +56,66 @@ them by hand.`,
 
 		printConfigLintResults(result, cwd)
 
-		exitNonZero := false
 		if lintConfigFix && len(result.DeadPatterns) > 0 {
 			fixResult, err := config.ApplyLintFix(result)
 			if err != nil {
 				return fmt.Errorf("Error applying fixes: %v", err)
 			}
 			printConfigLintFixSummary(fixResult)
-			exitNonZero = fixResult.ReportOnlyKept > 0
-		} else {
-			exitNonZero = len(result.DeadPatterns) > 0
 		}
 
-		fmt.Printf("\n✨  Done in %dms.\n", time.Since(startTime).Milliseconds())
+		// Exit code is driven by ERRORS only; warnings (dead negation patterns and all
+		// overlap findings) are advisory. A removable error is cleared by --fix; a
+		// report-only error (required entry points, rule paths, etc.) still fails.
+		errorsRemaining := 0
+		warnings := 0
+		for _, dp := range result.DeadPatterns {
+			if dp.Severity == config.SeverityWarning {
+				warnings++
+				continue
+			}
+			if lintConfigFix && dp.Removable {
+				continue // removed by --fix
+			}
+			errorsRemaining++
+		}
+		warnings += len(result.Overlaps)
 
-		if exitNonZero {
+		printConfigLintStatus(errorsRemaining, warnings, lintConfigFix)
+		fmt.Printf("✨  Done in %dms.\n", time.Since(startTime).Milliseconds())
+
+		if errorsRemaining > 0 {
 			os.Exit(1)
 		}
 		return nil
 	},
 }
 
-// deadPatternLabel builds the human-readable option path for a dead pattern.
-func deadPatternLabel(dp config.DeadPattern) string {
-	label := dp.OptionKey
-	if dp.DetectorType != "" {
-		if dp.DetectorType == "moduleBoundaries" {
-			label = fmt.Sprintf("moduleBoundaries[%d].%s", dp.BoundaryIndex, dp.OptionKey)
-		} else {
-			label = fmt.Sprintf("%s.%s", dp.DetectorType, dp.OptionKey)
+// printConfigLintStatus prints the final one-line verdict.
+func printConfigLintStatus(errors, warnings int, fixed bool) {
+	switch {
+	case errors == 0 && warnings == 0:
+		// "all clean" already printed by the results section
+	case errors == 0:
+		fmt.Printf("\n⚠️  %d warning(s), no errors — exit 0.\n", warnings)
+	default:
+		verb := "found"
+		if fixed {
+			verb = "remaining after --fix"
 		}
+		fmt.Printf("\n❌ %d error(s) %s, %d warning(s).\n", errors, verb, warnings)
 	}
-	return label
+}
+
+// optionLabel builds the human-readable option path (e.g. "orphanFilesDetection.validEntryPoints").
+func optionLabel(detectorType string, boundaryIndex int, optionKey string) string {
+	if detectorType == "" {
+		return optionKey
+	}
+	if detectorType == "moduleBoundaries" {
+		return fmt.Sprintf("moduleBoundaries[%d].%s", boundaryIndex, optionKey)
+	}
+	return fmt.Sprintf("%s.%s", detectorType, optionKey)
 }
 
 func printConfigLintResults(result *config.LintResult, cwd string) {
@@ -100,42 +129,150 @@ func printConfigLintResults(result *config.LintResult, cwd string) {
 	}
 	fmt.Printf("🔍 Config lint: %s  [rules: %s]\n", configRel, strings.Join(ruleNames, ", "))
 
-	if len(result.DeadPatterns) == 0 {
-		fmt.Printf("\n✅ No dead patterns found — every glob and path matches something.\n")
+	var errorDeads, warningDeads []config.DeadPattern
+	for _, dp := range result.DeadPatterns {
+		if dp.Severity == config.SeverityWarning {
+			warningDeads = append(warningDeads, dp)
+		} else {
+			errorDeads = append(errorDeads, dp)
+		}
+	}
+
+	if len(errorDeads) == 0 && len(warningDeads) == 0 && len(result.Overlaps) == 0 {
+		fmt.Printf("\n✅ No issues found — every glob matches something and no patterns overlap.\n")
 		return
 	}
 
-	// Group by rule, then by option label, preserving the sorted order from LintConfig.
-	type header struct {
-		ruleIndex int
-		rulePath  string
+	if len(errorDeads) > 0 {
+		printErrorSection(errorDeads)
 	}
-	printedHeader := header{ruleIndex: -2}
-	lastLabel := ""
+	if len(warningDeads) > 0 || len(result.Overlaps) > 0 {
+		printWarningSection(warningDeads, result.Overlaps)
+	}
+}
 
-	for _, dp := range result.DeadPatterns {
-		h := header{ruleIndex: dp.RuleIndex, rulePath: dp.RulePath}
-		if h != printedHeader {
-			if dp.RuleIndex < 0 {
-				fmt.Printf("\n📄 Top-level\n")
-			} else {
-				fmt.Printf("\n📁 Rule: %s\n", dp.RulePath)
-			}
-			printedHeader = h
+// ruleHeader prints a "📁 Rule:" / "📄 Top-level" header when the rule changes.
+type ruleHeaderPrinter struct {
+	ruleIndex int
+	rulePath  string
+	first     bool
+}
+
+func newRuleHeaderPrinter() *ruleHeaderPrinter {
+	return &ruleHeaderPrinter{ruleIndex: -2, first: true}
+}
+
+func (p *ruleHeaderPrinter) print(ruleIndex int, rulePath string) bool {
+	if p.ruleIndex == ruleIndex && p.rulePath == rulePath && !p.first {
+		return false
+	}
+	if ruleIndex < 0 {
+		fmt.Printf("\n📄 Top-level\n")
+	} else {
+		fmt.Printf("\n📁 Rule: %s\n", rulePath)
+	}
+	p.ruleIndex, p.rulePath, p.first = ruleIndex, rulePath, false
+	return true
+}
+
+// printErrorSection lists dead positive patterns — the findings that fail the lint.
+func printErrorSection(deads []config.DeadPattern) {
+	fmt.Printf("\n── Errors ──\n")
+	hdr := newRuleHeaderPrinter()
+	lastLabel := ""
+	for _, dp := range deads {
+		if hdr.print(dp.RuleIndex, dp.RulePath) {
 			lastLabel = ""
 		}
-
-		label := deadPatternLabel(dp)
+		label := optionLabel(dp.DetectorType, dp.BoundaryIndex, dp.OptionKey)
 		if label != lastLabel {
 			fmt.Printf("  %s\n", label)
 			lastLabel = label
 		}
-
 		suffix := kindSuffix(dp.Kind)
 		if !dp.Removable {
 			suffix += " [not auto-removed]"
 		}
 		fmt.Printf("    ✗ %q%s\n", dp.Value, suffix)
+	}
+}
+
+// warnLine is a unified warning entry (a dead negation or an overlap) for display.
+type warnLine struct {
+	ruleIndex     int
+	rulePath      string
+	detectorType  string
+	detectorIndex int
+	boundaryIndex int
+	optionKey     string
+	ord1, ord2    int // stable ordering within an option
+	text          string
+}
+
+// printWarningSection lists advisory findings — dead negation patterns and overlapping
+// patterns — grouped by rule and option so both kinds sit together.
+func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.OverlapFinding) {
+	lines := make([]warnLine, 0, len(warningDeads)+len(overlaps))
+
+	for _, dp := range warningDeads {
+		lines = append(lines, warnLine{
+			ruleIndex: dp.RuleIndex, rulePath: dp.RulePath,
+			detectorType: dp.DetectorType, detectorIndex: dp.DetectorIndex, boundaryIndex: dp.BoundaryIndex,
+			optionKey: dp.OptionKey, ord1: dp.ElementIndex,
+			text: fmt.Sprintf("%q  (negation matches nothing)", dp.Value),
+		})
+	}
+	for _, o := range overlaps {
+		var text string
+		switch o.Kind {
+		case config.OverlapDuplicate:
+			text = fmt.Sprintf("%q and %q match the same files (possible duplicate)", o.PatternA, o.PatternB)
+		case config.OverlapContained:
+			text = fmt.Sprintf("%q is redundant — its files are all covered by %q", o.PatternA, o.PatternB)
+		case config.OverlapPartial:
+			text = fmt.Sprintf("%q and %q partially overlap (%d shared file(s))", o.PatternA, o.PatternB, o.SharedFileCount)
+		}
+		lines = append(lines, warnLine{
+			ruleIndex: o.RuleIndex, rulePath: o.RulePath,
+			detectorType: o.DetectorType, detectorIndex: o.DetectorIndex, boundaryIndex: o.BoundaryIndex,
+			optionKey: o.OptionKey, ord1: o.ElementIndexA, ord2: o.ElementIndexB,
+			text: text,
+		})
+	}
+
+	sort.SliceStable(lines, func(i, j int) bool {
+		a, b := lines[i], lines[j]
+		switch {
+		case a.ruleIndex != b.ruleIndex:
+			return a.ruleIndex < b.ruleIndex
+		case a.detectorType != b.detectorType:
+			return a.detectorType < b.detectorType
+		case a.detectorIndex != b.detectorIndex:
+			return a.detectorIndex < b.detectorIndex
+		case a.boundaryIndex != b.boundaryIndex:
+			return a.boundaryIndex < b.boundaryIndex
+		case a.optionKey != b.optionKey:
+			return a.optionKey < b.optionKey
+		case a.ord1 != b.ord1:
+			return a.ord1 < b.ord1
+		default:
+			return a.ord2 < b.ord2
+		}
+	})
+
+	fmt.Printf("\n── Warnings ──\n")
+	hdr := newRuleHeaderPrinter()
+	lastLabel := ""
+	for _, l := range lines {
+		if hdr.print(l.ruleIndex, l.rulePath) {
+			lastLabel = ""
+		}
+		label := optionLabel(l.detectorType, l.boundaryIndex, l.optionKey)
+		if label != lastLabel {
+			fmt.Printf("  %s\n", label)
+			lastLabel = label
+		}
+		fmt.Printf("    ⚠ %s\n", l.text)
 	}
 }
 
@@ -168,7 +305,7 @@ func init() {
 	addSharedFlags(configLintCmd)
 	configLintCmd.Flags().StringVarP(&lintConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configLintCmd.Flags().BoolVar(&lintConfigFix, "fix", false, "Remove dead patterns from the config file (preserves comments and formatting)")
-	configLintCmd.Flags().StringSliceVar(&lintConfigRules, "rules", nil, "Lint rules to run (comma-separated): orphan-file-globs, orphan-module-globs. Default: all. Note: orphan-file-globs runs from file discovery alone (fast); orphan-module-globs parses the dependency tree.")
+	configLintCmd.Flags().StringSliceVar(&lintConfigRules, "rules", nil, "Lint rules to run (comma-separated): orphan-file-globs, orphan-module-globs, overlapping-globs. Default: all. orphan-file-globs and overlapping-globs run from file discovery alone (fast); orphan-module-globs parses the dependency tree.")
 
 	configCmd.AddCommand(configLintCmd)
 }

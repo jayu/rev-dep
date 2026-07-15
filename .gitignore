@@ -15,3 +15,5 @@ notes/**
 tmp
 .codex
 cli-telemetry.env
+.sdbx
+.claude

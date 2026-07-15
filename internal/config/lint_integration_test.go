@@ -501,6 +501,100 @@ func TestLintConfig_TrailingCommas(t *testing.T) {
 	}
 }
 
+func TestLintConfig_CompactRule(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	mustWrite("package.json", `{"name":"root"}`)
+	mustWrite("src/x.ts", "export const a = 1\n")
+	mustWrite("rev-dep.config.jsonc", `{
+  "configVersion": "1.11",
+  "rules": [
+    { "path": "src", "circularImportsDetection": { "enabled": true }, "unresolvedImportsDetection": { "enabled": true } }
+  ]
+}`)
+
+	cfg, _ := LoadConfig(dir)
+	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleCompact})
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+	if result.CompactableCount != 2 {
+		t.Fatalf("CompactableCount = %d, want 2", result.CompactableCount)
+	}
+	if len(result.DeadPatterns) != 0 {
+		t.Errorf("compact-only run produced dead patterns: %+v", result.DeadPatterns)
+	}
+
+	fix, err := ApplyLintFix(result)
+	if err != nil {
+		t.Fatalf("ApplyLintFix: %v", err)
+	}
+	if fix.CompactedCount != 2 {
+		t.Errorf("CompactedCount = %d, want 2", fix.CompactedCount)
+	}
+	out, _ := os.ReadFile(filepath.Join(dir, "rev-dep.config.jsonc"))
+	if !contains(string(out), `"circularImportsDetection": true`) || !contains(string(out), `"unresolvedImportsDetection": true`) {
+		t.Errorf("detectors not compacted:\n%s", out)
+	}
+	if _, err := ParseConfig(out); err != nil {
+		t.Fatalf("compacted config no longer parses: %v", err)
+	}
+}
+
+// Regression for the lane pipeline: dead-glob removal empties a detector object, which
+// the compact lane must then fold to a bare boolean — in a single --fix call. Merging
+// the two lanes' edits would make them overlap and silently drop one.
+func TestLintConfig_FixPipelineDeadGlobThenCompact(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	mustWrite("package.json", `{"name":"root"}`)
+	mustWrite("src/x.ts", "export const a = 1\n")
+	// orphanFilesDetection has only enabled + an all-dead graphExclude. After the dead
+	// glob is removed the object is enabled-only, which compact folds to `true`.
+	mustWrite("rev-dep.config.jsonc", `{
+  "configVersion": "1.11",
+  "rules": [
+    { "path": "src", "orphanFilesDetection": { "enabled": true, "graphExclude": ["dead-dir/**"] } }
+  ]
+}`)
+
+	cfg, _ := LoadConfig(dir)
+	result, err := LintConfig(&cfg, dir, "", "", nil) // all rules
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+	if _, err := ApplyLintFix(result); err != nil {
+		t.Fatalf("ApplyLintFix: %v", err)
+	}
+
+	out, _ := os.ReadFile(filepath.Join(dir, "rev-dep.config.jsonc"))
+	if !contains(string(out), `"orphanFilesDetection": true`) {
+		t.Fatalf("expected detector folded to `true` after dead-glob removal + compact:\n%s", out)
+	}
+	if contains(string(out), "graphExclude") || contains(string(out), "dead-dir") {
+		t.Errorf("dead graphExclude should be gone:\n%s", out)
+	}
+	if _, err := ParseConfig(out); err != nil {
+		t.Fatalf("fixed config no longer parses: %v", err)
+	}
+}
+
 func TestParseLintRules(t *testing.T) {
 	all, err := ParseLintRules(nil)
 	if err != nil || len(all) != len(AllLintRules) {

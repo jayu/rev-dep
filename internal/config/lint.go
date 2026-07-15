@@ -112,10 +112,15 @@ const (
 	// file (a warning). It operates on the raw file only — no discovery or parse — and its
 	// findings are auto-removed by --fix.
 	RuleTrailingCommas LintRuleName = "trailing-commas"
+	// RuleCompact reports detector declarations that can be written more compactly — a
+	// redundant "enabled": true, or an enabled-only object that could be a bare boolean.
+	// It is a lossless formatter (like gofmt): the fix is deterministic and semantically
+	// identical, so findings are warnings, not errors. Raw file only; no discovery or parse.
+	RuleCompact LintRuleName = "compact"
 )
 
 // AllLintRules is the default set run when no selection is given, in output order.
-var AllLintRules = []LintRuleName{RuleOrphanFileGlobs, RuleOrphanModuleGlobs, RuleOverlappingGlobs, RuleTrailingCommas}
+var AllLintRules = []LintRuleName{RuleOrphanFileGlobs, RuleOrphanModuleGlobs, RuleOverlappingGlobs, RuleTrailingCommas, RuleCompact}
 
 // ParseLintRules validates a list of rule names (as typed on the CLI) and returns them
 // as LintRuleName values. An empty input selects all rules. Unknown names are an error.
@@ -163,6 +168,7 @@ type LintResult struct {
 	DeadPatterns       []DeadPattern
 	Overlaps           []OverlapFinding
 	TrailingCommaCount int // redundant trailing commas in the config file (a warning)
+	CompactableCount   int // detector declarations that can be written more compactly (a warning)
 }
 
 // lintCtx holds the discovered universes for one lint run.
@@ -184,7 +190,7 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 	if len(rules) == 0 {
 		rules = AllLintRules
 	}
-	runFile, runModule, runOverlap, runTrailingCommas := false, false, false, false
+	runFile, runModule, runOverlap, runTrailingCommas, runCompact := false, false, false, false, false
 	for _, r := range rules {
 		switch r {
 		case RuleOrphanFileGlobs:
@@ -195,6 +201,8 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 			runOverlap = true
 		case RuleTrailingCommas:
 			runTrailingCommas = true
+		case RuleCompact:
+			runCompact = true
 		}
 	}
 
@@ -268,12 +276,18 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 		trailingCommaCount = len(findTrailingCommaPositions(doc.Original))
 	}
 
+	compactableCount := 0
+	if runCompact && doc != nil {
+		compactableCount = len(compactEdits(doc))
+	}
+
 	return &LintResult{
 		ConfigFilePath:     configFilePath,
 		RulesRun:           rules,
 		DeadPatterns:       ctx.deads,
 		Overlaps:           ctx.overlaps,
 		TrailingCommaCount: trailingCommaCount,
+		CompactableCount:   compactableCount,
 	}, nil
 }
 

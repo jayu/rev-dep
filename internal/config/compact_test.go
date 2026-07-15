@@ -1,57 +1,76 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCompactConfigText(t *testing.T) {
-	cases := []struct {
+	tests := []struct {
 		name string
 		in   string
 		want string
 	}{
 		{
-			name: "enabled-only object folds to boolean",
-			in:   `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":{"enabled":true}}]}`,
-			want: `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":true}]}`,
+			name: "fold enabled true to boolean",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","circularImportsDetection":{"enabled":true}}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","circularImportsDetection":true}]}`,
 		},
 		{
-			name: "disabled-only object folds to false",
-			in:   `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":{"enabled":false}}]}`,
-			want: `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":false}]}`,
+			name: "fold enabled false to boolean",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","orphanFilesDetection":{"enabled":false}}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","orphanFilesDetection":false}]}`,
 		},
 		{
 			name: "empty object folds to true",
-			in:   `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":{}}]}`,
-			want: `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":true}]}`,
+			in:   `{"configVersion":"1.11","rules":[{"path":".","unresolvedImportsDetection":{}}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","unresolvedImportsDetection":true}]}`,
 		},
 		{
-			name: "redundant enabled true dropped when other options present",
-			in:   `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":{"enabled":true,"validEntryPoints":["a.ts"]}}]}`,
-			want: `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":{"validEntryPoints":["a.ts"]}}]}`,
+			name: "drop redundant enabled true when leading option",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"enabled":true,"entryPoints":["a.ts"]}}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"entryPoints":["a.ts"]}}]}`,
 		},
 		{
-			name: "disabled object with options left unchanged",
-			in:   `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":{"enabled":false,"validEntryPoints":["a.ts"]}}]}`,
-			want: `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":{"enabled":false,"validEntryPoints":["a.ts"]}}]}`,
+			name: "drop redundant enabled true when trailing option",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"entryPoints":["a.ts"],"enabled":true}}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"entryPoints":["a.ts"]}}]}`,
 		},
 		{
-			name: "array element never folds to bare boolean",
-			in:   `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":[{"enabled":true},{"enabled":true,"validEntryPoints":["a.ts"]}]}]}`,
-			want: `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":[{"enabled":true},{"validEntryPoints":["a.ts"]}]}]}`,
+			name: "keep disabled object with options",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","orphanFilesDetection":{"enabled":false,"validEntryPoints":["a.ts"]}}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","orphanFilesDetection":{"enabled":false,"validEntryPoints":["a.ts"]}}]}`,
 		},
 		{
-			name: "already boolean left unchanged",
-			in:   `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":true}]}`,
-			want: `{"configVersion":"1.11","rules":[{"path":"src","orphanFilesDetection":true}]}`,
+			name: "already compact object without enabled is unchanged",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"entryPoints":["a.ts"]}}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"entryPoints":["a.ts"]}}]}`,
+		},
+		{
+			name: "already boolean is unchanged",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","circularImportsDetection":true}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","circularImportsDetection":true}]}`,
+		},
+		{
+			name: "array elements: drop enabled but do not fold pure enabled element",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","unusedNodeModulesDetection":[{"enabled":true},{"enabled":true,"excludeModules":["ts"]}]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","unusedNodeModulesDetection":[{"enabled":true},{"excludeModules":["ts"]}]}]}`,
+		},
+		{
+			name: "non-detector fields are untouched",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","moduleBoundaries":[{"name":"src","pattern":"src/**/*","enabled":true}]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","moduleBoundaries":[{"name":"src","pattern":"src/**/*","enabled":true}]}]}`,
 		},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got, err := CompactConfigText([]byte(c.in))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := CompactConfigText([]byte(tt.in))
 			if err != nil {
-				t.Fatalf("CompactConfigText: %v", err)
+				t.Fatalf("CompactConfigText error: %v", err)
 			}
-			if string(got) != c.want {
-				t.Fatalf("got:\n%s\nwant:\n%s", got, c.want)
+			if string(got) != tt.want {
+				t.Errorf("mismatch\n in:   %s\n got:  %s\n want: %s", tt.in, got, tt.want)
 			}
 		})
 	}
@@ -59,39 +78,107 @@ func TestCompactConfigText(t *testing.T) {
 
 func TestCompactConfigText_PreservesCommentsAndFormatting(t *testing.T) {
 	in := `{
-  // top-level comment
+  // top-level config for the app
   "configVersion": "1.11",
   "rules": [
     {
-      "path": "src",
-      // detector below should fold
+      "path": ".",
+      // enable cycle detection
       "circularImportsDetection": { "enabled": true },
-      "orphanFilesDetection": {
-        "enabled": true, // redundant, should drop
-        "validEntryPoints": ["index.ts"]
-      }
+      "restrictedImportsDetection": {
+        "enabled": true, // turn the check on
+        "entryPoints": ["src/index.ts"] // app entry
+      },
+      "orphanFilesDetection": { "enabled": false }
     }
   ]
 }`
 	want := `{
-  // top-level comment
+  // top-level config for the app
   "configVersion": "1.11",
   "rules": [
     {
-      "path": "src",
-      // detector below should fold
+      "path": ".",
+      // enable cycle detection
       "circularImportsDetection": true,
-      "orphanFilesDetection": {
-        "validEntryPoints": ["index.ts"]
-      }
+      "restrictedImportsDetection": {
+        "entryPoints": ["src/index.ts"] // app entry
+      },
+      "orphanFilesDetection": false
     }
   ]
 }`
 	got, err := CompactConfigText([]byte(in))
 	if err != nil {
-		t.Fatalf("CompactConfigText: %v", err)
+		t.Fatalf("CompactConfigText error: %v", err)
 	}
 	if string(got) != want {
-		t.Fatalf("got:\n%s\n\nwant:\n%s", got, want)
+		t.Errorf("mismatch\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+	// The surviving structural comments must still be present.
+	for _, c := range []string{"top-level config for the app", "enable cycle detection", "app entry"} {
+		if !strings.Contains(string(got), c) {
+			t.Errorf("expected comment %q to be preserved", c)
+		}
+	}
+}
+
+// TestCompactConfigText_SemanticEquivalence verifies that compacting does not change how a config
+// parses, and that compaction is idempotent.
+func TestCompactConfigText_SemanticEquivalence(t *testing.T) {
+	verbose := `{
+  "configVersion": "1.11",
+  "rules": [
+    {
+      "path": ".",
+      "circularImportsDetection": { "enabled": true },
+      "orphanFilesDetection": { "enabled": false },
+      "unresolvedImportsDetection": { "enabled": true },
+      "restrictedImportsDetection": { "enabled": true, "entryPoints": ["src/index.ts"], "denyFiles": ["src/secret.ts"] },
+      "unusedExportsDetection": { "enabled": false, "validEntryPoints": ["src/index.ts"] }
+    }
+  ]
+}`
+	compacted, err := CompactConfigText([]byte(verbose))
+	if err != nil {
+		t.Fatalf("CompactConfigText error: %v", err)
+	}
+
+	before, err := ParseConfig([]byte(verbose))
+	if err != nil {
+		t.Fatalf("parse verbose: %v", err)
+	}
+	after, err := ParseConfig(compacted)
+	if err != nil {
+		t.Fatalf("parse compacted: %v\n%s", err, compacted)
+	}
+
+	rb, ra := before.Rules[0], after.Rules[0]
+	assertSameEnabled(t, "circular", rb.CircularImportsDetections[0].IsEnabled(), ra.CircularImportsDetections[0].IsEnabled())
+	assertSameEnabled(t, "orphan", rb.OrphanFilesDetections[0].IsEnabled(), ra.OrphanFilesDetections[0].IsEnabled())
+	assertSameEnabled(t, "unresolved", rb.UnresolvedImportsDetections[0].IsEnabled(), ra.UnresolvedImportsDetections[0].IsEnabled())
+	assertSameEnabled(t, "restrictedImports", rb.RestrictedImportsDetections[0].IsEnabled(), ra.RestrictedImportsDetections[0].IsEnabled())
+	assertSameEnabled(t, "unusedExports", rb.UnusedExportsDetections[0].IsEnabled(), ra.UnusedExportsDetections[0].IsEnabled())
+	if got := ra.RestrictedImportsDetections[0]; len(got.EntryPoints) != 1 || len(got.DenyFiles) != 1 {
+		t.Errorf("restrictedImports options lost after compaction: %+v", got)
+	}
+	if got := ra.UnusedExportsDetections[0]; len(got.ValidEntryPoints) != 1 {
+		t.Errorf("unusedExports options lost after compaction: %+v", got)
+	}
+
+	// Idempotency: compacting the compacted output changes nothing.
+	again, err := CompactConfigText(compacted)
+	if err != nil {
+		t.Fatalf("second CompactConfigText error: %v", err)
+	}
+	if string(again) != string(compacted) {
+		t.Errorf("compaction not idempotent\nfirst:  %s\nsecond: %s", compacted, again)
+	}
+}
+
+func assertSameEnabled(t *testing.T, name string, before, after bool) {
+	t.Helper()
+	if before != after {
+		t.Errorf("%s enabled changed: before=%v after=%v", name, before, after)
 	}
 }

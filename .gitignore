@@ -17,3 +17,7 @@ tmp
 cli-telemetry.env
 .sdbx
 .claude
+
+# Go build cache / temp (kept in the workspace so builds have disk space)
+/.gocache/
+/.gotmp/

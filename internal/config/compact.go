@@ -1,7 +1,5 @@
 package config
 
-import "strings"
-
 // detectorFieldNames is the set of rule-level fields whose values are detector declarations that can
 // be written in the compact (boolean / optional-`enabled`) form.
 var detectorFieldNames = map[string]bool{
@@ -20,8 +18,9 @@ var detectorFieldNames = map[string]bool{
 // CompactConfigText rewrites a rev-dep config document so detector declarations use their most
 // compact equivalent form. It edits only detector values and leaves every other byte — including
 // comments, key order, and whitespace — unchanged, so it is safe to run over a hand-written
-// `.jsonc` config. Parsing and byte-precise editing are delegated to the shared jsonedit engine
-// (see jsonedit.go).
+// `.jsonc` config. All parsing and byte manipulation is delegated to the position-aware jsonedit
+// engine (see jsonedit.go), which is also what makes the offset bookkeeping and comment-safe
+// member removal reliable.
 //
 // Each detector value is rewritten as follows:
 //   - an object whose only content is `enabled` (or an empty object) collapses to the boolean
@@ -38,60 +37,67 @@ func CompactConfigText(raw []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var edits []Edit
-	if rules := doc.Root.Get("rules"); rules != nil && rules.Kind == JSONArray {
-		for _, ruleNode := range rules.Elems {
-			if ruleNode.Kind != JSONObject {
-				continue
-			}
-			for i := range ruleNode.Members {
-				m := ruleNode.Members[i]
-				if detectorFieldNames[m.Name] {
-					edits = append(edits, compactDetectorValue(doc, m.Value)...)
-				}
-			}
-		}
-	}
-
-	return ApplyEdits(raw, edits), nil
+	return ApplyEdits(doc.Original, compactEdits(doc)), nil
 }
 
-// compactDetectorValue returns the edits that compact a single detector value, which may be a
-// single object or an array of objects.
+// compactEdits returns the edits that rewrite a parsed config's detector declarations to
+// their compact form (see CompactConfigText). An empty slice means the config is already
+// compact. This is shared by CompactConfigText and the `compact` lint rule.
+func compactEdits(doc *JSONDocument) []Edit {
+	rules := doc.Root.Get("rules")
+	if rules == nil || rules.Kind != JSONArray {
+		return nil
+	}
+
+	var edits []Edit
+	for _, rule := range rules.Elems {
+		if rule.Kind != JSONObject {
+			continue
+		}
+		for i := range rule.Members {
+			member := &rule.Members[i]
+			if !detectorFieldNames[member.Name] {
+				continue
+			}
+			edits = append(edits, compactDetectorValue(doc, member.Value)...)
+		}
+	}
+	return edits
+}
+
+// compactDetectorValue returns the edits that compact a single detector value. Objects fold to the
+// boolean shorthand or drop a redundant `enabled`; array elements are compacted individually but are
+// never collapsed to a bare boolean; anything else (a value already written as a boolean) is left
+// alone.
 func compactDetectorValue(doc *JSONDocument, value *JSONNode) []Edit {
 	switch value.Kind {
 	case JSONObject:
 		return compactDetectorObject(doc, value, true)
 	case JSONArray:
 		var edits []Edit
-		for _, el := range value.Elems {
-			if el.Kind == JSONObject {
-				edits = append(edits, compactDetectorObject(doc, el, false)...)
+		for _, elem := range value.Elems {
+			if elem.Kind == JSONObject {
+				edits = append(edits, compactDetectorObject(doc, elem, false)...)
 			}
 		}
 		return edits
 	default:
-		// Already a boolean (or other scalar) — nothing to compact.
 		return nil
 	}
 }
 
-// compactDetectorObject computes the edits for a single detector object. When allowBoolFold is true
-// a pure enabled/empty object collapses to a bare boolean; when false (array element) it is left
+// compactDetectorObject returns the edits for a single detector object. When allowBoolFold is true a
+// pure enabled/empty object collapses to a bare boolean; when false (array element) it is left
 // untouched instead.
 func compactDetectorObject(doc *JSONDocument, obj *JSONNode, allowBoolFold bool) []Edit {
-	enabledPresent := false
-	enabledValue := true // absent `enabled` means enabled
-	for i := range obj.Members {
-		if obj.Members[i].Name == "enabled" {
-			enabledPresent = true
-			enabledValue = strings.TrimSpace(doc.RawText(obj.Members[i].Value)) == "true"
-		}
+	enabled := obj.GetMember("enabled")
+	enabledValue := true // an absent `enabled` means the detector is enabled
+	if enabled != nil {
+		enabledValue = doc.RawText(enabled.Value) == "true"
 	}
 
 	otherCount := len(obj.Members)
-	if enabledPresent {
+	if enabled != nil {
 		otherCount--
 	}
 
@@ -100,20 +106,20 @@ func compactDetectorObject(doc *JSONDocument, obj *JSONNode, allowBoolFold bool)
 		if !allowBoolFold {
 			return nil
 		}
-		replacement := "true"
+		text := "true"
 		if !enabledValue {
-			replacement = "false"
+			text = "false"
 		}
-		return []Edit{ReplaceNode(obj, replacement)}
+		return []Edit{ReplaceNode(obj, text)}
 	}
 
-	// Has other options. A redundant "enabled": true is dropped; a disabled object keeps its
-	// explicit "enabled": false, and an object that already omits enabled is left as-is.
-	if !enabledPresent || !enabledValue {
+	// Has other options. A redundant enabled==true is dropped; a disabled object keeps its explicit
+	// "enabled": false, and an object that already omits enabled is left as-is.
+	if enabled == nil || !enabledValue {
 		return nil
 	}
-	if ch, ok := RemoveMember(doc.Original, obj, "enabled"); ok {
-		return []Edit{ch}
+	if edit, ok := RemoveMember(doc.Original, obj, "enabled"); ok {
+		return []Edit{edit}
 	}
 	return nil
 }

@@ -292,7 +292,14 @@ func writeInitConfig(cwd string, result *initConfigResult) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %v", err)
 	}
-	if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
+	// Prefer the compact detector syntax in generated configs: enabled detectors without extra
+	// options become bare booleans and redundant "enabled": true keys are dropped. This reuses the
+	// exact logic behind the `compact` lint rule (config lint --fix) so both stay in sync.
+	compacted, err := config.CompactConfigText(configJSON)
+	if err != nil {
+		return fmt.Errorf("failed to compact config: %v", err)
+	}
+	if err := os.WriteFile(configPath, compacted, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %v", err)
 	}
 	return nil
@@ -585,7 +592,7 @@ func applyDetectorPreset(rule *config.Rule, preset detectorPreset) {
 	rule.UnresolvedImportsDetections = []*config.UnresolvedImportsOptions{{Enabled: true}}
 	// Circular imports is enabled by everything except the unresolved-only preset.
 	if preset != detectorsUnresolvedOnly {
-		rule.CircularImportsDetections = []*config.CircularImportsOptions{{Enabled: true, IgnoreTypeImports: false}}
+		rule.CircularImportsDetections = []*config.CircularImportsOptions{{Enabled: true}}
 	}
 	// The remaining detectors are only listed for the scaffold (disabled) and all (enabled) presets.
 	// Detectors that need extra config to do anything (restricted imports/importers, import

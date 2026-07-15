@@ -10,6 +10,16 @@ type FixResult struct {
 	RemovedCount          int // dead patterns actually removed
 	ReportOnlyKept        int // dead patterns left in place (not auto-removed / could not navigate)
 	TrailingCommasRemoved int // redundant trailing commas removed
+	CompactedCount        int // detector declarations rewritten to compact form
+}
+
+func ruleWasRun(result *LintResult, rule LintRuleName) bool {
+	for _, r := range result.RulesRun {
+		if r == rule {
+			return true
+		}
+	}
+	return false
 }
 
 // ownerKey identifies the object that directly owns a set of option members (a rule, a
@@ -76,22 +86,6 @@ func ApplyLintFix(result *LintResult) (*FixResult, error) {
 
 	var edits []Edit
 
-	// Strip redundant trailing commas when the rule ran. These single-byte deletions are
-	// applied together with the pattern removals; ApplyEdits drops any that overlap a
-	// larger removal (which already deleted the comma), so the two never conflict.
-	trailingCommasRequested := false
-	for _, r := range result.RulesRun {
-		if r == RuleTrailingCommas {
-			trailingCommasRequested = true
-			break
-		}
-	}
-	if trailingCommasRequested {
-		commaEdits := RemoveTrailingCommas(doc.Original)
-		edits = append(edits, commaEdits...)
-		fix.TrailingCommasRemoved = len(commaEdits)
-	}
-
 	for _, ok := range ownerOrder {
 		owner := locateOwner(doc, sample[ok])
 		if owner == nil || owner.Kind != JSONObject {
@@ -139,12 +133,50 @@ func ApplyLintFix(result *LintResult) (*FixResult, error) {
 		}
 	}
 
-	if len(edits) == 0 {
-		return fix, nil
+	// The lanes are applied as an ORDERED PIPELINE, not merged into one edit set: each
+	// pass re-parses the previous pass's output. This matters because lanes interact —
+	// e.g. dead-glob removal can empty a detector object ({ "enabled": true, "denyFiles":
+	// ["dead"] } → { "enabled": true }) which the compact lane then folds to `true`.
+	// Merging the edits would make them overlap on the same subtree and ApplyEdits would
+	// silently drop one. Ordering: dead globs → compact → trailing commas.
+	current := doc.Original
+
+	// Pass 1: dead-pattern removals (their offsets index the original document).
+	if len(edits) > 0 {
+		current = ApplyEdits(doc.Original, edits)
 	}
 
-	newContent := ApplyEdits(doc.Original, edits)
-	if err := os.WriteFile(result.ConfigFilePath, newContent, 0644); err != nil {
+	// Pass 2: compact detector declarations (re-parse; only when the compact rule ran).
+	if ruleWasRun(result, RuleCompact) {
+		if cdoc, perr := ParseJSONC(current); perr == nil {
+			compactE := compactEdits(cdoc)
+			if len(compactE) > 0 {
+				current = ApplyEdits(cdoc.Original, compactE)
+				fix.CompactedCount = len(compactE)
+			}
+		}
+	}
+
+	// Pass 3: strip redundant trailing commas last (re-scan; only when its rule ran).
+	if ruleWasRun(result, RuleTrailingCommas) {
+		commaEdits := RemoveTrailingCommas(current)
+		if len(commaEdits) > 0 {
+			current = ApplyEdits(current, commaEdits)
+			fix.TrailingCommasRemoved = len(commaEdits)
+		}
+	}
+
+	if string(current) == string(doc.Original) {
+		return fix, nil // nothing changed
+	}
+
+	// Safety net: every lane preserves a valid config, so a parse failure here is a bug —
+	// never write output that would no longer parse.
+	if _, perr := ParseConfig(current); perr != nil {
+		return fix, fmt.Errorf("fix would produce an invalid config; leaving %s unchanged: %w", result.ConfigFilePath, perr)
+	}
+
+	if err := os.WriteFile(result.ConfigFilePath, current, 0644); err != nil {
 		return fix, err
 	}
 	return fix, nil

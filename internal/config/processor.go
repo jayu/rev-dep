@@ -90,7 +90,7 @@ type ConfigProcessingResult struct {
 	UnfixableAliasingCount int
 	FixableIssuesCount     int
 	FullTree               model.MinimalDependencyTree
-	// Discovery/resolver artifacts, exposed so a caller (e.g. `config run --lint`) can
+	// Discovery/resolver artifacts, exposed so a caller (e.g. `config run --lint-config`) can
 	// lint without redoing the expensive discovery + dependency-tree build.
 	DiscoveredFiles []string
 	ResolverManager *resolve.ResolverManager

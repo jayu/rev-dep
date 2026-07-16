@@ -280,7 +280,7 @@ func LintConfigWithGraph(cfg *RevDepConfig, cwd, packageJson, tsconfigJson strin
 		// discovery prunes, e.g. under ".superset/**"). It is independent of everything else,
 		// so launch it FIRST — it overlaps with the discovery + tree build below and the
 		// per-rule checks, and is joined only at the very end. When the caller already
-		// computed it (config run --lint runs it alongside the run), it is reused for free.
+		// computed it (config run --lint-config runs it alongside the run), it is reused for free.
 		needSuperset := (runFile || runOverlap) && (len(cfg.IgnoreFiles) > 0 || len(cfg.ProcessIgnoredFiles) > 0)
 		var supersetFiles []string
 		var supersetCh chan []string

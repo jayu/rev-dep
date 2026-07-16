@@ -25,6 +25,14 @@ Can also run specific rules/workspaces:
 rev-dep config run --rules packages/app,packages/shared
 ```
 
+Also lint the config for dead glob patterns while running (adds almost no time — it reuses the run's graph):
+
+```bash
+rev-dep config run --lint-config
+```
+
+This fails the run on any lint error and prints only the counts. See [Linting the config](./linting-the-config.mdx) for details.
+
 ### Output formats
 
 Information about the supported output formats can be found in [Output formats](./output-formats.mdx).

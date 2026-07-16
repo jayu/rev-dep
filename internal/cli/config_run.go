@@ -112,7 +112,7 @@ var configRunCmd = &cobra.Command{
 }
 
 // runConfigLintSummary runs the config linter over the full config (independent of the
-// run's --rules filter) using the selected --lint-rules, prints only the error/warning
+// run's --rules filter) using the selected --lint-config-rules, prints only the error/warning
 // counts, and reports whether any lint ERROR was found. Fixing is intentionally not
 // offered here; users run `rev-dep config lint --fix` for that.
 //
@@ -851,8 +851,8 @@ func init() {
 	configRunCmd.Flags().BoolVar(&runConfigRecheck, "recheck", false, "Run all checks again after '--fix' to validate the final state")
 	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
-	configRunCmd.Flags().BoolVar(&runConfigLint, "lint", false, "Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use `config lint` for details and --fix")
-	configRunCmd.Flags().StringSliceVar(&runConfigLintRules, "lint-rules", nil, "Which lint rules to run with --lint (comma-separated). Default: all. Implies --lint")
+	configRunCmd.Flags().BoolVar(&runConfigLint, "lint-config", false, "Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use `config lint` for details and --fix")
+	configRunCmd.Flags().StringSliceVar(&runConfigLintRules, "lint-config-rules", nil, "Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")

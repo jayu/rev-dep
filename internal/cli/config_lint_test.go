@@ -73,10 +73,10 @@ func TestCountLintFindings(t *testing.T) {
 }
 
 func TestConfigRunLintFlagsRegistered(t *testing.T) {
-	if configRunCmd.Flags().Lookup("lint") == nil {
-		t.Error("config run should expose --lint")
+	if configRunCmd.Flags().Lookup("lint-config") == nil {
+		t.Error("config run should expose --lint-config")
 	}
-	if configRunCmd.Flags().Lookup("lint-rules") == nil {
-		t.Error("config run should expose --lint-rules")
+	if configRunCmd.Flags().Lookup("lint-config-rules") == nil {
+		t.Error("config run should expose --lint-config-rules")
 	}
 }

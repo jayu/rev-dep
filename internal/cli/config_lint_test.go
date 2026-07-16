@@ -50,3 +50,33 @@ func TestConfigLintCommandRegistered(t *testing.T) {
 		t.Error("config lint command not registered under config")
 	}
 }
+
+func TestCountLintFindings(t *testing.T) {
+	res := &config.LintResult{
+		DeadPatterns: []config.DeadPattern{
+			{Severity: config.SeverityError, Removable: true},  // removable error
+			{Severity: config.SeverityError, Removable: false}, // report-only error
+			{Severity: config.SeverityWarning},                 // negation warning
+		},
+		Overlaps:           make([]config.OverlapFinding, 3),
+		TrailingCommaCount: 5,
+		CompactableCount:   2,
+	}
+	// Without --fix: both errors count; warnings = negation(1) + overlaps(3) + commas(5) + compact(2) = 11.
+	if e, w := countLintFindings(res, false); e != 2 || w != 11 {
+		t.Errorf("no-fix: got errors=%d warnings=%d, want 2 and 11", e, w)
+	}
+	// With --fix: removable error is cleared (1 error left); auto-fixable warnings excluded → 1 negation + 3 overlaps = 4.
+	if e, w := countLintFindings(res, true); e != 1 || w != 4 {
+		t.Errorf("fix: got errors=%d warnings=%d, want 1 and 4", e, w)
+	}
+}
+
+func TestConfigRunLintFlagsRegistered(t *testing.T) {
+	if configRunCmd.Flags().Lookup("lint") == nil {
+		t.Error("config run should expose --lint")
+	}
+	if configRunCmd.Flags().Lookup("lint-rules") == nil {
+		t.Error("config run should expose --lint-rules")
+	}
+}

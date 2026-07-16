@@ -71,28 +71,8 @@ them by hand.`,
 			printConfigLintFixSummary(fixResult)
 		}
 
-		// Exit code is driven by ERRORS only; warnings (dead negation patterns, overlap
-		// findings, trailing commas, and compactable detectors) are advisory. A removable
-		// error is cleared by --fix; a report-only error (required entry points, rule
-		// paths, etc.) still fails.
-		errorsRemaining := 0
-		warnings := 0
-		for _, dp := range result.DeadPatterns {
-			if dp.Severity == config.SeverityWarning {
-				warnings++
-				continue
-			}
-			if lintConfigFix && dp.Removable {
-				continue // removed by --fix
-			}
-			errorsRemaining++
-		}
-		warnings += len(result.Overlaps)
-		if !lintConfigFix {
-			// These are cleared by --fix, so they're not "remaining" warnings in that mode.
-			warnings += result.TrailingCommaCount
-			warnings += result.CompactableCount
-		}
+		// Exit code is driven by ERRORS only; warnings are advisory.
+		errorsRemaining, warnings := countLintFindings(result, lintConfigFix)
 
 		printConfigLintStatus(errorsRemaining, warnings, lintConfigFix)
 		fmt.Printf("✨  Done in %dms.\n", time.Since(startTime).Milliseconds())
@@ -102,6 +82,30 @@ them by hand.`,
 		}
 		return nil
 	},
+}
+
+// countLintFindings tallies errors and warnings from a lint result. Errors are dead
+// positive patterns (dead negations are warnings; so are overlaps, trailing commas, and
+// compactable detectors). When applyingFix is true, removable errors and the
+// auto-fixable warning counts are excluded, since --fix clears them.
+func countLintFindings(result *config.LintResult, applyingFix bool) (errors, warnings int) {
+	for _, dp := range result.DeadPatterns {
+		if dp.Severity == config.SeverityWarning {
+			warnings++
+			continue
+		}
+		if applyingFix && dp.Removable {
+			continue // removed by --fix
+		}
+		errors++
+	}
+	warnings += len(result.Overlaps)
+	if !applyingFix {
+		// Cleared by --fix, so not counted as "remaining" in that mode.
+		warnings += result.TrailingCommaCount
+		warnings += result.CompactableCount
+	}
+	return errors, warnings
 }
 
 // printConfigLintStatus prints the final one-line verdict.

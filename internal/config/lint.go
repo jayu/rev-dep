@@ -5,8 +5,10 @@ import (
 	"math/bits"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/gobwas/glob"
 
@@ -178,15 +180,64 @@ type lintCtx struct {
 	doc            *JSONDocument // parsed config file; used to check physical presence
 	runFile        bool          // orphan-file-globs selected
 	runOverlap     bool          // overlapping-globs selected
+	mu             sync.Mutex    // guards deads/overlaps (checks run in parallel)
 	deads          []DeadPattern
 	overlaps       []OverlapFinding
+
+	// Bounded worker pool: every per-option check is submitted as a task and run across
+	// GOMAXPROCS workers, so heavy options (even within one rule) parallelize.
+	sem    chan struct{}
+	taskWg sync.WaitGroup
+}
+
+// submit runs fn on the bounded worker pool. Tasks must not themselves submit (would
+// deadlock when the pool is full).
+func (ctx *lintCtx) submit(fn func()) {
+	ctx.taskWg.Add(1)
+	ctx.sem <- struct{}{}
+	go func() {
+		defer ctx.taskWg.Done()
+		defer func() { <-ctx.sem }()
+		fn()
+	}()
+}
+
+// LintGraph carries discovery/tree artifacts a caller already built (e.g. `config run`),
+// so the linter can reuse them instead of redoing the expensive discovery + dependency
+// tree build. AllFiles are the discovered files (respecting the config's ignoreFiles);
+// FullTree/ResolverManager are used only by the module rule.
+type LintGraph struct {
+	AllFiles        []string
+	FullTree        model.MinimalDependencyTree
+	ResolverManager *resolve.ResolverManager
+	// SupersetFiles is the file set discovered WITHOUT the config's ignoreFiles, used for
+	// the top-level ignoreFiles dead-check. The normal discovery prunes those dirs, so this
+	// is a separate walk; a caller can run it concurrently (e.g. alongside `config run`) and
+	// set SupersetComputed to have the linter reuse it instead of walking again.
+	SupersetFiles    []string
+	SupersetComputed bool
+}
+
+// DiscoverLintSuperset walks the workspace WITHOUT applying the config's ignoreFiles,
+// returning the file set the top-level ignoreFiles dead-check needs. Callers can run this
+// concurrently with other work and pass the result via LintGraph.SupersetFiles.
+func DiscoverLintSuperset(cwd string, processIgnoredFiles []string) ([]string, error) {
+	files, _, _, err := discoverAllFilesForConfig(cwd, nil, processIgnoredFiles)
+	return files, err
 }
 
 // LintConfig analyzes cfg and returns every dead pattern for the selected rules (all
-// rules when `rules` is empty). packageJson/tsconfigJson mirror the paths threaded
-// through ProcessConfig. The dependency tree is built (parsing every file) ONLY when
-// the module rule is selected; the file rule runs from file discovery alone.
+// rules when `rules` is empty). It builds its own discovery + dependency tree. Callers
+// that already have those artifacts should use LintConfigWithGraph to avoid the cost.
 func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules []LintRuleName) (*LintResult, error) {
+	return LintConfigWithGraph(cfg, cwd, packageJson, tsconfigJson, rules, nil)
+}
+
+// LintConfigWithGraph is LintConfig with an optional prebuilt graph. When graph is
+// non-nil, discovery and the dependency-tree build are skipped and its artifacts are
+// reused; when nil, they are built as needed (the dependency tree only for the module
+// rule; the file rule runs from discovery alone).
+func LintConfigWithGraph(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules []LintRuleName, graph *LintGraph) (*LintResult, error) {
 	if len(rules) == 0 {
 		rules = AllLintRules
 	}
@@ -220,41 +271,59 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 		}
 	}
 
-	ctx := &lintCtx{cwd: cwd, doc: doc, runFile: runFile, runOverlap: runOverlap}
+	ctx := &lintCtx{cwd: cwd, doc: doc, runFile: runFile, runOverlap: runOverlap, sem: make(chan struct{}, runtime.GOMAXPROCS(0))}
 
 	// Only the file/module/overlap rules need file discovery. When only trailing-commas
-	// is selected, skip discovery entirely — it is a pure document scan.
+	// or compact is selected, skip discovery entirely — those are pure document scans.
 	if runFile || runModule || runOverlap {
-		// File discovery (respecting gitignore + the config's ignoreFiles) is needed by the
-		// file/overlap rules (glob matching) and the module rule (per-rule files for the
-		// file side of ignoreMatches).
-		allFiles, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, cfg.IgnoreFiles, cfg.ProcessIgnoredFiles)
-		if err != nil {
-			return nil, err
+		// The top-level ignoreFiles dead-check needs a "superset" walk (files the normal
+		// discovery prunes, e.g. under ".superset/**"). It is independent of everything else,
+		// so launch it FIRST — it overlaps with the discovery + tree build below and the
+		// per-rule checks, and is joined only at the very end. When the caller already
+		// computed it (config run --lint runs it alongside the run), it is reused for free.
+		needSuperset := (runFile || runOverlap) && (len(cfg.IgnoreFiles) > 0 || len(cfg.ProcessIgnoredFiles) > 0)
+		var supersetFiles []string
+		var supersetCh chan []string
+		if needSuperset {
+			if graph != nil && graph.SupersetComputed {
+				supersetFiles = graph.SupersetFiles
+			} else {
+				supersetCh = make(chan []string, 1)
+				go func() {
+					d, _, _, _ := discoverAllFilesForConfig(cwd, nil, cfg.ProcessIgnoredFiles)
+					supersetCh <- d
+				}()
+			}
 		}
 
-		// The module universe requires the parsed dependency tree — build it only when the
-		// module rule runs, so file-only rule selections skip parsing entirely.
-		if runModule {
-			universe, err := buildModuleUniverseForConfig(cfg, cwd, packageJson, tsconfigJson, allFiles, excludePatterns, includePatterns)
+		// Discovered files (respecting gitignore + the config's ignoreFiles), needed by the
+		// file/overlap rules and the module rule. Reused from the prebuilt graph when given.
+		var allFiles []string
+		if graph != nil {
+			allFiles = graph.AllFiles
+			if runModule {
+				ctx.moduleUniverse = buildModuleUniverse(graph.FullTree, graph.ResolverManager, cfg, cwd)
+			}
+		} else {
+			discovered, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, cfg.IgnoreFiles, cfg.ProcessIgnoredFiles)
 			if err != nil {
 				return nil, err
 			}
-			ctx.moduleUniverse = universe
-		}
-
-		if runFile || runOverlap {
-			// Top-level file globs. Tested against a superset discovered WITHOUT the config's
-			// own ignoreFiles, so a self-erasing ignoreFiles pattern is checked against files
-			// it would otherwise hide.
-			supersetFiles, _, _, err := discoverAllFilesForConfig(cwd, nil, cfg.ProcessIgnoredFiles)
-			if err != nil {
-				return nil, err
+			allFiles = discovered
+			// The module universe requires the parsed dependency tree — build it only when the
+			// module rule runs, so file-only rule selections skip parsing entirely.
+			if runModule {
+				universe, err := buildModuleUniverseForConfig(cfg, cwd, packageJson, tsconfigJson, allFiles, excludePatterns, includePatterns)
+				if err != nil {
+					return nil, err
+				}
+				ctx.moduleUniverse = universe
 			}
-			ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles"}, cfg.IgnoreFiles, cwd, supersetFiles, true)
-			ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "processIgnoredFiles"}, cfg.ProcessIgnoredFiles, cwd, supersetFiles, true)
 		}
 
+		// Each per-option check is submitted to the worker pool (ctx.submit), so options
+		// across ALL rules run concurrently — not just rule-by-rule. Findings are collected
+		// under ctx.mu; the glob matching (the expensive part) happens outside the lock.
 		for i := range cfg.Rules {
 			rule := cfg.Rules[i]
 			fullRulePath := pathutil.StandardiseDirPath(filepath.Join(cwd, rule.Path))
@@ -266,6 +335,18 @@ func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules 
 				ctx.checkRuleModuleGlobs(i, rule, fullRulePath, ruleFiles)
 			}
 		}
+
+		// Join the superset walk (overlapped with everything above) and submit the
+		// top-level checks too.
+		if needSuperset {
+			if supersetCh != nil {
+				supersetFiles = <-supersetCh
+			}
+			ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles"}, cfg.IgnoreFiles, cwd, supersetFiles, true)
+			ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "processIgnoredFiles"}, cfg.ProcessIgnoredFiles, cwd, supersetFiles, true)
+		}
+
+		ctx.taskWg.Wait()
 	}
 
 	sortDeadPatterns(ctx.deads)
@@ -327,6 +408,7 @@ func (ctx *lintCtx) add(loc patternLoc, elementIndex int, value string, kind Pat
 		severity = SeverityWarning
 		removable = false
 	}
+	ctx.mu.Lock()
 	ctx.deads = append(ctx.deads, DeadPattern{
 		RuleIndex:     loc.RuleIndex,
 		RulePath:      loc.RulePath,
@@ -340,6 +422,7 @@ func (ctx *lintCtx) add(loc patternLoc, elementIndex int, value string, kind Pat
 		Severity:      severity,
 		Removable:     removable,
 	})
+	ctx.mu.Unlock()
 }
 
 // isNegationPattern reports whether a pattern is a gitignore-style negation (`!foo`).
@@ -367,21 +450,58 @@ func (ctx *lintCtx) optionPresent(loc patternLoc) bool {
 // that match no file (orphan-file-globs) and reports overlapping patterns
 // (overlapping-globs). base is the glob resolution root; files is the file set to test
 // against. Each half is gated on its rule being selected.
+//
+// When BOTH rules run (the default), the two share one matching pass: the overlap
+// bitset already reveals dead-ness (an empty bitset matches nothing), so the separate
+// short-circuit dead scan is skipped entirely.
 func (ctx *lintCtx) checkFileArray(loc patternLoc, values []string, base string, files []string, removable bool) {
 	if len(values) == 0 || !ctx.optionPresent(loc) {
 		return
 	}
-	if ctx.runFile {
-		for idx, v := range values {
-			if patternMatchesAnyFile(v, base, files) {
-				continue
+	ctx.submit(func() {
+		switch {
+		case ctx.runFile && ctx.runOverlap:
+			ctx.checkFileGlobsAndOverlaps(loc, values, base, files, removable)
+		case ctx.runFile:
+			for idx, v := range values {
+				if patternMatchesAnyFile(v, base, files) {
+					continue
+				}
+				ctx.add(loc, idx, v, KindFile, removable)
 			}
-			ctx.add(loc, idx, v, KindFile, removable)
+		case ctx.runOverlap:
+			ctx.checkOverlaps(loc, values, base, files)
+		}
+	})
+}
+
+// checkFileGlobsAndOverlaps computes each pattern's matched-file bitset once, then
+// derives the dead-pattern finding (empty bitset) and the overlap findings from it.
+func (ctx *lintCtx) checkFileGlobsAndOverlaps(loc patternLoc, values []string, base string, files []string, removable bool) {
+	pats := make([]overlapPat, 0, len(values))
+	for idx, v := range values {
+		if strings.TrimSpace(v) == "" {
+			continue // empty → never dead, never overlaps
+		}
+		matchers := globutil.CreateGlobMatchers([]string{v}, base)
+		if len(matchers) == 0 {
+			continue // uncompilable → not our concern
+		}
+		bs := newBitset(len(files))
+		for i, f := range files {
+			if globutil.MatchesAnyGlobMatcher(f, matchers, false) {
+				bs.set(i)
+			}
+		}
+		if bs.count == 0 {
+			ctx.add(loc, idx, v, KindFile, removable) // dead (negations become warnings in add)
+			continue
+		}
+		if !isNegationPattern(v) {
+			pats = append(pats, overlapPat{idx, v, bs})
 		}
 	}
-	if ctx.runOverlap {
-		ctx.checkOverlaps(loc, values, base, files)
-	}
+	ctx.overlapPairs(loc, pats)
 }
 
 // checkModuleArray flags each module pattern that matches nothing in the module universe.
@@ -389,12 +509,14 @@ func (ctx *lintCtx) checkModuleArray(loc patternLoc, values []string, removable 
 	if len(values) == 0 || !ctx.optionPresent(loc) {
 		return
 	}
-	for idx, v := range values {
-		if patternMatchesAnyModule(v, ctx.moduleUniverse) {
-			continue
+	ctx.submit(func() {
+		for idx, v := range values {
+			if patternMatchesAnyModule(v, ctx.moduleUniverse) {
+				continue
+			}
+			ctx.add(loc, idx, v, KindModule, removable)
 		}
-		ctx.add(loc, idx, v, KindModule, removable)
-	}
+	})
 }
 
 // checkMixedArray flags each pattern that matches neither a file (at root) nor a module.
@@ -402,12 +524,14 @@ func (ctx *lintCtx) checkMixedArray(loc patternLoc, values []string, rulePath st
 	if len(values) == 0 || !ctx.optionPresent(loc) {
 		return
 	}
-	for idx, v := range values {
-		if patternMatchesAnyFile(v, rulePath, files) || patternMatchesAnyModule(v, ctx.moduleUniverse) {
-			continue
+	ctx.submit(func() {
+		for idx, v := range values {
+			if patternMatchesAnyFile(v, rulePath, files) || patternMatchesAnyModule(v, ctx.moduleUniverse) {
+				continue
+			}
+			ctx.add(loc, idx, v, KindMixed, removable)
 		}
-		ctx.add(loc, idx, v, KindMixed, removable)
-	}
+	})
 }
 
 // checkRuleFileGlobs implements the orphan-file-globs rule for one config rule: every
@@ -569,17 +693,17 @@ func patternMatchesAnyModule(pattern string, universe []string) bool {
 
 // ---- overlapping-globs ----
 
-// checkOverlaps compares every pair of patterns in one option array by the sets of
-// files they match, reporting duplicates, containment, and partial overlaps as
-// warnings. Patterns matching no file (dead — handled by the file rule) and negations
-// are skipped.
+// overlapPat is one pattern with its matched-file bitset, for overlap comparison.
+type overlapPat struct {
+	elemIdx int
+	value   string
+	bs      *bitset
+}
+
+// checkOverlaps computes each pattern's matched-file bitset and reports overlaps.
+// Patterns matching no file (dead) and negations are skipped.
 func (ctx *lintCtx) checkOverlaps(loc patternLoc, values []string, base string, files []string) {
-	type pat struct {
-		elemIdx int
-		value   string
-		bs      *bitset
-	}
-	pats := make([]pat, 0, len(values))
+	pats := make([]overlapPat, 0, len(values))
 	for idx, v := range values {
 		if isNegationPattern(v) || strings.TrimSpace(v) == "" {
 			continue
@@ -588,9 +712,14 @@ func (ctx *lintCtx) checkOverlaps(loc patternLoc, values []string, base string, 
 		if bs.count == 0 {
 			continue
 		}
-		pats = append(pats, pat{idx, v, bs})
+		pats = append(pats, overlapPat{idx, v, bs})
 	}
+	ctx.overlapPairs(loc, pats)
+}
 
+// overlapPairs compares every pair of patterns by their matched-file sets and reports
+// duplicates, containment, and partial overlaps.
+func (ctx *lintCtx) overlapPairs(loc patternLoc, pats []overlapPat) {
 	for a := 0; a < len(pats); a++ {
 		for b := a + 1; b < len(pats); b++ {
 			A, B := pats[a], pats[b]
@@ -614,6 +743,8 @@ func (ctx *lintCtx) checkOverlaps(loc patternLoc, values []string, base string, 
 }
 
 func (ctx *lintCtx) addOverlap(loc patternLoc, kind OverlapKind, aVal string, aIdx int, bVal string, bIdx int, shared int) {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
 	ctx.overlaps = append(ctx.overlaps, OverlapFinding{
 		RuleIndex:       loc.RuleIndex,
 		RulePath:        loc.RulePath,

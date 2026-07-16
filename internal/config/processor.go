@@ -90,6 +90,10 @@ type ConfigProcessingResult struct {
 	UnfixableAliasingCount int
 	FixableIssuesCount     int
 	FullTree               model.MinimalDependencyTree
+	// Discovery/resolver artifacts, exposed so a caller (e.g. `config run --lint`) can
+	// lint without redoing the expensive discovery + dependency-tree build.
+	DiscoveredFiles []string
+	ResolverManager *resolve.ResolverManager
 }
 
 // discoverAllFilesForConfig discovers all files for config processing
@@ -922,9 +926,11 @@ func ProcessConfig(
 
 	// Step 3: Process each rule in parallel
 	result := &ConfigProcessingResult{
-		RuleResults: make([]RuleResult, len(config.Rules)),
-		HasFailures: false,
-		FullTree:    fullTree,
+		RuleResults:     make([]RuleResult, len(config.Rules)),
+		HasFailures:     false,
+		FullTree:        fullTree,
+		DiscoveredFiles: allFiles,
+		ResolverManager: resolverManager,
 	}
 
 	// Validate package.json exists for all rule paths before parallel processing

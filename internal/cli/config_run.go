@@ -30,12 +30,14 @@ var configCmd = &cobra.Command{
 
 // ---------------- config run ----------------
 var (
-	runConfigCwd     string
-	runConfigListAll bool
-	runConfigFix     bool
-	runConfigRecheck bool
-	runConfigRules   []string
-	runConfigFormat  string
+	runConfigCwd       string
+	runConfigListAll   bool
+	runConfigFix       bool
+	runConfigRecheck   bool
+	runConfigRules     []string
+	runConfigFormat    string
+	runConfigLint      bool
+	runConfigLintRules []string
 )
 
 var configRunCmd = &cobra.Command{
@@ -59,6 +61,22 @@ var configRunCmd = &cobra.Command{
 			return runConfigWithIssuesListOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck)
 		}
 
+		// When linting after the run and reusing the run's graph, the top-level ignoreFiles
+		// dead-check needs a "superset" walk (files the run's discovery prunes). That walk is
+		// independent of the run, so kick it off NOW to overlap it with the run's own
+		// discovery + tree build — hiding its cost entirely.
+		lintWanted := runConfigLint || len(runConfigLintRules) > 0
+		reuseGraphForLint := lintWanted && len(runConfigRules) == 0
+		var supersetCh chan []string
+		if reuseGraphForLint && (len(cfg.IgnoreFiles) > 0 || len(cfg.ProcessIgnoredFiles) > 0) {
+			processIgnored := append([]string(nil), cfg.ProcessIgnoredFiles...)
+			supersetCh = make(chan []string, 1)
+			go func() {
+				files, _ := config.DiscoverLintSuperset(cwd, processIgnored)
+				supersetCh <- files
+			}()
+		}
+
 		if err := filterRunConfigRules(&cfg, runConfigRules); err != nil {
 			return err
 		}
@@ -70,15 +88,80 @@ var configRunCmd = &cobra.Command{
 
 		// Format and print results
 		formatAndPrintConfigResults(result, cwd, runConfigListAll)
+
+		// Optionally lint the config after running. Only the error/warning counts are
+		// printed here — use `rev-dep config lint` for per-finding detail and `--fix`.
+		lintHasErrors := false
+		if lintWanted {
+			failed, err := runConfigLintSummary(cwd, result, reuseGraphForLint, supersetCh)
+			if err != nil {
+				return err
+			}
+			lintHasErrors = failed
+		}
+
 		executionTime := time.Since(startTime)
 		fmt.Printf("\n✨  Done in %dms.\n", executionTime.Milliseconds())
 
-		if shouldConfigRunExitNonZero(result, runConfigFix) {
+		if shouldConfigRunExitNonZero(result, runConfigFix) || lintHasErrors {
 			os.Exit(1)
 		}
 
 		return nil
 	},
+}
+
+// runConfigLintSummary runs the config linter over the full config (independent of the
+// run's --rules filter) using the selected --lint-rules, prints only the error/warning
+// counts, and reports whether any lint ERROR was found. Fixing is intentionally not
+// offered here; users run `rev-dep config lint --fix` for that.
+//
+// When reuseGraph is true, the discovery + dependency tree the run already built are
+// reused, so linting adds almost no cost. It is only safe to reuse when the run was NOT
+// rule-filtered: a filtered run builds a narrower graph (fewer registered packages),
+// which could make the module universe incomplete for the full config.
+func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, reuseGraph bool, supersetCh chan []string) (hasErrors bool, err error) {
+	lintRules, err := config.ParseLintRules(runConfigLintRules)
+	if err != nil {
+		return false, err
+	}
+
+	// Load the config fresh so its rule order matches the raw file (the run may have
+	// filtered cfg.Rules via --rules, which would misalign the linter's presence checks).
+	lintCfg, err := config.LoadConfig(cwd)
+	if err != nil {
+		return false, fmt.Errorf("Could not load configuration for lint: %v", err)
+	}
+
+	var graph *config.LintGraph
+	if reuseGraph && runResult != nil {
+		graph = &config.LintGraph{
+			AllFiles:        runResult.DiscoveredFiles,
+			FullTree:        runResult.FullTree,
+			ResolverManager: runResult.ResolverManager,
+		}
+		// Collect the superset walk launched concurrently with the run (already done by now).
+		if supersetCh != nil {
+			graph.SupersetFiles = <-supersetCh
+			graph.SupersetComputed = true
+		}
+	}
+
+	lintResult, err := config.LintConfigWithGraph(&lintCfg, cwd, packageJsonPath, tsconfigJsonPath, lintRules, graph)
+	if err != nil {
+		return false, fmt.Errorf("Error linting config: %v", err)
+	}
+
+	errors, warnings := countLintFindings(lintResult, false)
+	switch {
+	case errors > 0:
+		fmt.Printf("\n%s  Config lint: %d error(s), %d warning(s) — run `rev-dep config lint` for details (or --fix to apply).\n", errorMark, errors, warnings)
+	case warnings > 0:
+		fmt.Printf("\n%s  Config lint: 0 errors, %d warning(s) — run `rev-dep config lint` for details (or --fix to apply).\n", warnMark, warnings)
+	default:
+		fmt.Printf("\n✅  Config lint: no issues.\n")
+	}
+	return errors > 0, nil
 }
 
 const maxIssuesToList = 5
@@ -768,6 +851,8 @@ func init() {
 	configRunCmd.Flags().BoolVar(&runConfigRecheck, "recheck", false, "Run all checks again after '--fix' to validate the final state")
 	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
+	configRunCmd.Flags().BoolVar(&runConfigLint, "lint", false, "Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use `config lint` for details and --fix")
+	configRunCmd.Flags().StringSliceVar(&runConfigLintRules, "lint-rules", nil, "Which lint rules to run with --lint (comma-separated). Default: all. Implies --lint")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")

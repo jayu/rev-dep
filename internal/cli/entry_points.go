@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"slices"
@@ -33,13 +34,78 @@ func promptAutoDetectEntryPoints() bool {
 	return idx == 0
 }
 
+// ---------------- third question: how aggressively to fold near-covered directories? ----------------
+
+// foldThresholdAsker chooses the entry-point fold coverage threshold given the options detected
+// across all packages. It returns a percentage from foldThresholdLadder (100 = strict, no folding
+// of partially-covered directories).
+type foldThresholdAsker func(options []foldThresholdOption) int
+
+// strictFoldThreshold is the non-interactive default: never fold partially-covered directories.
+func strictFoldThreshold([]foldThresholdOption) int { return 100 }
+
+// maxDisplayedFoldDirs caps how many example directories are listed for each threshold option.
+const maxDisplayedFoldDirs = 3
+
+// promptFoldThreshold asks how aggressively to fold near-fully-covered directories into a single
+// "dir/**" glob. The first option keeps the strict rule (100%); each further option folds
+// directories down to a lower coverage, previewing up to a few directories it would newly collapse.
+func promptFoldThreshold(options []foldThresholdOption) int {
+	if !stdinIsInteractive() || len(options) == 0 {
+		return 100
+	}
+	labels := []string{"Fold only fully-covered directories (strict, 100%)"}
+	for _, option := range options {
+		labels = append(labels, foldThresholdOptionLabel(option))
+	}
+	question := "Some directories contain files other than entry points. " +
+		"Fold each into a single \"dir/**\" glob anyway?\n" +
+		"Folding keeps the config short (one glob per directory).\n" +
+		"Not folding lists every entry point individually — more entries, more verbose."
+	idx, _, err := selectOne(os.Stdin, os.Stdout, question, labels, 0)
+	if err != nil || idx == 0 {
+		return 100
+	}
+	return options[idx-1].threshold
+}
+
+// foldThresholdOptionLabel renders a threshold choice: its coverage cutoff, how many directories it
+// would newly fold, and up to maxDisplayedFoldDirs examples with their coverage.
+func foldThresholdOptionLabel(option foldThresholdOption) string {
+	examples := make([]string, 0, maxDisplayedFoldDirs)
+	for _, dir := range option.newDirs {
+		if len(examples) == maxDisplayedFoldDirs {
+			break
+		}
+		examples = append(examples, fmt.Sprintf("%s/** (%d%%)", dir.dir, dir.coverage))
+	}
+	more := ""
+	if len(option.newDirs) > maxDisplayedFoldDirs {
+		more = fmt.Sprintf(", +%d more", len(option.newDirs)-maxDisplayedFoldDirs)
+	}
+	return fmt.Sprintf("Fold directories ≥%d%% covered — %d dir(s): %s%s",
+		option.threshold, len(option.newDirs), strings.Join(examples, ", "), more)
+}
+
 // ---------------- per-package entry-point detection ----------------
 
-// detectPackageEntryPoints analyzes the package rooted at pkgDir (absolute, standardised path),
-// finds its entry points (files with no importers within the package), classifies each as
-// production, development, or ignored by path heuristics, and folds each set into the minimal
-// list of package-relative glob/file patterns. Returns (prodPatterns, devPatterns, ignorePatterns).
-func detectPackageEntryPoints(pkgDir string) (prod []string, dev []string, ignore []string) {
+// packageEntryAnalysis is the folding-ready result of analyzing a package: the universe of
+// analyzed files partitioned into production / development / ignored entry-point sets (plus the
+// declaration files handled separately). It is produced once by analyzePackageEntryPoints and then
+// folded into glob patterns at a chosen coverage threshold by foldAnalysis — the split lets config
+// init pick a fold threshold interactively after seeing every package's near-covered directories.
+type packageEntryAnalysis struct {
+	universe  []string
+	prodSet   map[string]bool
+	devSet    map[string]bool
+	ignoreSet map[string]bool
+	dtsFiles  []string
+}
+
+// analyzePackageEntryPoints analyzes the package rooted at pkgDir (absolute, standardised path),
+// finds its entry points (files with no importers within the package), and classifies each file as
+// production, development, or ignored by path heuristics — without folding into patterns yet.
+func analyzePackageEntryPoints(pkgDir string) packageEntryAnalysis {
 	tree, _, _ := resolve.GetMinimalDepsTreeForCwd(
 		pkgDir,
 		false,                               // ignoreTypeImports
@@ -74,14 +140,17 @@ func detectPackageEntryPoints(pkgDir string) (prod []string, dev []string, ignor
 	// Declaration files (.d.ts) are dev entry points handled separately: several of them collapse
 	// to one **/*.d.ts glob. Pull them out of the folding universe first (unless they live in an
 	// ignore directory, where they belong to that directory's fold).
-	var dtsFiles []string
-	universe := make([]string, 0, len(allFiles))
+	analysis := packageEntryAnalysis{
+		prodSet:   map[string]bool{},
+		devSet:    map[string]bool{},
+		ignoreSet: map[string]bool{},
+	}
 	for _, rel := range allFiles {
 		if isDeclarationFile(rel) && !hasDirSegment(rel, ignoreEntryDirNames) {
-			dtsFiles = append(dtsFiles, rel)
+			analysis.dtsFiles = append(analysis.dtsFiles, rel)
 			continue
 		}
-		universe = append(universe, rel)
+		analysis.universe = append(analysis.universe, rel)
 	}
 
 	// Bucket every remaining file. Files inside a dev/ignore directory (tests, scripts, fixtures,
@@ -89,33 +158,231 @@ func detectPackageEntryPoints(pkgDir string) (prod []string, dev []string, ignor
 	// points — so the whole directory can fold into one glob even when its files import each other.
 	// Files outside such directories are only relevant when they are actual entry points (no
 	// importers): production by default, or development by filename marker (e.g. foo.test.ts).
-	prodSet := map[string]bool{}
-	devSet := map[string]bool{}
-	ignoreSet := map[string]bool{}
-	for _, rel := range universe {
+	for _, rel := range analysis.universe {
 		switch {
 		case hasDirSegment(rel, ignoreEntryDirNames):
-			ignoreSet[rel] = true
+			analysis.ignoreSet[rel] = true
 		case hasDirSegment(rel, devEntryDirNames):
-			devSet[rel] = true
+			analysis.devSet[rel] = true
 		case !entrySet[rel]:
 			// internal module in a normal directory: not an entry point, so not classified.
 		case hasDevFileMarker(rel):
-			devSet[rel] = true
+			analysis.devSet[rel] = true
 		default:
-			prodSet[rel] = true
+			analysis.prodSet[rel] = true
 		}
 	}
+	return analysis
+}
 
-	prod = foldEntryPatterns(universe, prodSet)
-	dev = foldEntryPatterns(universe, devSet)
-	ignore = foldEntryPatterns(universe, ignoreSet)
+// foldAnalysis folds an analyzed package into (prod, dev, ignore) glob patterns at the given
+// coverage threshold (percent). At threshold 100 a directory folds to "dir/**" only when every
+// analyzed file under it is an entry point of that set (the strict, always-safe rule); a lower
+// threshold folds directories that are only near-fully covered — e.g. a Next.js pages/ dir where a
+// few files are imported by siblings and so are not entry points. Each set's fold blocks on the
+// other two sets so a directory mixing, say, prod and dev files never folds one set's glob over the
+// other's files.
+func foldAnalysis(analysis packageEntryAnalysis, threshold int) (prod, dev, ignore []string) {
+	prod = foldEntryPatterns(analysis.universe, analysis.prodSet, unionSets(analysis.devSet, analysis.ignoreSet), threshold)
+	dev = foldEntryPatterns(analysis.universe, analysis.devSet, unionSets(analysis.prodSet, analysis.ignoreSet), threshold)
+	ignore = foldEntryPatterns(analysis.universe, analysis.ignoreSet, unionSets(analysis.prodSet, analysis.devSet), threshold)
 
-	dev = append(dev, declarationFilePatterns(dtsFiles)...)
-	slices.Sort(dev)
-	dev = slices.Compact(dev)
+	dev = append(dev, declarationFilePatterns(analysis.dtsFiles)...)
+	dev = collapseEntryPatterns(dev, devEntryDirNames, true)
+	// Ignore entries collapse recognized directory globs (e.g. many "…/__snapshots__/**" ->
+	// "**/__snapshots__/**") but NOT file suffixes: a stray ".test.ts" inside a fixtures dir must
+	// not broaden into "**/*.test.ts" and swallow every real test file into ignoreEntryPoints.
+	ignore = collapseEntryPatterns(ignore, ignoreEntryDirNames, false)
 
 	return prod, dev, ignore
+}
+
+// detectPackageEntryPoints analyzes the package rooted at pkgDir and folds its entry points into
+// the minimal list of package-relative glob/file patterns using the strict (100%) coverage rule.
+func detectPackageEntryPoints(pkgDir string) (prod []string, dev []string, ignore []string) {
+	return foldAnalysis(analyzePackageEntryPoints(pkgDir), 100)
+}
+
+// unionSets returns a new set containing every key from both input sets.
+func unionSets(first, second map[string]bool) map[string]bool {
+	union := make(map[string]bool, len(first)+len(second))
+	for key := range first {
+		union[key] = true
+	}
+	for key := range second {
+		union[key] = true
+	}
+	return union
+}
+
+// entryCollapseThreshold is the minimum number of entry patterns sharing a compound file suffix
+// or a recognized directory-leaf name before they are collapsed into one glob (mirrors the .d.ts
+// rule: a lone occurrence is listed as-is, two or more collapse).
+const entryCollapseThreshold = 2
+
+// collapseEntryPatterns collapses a folded entry-pattern list on two axes so scattered entries do
+// not produce one line each:
+//
+//   - Literal files sharing a compound suffix (the last two dot-separated filename segments, e.g.
+//     ".test.ts", ".stories.tsx", ".config.js") collapse into one "**/*<suffix>" glob. This is
+//     suffix-general — it is not limited to the classifier's marker list — since these files are
+//     already dev/ignore entry points and any shared compound suffix names a family of them.
+//   - Folded "dir/**" globs whose leaf directory is a recognized dev/ignore directory name (mocks,
+//     __tests__, snapshots, ...) collapse into one "**/<leaf>/**" glob, so many scattered
+//     "…/mocks/**" entries become a single "**/mocks/**".
+//
+// Existing broad globs (e.g. "**/*.d.ts"), plain files without a compound suffix, and "dir/**"
+// globs whose leaf is not a recognized directory name pass through untouched. A suffix or leaf
+// carried by a single entry is left as-is. collapseFiles gates the file-suffix axis (the directory
+// axis always applies): callers pass false where broadening files would be unsafe (see ignore).
+func collapseEntryPatterns(patterns []string, dirNames map[string]bool, collapseFiles bool) []string {
+	fileGroups := map[string][]string{} // compound suffix -> literal file patterns
+	dirGroups := map[string][]string{}  // recognized leaf dir name -> "dir/**" globs
+	var out []string
+	for _, p := range patterns {
+		if leaf, ok := recognizedDirGlobLeaf(p, dirNames); ok {
+			dirGroups[leaf] = append(dirGroups[leaf], p)
+			continue
+		}
+		if strings.Contains(p, "*") {
+			out = append(out, p) // some other glob (e.g. **/*.d.ts)
+			continue
+		}
+		if suffix, ok := compoundFileSuffix(p); ok && collapseFiles {
+			fileGroups[suffix] = append(fileGroups[suffix], p)
+			continue
+		}
+		out = append(out, p)
+	}
+	for suffix, files := range fileGroups {
+		if len(files) >= entryCollapseThreshold {
+			out = append(out, "**/*"+suffix)
+		} else {
+			out = append(out, files...)
+		}
+	}
+	for leaf, globs := range dirGroups {
+		if len(globs) >= entryCollapseThreshold {
+			out = append(out, "**/"+leaf+"/**")
+		} else {
+			out = append(out, globs...)
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// compoundFileSuffix returns the collapse suffix of a file — the last two dot-separated segments
+// of its name (e.g. "app/foo/bar.server.test.ts" -> ".test.ts", "x/Card.stories.tsx" ->
+// ".stories.tsx") — reporting false when the name has no compound extension (fewer than two dots,
+// e.g. "utils.ts"), since a bare "name.ext" would collapse into an over-broad "**/*.ext".
+func compoundFileSuffix(relPath string) (string, bool) {
+	parts := strings.Split(path.Base(relPath), ".")
+	if len(parts) < 3 {
+		return "", false
+	}
+	return "." + parts[len(parts)-2] + "." + parts[len(parts)-1], true
+}
+
+// recognizedDirGlobLeaf reports the leaf directory name of a "dir/**" glob when that leaf is one of
+// the recognized dev/ignore directory names (so "app/broadcast/mocks/**" -> "mocks"). A bare
+// "**"/"leaf/**" with an unrecognized or empty leaf, or any non-"/**" pattern, returns false so it
+// is not collapsed into a package-wide "**/<leaf>/**".
+func recognizedDirGlobLeaf(pattern string, dirNames map[string]bool) (string, bool) {
+	rest, ok := strings.CutSuffix(pattern, "/**")
+	if !ok || rest == "" || strings.Contains(rest, "*") {
+		return "", false
+	}
+	leaf := path.Base(rest)
+	if !dirNames[strings.ToLower(leaf)] {
+		return "", false
+	}
+	return leaf, true
+}
+
+// ---------------- interactive fold threshold ----------------
+
+// foldThresholdLadder is the descending list of coverage thresholds offered during config init. 100
+// is the strict rule (every file must be an entry point); lower values also fold directories that
+// are only near-fully covered.
+var foldThresholdLadder = []int{100, 95, 90, 85, 80}
+
+// foldThresholdOption is one selectable threshold below 100 together with the directories it would
+// newly fold — those not already folded by the next-stricter threshold.
+type foldThresholdOption struct {
+	threshold int
+	newDirs   []coveredDir // display paths, sorted by descending coverage then path
+}
+
+// analyzedPackage pairs a package's analysis with the rule path used to display its directories.
+type analyzedPackage struct {
+	rulePath string
+	analysis packageEntryAnalysis
+}
+
+// foldThresholdOptions computes, for each threshold below 100, the directories it would newly fold
+// across all analyzed packages (deduplicated against stricter thresholds). A threshold that unlocks
+// no directory beyond the one above it is omitted, so choosing it would change nothing. Returns nil
+// when no directory folds below 100 — i.e. there is nothing to ask the user.
+func foldThresholdOptions(pkgs []analyzedPackage) []foldThresholdOption {
+	foldedByThreshold := make(map[int]map[string]int, len(foldThresholdLadder)) // threshold -> display path -> coverage
+	for _, threshold := range foldThresholdLadder {
+		foldedHere := map[string]int{}
+		for _, pkg := range pkgs {
+			for _, folded := range allFoldableDirs(pkg.analysis, threshold) {
+				displayPath := joinPkgDir(pkg.rulePath, folded.dir)
+				if existing, seen := foldedHere[displayPath]; !seen || folded.coverage > existing {
+					foldedHere[displayPath] = folded.coverage
+				}
+			}
+		}
+		foldedByThreshold[threshold] = foldedHere
+	}
+
+	var options []foldThresholdOption
+	for i := 1; i < len(foldThresholdLadder); i++ {
+		threshold, stricter := foldThresholdLadder[i], foldThresholdLadder[i-1]
+		var newDirs []coveredDir
+		for displayPath, coverage := range foldedByThreshold[threshold] {
+			if _, foldedByStricter := foldedByThreshold[stricter][displayPath]; !foldedByStricter {
+				newDirs = append(newDirs, coveredDir{dir: displayPath, coverage: coverage})
+			}
+		}
+		if len(newDirs) == 0 {
+			continue
+		}
+		slices.SortFunc(newDirs, func(first, second coveredDir) int {
+			if first.coverage != second.coverage {
+				return second.coverage - first.coverage // higher coverage first
+			}
+			return strings.Compare(first.dir, second.dir)
+		})
+		options = append(options, foldThresholdOption{threshold: threshold, newDirs: newDirs})
+	}
+	return options
+}
+
+// allFoldableDirs returns every directory that folds at the given threshold across the package's
+// production, development and ignore sets.
+func allFoldableDirs(analysis packageEntryAnalysis, threshold int) []coveredDir {
+	var folded []coveredDir
+	folded = append(folded, foldableDirs(analysis.universe, analysis.prodSet, unionSets(analysis.devSet, analysis.ignoreSet), threshold)...)
+	folded = append(folded, foldableDirs(analysis.universe, analysis.devSet, unionSets(analysis.prodSet, analysis.ignoreSet), threshold)...)
+	folded = append(folded, foldableDirs(analysis.universe, analysis.ignoreSet, unionSets(analysis.prodSet, analysis.devSet), threshold)...)
+	return folded
+}
+
+// joinPkgDir builds a display path for a package-relative directory, prefixing the package path
+// unless it is the current directory.
+func joinPkgDir(rulePath, dir string) string {
+	switch {
+	case rulePath == "" || rulePath == ".":
+		return dir
+	case dir == "":
+		return rulePath
+	default:
+		return rulePath + "/" + dir
+	}
 }
 
 // ---------------- entry-point classification ----------------
@@ -207,22 +474,52 @@ func classifyEntryPoint(relPath string) entryClass {
 
 // ---------------- glob folding ----------------
 
+// coveredDir is a directory that folded to "dir/**" together with its entry-point coverage —
+// the percentage of analyzed files under it that are entry points of the folded set.
+type coveredDir struct {
+	dir      string
+	coverage int
+}
+
 // foldEntryPatterns collapses the entry paths in entrySet into the minimal set of package-relative
-// patterns. A directory whose every analyzed file (recursively) is in entrySet is folded into a
-// single "dir/**" glob; otherwise its entry files are listed individually and its subdirectories
-// are folded independently. allFiles is the universe of analyzed files (all package-relative), so
-// "every file in this directory is an entry point" is decided against real siblings, not the fs.
-// The package root is never folded into a bare "**" — it is always expanded one level.
-func foldEntryPatterns(allFiles []string, entrySet map[string]bool) []string {
+// patterns. A directory folds into a single "dir/**" glob when at least `threshold` percent of the
+// analyzed files under it are in entrySet (100 = every file, the strict rule); otherwise its entry
+// files are listed individually and its subdirectories are folded independently. A directory is
+// never folded when its subtree contains a `blocked` file — a file belonging to a different entry
+// set — so one set's glob never claims another set's files. allFiles is the universe of analyzed
+// files (all package-relative), so coverage is decided against real siblings, not the fs. The
+// package root is never folded into a bare "**" — it is always expanded one level.
+func foldEntryPatterns(allFiles []string, entrySet, blocked map[string]bool, threshold int) []string {
 	if len(entrySet) == 0 {
 		return nil
 	}
+	t := newEntryFileTree(allFiles, entrySet, blocked, threshold)
+	patterns, _ := t.expandRoot()
+	slices.Sort(patterns)
+	return slices.Compact(patterns)
+}
 
+// foldableDirs returns the directories that would fold to "dir/**" at the given threshold, each
+// with its coverage. It runs the same fold as foldEntryPatterns but reports the folded directories
+// instead of the pattern list, so config init can preview which near-covered directories a
+// threshold would collapse.
+func foldableDirs(allFiles []string, entrySet, blocked map[string]bool, threshold int) []coveredDir {
+	if len(entrySet) == 0 {
+		return nil
+	}
+	t := newEntryFileTree(allFiles, entrySet, blocked, threshold)
+	_, folded := t.expandRoot()
+	return folded
+}
+
+func newEntryFileTree(allFiles []string, entrySet, blocked map[string]bool, threshold int) *entryFileTree {
 	t := &entryFileTree{
 		directFiles: map[string][]string{},
 		childDirs:   map[string][]string{},
 		seenDir:     map[string]bool{"": true},
 		entrySet:    entrySet,
+		blocked:     blocked,
+		threshold:   threshold,
 	}
 	for _, f := range allFiles {
 		f = strings.TrimPrefix(f, "/")
@@ -236,10 +533,7 @@ func foldEntryPatterns(allFiles []string, entrySet map[string]bool) []string {
 	for dir := range t.childDirs {
 		slices.Sort(t.childDirs[dir])
 	}
-
-	patterns := t.expandDir("")
-	slices.Sort(patterns)
-	return slices.Compact(patterns)
+	return t
 }
 
 type entryFileTree struct {
@@ -247,6 +541,8 @@ type entryFileTree struct {
 	childDirs   map[string][]string // dir -> child directory paths
 	seenDir     map[string]bool
 	entrySet    map[string]bool
+	blocked     map[string]bool
+	threshold   int
 }
 
 // registerDirChain records dir and every ancestor as a child of its parent.
@@ -263,71 +559,87 @@ func (t *entryFileTree) registerDirChain(dir string) {
 }
 
 type entryFoldResult struct {
-	patterns []string
-	covered  bool // every analyzed file under this dir is an entry point
-	hasEntry bool // this dir's subtree contains at least one entry point
+	patterns   []string
+	entryCount int  // entry-set files in this subtree
+	fileCount  int  // entry + tolerable (non-entry, non-blocked) files in this subtree
+	blocked    bool // this subtree contains a file from a different entry set
+	hasEntry   bool // this subtree contains at least one entry point
+	foldedDirs []coveredDir
 }
 
-// foldDir folds a non-root directory: a fully-covered directory becomes one "dir/**" glob,
-// otherwise it expands into its entry files plus its subdirectories' patterns.
+// foldDir folds a non-root directory: a sufficiently-covered, block-free directory becomes one
+// "dir/**" glob, otherwise it expands into its entry files plus its subdirectories' patterns.
 func (t *entryFileTree) foldDir(dir string) entryFoldResult {
 	files := t.directFiles[dir]
 	children := t.childDirs[dir]
 
-	allFilesEntries := true
-	anyDirectEntry := false
+	entryCount, fileCount := 0, 0
+	blockedHere := false
 	for _, f := range files {
-		if t.entrySet[f] {
-			anyDirectEntry = true
-		} else {
-			allFilesEntries = false
+		switch {
+		case t.entrySet[f]:
+			entryCount++
+			fileCount++
+		case t.blocked[f]:
+			blockedHere = true
+		default:
+			fileCount++ // tolerable non-entry (internal module of this set's area)
 		}
 	}
 
 	childResults := make([]entryFoldResult, len(children))
-	allChildrenCovered := true
-	anyChildEntry := false
 	for i, child := range children {
-		childResults[i] = t.foldDir(child)
-		if !childResults[i].covered {
-			allChildrenCovered = false
-		}
-		if childResults[i].hasEntry {
-			anyChildEntry = true
+		childResult := t.foldDir(child)
+		childResults[i] = childResult
+		entryCount += childResult.entryCount
+		fileCount += childResult.fileCount
+		if childResult.blocked {
+			blockedHere = true
 		}
 	}
 
-	hasEntry := anyDirectEntry || anyChildEntry
-	if hasEntry && allFilesEntries && allChildrenCovered {
-		return entryFoldResult{patterns: []string{dir + "/**"}, covered: true, hasEntry: true}
+	hasEntry := entryCount > 0
+	if hasEntry && !blockedHere && entryCount*100 >= t.threshold*fileCount {
+		coverage := entryCount * 100 / fileCount
+		return entryFoldResult{
+			patterns:   []string{dir + "/**"},
+			entryCount: entryCount, fileCount: fileCount, hasEntry: true,
+			foldedDirs: []coveredDir{{dir: dir, coverage: coverage}},
+		}
 	}
-	return entryFoldResult{patterns: t.expandFrom(files, children, childResults), covered: false, hasEntry: hasEntry}
+	patterns, folded := t.expandFrom(files, children, childResults)
+	return entryFoldResult{
+		patterns: patterns, entryCount: entryCount, fileCount: fileCount,
+		blocked: blockedHere, hasEntry: hasEntry, foldedDirs: folded,
+	}
 }
 
-// expandDir expands a directory (used for the package root, which is never folded whole).
-func (t *entryFileTree) expandDir(dir string) []string {
-	children := t.childDirs[dir]
+// expandRoot expands the package root (never folded whole) and returns its patterns plus every
+// directory that folded anywhere beneath it.
+func (t *entryFileTree) expandRoot() (patterns []string, folded []coveredDir) {
+	children := t.childDirs[""]
 	childResults := make([]entryFoldResult, len(children))
 	for i, child := range children {
 		childResults[i] = t.foldDir(child)
 	}
-	return t.expandFrom(t.directFiles[dir], children, childResults)
+	return t.expandFrom(t.directFiles[""], children, childResults)
 }
 
-// expandFrom emits the directory's own entry files plus each subdirectory's patterns.
-func (t *entryFileTree) expandFrom(files []string, children []string, childResults []entryFoldResult) []string {
-	var out []string
+// expandFrom emits the directory's own entry files plus each subdirectory's patterns, and gathers
+// the folded directories from its subdirectories.
+func (t *entryFileTree) expandFrom(files []string, children []string, childResults []entryFoldResult) (patterns []string, folded []coveredDir) {
 	sortedFiles := append([]string(nil), files...)
 	slices.Sort(sortedFiles)
 	for _, f := range sortedFiles {
 		if t.entrySet[f] {
-			out = append(out, f)
+			patterns = append(patterns, f)
 		}
 	}
 	for i := range children {
 		if childResults[i].hasEntry {
-			out = append(out, childResults[i].patterns...)
+			patterns = append(patterns, childResults[i].patterns...)
 		}
+		folded = append(folded, childResults[i].foldedDirs...)
 	}
-	return out
+	return patterns, folded
 }

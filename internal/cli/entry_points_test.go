@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,13 +11,14 @@ import (
 	"rev-dep-go/internal/pathutil"
 )
 
-// fold is a test helper: fold entryFiles (a subset of allFiles) into patterns.
+// fold is a test helper: fold entryFiles (a subset of allFiles) into patterns using the strict
+// (100%) coverage rule with no blocked set.
 func fold(allFiles, entryFiles []string) []string {
-	set := map[string]bool{}
-	for _, f := range entryFiles {
-		set[f] = true
+	entrySet := map[string]bool{}
+	for _, entryFile := range entryFiles {
+		entrySet[entryFile] = true
 	}
-	return foldEntryPatterns(allFiles, set)
+	return foldEntryPatterns(allFiles, entrySet, nil, 100)
 }
 
 func TestFoldEntryPatterns(t *testing.T) {
@@ -116,6 +118,130 @@ func TestFoldEntryPatterns(t *testing.T) {
 	}
 }
 
+// setOf builds a membership set from paths.
+func setOf(paths ...string) map[string]bool {
+	set := map[string]bool{}
+	for _, path := range paths {
+		set[path] = true
+	}
+	return set
+}
+
+func TestFoldEntryPatterns_CoverageThreshold(t *testing.T) {
+	// A directory of 10 files where 9 are entry points (90% covered).
+	allFiles := []string{
+		"pages/a.ts", "pages/b.ts", "pages/c.ts", "pages/d.ts", "pages/e.ts",
+		"pages/f.ts", "pages/g.ts", "pages/h.ts", "pages/i.ts", "pages/internal.ts",
+	}
+	entries := setOf("pages/a.ts", "pages/b.ts", "pages/c.ts", "pages/d.ts", "pages/e.ts",
+		"pages/f.ts", "pages/g.ts", "pages/h.ts", "pages/i.ts")
+
+	if got := foldEntryPatterns(allFiles, entries, nil, 90); !slices.Equal(got, []string{"pages/**"}) {
+		t.Errorf("at 90%% coverage expected [pages/**], got %v", got)
+	}
+	// At 95% the directory is not covered enough — every entry file is listed instead.
+	got95 := foldEntryPatterns(allFiles, entries, nil, 95)
+	if slices.Contains(got95, "pages/**") || len(got95) != 9 {
+		t.Errorf("at 95%% expected 9 individual files, got %v", got95)
+	}
+	// 100% reproduces the strict rule: still expanded.
+	if got100 := foldEntryPatterns(allFiles, entries, nil, 100); len(got100) != 9 {
+		t.Errorf("at 100%% expected 9 individual files, got %v", got100)
+	}
+}
+
+func TestFoldEntryPatterns_BlockedPreventsFold(t *testing.T) {
+	// 9 prod entries plus one file from another set (a test). Even though the prod files alone are
+	// 100% of the non-blocked files, the blocked file forbids folding the directory into prod/**.
+	allFiles := []string{
+		"d/1.ts", "d/2.ts", "d/3.ts", "d/4.ts", "d/5.ts",
+		"d/6.ts", "d/7.ts", "d/8.ts", "d/9.ts", "d/x.test.ts",
+	}
+	prod := setOf("d/1.ts", "d/2.ts", "d/3.ts", "d/4.ts", "d/5.ts", "d/6.ts", "d/7.ts", "d/8.ts", "d/9.ts")
+	blocked := setOf("d/x.test.ts")
+
+	if got := foldEntryPatterns(allFiles, prod, blocked, 80); slices.Contains(got, "d/**") {
+		t.Errorf("blocked file should prevent d/** fold, got %v", got)
+	}
+	// Without the block, the same 9/10 ratio folds at 80%.
+	if got := foldEntryPatterns(allFiles, prod, nil, 80); !slices.Equal(got, []string{"d/**"}) {
+		t.Errorf("without block expected [d/**] at 80%%, got %v", got)
+	}
+}
+
+func TestFoldableDirs_ReportsCoverage(t *testing.T) {
+	allFiles := []string{"pages/a.ts", "pages/b.ts", "pages/c.ts", "pages/d.ts", "pages/internal.ts"}
+	entries := setOf("pages/a.ts", "pages/b.ts", "pages/c.ts", "pages/d.ts") // 4/5 = 80%
+
+	folded := foldableDirs(allFiles, entries, nil, 80)
+	if len(folded) != 1 || folded[0].dir != "pages" || folded[0].coverage != 80 {
+		t.Errorf("expected [{pages 80}], got %v", folded)
+	}
+	if folded := foldableDirs(allFiles, entries, nil, 85); len(folded) != 0 {
+		t.Errorf("expected no folds at 85%%, got %v", folded)
+	}
+}
+
+func TestFoldThresholdOptions_DedupAndSkip(t *testing.T) {
+	// pages: 24/25 prod entries = 96% (folds at 95, not 100).
+	// tests: 22/25 dev entries = 88% (folds at 85, not 90).
+	universe := []string{}
+	prod := map[string]bool{}
+	dev := map[string]bool{}
+	for i := 0; i < 25; i++ {
+		pagesFile := fmt.Sprintf("pages/f%02d.ts", i)
+		testsFile := fmt.Sprintf("tests/g%02d.ts", i)
+		universe = append(universe, pagesFile, testsFile)
+		if i < 24 {
+			prod[pagesFile] = true
+		}
+		if i < 22 {
+			dev[testsFile] = true
+		}
+	}
+	analysis := packageEntryAnalysis{universe: universe, prodSet: prod, devSet: dev, ignoreSet: map[string]bool{}}
+
+	options := foldThresholdOptions([]analyzedPackage{{rulePath: ".", analysis: analysis}})
+
+	// 95 unlocks pages; 90 unlocks nothing new (skipped); 85 unlocks tests; 80 nothing new (skipped).
+	if len(options) != 2 {
+		t.Fatalf("expected 2 threshold options (95, 85), got %d: %+v", len(options), options)
+	}
+	if options[0].threshold != 95 || len(options[0].newDirs) != 1 || options[0].newDirs[0].dir != "pages" || options[0].newDirs[0].coverage != 96 {
+		t.Errorf("option 0: expected 95%% -> pages@96, got %+v", options[0])
+	}
+	if options[1].threshold != 85 || len(options[1].newDirs) != 1 || options[1].newDirs[0].dir != "tests" || options[1].newDirs[0].coverage != 88 {
+		t.Errorf("option 1: expected 85%% -> tests@88, got %+v", options[1])
+	}
+}
+
+func TestFoldThresholdOptions_NoneWhenFullyStrict(t *testing.T) {
+	// A directory that is either fully covered or well below any threshold — nothing to offer.
+	analysis := packageEntryAnalysis{
+		universe:  []string{"src/index.ts", "src/a.ts", "src/b.ts", "src/c.ts"},
+		prodSet:   setOf("src/index.ts"), // 1/4 = 25%, far below 80%
+		devSet:    map[string]bool{},
+		ignoreSet: map[string]bool{},
+	}
+	if options := foldThresholdOptions([]analyzedPackage{{rulePath: ".", analysis: analysis}}); len(options) != 0 {
+		t.Errorf("expected no options for a low-coverage dir, got %+v", options)
+	}
+}
+
+func TestJoinPkgDir(t *testing.T) {
+	cases := []struct{ rulePath, dir, want string }{
+		{".", "pages", "pages"},
+		{"", "pages", "pages"},
+		{"apps/web", "pages", "apps/web/pages"},
+		{"apps/web", "", "apps/web"},
+	}
+	for _, tc := range cases {
+		if got := joinPkgDir(tc.rulePath, tc.dir); got != tc.want {
+			t.Errorf("joinPkgDir(%q, %q) = %q, want %q", tc.rulePath, tc.dir, got, tc.want)
+		}
+	}
+}
+
 func TestClassifyEntryPoint(t *testing.T) {
 	dev := []string{
 		"index.test.ts",
@@ -174,6 +300,132 @@ func TestClassifyEntryPoint(t *testing.T) {
 	}
 }
 
+func TestCollapseEntryPatterns(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "scattered test files collapse per suffix",
+			in: []string{
+				"app/a/foo.server.test.ts",
+				"app/b/bar.client.test.ts",
+				"app/c/baz.test.ts",
+			},
+			want: []string{"**/*.test.ts"},
+		},
+		{
+			name: "different extensions collapse independently",
+			in: []string{
+				"app/a/x.test.ts",
+				"app/b/y.test.ts",
+				"app/c/Widget.test.tsx",
+				"app/d/Panel.test.tsx",
+			},
+			want: []string{"**/*.test.ts", "**/*.test.tsx"},
+		},
+		{
+			name: "any compound suffix collapses, not just classifier markers",
+			in: []string{
+				"ui/A.stories.tsx",
+				"ui/B.stories.tsx",
+				"jest.config.js",
+				"ecosystem.config.js",
+				"a/x.fixture.ts", // not a classifier marker, still collapses on suffix
+				"b/y.fixture.ts",
+			},
+			want: []string{"**/*.config.js", "**/*.fixture.ts", "**/*.stories.tsx"},
+		},
+		{
+			name: "a lone suffix or lone dir glob stays as-is",
+			in:   []string{"index.test.ts", "scripts/**"},
+			want: []string{"index.test.ts", "scripts/**"},
+		},
+		{
+			name: "recognized dir globs collapse to **/<leaf>/**",
+			in: []string{
+				"app/broadcast/mocks/**",
+				"app/chat/services/mocks/**",
+				"app/notes/mocks/**",
+				"x/y/__tests__/**",
+				"a/b/__tests__/**",
+			},
+			want: []string{"**/__tests__/**", "**/mocks/**"},
+		},
+		{
+			name: "unrecognized dir leaf and non-compound files pass through",
+			in: []string{
+				"app/chat/webhook/**", // "webhook" not a recognized dir name
+				"app/retail/webhook/**",
+				"**/*.d.ts",
+				"cypress/utils.ts", // no compound suffix
+				"a/x.test.ts",
+				"b/y.test.ts",
+			},
+			want: []string{
+				"**/*.d.ts", "**/*.test.ts",
+				"app/chat/webhook/**", "app/retail/webhook/**",
+				"cypress/utils.ts",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := collapseEntryPatterns(tc.in, devEntryDirNames, true)
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("collapseEntryPatterns(%v)\n  got  %v\n  want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// With file collapse disabled (the ignore set), directory globs still collapse but file suffixes
+// must not — a stray ".test.ts" in a fixtures dir may not broaden into "**/*.test.ts".
+func TestCollapseEntryPatterns_FilesDisabled(t *testing.T) {
+	in := []string{
+		"src/__snapshots__/**",
+		"lib/__snapshots__/**",
+		"__fixtures__/a.test.ts",
+		"__fixtures__/b.test.ts",
+	}
+	want := []string{"**/__snapshots__/**", "__fixtures__/a.test.ts", "__fixtures__/b.test.ts"}
+	got := collapseEntryPatterns(in, ignoreEntryDirNames, false)
+	if !slices.Equal(got, want) {
+		t.Errorf("collapseEntryPatterns(files disabled)\n  got  %v\n  want %v", got, want)
+	}
+}
+
+// End-to-end: test files scattered across production directories collapse to one **/*.test.ts glob
+// instead of one entry per file.
+func TestDetectPackageEntryPoints_ScatteredTestsCollapse(t *testing.T) {
+	dir, err := os.MkdirTemp("", "rev-dep-ep-tests")
+	if err != nil {
+		t.Fatalf("temp: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	write := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		_ = os.MkdirAll(filepath.Dir(p), 0755)
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	write("package.json", `{"name":"p"}`)
+	// Production code interleaved with tests, so no directory is fully covered by tests.
+	write("app/account/settings.ts", `export const s=1;`)
+	write("app/account/settings.server.test.ts", `export const t=1;`)
+	write("app/ats/service.ts", `export const s=1;`)
+	write("app/ats/service.server.test.ts", `export const t=1;`)
+	write("utils/date.ts", `export const d=1;`)
+	write("utils/date.test.ts", `export const t=1;`)
+
+	_, dev, _ := detectPackageEntryPoints(pathutil.StandardiseDirPath(dir))
+	if !slices.Equal(dev, []string{"**/*.test.ts"}) {
+		t.Errorf("expected scattered tests to collapse to [**/*.test.ts], got %v", dev)
+	}
+}
+
 // Integration: entry-point detection wired through initConfigInteractive populates the rule.
 func TestInitConfigInteractive_EntryPointsPopulated(t *testing.T) {
 	dir, err := os.MkdirTemp("", "rev-dep-ep-wire")
@@ -201,7 +453,8 @@ func TestInitConfigInteractive_EntryPointsPopulated(t *testing.T) {
 	result, err := initConfigInteractive(dir,
 		func(projectStructure, standalonePackages) standaloneSelection { return standaloneAll },
 		yes,
-		func() detectorPreset { return detectorsScaffold })
+		func() detectorPreset { return detectorsScaffold },
+		strictFoldThreshold)
 	if err != nil {
 		t.Fatalf("initConfigInteractive: %v", err)
 	}
@@ -218,6 +471,54 @@ func TestInitConfigInteractive_EntryPointsPopulated(t *testing.T) {
 	}
 	if !slices.Equal(rule.IgnoreEntryPoints, []string{"fixtures/**"}) {
 		t.Errorf("ignore entry points: got %v", rule.IgnoreEntryPoints)
+	}
+}
+
+// Integration: the fold-threshold question is asked after the entry-points question and before the
+// detectors question, and the chosen threshold is applied to the generated rule.
+func TestInitConfigInteractive_FoldPromptOrderAndApplied(t *testing.T) {
+	dir, err := os.MkdirTemp("", "rev-dep-ep-fold")
+	if err != nil {
+		t.Fatalf("temp: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	write := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		_ = os.MkdirAll(filepath.Dir(p), 0755)
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	write("package.json", `{"name":"app"}`)
+	// pages/: 9 entry points + 1 imported (non-entry) = 90% covered, so it only folds below 100%.
+	write("pages/index.tsx", `import './_app';`)
+	write("pages/_app.tsx", `export const a=1;`) // imported -> not an entry point
+	for _, name := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
+		write("pages/"+name+".tsx", `export const x=1;`)
+	}
+
+	var order []string
+	askStandalone := func(projectStructure, standalonePackages) standaloneSelection { return standaloneAll }
+	askEntry := func() bool { order = append(order, "entry"); return true }
+	askDetectors := func() detectorPreset { order = append(order, "detectors"); return detectorsScaffold }
+	askFold := func(options []foldThresholdOption) int {
+		order = append(order, "fold")
+		if len(options) == 0 {
+			t.Fatal("expected at least one fold-threshold option")
+		}
+		return options[0].threshold // accept the mildest offered fold
+	}
+
+	result, err := initConfigInteractive(dir, askStandalone, askEntry, askDetectors, askFold)
+	if err != nil {
+		t.Fatalf("initConfigInteractive: %v", err)
+	}
+
+	if !slices.Equal(order, []string{"entry", "fold", "detectors"}) {
+		t.Errorf("prompt order = %v, want [entry fold detectors]", order)
+	}
+	if !slices.Equal(result.rules[0].ProdEntryPoints, []string{"pages/**"}) {
+		t.Errorf("expected pages/** after folding at the chosen threshold, got %v", result.rules[0].ProdEntryPoints)
 	}
 }
 
@@ -244,7 +545,8 @@ func TestInitConfigInteractive_EntryPointsSkipMonorepoRoot(t *testing.T) {
 	result, err := initConfigInteractive(dir,
 		func(projectStructure, standalonePackages) standaloneSelection { return standaloneAll },
 		func() bool { return true },
-		func() detectorPreset { return detectorsScaffold })
+		func() detectorPreset { return detectorsScaffold },
+		strictFoldThreshold)
 	if err != nil {
 		t.Fatalf("initConfigInteractive: %v", err)
 	}
@@ -353,9 +655,9 @@ func TestDetectPackageEntryPoints_FixturesFoldWholeTree(t *testing.T) {
 	if !slices.Equal(ignore, []string{"test/fixtures/**"}) {
 		t.Errorf("expected fixtures to fold to [test/fixtures/**], got %v", ignore)
 	}
-	// The sibling test files stay in dev (and test/ does not over-fold to test/** because it
-	// contains the ignored fixtures subtree).
-	if !slices.Equal(dev, []string{"test/analyze.test.ts", "test/regressions.test.ts"}) {
+	// The sibling test files are dev (and test/ does not over-fold to test/** because it contains
+	// the ignored fixtures subtree); sharing the .test.ts suffix, they collapse to one glob.
+	if !slices.Equal(dev, []string{"**/*.test.ts"}) {
 		t.Errorf("expected dev test files, got %v", dev)
 	}
 }

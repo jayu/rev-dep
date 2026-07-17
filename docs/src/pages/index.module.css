@@ -4,7 +4,7 @@
  */
 
 .heroBanner {
-  padding: 4rem 0;
+  padding: 14rem 0;
   text-align: center;
   position: relative;
   overflow: hidden;
@@ -12,9 +12,34 @@
   background-repeat: no-repeat
 }
 
+.heroLogo {
+  max-width: 50%;
+}
+
 @media screen and (max-width: 996px) {
   .heroBanner {
-    padding: 2rem;
+    padding: 5rem 2.5rem;
+  }
+
+  .heroLogo {
+    max-width: 80%;
+  }
+
+  /* Equal, roomier spacing between logo, title and subtitle. */
+  .heroBanner :global(.hero__title) {
+    font-size: 1.6rem;
+    margin-top: 2rem;
+    margin-bottom: 0;
+  }
+
+  .heroBanner :global(.hero__subtitle) {
+    font-size: 1.1rem;
+    margin-top: 2rem;
+    margin-bottom: 0;
+  }
+
+  .buttons {
+    margin-top: 2rem;
   }
 }
 
@@ -42,7 +67,7 @@
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
 }
 .sectionPadding {
-  padding: 3rem 0;
+  padding: 3.5rem 0;
 }
 
 .sectionPaddingLR {
@@ -50,8 +75,8 @@
 }
 
 .marginLarge {
-  margin-top: 2rem;
-  margin-bottom: 2rem;
+  margin-top: 2.5rem;
+  margin-bottom: 2.5rem;
 }
 
 .marginXLarge {
@@ -73,10 +98,13 @@
 }
 
 .problemSection {
+  /* Sits directly under the hero: no top gap, no rounded top corners. */
+  margin-top: 0;
+  padding-top: 7rem;
   background:
     radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 32%),
     linear-gradient(180deg, rgba(247, 250, 255, 0.9), rgba(255, 255, 255, 1));
-  border-radius: 2rem;
+  border-radius: 0 0 2rem 2rem;
 }
 
 .problemShell {
@@ -168,11 +196,8 @@
 }
 
 .problemGovernance {
-  margin-top: 2rem;
-}
-
-.problemGovernanceHeader {
-  max-width: 760px;
+  margin-top: 6rem;
+  margin-bottom: 2rem;
 }
 
 .problemGovernanceCopy {
@@ -209,13 +234,11 @@
 
 .problemPanelFooter {
   margin: 1.5rem 0 0;
-  max-width: 760px;
   line-height: 1.7;
   color: var(--ifm-color-emphasis-700);
 }
 
 .whyHeader {
-  max-width: 760px;
   margin: 0 auto 2.5rem;
 }
 
@@ -254,13 +277,10 @@
 }
 
 .testimonialsSection {
+  padding-top: 4rem;
   background:
     radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 26%),
     linear-gradient(180deg, rgba(247, 250, 255, 0.9), rgba(255, 255, 255, 1));
-}
-
-.testimonialsHeader {
-  max-width: 760px;
 }
 
 .testimonialsGrid {
@@ -322,11 +342,7 @@
 }
 
 .capabilitiesSection {
-  padding-top: 1rem;
-}
-
-.capabilitiesHeader {
-  max-width: 760px;
+  padding-top: 3.5rem;
 }
 
 .capabilitiesIntro {
@@ -413,7 +429,6 @@
   background:
     radial-gradient(circle at top left, rgba(168, 85, 247, 0.14), transparent 24%),
     linear-gradient(180deg, rgba(15, 18, 30, 0.94), rgba(9, 12, 20, 1));
-  border-radius: 2rem;
 }
 
 @media screen and (max-width: 996px) {
@@ -435,6 +450,36 @@
 
   .capabilitiesGrid {
     grid-template-columns: 1fr;
+  }
+
+  /* Scale the enlarged desktop spacings back down for mobile. */
+  .sectionPadding {
+    padding: 3.75rem 0;
+  }
+
+  .marginLarge {
+    margin-top: 2.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .problemSection {
+    /* Keep flush with the hero — the mobile .marginLarge override above
+       must not re-introduce the top margin we removed. */
+    margin-top: 0;
+    padding-top: 5rem;
+  }
+
+  .problemGovernance {
+    margin-top: 5rem;
+    margin-bottom: 1.9rem;
+  }
+
+  .testimonialsSection {
+    padding-top: 3.75rem;
+  }
+
+  .capabilitiesSection {
+    padding-top: 3.1rem;
   }
 }
 

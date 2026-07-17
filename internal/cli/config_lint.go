@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/emoji"
 	"rev-dep-go/internal/pathutil"
 )
 
@@ -19,13 +20,6 @@ var (
 	lintConfigCwd   string
 	lintConfigFix   bool
 	lintConfigRules []string
-)
-
-// errorMark / warnMark are the finding bullets: colorful emoji (red ❌, yellow ⚠️)
-// consistent with the ✅/✍️ markers used elsewhere in the output.
-const (
-	errorMark = "❌"
-	warnMark  = "⚠️"
 )
 
 var configLintCmd = &cobra.Command{
@@ -75,7 +69,7 @@ them by hand.`,
 		errorsRemaining, warnings := countLintFindings(result, lintConfigFix)
 
 		printConfigLintStatus(errorsRemaining, warnings, lintConfigFix)
-		fmt.Printf("✨  Done in %dms.\n", time.Since(startTime).Milliseconds())
+		fmt.Printf("%s  Done in %dms.\n", emoji.Done, time.Since(startTime).Milliseconds())
 
 		if errorsRemaining > 0 {
 			os.Exit(1)
@@ -114,13 +108,13 @@ func printConfigLintStatus(errors, warnings int, fixed bool) {
 	case errors == 0 && warnings == 0:
 		// "all clean" already printed by the results section
 	case errors == 0:
-		fmt.Printf("\n⚠️  %d warning(s), no errors — exit 0.\n", warnings)
+		fmt.Printf("\n%s  %d warning(s), no errors — exit 0.\n", emoji.Warning, warnings)
 	default:
 		verb := "found"
 		if fixed {
 			verb = "remaining after --fix"
 		}
-		fmt.Printf("\n❌ %d error(s) %s, %d warning(s).\n", errors, verb, warnings)
+		fmt.Printf("\n%s %d error(s) %s, %d warning(s).\n", emoji.Error, errors, verb, warnings)
 	}
 }
 
@@ -144,7 +138,7 @@ func printConfigLintResults(result *config.LintResult, cwd string) {
 	for i, r := range result.RulesRun {
 		ruleNames[i] = string(r)
 	}
-	fmt.Printf("🔍 Config lint: %s  [rules: %s]\n", configRel, strings.Join(ruleNames, ", "))
+	fmt.Printf("%s Config lint: %s  [rules: %s]\n", emoji.Search, configRel, strings.Join(ruleNames, ", "))
 
 	var errorDeads, warningDeads []config.DeadPattern
 	for _, dp := range result.DeadPatterns {
@@ -156,7 +150,7 @@ func printConfigLintResults(result *config.LintResult, cwd string) {
 	}
 
 	if len(errorDeads) == 0 && len(warningDeads) == 0 && len(result.Overlaps) == 0 && result.TrailingCommaCount == 0 && result.CompactableCount == 0 {
-		fmt.Printf("\n✅ No issues found — every glob matches something, no patterns overlap, config is compact.\n")
+		fmt.Printf("\n%s No issues found — every glob matches something, no patterns overlap, config is compact.\n", emoji.Success)
 		return
 	}
 
@@ -184,9 +178,9 @@ func (p *ruleHeaderPrinter) print(ruleIndex int, rulePath string) bool {
 		return false
 	}
 	if ruleIndex < 0 {
-		fmt.Printf("\n📄 Top-level\n")
+		fmt.Printf("\n%s Top-level\n", emoji.File)
 	} else {
-		fmt.Printf("\n📁 Rule: %s\n", rulePath)
+		fmt.Printf("\n%s Rule: %s\n", emoji.Rule, rulePath)
 	}
 	p.ruleIndex, p.rulePath, p.first = ruleIndex, rulePath, false
 	return true
@@ -210,7 +204,7 @@ func printErrorSection(deads []config.DeadPattern) {
 		if !dp.Removable {
 			suffix += " [not auto-removed]"
 		}
-		fmt.Printf("    %s  %q%s\n", errorMark, dp.Value, suffix)
+		fmt.Printf("    %s  %q%s\n", emoji.Error, dp.Value, suffix)
 	}
 }
 
@@ -234,12 +228,12 @@ func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.Ov
 	fmt.Printf("\n── Warnings ──\n")
 
 	if trailingCommas > 0 || compactable > 0 {
-		fmt.Printf("\n📄 File\n")
+		fmt.Printf("\n%s File\n", emoji.File)
 		if compactable > 0 {
-			fmt.Printf("    %s  %d detector declaration(s) can be written more compactly — run --fix to simplify\n", warnMark, compactable)
+			fmt.Printf("    %s  %d detector declaration(s) can be written more compactly — run --fix to simplify\n", emoji.Warning, compactable)
 		}
 		if trailingCommas > 0 {
-			fmt.Printf("    %s  %d redundant trailing comma(s) — run --fix to remove\n", warnMark, trailingCommas)
+			fmt.Printf("    %s  %d redundant trailing comma(s) — run --fix to remove\n", emoji.Warning, trailingCommas)
 		}
 	}
 
@@ -306,7 +300,7 @@ func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.Ov
 			fmt.Printf("  %s\n", label)
 			lastLabel = label
 		}
-		fmt.Printf("    %s  %s\n", warnMark, l.text)
+		fmt.Printf("    %s  %s\n", emoji.Warning, l.text)
 	}
 }
 
@@ -325,19 +319,19 @@ func kindSuffix(kind config.PatternKind) string {
 
 func printConfigLintFixSummary(fix *config.FixResult) {
 	if fix.RemovedCount > 0 {
-		fmt.Printf("\n✍️  Removed %d dead pattern(s).\n", fix.RemovedCount)
+		fmt.Printf("\n%s  Removed %d dead pattern(s).\n", emoji.Fix, fix.RemovedCount)
 	}
 	if fix.CompactedCount > 0 {
-		fmt.Printf("✍️  Simplified %d detector declaration(s) to compact form.\n", fix.CompactedCount)
+		fmt.Printf("%s  Simplified %d detector declaration(s) to compact form.\n", emoji.Fix, fix.CompactedCount)
 	}
 	if fix.TrailingCommasRemoved > 0 {
-		fmt.Printf("✍️  Removed %d redundant trailing comma(s).\n", fix.TrailingCommasRemoved)
+		fmt.Printf("%s  Removed %d redundant trailing comma(s).\n", emoji.Fix, fix.TrailingCommasRemoved)
 	}
 	if fix.ReportOnlyKept > 0 {
-		fmt.Printf("⚠️  %d dead pattern(s) not auto-removed (removing them could change a check's behavior or make the config invalid) — review and remove manually.\n", fix.ReportOnlyKept)
+		fmt.Printf("%s  %d dead pattern(s) not auto-removed (removing them could change a check's behavior or make the config invalid) — review and remove manually.\n", emoji.Warning, fix.ReportOnlyKept)
 	}
 	if fix.RemovedCount == 0 && fix.ReportOnlyKept == 0 && fix.TrailingCommasRemoved == 0 && fix.CompactedCount == 0 {
-		fmt.Printf("\n✅ Nothing to remove.\n")
+		fmt.Printf("\n%s Nothing to remove.\n", emoji.Success)
 	}
 }
 

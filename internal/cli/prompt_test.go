@@ -4,7 +4,71 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
+
+func TestWrapText(t *testing.T) {
+	if got := wrapText("", 10); len(got) != 1 || got[0] != "" {
+		t.Errorf("empty text should yield one empty line, got %v", got)
+	}
+	if got := wrapText("one two three four", 8); !strings.EqualFold(strings.Join(got, "|"), "one two|three|four") {
+		t.Errorf("word wrap: got %v", got)
+	}
+	// A word longer than the width is hard-split.
+	got := wrapText("supercalifragilistic", 6)
+	for _, line := range got {
+		if utf8.RuneCountInString(line) > 6 {
+			t.Errorf("hard-split line %q exceeds width 6", line)
+		}
+	}
+	if strings.Join(got, "") != "supercalifragilistic" {
+		t.Errorf("hard-split lost characters: %v", got)
+	}
+}
+
+func TestWrapLabeledHangingIndent(t *testing.T) {
+	lines := wrapLabeled("  1) ", "alpha beta gamma delta", 12)
+	if len(lines) < 2 {
+		t.Fatalf("expected wrapping into multiple lines, got %v", lines)
+	}
+	if !strings.HasPrefix(lines[0], "  1) ") {
+		t.Errorf("first line should carry the prefix, got %q", lines[0])
+	}
+	indent := strings.Repeat(" ", utf8.RuneCountInString("  1) "))
+	for _, cont := range lines[1:] {
+		if !strings.HasPrefix(cont, indent) {
+			t.Errorf("continuation %q should be hang-indented by %d spaces", cont, len(indent))
+		}
+	}
+	for _, line := range lines {
+		if utf8.RuneCountInString(line) > 12 {
+			t.Errorf("line %q exceeds width 12", line)
+		}
+	}
+}
+
+func TestBuildPromptLinesFitsWidth(t *testing.T) {
+	prompt := "A long question that certainly needs to wrap across several lines to fit.\nAnd a second explanatory sentence here."
+	options := []string{
+		"A short option",
+		"A considerably longer option label that must be wrapped and hang-indented under its own text",
+	}
+	const width = 30
+	lines := buildPromptLines(prompt, options, 0, width)
+	for _, line := range lines {
+		if utf8.RuneCountInString(line) > width {
+			t.Errorf("line exceeds content width %d: %q (%d)", width, line, utf8.RuneCountInString(line))
+		}
+	}
+	// The default marker appears on the chosen option.
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "*  1)") {
+		t.Errorf("expected default marker on option 1, got:\n%s", joined)
+	}
+	if !strings.Contains(joined, "Type 1-2 [default: 1]:") {
+		t.Errorf("expected type line, got:\n%s", joined)
+	}
+}
 
 func TestSelectOne(t *testing.T) {
 	options := []string{"Option 1", "Option 2", "Option 3"}

@@ -57,6 +57,41 @@ func TestCompactConfigText(t *testing.T) {
 			want: `{"configVersion":"1.11","rules":[{"path":".","unusedNodeModulesDetection":[{"enabled":true},{"excludeModules":["ts"]}]}]}`,
 		},
 		{
+			name: "unwrap single-element array with options",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":[{"entryPoints":["a.ts"]}]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"entryPoints":["a.ts"]}}]}`,
+		},
+		{
+			name: "unwrap single-element array and drop redundant enabled",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":[{"enabled":true,"entryPoints":["a.ts"]}]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"entryPoints":["a.ts"]}}]}`,
+		},
+		{
+			name: "unwrap single-element array to boolean shorthand",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","unusedNodeModulesDetection":[{"enabled":true}]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","unusedNodeModulesDetection":true}]}`,
+		},
+		{
+			name: "unwrap single-element boolean array",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","unusedNodeModulesDetection":[false]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","unusedNodeModulesDetection":false}]}`,
+		},
+		{
+			name: "unwrap keeps disabled element with options as object",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":[{"enabled":false,"entryPoints":["a.ts"]}]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":{"enabled":false,"entryPoints":["a.ts"]}}]}`,
+		},
+		{
+			name: "multi-element array is not unwrapped",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":[{"entryPoints":["a.ts"]},{"entryPoints":["b.ts"]}]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":[{"entryPoints":["a.ts"]},{"entryPoints":["b.ts"]}]}]}`,
+		},
+		{
+			name: "single-element array with inner comment is left as array",
+			in:   `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":[/* keep */{"enabled":true,"entryPoints":["a.ts"]}]}]}`,
+			want: `{"configVersion":"1.11","rules":[{"path":".","restrictedImportsDetection":[/* keep */{"entryPoints":["a.ts"]}]}]}`,
+		},
+		{
 			name: "non-detector fields are untouched",
 			in:   `{"configVersion":"1.11","rules":[{"path":".","moduleBoundaries":[{"name":"src","pattern":"src/**/*","enabled":true}]}]}`,
 			want: `{"configVersion":"1.11","rules":[{"path":".","moduleBoundaries":[{"name":"src","pattern":"src/**/*","enabled":true}]}]}`,
@@ -121,6 +156,80 @@ func TestCompactConfigText_PreservesCommentsAndFormatting(t *testing.T) {
 			t.Errorf("expected comment %q to be preserved", c)
 		}
 	}
+}
+
+// TestCompactConfigText_UnwrapReindents verifies that unwrapping a nested, multi-line single-element
+// detector array corrects the indentation that the removed array level left behind, honoring the
+// file's own indentation width.
+func TestCompactConfigText_UnwrapReindents(t *testing.T) {
+	t.Run("two-space indentation", func(t *testing.T) {
+		in := `{
+  "configVersion": "1.11",
+  "rules": [
+    {
+      "path": ".",
+      "restrictedImportsDetection": [
+        {
+          "enabled": true,
+          "entryPoints": ["a.ts"]
+        }
+      ]
+    }
+  ]
+}`
+		want := `{
+  "configVersion": "1.11",
+  "rules": [
+    {
+      "path": ".",
+      "restrictedImportsDetection": {
+        "entryPoints": ["a.ts"]
+      }
+    }
+  ]
+}`
+		got, err := CompactConfigText([]byte(in))
+		if err != nil {
+			t.Fatalf("CompactConfigText error: %v", err)
+		}
+		if string(got) != want {
+			t.Errorf("mismatch\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		}
+	})
+
+	t.Run("four-space indentation", func(t *testing.T) {
+		in := `{
+    "configVersion": "1.11",
+    "rules": [
+        {
+            "path": ".",
+            "restrictedImportsDetection": [
+                {
+                    "entryPoints": ["a.ts"]
+                }
+            ]
+        }
+    ]
+}`
+		want := `{
+    "configVersion": "1.11",
+    "rules": [
+        {
+            "path": ".",
+            "restrictedImportsDetection": {
+                "entryPoints": ["a.ts"]
+            }
+        }
+    ]
+}`
+		got, err := CompactConfigText([]byte(in))
+		if err != nil {
+			t.Fatalf("CompactConfigText error: %v", err)
+		}
+		if string(got) != want {
+			t.Errorf("mismatch\n--- got ---\n%s\n--- want ---\n%s", got, want)
+		}
+	})
 }
 
 // TestCompactConfigText_SemanticEquivalence verifies that compacting does not change how a config

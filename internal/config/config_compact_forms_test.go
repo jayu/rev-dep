@@ -87,4 +87,24 @@ func TestParseConfig_CompactDetectorForms(t *testing.T) {
 			t.Fatalf("options not parsed on second detection: %+v", got[1])
 		}
 	})
+
+	t.Run("array item false disables that detection", func(t *testing.T) {
+		cfg, err := ParseConfig([]byte(`{
+			"configVersion": "1.11",
+			"rules": [{"path": ".", "unusedNodeModulesDetection": [false, {"excludeModules": ["typescript"]}]}]
+		}`))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := cfg.Rules[0].UnusedNodeModulesDetections
+		if len(got) != 2 {
+			t.Fatalf("expected two detections, got %+v", got)
+		}
+		if got[0].IsEnabled() {
+			t.Errorf("expected first detection (false) to be disabled, got %+v", got[0])
+		}
+		if !got[1].IsEnabled() || len(got[1].ExcludeModules) != 1 {
+			t.Errorf("expected second detection enabled with options, got %+v", got[1])
+		}
+	})
 }

@@ -1,0 +1,61 @@
+---
+description: "Lint your rev-dep config for dead glob patterns, overlaps, and redundant syntax — and auto-fix them while preserving comments and formatting."
+title: Linting the config
+---
+
+# Linting the config
+
+Over time a config accumulates patterns for files that were renamed or deleted. `config lint` finds config glob/path patterns that match **nothing** and other rot, then optionally removes it.
+
+```bash
+rev-dep config lint
+```
+
+Fix in place — comments and formatting are preserved:
+
+```bash
+rev-dep config lint --fix
+```
+
+## What it checks
+
+| Rule | Finds |
+| --- | --- |
+| `orphan-file-globs` | File/path globs matching no file (entry points, rule paths, graph excludes, denied files, boundary selectors) |
+| `orphan-module-globs` | Module globs matching no module in the source code |
+| `overlapping-globs` | Patterns in the same option that duplicate or contain each other |
+| `trailing-commas` | Redundant trailing commas |
+| `compact` | Verbose detector declarations that can be shortened (e.g. `{"enabled": true}` → `true`) |
+
+Run a subset with `--rules`:
+
+```bash
+rev-dep config lint --rules orphan-file-globs,trailing-commas
+```
+
+## Errors vs. warnings
+
+- **Errors** — a positive glob matches nothing. Exit code `1`.
+- **Warnings** — dead negation (`!`) patterns, overlaps, trailing commas, compactable detectors. Advisory, exit code `0`.
+
+`--fix` removes dead patterns, trailing commas, and compacts declarations. Some findings are reported but never auto-removed — rule paths, required entry points/files/modules, and boundary selectors — because removing them could change a check's behavior or invalidate the config. Resolve those by hand.
+
+## Linting during a run
+
+`config run --lint-config` runs the linter right after the checks, reusing the run's graph so it adds almost no time. It prints only the error/warning counts and fails on any lint error:
+
+```bash
+rev-dep config run --lint-config
+```
+
+```
+❌  Config lint: 1 error(s), 3 warning(s) — run `rev-dep config lint` for details (or --fix to apply).
+```
+
+Limit which rules run:
+
+```bash
+rev-dep config run --lint-config --lint-config-rules orphan-file-globs
+```
+
+There is no `--fix` in this path — use `config lint --fix` to apply changes.

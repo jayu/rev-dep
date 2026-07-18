@@ -90,14 +90,26 @@ type ConfigProcessingResult struct {
 	UnfixableAliasingCount int
 	FixableIssuesCount     int
 	FullTree               model.MinimalDependencyTree
+	// Discovery/resolver artifacts, exposed so a caller (e.g. `config run --lint-config`) can
+	// lint without redoing the expensive discovery + dependency-tree build.
+	DiscoveredFiles []string
+	ResolverManager *resolve.ResolverManager
+	// IgnoreScopeFiles / IgnorePrunedDirs are byproducts of the SAME discovery walk, used by
+	// the linter's top-level ignoreFiles/processIgnoredFiles dead-check so it needs no second,
+	// unpruned walk. See ignoreScope / configRelevantPrunedDirs.
+	IgnoreScopeFiles []string
+	IgnorePrunedDirs []string
 }
 
-// discoverAllFilesForConfig discovers all files for config processing
+// discoverAllFilesForConfig discovers all files for config processing. It also returns the
+// walk's exclusion byproducts (files an ignore pattern matched, directories pruned whole),
+// which the linter uses to decide which top-level ignore patterns still match something
+// WITHOUT a second, unpruned traversal of large ignored directories.
 func discoverAllFilesForConfig(
 	cwd string,
 	ignoreFiles []string,
 	processIgnoredFiles []string,
-) ([]string, []globutil.GlobMatcher, []globutil.GlobMatcher, error) {
+) ([]string, []globutil.GlobMatcher, []globutil.GlobMatcher, *fs.DiscoveryExclusions, error) {
 	// Create glob matchers for ignore files
 	ignoreMatchers := globutil.CreateGlobMatchers(ignoreFiles, cwd)
 	processIgnoredMatchers := globutil.CreateGlobMatchers(processIgnoredFiles, cwd)
@@ -106,10 +118,43 @@ func discoverAllFilesForConfig(
 	gitignoreMatchers := fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
 	combinedMatchers := append(ignoreMatchers, gitignoreMatchers...)
 
-	// Get all files using the existing GetFiles function
-	files := fs.GetFiles(cwd, []string{}, combinedMatchers, processIgnoredMatchers)
+	// Get all files (and what the walk excluded/pruned) using the shared discovery walk.
+	files, exclusions := fs.GetFilesWithExclusions(cwd, combinedMatchers, processIgnoredMatchers)
 
-	return files, combinedMatchers, processIgnoredMatchers, nil
+	return files, combinedMatchers, processIgnoredMatchers, exclusions, nil
+}
+
+// ignoreScope returns the file set the top-level ignoreFiles/processIgnoredFiles dead-check
+// matches against: the discovered files plus the files the walk individually excluded
+// (everything the walk saw except the contents of pruned directories). A pattern that
+// matches none of these AND cannot reach into a pruned directory is certainly dead.
+func ignoreScope(discovered []string, exclusions *fs.DiscoveryExclusions) []string {
+	if exclusions == nil || len(exclusions.ExcludedFiles) == 0 {
+		return discovered
+	}
+	out := make([]string, 0, len(discovered)+len(exclusions.ExcludedFiles))
+	out = append(out, discovered...)
+	out = append(out, exclusions.ExcludedFiles...)
+	return out
+}
+
+// configRelevantPrunedDirs narrows the walk's pruned directories to those the CONFIG's own
+// ignore patterns cause (as opposed to gitignore). Only these hide files that would
+// otherwise be discovered, so only these make an ignore pattern's deadness indeterminate;
+// filtering out gitignore-pruned dirs (e.g. node_modules) keeps broad dead patterns like
+// "**/*.spec.ts" detectable in real projects.
+func configRelevantPrunedDirs(prunedDirs []string, ignoreFiles []string, cwd string) []string {
+	if len(prunedDirs) == 0 || len(ignoreFiles) == 0 {
+		return nil
+	}
+	ignoreMatchers := globutil.CreateGlobMatchers(ignoreFiles, cwd)
+	var out []string
+	for _, dir := range prunedDirs {
+		if globutil.IsExcludedByPatterns(dir, ignoreMatchers, nil) || globutil.DirFullyExcluded(dir, ignoreMatchers) {
+			out = append(out, dir)
+		}
+	}
+	return out
 }
 
 func anyRuleChecksForUnusedExports(config *RevDepConfig) bool {
@@ -880,7 +925,7 @@ func ProcessConfig(
 	forceDetailed bool,
 ) (*ConfigProcessingResult, error) {
 	// Step 1: Discover all files
-	allFiles, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles, config.ProcessIgnoredFiles)
+	allFiles, excludePatterns, includePatterns, exclusions, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles, config.ProcessIgnoredFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -922,9 +967,13 @@ func ProcessConfig(
 
 	// Step 3: Process each rule in parallel
 	result := &ConfigProcessingResult{
-		RuleResults: make([]RuleResult, len(config.Rules)),
-		HasFailures: false,
-		FullTree:    fullTree,
+		RuleResults:      make([]RuleResult, len(config.Rules)),
+		HasFailures:      false,
+		FullTree:         fullTree,
+		DiscoveredFiles:  allFiles,
+		ResolverManager:  resolverManager,
+		IgnoreScopeFiles: ignoreScope(allFiles, exclusions),
+		IgnorePrunedDirs: configRelevantPrunedDirs(exclusions.PrunedDirs, config.IgnoreFiles, cwd),
 	}
 
 	// Validate package.json exists for all rule paths before parallel processing

@@ -8,7 +8,7 @@ const settings = {
     { name: 'circular' },
     {
       name: 'config',
-      subcommands: ['run', 'init'],
+      subcommands: ['run', 'init', 'lint'],
     },
     { name: 'entry-points' },
     { name: 'files' },

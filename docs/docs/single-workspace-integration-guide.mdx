@@ -20,6 +20,8 @@ rev-dep config init
 
 Run inside your project, this creates a single rule with `path: "."` and writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. A **rule** is a scope; in a single-package project you have just one, and every check below goes inside it. See [config file structure](./config-based-checks/config-file-structure.mdx).
 
+> The examples below use the [compact detector syntax](./config-based-checks/config-file-structure.mdx#compact-detector-syntax): `"detector": true` switches a check on, and when a detector carries options the `enabled` flag is optional. Write `{ "enabled": true }` if you prefer the explicit form.
+
 ## 2. Run and (auto)fix
 
 ```bash
@@ -47,9 +49,7 @@ Enable this **first**. It tells you whether rev-dep can parse and resolve your p
   "rules": [
     {
       "path": ".",
-      "unresolvedImportsDetection": {
-        "enabled": true
-      }
+      "unresolvedImportsDetection": true
     }
   ]
 }
@@ -94,9 +94,7 @@ Declared in `package.json` but never imported.
 
 ```jsonc
 {
-  "unusedNodeModulesDetection": {
-    "enabled": true
-  }
+  "unusedNodeModulesDetection": true
 }
 ```
 
@@ -110,9 +108,7 @@ Imported in code but not declared.
 
 ```jsonc
 {
-  "missingNodeModulesDetection": {
-    "enabled": true
-  }
+  "missingNodeModulesDetection": true
 }
 ```
 
@@ -125,7 +121,6 @@ A follow-up to the above: flags `devDependencies` reachable from your production
 ```jsonc
 {
   "devDepsUsageOnProdDetection": {
-    "enabled": true,
     // Optional: type-only imports are stripped from production builds, so a dev
     // dependency imported only as a type is not a runtime risk. Opt in to skip them.
     "ignoreTypeImports": true
@@ -142,7 +137,6 @@ Files not reachable from any entry point - dead files left by refactors. Support
 ```jsonc
 {
   "orphanFilesDetection": {
-    "enabled": true,
     "autofix": true
   }
 }
@@ -153,11 +147,8 @@ A useful pattern is a second detector that excludes test files from the graph, t
 ```jsonc
 {
   "orphanFilesDetection": [
+    true,
     {
-      "enabled": true
-    },
-    {
-      "enabled": true,
       "graphExclude": ["**/*.test.*"]
     }
   ]
@@ -173,7 +164,6 @@ Exported members never imported anywhere reachable. Enable it only once entry po
 ```jsonc
 {
   "unusedExportsDetection": {
-    "enabled": true,
     "autofix": true
   }
 }
@@ -188,7 +178,6 @@ A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you 
 ```jsonc
 {
   "circularImportsDetection": {
-    "enabled": true,
     "ignoreTypeImports": true,
     "algorithm": "SCC"
   }
@@ -204,7 +193,6 @@ Block specific files/modules from being reachable from chosen entry points - e.g
 ```jsonc
 {
   "restrictedImportsDetection": {
-    "enabled": true,
     "entryPoints": ["src/pages/**/*.tsx"],
     "denyFiles": ["src/server/**"],
     "denyModules": ["fs", "child_process"]

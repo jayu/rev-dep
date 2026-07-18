@@ -1,6 +1,9 @@
 package fs
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	globutil "rev-dep-go/internal/glob"
@@ -58,5 +61,57 @@ func TestParseGitIgnoreSkipsCommentsAndBlanks(t *testing.T) {
 	}
 	if globutil.MatchesAnyGlobMatcher("/repo/anything.ts", matchers, false) {
 		t.Error("comment/blank-only .gitignore must not match anything")
+	}
+}
+
+// TestGetFilesWithExclusions_PrunesRecursivelyExcludedDir verifies the walk stops at a
+// directory fully covered by a `<dir>/**` pattern instead of enumerating it: the directory
+// appears in PrunedDirs, none of its files are visited (so they are neither discovered nor
+// recorded as individually excluded), while a file individually excluded by a non-recursive
+// pattern IS recorded.
+func TestGetFilesWithExclusions_PrunesRecursivelyExcludedDir(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("export const x = 1\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("src/index.ts")
+	mustWrite("src/used.ts")
+	mustWrite("build/a.ts")
+	mustWrite("build/nested/b.ts")
+
+	matchers := globutil.CreateGlobMatchers([]string{"build/**", "src/used.ts"}, dir)
+	files, exclusions := GetFilesWithExclusions(dir, matchers, nil)
+
+	contains := func(list []string, suffix string) bool {
+		for _, item := range list {
+			if strings.HasSuffix(item, suffix) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !contains(files, "src/index.ts") {
+		t.Errorf("expected src/index.ts to be discovered, got %v", files)
+	}
+	if contains(files, "build/a.ts") || contains(files, "build/nested/b.ts") {
+		t.Errorf("files under a pruned dir must not be discovered, got %v", files)
+	}
+	// build/* were pruned, so they must NOT be enumerated as individually excluded files.
+	if contains(exclusions.ExcludedFiles, "build/a.ts") || contains(exclusions.ExcludedFiles, "build/nested/b.ts") {
+		t.Errorf("pruned dir contents must not appear in ExcludedFiles (would mean we descended), got %v", exclusions.ExcludedFiles)
+	}
+	if !contains(exclusions.PrunedDirs, "build") {
+		t.Errorf("expected build to be recorded as a pruned dir, got %v", exclusions.PrunedDirs)
+	}
+	// src/used.ts is excluded by a non-recursive pattern, so it is visited and recorded.
+	if !contains(exclusions.ExcludedFiles, "src/used.ts") {
+		t.Errorf("expected src/used.ts in ExcludedFiles, got %v", exclusions.ExcludedFiles)
 	}
 }

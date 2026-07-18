@@ -116,7 +116,7 @@ func TestInitConfigInteractive_ChoiceControlsStandalone(t *testing.T) {
 	t.Run("base-only choice excludes standalone packages", func(t *testing.T) {
 		dir := newProject(t)
 		called := false
-		result, err := initConfigInteractive(dir, recordingAsker(standaloneNone, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold })
+		result, err := initConfigInteractive(dir, recordingAsker(standaloneNone, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold }, strictFoldThreshold)
 		if err != nil {
 			t.Fatalf("initConfigInteractive: %v", err)
 		}
@@ -134,7 +134,7 @@ func TestInitConfigInteractive_ChoiceControlsStandalone(t *testing.T) {
 	t.Run("include-all choice adds standalone packages", func(t *testing.T) {
 		dir := newProject(t)
 		called := false
-		result, err := initConfigInteractive(dir, recordingAsker(standaloneAll, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold })
+		result, err := initConfigInteractive(dir, recordingAsker(standaloneAll, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold }, strictFoldThreshold)
 		if err != nil {
 			t.Fatalf("initConfigInteractive: %v", err)
 		}
@@ -215,7 +215,7 @@ func TestInitConfigInteractive_CuratedSelection(t *testing.T) {
 	writePackageJson(t, filepath.Join(dir, "__fixtures__", "x"), "fx")
 
 	called := false
-	result, err := initConfigInteractive(dir, recordingAsker(standaloneCurated, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold })
+	result, err := initConfigInteractive(dir, recordingAsker(standaloneCurated, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold }, strictFoldThreshold)
 	if err != nil {
 		t.Fatalf("initConfigInteractive: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestInitConfigInteractive_NoBaseCuratedVsAll(t *testing.T) {
 	t.Run("asker is consulted and curated drops fixtures (no root rule)", func(t *testing.T) {
 		dir := newProject(t)
 		called := false
-		result, err := initConfigInteractive(dir, recordingAsker(standaloneCurated, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold })
+		result, err := initConfigInteractive(dir, recordingAsker(standaloneCurated, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold }, strictFoldThreshold)
 		if err != nil {
 			t.Fatalf("initConfigInteractive: %v", err)
 		}
@@ -269,7 +269,7 @@ func TestInitConfigInteractive_NoBaseCuratedVsAll(t *testing.T) {
 	t.Run("all includes the fixtures folder too", func(t *testing.T) {
 		dir := newProject(t)
 		called := false
-		result, err := initConfigInteractive(dir, recordingAsker(standaloneAll, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold })
+		result, err := initConfigInteractive(dir, recordingAsker(standaloneAll, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold }, strictFoldThreshold)
 		if err != nil {
 			t.Fatalf("initConfigInteractive: %v", err)
 		}
@@ -299,7 +299,7 @@ func TestInitConfigInteractive_AskerNotCalledWithoutChoice(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			dir := setup(t)
 			called := false
-			if _, err := initConfigInteractive(dir, recordingAsker(standaloneAll, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold }); err != nil {
+			if _, err := initConfigInteractive(dir, recordingAsker(standaloneAll, &called), func() bool { return false }, func() detectorPreset { return detectorsScaffold }, strictFoldThreshold); err != nil {
 				t.Fatalf("initConfigInteractive: %v", err)
 			}
 			if called {

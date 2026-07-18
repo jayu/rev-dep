@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/emoji"
 	globutil "rev-dep-go/internal/glob"
 	"rev-dep-go/internal/monorepo"
 	"rev-dep-go/internal/pathutil"
@@ -24,7 +25,7 @@ var configInitCmd = &cobra.Command{
 	Long:  `Create a new rev-dep.config.json configuration file in the current directory with default settings.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd := pathutil.ResolveAbsoluteCwd(configCwd)
-		result, err := initConfigInteractive(cwd, promptIncludeStandalone, promptAutoDetectEntryPoints, promptDetectorPreset)
+		result, err := initConfigInteractive(cwd, promptIncludeStandalone, promptAutoDetectEntryPoints, promptDetectorPreset, promptFoldThreshold)
 		if err != nil {
 			return err
 		}
@@ -176,7 +177,7 @@ type standaloneAsker func(ps projectStructure, standalone standalonePackages) st
 // initConfigInteractive detects the project layout, asks the standalone-packages question when
 // applicable (via askStandalone) and the entry-points question (via askEntryPoints), then builds
 // and writes the config file.
-func initConfigInteractive(cwd string, askStandalone standaloneAsker, askEntryPoints func() bool, askDetectors func() detectorPreset) (*initConfigResult, error) {
+func initConfigInteractive(cwd string, askStandalone standaloneAsker, askEntryPoints func() bool, askDetectors func() detectorPreset, askFoldThreshold foldThresholdAsker) (*initConfigResult, error) {
 	if existing, err := config.FindConfigFile(cwd); err == nil && existing != "" {
 		return nil, fmt.Errorf("config file already exists at %s", existing)
 	}
@@ -191,12 +192,28 @@ func initConfigInteractive(cwd string, askStandalone standaloneAsker, askEntryPo
 	}
 
 	autoDetectEntryPoints := askEntryPoints()
+
+	specs, meta := planRules(ps, standalone, selection)
+
+	// Entry-point analysis and the fold-threshold question run right after the entry-points
+	// question — before the detectors question — so the prompts read in a natural order. This only
+	// needs the package paths (from planRules), not the detector preset.
+	var foldedEntryPoints map[string]entryPointSets
+	entryPointPackageCount := 0
+	if autoDetectEntryPoints {
+		foldedEntryPoints, entryPointPackageCount = foldPackageEntryPoints(cwd, specs, askFoldThreshold)
+	}
+
 	preset := askDetectors()
 
-	result := buildConfigResult(ps, standalone, selection, preset)
+	result := &meta
+	for _, spec := range specs {
+		result.rules = append(result.rules, materializeRule(spec, preset))
+	}
 	if autoDetectEntryPoints {
-		result.entryPointPackageCount = applyEntryPointsToRules(cwd, ps, result.rules)
+		applyFoldedEntryPoints(result.rules, foldedEntryPoints)
 		result.entryPointsDetected = true
+		result.entryPointPackageCount = entryPointPackageCount
 	}
 	if err := writeInitConfig(cwd, result); err != nil {
 		return nil, err
@@ -204,50 +221,110 @@ func initConfigInteractive(cwd string, askStandalone standaloneAsker, askEntryPo
 	return result, nil
 }
 
-// applyEntryPointsToRules analyzes each package rule and fills in its prodEntryPoints /
-// devEntryPoints. The monorepo root rule is skipped (it is a boundaries-only rule spanning all
-// packages, not a package). Returns the number of package rules processed.
-func applyEntryPointsToRules(cwd string, ps projectStructure, rules []config.Rule) int {
-	count := 0
-	for i := range rules {
-		rule := &rules[i]
-		if ps.isMonorepo && !ps.isMonorepoSubPackage && rule.Path == "." {
-			continue // monorepo root: boundaries only, not a package
-		}
-		pkgDir := pathutil.StandardiseDirPath(filepath.Join(cwd, rule.Path))
-		rule.ProdEntryPoints, rule.DevEntryPoints, rule.IgnoreEntryPoints = detectPackageEntryPoints(pkgDir)
-		count++
-	}
-	return count
+// entryPointSets holds a package's folded prod / dev / ignore entry-point patterns.
+type entryPointSets struct {
+	prod   []string
+	dev    []string
+	ignore []string
 }
 
-// buildConfigResult produces the rules and reporting metadata for the detected structure. The
-// selection controls which standalone subdirectory packages get their own rules. When there is no
-// base project (no monorepo, no root package.json) the standalone packages are all there is, so
-// the selection is at least the curated set (never "none").
-func buildConfigResult(ps projectStructure, standalone standalonePackages, selection standaloneSelection, preset detectorPreset) *initConfigResult {
-	result := &initConfigResult{
+// analyzedRule is a package path paired with its entry-point analysis, awaiting the fold step.
+type analyzedRule struct {
+	path     string
+	analysis packageEntryAnalysis
+}
+
+// resolveEntryPoints analyzes every package rule (each spec that is not the monorepo boundaries
+// root), asks the user how aggressively to fold near-covered directories (only when some directory
+// folds below 100%), and folds each package's entry points at the chosen threshold. It returns the
+// folded patterns keyed by package path (applied to the rules later) and the number of packages
+// processed. Working from ruleSpecs — not built rules — lets this run before the detectors question.
+func foldPackageEntryPoints(cwd string, specs []ruleSpec, askFoldThreshold foldThresholdAsker) (map[string]entryPointSets, int) {
+	// Phase 1: analyze every package (no folding yet).
+	var analyzed []analyzedRule
+	var pkgs []analyzedPackage
+	for _, spec := range specs {
+		if spec.kind == ruleMonorepoRoot {
+			continue // monorepo root: boundaries only, not a package
+		}
+		pkgDir := pathutil.StandardiseDirPath(filepath.Join(cwd, spec.path))
+		analysis := analyzePackageEntryPoints(pkgDir)
+		analyzed = append(analyzed, analyzedRule{path: spec.path, analysis: analysis})
+		pkgs = append(pkgs, analyzedPackage{rulePath: spec.path, analysis: analysis})
+	}
+
+	// Phase 2: choose a fold threshold. Strict (100%) unless the user opts into folding the
+	// near-covered directories we detected.
+	threshold := 100
+	if options := foldThresholdOptions(pkgs); len(options) > 0 {
+		threshold = askFoldThreshold(options)
+	}
+
+	// Phase 3: fold each package at the chosen threshold.
+	folded := make(map[string]entryPointSets, len(analyzed))
+	for _, entry := range analyzed {
+		prod, dev, ignore := foldAnalysis(entry.analysis, threshold)
+		folded[entry.path] = entryPointSets{prod: prod, dev: dev, ignore: ignore}
+	}
+	return folded, len(analyzed)
+}
+
+// applyFoldedEntryPoints copies each package's folded entry points onto its rule, matched by path.
+// The monorepo root rule has no entry in folded, so it is left untouched.
+func applyFoldedEntryPoints(rules []config.Rule, folded map[string]entryPointSets) {
+	for i := range rules {
+		if sets, ok := folded[rules[i].Path]; ok {
+			rules[i].ProdEntryPoints = sets.prod
+			rules[i].DevEntryPoints = sets.dev
+			rules[i].IgnoreEntryPoints = sets.ignore
+		}
+	}
+}
+
+// ruleKind is the flavor of a planned rule, decided before detectors are attached.
+type ruleKind int
+
+const (
+	ruleMonorepoRoot ruleKind = iota // monorepo workspace-root boundaries rule (no entry points)
+	rulePackage                      // a per-package rule
+	ruleSrcRoot                      // the root rule of a plain single-package project
+)
+
+// ruleSpec is a planned rule — its path and kind — before the detector preset is applied.
+type ruleSpec struct {
+	path string
+	kind ruleKind
+}
+
+// planRules enumerates the rules to create for the detected structure (paths + kinds) plus the
+// reporting metadata, independent of the detector preset. buildConfigResult attaches detectors to
+// these specs, and entry-point detection analyzes the same package specs — so both operate on
+// exactly the same set of package paths. The selection controls which standalone subdirectory
+// packages get their own rules; when there is no base project the standalone packages are all
+// there is, so the selection is at least the curated set (never "none").
+func planRules(ps projectStructure, standalone standalonePackages, selection standaloneSelection) ([]ruleSpec, initConfigResult) {
+	meta := initConfigResult{
 		isMonorepo:         ps.isMonorepo,
 		rootHasPackageJson: ps.rootHasPackageJson,
 	}
-	var rules []config.Rule
+	var specs []ruleSpec
 
 	switch {
 	case ps.isMonorepoSubPackage:
-		rules = append(rules, makePackageRule(".", preset))
-		result.createdForMonorepoSubPackage = true
-		result.rootRuleCreated = true
+		specs = append(specs, ruleSpec{path: ".", kind: rulePackage})
+		meta.createdForMonorepoSubPackage = true
+		meta.rootRuleCreated = true
 	case ps.isMonorepo:
-		rules = append(rules, makeMonorepoRootRule())
-		result.rootRuleCreated = true
+		specs = append(specs, ruleSpec{path: ".", kind: ruleMonorepoRoot})
+		meta.rootRuleCreated = true
 		workspacePaths := packageDirsToSortedRelPaths(ps.cwd, ps.workspacePackageDirs)
 		for _, relPath := range workspacePaths {
-			rules = append(rules, makePackageRule(relPath, preset))
+			specs = append(specs, ruleSpec{path: relPath, kind: rulePackage})
 		}
-		result.workspacePackagePaths = workspacePaths
+		meta.workspacePackagePaths = workspacePaths
 	case ps.rootHasPackageJson:
-		rules = append(rules, makeSrcRootRule(preset))
-		result.rootRuleCreated = true
+		specs = append(specs, ruleSpec{path: ".", kind: ruleSrcRoot})
+		meta.rootRuleCreated = true
 	default:
 		// No base project: no root rule; the standalone packages are all that gets configured.
 		// Guard against an empty config if a "none" selection reaches here (shouldn't, since the
@@ -259,18 +336,39 @@ func buildConfigResult(ps projectStructure, standalone standalonePackages, selec
 
 	standalonePaths := standalone.selected(selection)
 	for _, relPath := range standalonePaths {
-		rules = append(rules, makePackageRule(relPath, preset))
+		specs = append(specs, ruleSpec{path: relPath, kind: rulePackage})
 	}
-	result.standalonePackagePaths = standalonePaths
+	meta.standalonePackagePaths = standalonePaths
 
 	// Fallback: nothing discovered at all -> a single root rule so the config isn't empty.
-	if len(rules) == 0 {
-		rules = append(rules, makeSrcRootRule(preset))
-		result.rootRuleCreated = true
+	if len(specs) == 0 {
+		specs = append(specs, ruleSpec{path: ".", kind: ruleSrcRoot})
+		meta.rootRuleCreated = true
 	}
+	return specs, meta
+}
 
-	result.rules = rules
-	return result
+// materializeRule turns a planned rule spec into a config.Rule with the given detector preset.
+func materializeRule(spec ruleSpec, preset detectorPreset) config.Rule {
+	switch spec.kind {
+	case ruleMonorepoRoot:
+		return makeMonorepoRootRule()
+	case ruleSrcRoot:
+		return makeSrcRootRule(preset)
+	default:
+		return makePackageRule(spec.path, preset)
+	}
+}
+
+// buildConfigResult produces the rules and reporting metadata for the detected structure at the
+// given detector preset.
+func buildConfigResult(ps projectStructure, standalone standalonePackages, selection standaloneSelection, preset detectorPreset) *initConfigResult {
+	specs, meta := planRules(ps, standalone, selection)
+	result := meta
+	for _, spec := range specs {
+		result.rules = append(result.rules, materializeRule(spec, preset))
+	}
+	return &result
 }
 
 // writeInitConfig marshals the generated rules to the standard config file and records the path.
@@ -292,7 +390,14 @@ func writeInitConfig(cwd string, result *initConfigResult) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %v", err)
 	}
-	if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
+	// Prefer the compact detector syntax in generated configs: enabled detectors without extra
+	// options become bare booleans and redundant "enabled": true keys are dropped. This reuses the
+	// exact logic behind the `compact` lint rule (config lint --fix) so both stay in sync.
+	compacted, err := config.CompactConfigText(configJSON)
+	if err != nil {
+		return fmt.Errorf("failed to compact config: %v", err)
+	}
+	if err := os.WriteFile(configPath, compacted, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %v", err)
 	}
 	return nil
@@ -306,6 +411,7 @@ func initConfigFileCore(cwd string) (*initConfigResult, error) {
 		func(projectStructure, standalonePackages) standaloneSelection { return standaloneAll },
 		func() bool { return false },
 		func() detectorPreset { return detectorsScaffold },
+		strictFoldThreshold,
 	)
 }
 
@@ -391,6 +497,7 @@ func InitConfig(cwd string, opts InitOptions) (*InitConfigResult, error) {
 		func(projectStructure, standalonePackages) standaloneSelection { return opts.Standalone.toSelection() },
 		func() bool { return opts.DetectEntryPoints },
 		func() detectorPreset { return opts.Detectors.toPreset() },
+		strictFoldThreshold,
 	)
 	if err != nil {
 		return nil, err
@@ -585,7 +692,7 @@ func applyDetectorPreset(rule *config.Rule, preset detectorPreset) {
 	rule.UnresolvedImportsDetections = []*config.UnresolvedImportsOptions{{Enabled: true}}
 	// Circular imports is enabled by everything except the unresolved-only preset.
 	if preset != detectorsUnresolvedOnly {
-		rule.CircularImportsDetections = []*config.CircularImportsOptions{{Enabled: true, IgnoreTypeImports: false}}
+		rule.CircularImportsDetections = []*config.CircularImportsOptions{{Enabled: true}}
 	}
 	// The remaining detectors are only listed for the scaffold (disabled) and all (enabled) presets.
 	// Detectors that need extra config to do anything (restricted imports/importers, import
@@ -668,33 +775,33 @@ func packageDirsToSortedRelPaths(cwd string, packageDirs []string) []string {
 
 // printInitConfigResults prints the results of config initialization
 func printInitConfigResults(result *initConfigResult) {
-	fmt.Printf("✅ Created .rev-dep.config.jsonc at %s\n", result.configPath)
+	fmt.Printf("%s Created .rev-dep.config.jsonc at %s\n", emoji.Success, result.configPath)
 
 	fmt.Println()
 	switch {
 	case result.createdForMonorepoSubPackage:
-		fmt.Printf("⚠️  Created config for monorepo sub-package. This file targets the current package only.\n")
+		fmt.Printf("%s  Created config for monorepo sub-package. This file targets the current package only.\n", emoji.Warning)
 	case result.isMonorepo:
 		if len(result.workspacePackagePaths) > 0 {
-			fmt.Printf("📦 Monorepo detected: discovered %d workspace %s and created a rule for each:\n", len(result.workspacePackagePaths), packagesWord(len(result.workspacePackagePaths)))
+			fmt.Printf("%s Monorepo detected: discovered %d workspace %s and created a rule for each:\n", emoji.Package, len(result.workspacePackagePaths), packagesWord(len(result.workspacePackagePaths)))
 			for _, relPath := range result.workspacePackagePaths {
 				fmt.Printf("   - %s\n", relPath)
 			}
 		} else {
-			fmt.Printf("📦 Monorepo detected: no workspace packages found.\n")
+			fmt.Printf("%s Monorepo detected: no workspace packages found.\n", emoji.Package)
 		}
 	case result.rootHasPackageJson:
-		fmt.Printf("📁 Created a rule for the root package.\n")
+		fmt.Printf("%s Created a rule for the root package.\n", emoji.Rule)
 	case len(result.standalonePackagePaths) == 0:
-		fmt.Printf("📁 No package.json found; created a single rule for the root directory.\n")
+		fmt.Printf("%s No package.json found; created a single rule for the root directory.\n", emoji.Rule)
 	default:
-		fmt.Printf("📁 No root package.json found; created rules for standalone packages only.\n")
+		fmt.Printf("%s No root package.json found; created rules for standalone packages only.\n", emoji.Rule)
 	}
 
 	// Separate section for standalone packages discovered in subdirectories.
 	if len(result.standalonePackagePaths) > 0 {
 		fmt.Println()
-		fmt.Printf("🧩 Discovered %d standalone %s in subdirectories (not part of a monorepo) and created a rule for each:\n", len(result.standalonePackagePaths), packagesWord(len(result.standalonePackagePaths)))
+		fmt.Printf("%s Discovered %d standalone %s in subdirectories (not part of a monorepo) and created a rule for each:\n", emoji.Standalone, len(result.standalonePackagePaths), packagesWord(len(result.standalonePackagePaths)))
 		for _, relPath := range result.standalonePackagePaths {
 			fmt.Printf("   - %s\n", relPath)
 		}
@@ -702,7 +809,7 @@ func printInitConfigResults(result *initConfigResult) {
 
 	if result.entryPointsDetected {
 		fmt.Println()
-		fmt.Printf("🔎 Auto-detected entry points for %d %s (production/development classified by path).\n", result.entryPointPackageCount, packagesWord(result.entryPointPackageCount))
+		fmt.Printf("%s Auto-detected entry points for %d %s (production/development classified by path).\n", emoji.Search, result.entryPointPackageCount, packagesWord(result.entryPointPackageCount))
 	}
 
 	fmt.Println()
@@ -714,6 +821,6 @@ func printInitConfigResults(result *initConfigResult) {
 	}
 
 	fmt.Println()
-	fmt.Printf("📖 Integration guide: %s\n", integrationGuide)
-	fmt.Printf("🛟  Troubleshooting: https://rev-dep.com/troubleshooting\n\n")
+	fmt.Printf("%s Integration guide: %s\n", emoji.Guide, integrationGuide)
+	fmt.Printf("%s  Troubleshooting: https://rev-dep.com/troubleshooting\n\n", emoji.Troubleshooting)
 }

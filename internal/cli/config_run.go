@@ -12,6 +12,7 @@ import (
 
 	"rev-dep-go/internal/checks"
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/emoji"
 	"rev-dep-go/internal/node"
 	"rev-dep-go/internal/pathutil"
 	"rev-dep-go/internal/telemetry"
@@ -30,12 +31,14 @@ var configCmd = &cobra.Command{
 
 // ---------------- config run ----------------
 var (
-	runConfigCwd     string
-	runConfigListAll bool
-	runConfigFix     bool
-	runConfigRecheck bool
-	runConfigRules   []string
-	runConfigFormat  string
+	runConfigCwd       string
+	runConfigListAll   bool
+	runConfigFix       bool
+	runConfigRecheck   bool
+	runConfigRules     []string
+	runConfigFormat    string
+	runConfigLint      bool
+	runConfigLintRules []string
 )
 
 var configRunCmd = &cobra.Command{
@@ -59,6 +62,13 @@ var configRunCmd = &cobra.Command{
 			return runConfigWithIssuesListOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck)
 		}
 
+		// When linting after the run and reusing the run's graph, the top-level ignoreFiles
+		// dead-check reuses the run's own discovery byproducts (the files it saw and the
+		// directories it pruned), so no extra walk is needed. Reuse is only safe for an
+		// unfiltered run (see runConfigLintSummary).
+		lintWanted := runConfigLint || len(runConfigLintRules) > 0
+		reuseGraphForLint := lintWanted && len(runConfigRules) == 0
+
 		if err := filterRunConfigRules(&cfg, runConfigRules); err != nil {
 			return err
 		}
@@ -70,15 +80,78 @@ var configRunCmd = &cobra.Command{
 
 		// Format and print results
 		formatAndPrintConfigResults(result, cwd, runConfigListAll)
-		executionTime := time.Since(startTime)
-		fmt.Printf("\n✨  Done in %dms.\n", executionTime.Milliseconds())
 
-		if shouldConfigRunExitNonZero(result, runConfigFix) {
+		// Optionally lint the config after running. Only the error/warning counts are
+		// printed here — use `rev-dep config lint` for per-finding detail and `--fix`.
+		lintHasErrors := false
+		if lintWanted {
+			failed, err := runConfigLintSummary(cwd, result, reuseGraphForLint)
+			if err != nil {
+				return err
+			}
+			lintHasErrors = failed
+		}
+
+		executionTime := time.Since(startTime)
+		fmt.Printf("\n%s  Done in %dms.\n", emoji.Done, executionTime.Milliseconds())
+
+		if shouldConfigRunExitNonZero(result, runConfigFix) || lintHasErrors {
 			os.Exit(1)
 		}
 
 		return nil
 	},
+}
+
+// runConfigLintSummary runs the config linter over the full config (independent of the
+// run's --rules filter) using the selected --lint-config-rules, prints only the error/warning
+// counts, and reports whether any lint ERROR was found. Fixing is intentionally not
+// offered here; users run `rev-dep config lint --fix` for that.
+//
+// When reuseGraph is true, the discovery + dependency tree the run already built are
+// reused, so linting adds almost no cost. It is only safe to reuse when the run was NOT
+// rule-filtered: a filtered run builds a narrower graph (fewer registered packages),
+// which could make the module universe incomplete for the full config.
+func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, reuseGraph bool) (hasErrors bool, err error) {
+	lintRules, err := config.ParseLintRules(runConfigLintRules)
+	if err != nil {
+		return false, err
+	}
+
+	// Load the config fresh so its rule order matches the raw file (the run may have
+	// filtered cfg.Rules via --rules, which would misalign the linter's presence checks).
+	lintCfg, err := config.LoadConfig(cwd)
+	if err != nil {
+		return false, fmt.Errorf("Could not load configuration for lint: %v", err)
+	}
+
+	var graph *config.LintGraph
+	if reuseGraph && runResult != nil {
+		graph = &config.LintGraph{
+			AllFiles:            runResult.DiscoveredFiles,
+			FullTree:            runResult.FullTree,
+			ResolverManager:     runResult.ResolverManager,
+			IgnoreScopeFiles:    runResult.IgnoreScopeFiles,
+			IgnorePrunedDirs:    runResult.IgnorePrunedDirs,
+			IgnoreScopeComputed: true,
+		}
+	}
+
+	lintResult, err := config.LintConfigWithGraph(&lintCfg, cwd, packageJsonPath, tsconfigJsonPath, lintRules, graph)
+	if err != nil {
+		return false, fmt.Errorf("Error linting config: %v", err)
+	}
+
+	errors, warnings := countLintFindings(lintResult, false)
+	switch {
+	case errors > 0:
+		fmt.Printf("\n%s  Config lint: %d error(s), %d warning(s) — run `rev-dep config lint` for details (or --fix to apply).\n", emoji.Error, errors, warnings)
+	case warnings > 0:
+		fmt.Printf("\n%s  Config lint: 0 errors, %d warning(s) — run `rev-dep config lint` for details (or --fix to apply).\n", emoji.Warning, warnings)
+	default:
+		fmt.Printf("\n%s  Config lint: no issues.\n", emoji.Success)
+	}
+	return errors > 0, nil
 }
 
 const maxIssuesToList = 5
@@ -184,7 +257,7 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 		shouldWarnAboutImportConventionWithPJsonImports = shouldWarnAboutImportConventionWithPJsonImports || ruleResult.ShouldWarnAboutImportConventionWithPJsonImports
 
 		if ruleResult.RulePath != "" {
-			fmt.Printf("\n📁 Rule: %s (%d files)\n", ruleResult.RulePath, ruleResult.FileCount)
+			fmt.Printf("\n%s Rule: %s (%d files)\n", emoji.Rule, ruleResult.RulePath, ruleResult.FileCount)
 		}
 
 		// Show enabled checks and their status with indentation
@@ -192,7 +265,7 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 			switch check {
 			case "circular-imports":
 				if len(ruleResult.CircularDependencies) > 0 {
-					fmt.Printf("  ❌ Circular Dependencies Issues (%d):\n\n", len(ruleResult.CircularDependencies))
+					fmt.Printf("  %s Circular Dependencies Issues (%d):\n\n", emoji.Error, len(ruleResult.CircularDependencies))
 
 					circularDepsToDisplay := ruleResult.CircularDependencies
 					remaining := 0
@@ -208,11 +281,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more circular dependency issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Circular Dependencies\n")
+					fmt.Printf("  %s Circular Dependencies\n", emoji.Success)
 				}
 			case "orphan-files":
 				if len(ruleResult.OrphanFiles) > 0 {
-					fmt.Printf("  ❌  Orphan Files Issues (%d):\n", len(ruleResult.OrphanFiles))
+					fmt.Printf("  %s  Orphan Files Issues (%d):\n", emoji.Error, len(ruleResult.OrphanFiles))
 
 					orphanFilesToDisplay := ruleResult.OrphanFiles
 					remaining := 0
@@ -229,11 +302,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more orphan file issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Orphan Files\n")
+					fmt.Printf("  %s Orphan Files\n", emoji.Success)
 				}
 			case "module-boundaries":
 				if len(ruleResult.ModuleBoundaryViolations) > 0 {
-					fmt.Printf("  ❌ Module Boundary Issues (%d):\n", len(ruleResult.ModuleBoundaryViolations))
+					fmt.Printf("  %s Module Boundary Issues (%d):\n", emoji.Error, len(ruleResult.ModuleBoundaryViolations))
 
 					violationsToDisplay := ruleResult.ModuleBoundaryViolations
 					remaining := 0
@@ -258,11 +331,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more module boundary issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Module Boundaries\n")
+					fmt.Printf("  %s Module Boundaries\n", emoji.Success)
 				}
 			case "unused-node-modules":
 				if len(ruleResult.UnusedNodeModules) > 0 {
-					fmt.Printf("  ❌ Unused Node Modules Issues (%d):\n", len(ruleResult.UnusedNodeModules))
+					fmt.Printf("  %s Unused Node Modules Issues (%d):\n", emoji.Error, len(ruleResult.UnusedNodeModules))
 
 					modulesToDisplay := ruleResult.UnusedNodeModules
 					remaining := 0
@@ -284,11 +357,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more unused node module issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Unused Node Modules\n")
+					fmt.Printf("  %s Unused Node Modules\n", emoji.Success)
 				}
 			case "missing-node-modules":
 				if len(ruleResult.MissingNodeModules) > 0 {
-					fmt.Printf("  ❌ Missing Node Modules Issues (%d):\n", len(ruleResult.MissingNodeModules))
+					fmt.Printf("  %s Missing Node Modules Issues (%d):\n", emoji.Error, len(ruleResult.MissingNodeModules))
 
 					missingToDisplay := ruleResult.MissingNodeModules
 					remaining := 0
@@ -334,11 +407,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more missing node module issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Missing Node Modules\n")
+					fmt.Printf("  %s Missing Node Modules\n", emoji.Success)
 				}
 			case "import-conventions":
 				if len(ruleResult.ImportConventionViolations) > 0 {
-					fmt.Printf("  ❌ Import Convention Issues (%d):\n", len(ruleResult.ImportConventionViolations))
+					fmt.Printf("  %s Import Convention Issues (%d):\n", emoji.Error, len(ruleResult.ImportConventionViolations))
 
 					violationsToDisplay := ruleResult.ImportConventionViolations
 
@@ -382,11 +455,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more import convention issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Import Conventions\n")
+					fmt.Printf("  %s Import Conventions\n", emoji.Success)
 				}
 			case "unresolved-imports":
 				if len(ruleResult.UnresolvedImports) > 0 {
-					fmt.Printf("  ❌ Unresolved Imports (%d):\n", len(ruleResult.UnresolvedImports))
+					fmt.Printf("  %s Unresolved Imports (%d):\n", emoji.Error, len(ruleResult.UnresolvedImports))
 
 					// Sort all results before limiting
 					unresolvedToDisplay := ruleResult.UnresolvedImports
@@ -426,11 +499,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more unresolved import issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Unresolved Imports\n")
+					fmt.Printf("  %s Unresolved Imports\n", emoji.Success)
 				}
 			case "unused-exports":
 				if len(ruleResult.UnusedExports) > 0 {
-					fmt.Printf("  ❌ Unused Exports Issues (%d):\n", len(ruleResult.UnusedExports))
+					fmt.Printf("  %s Unused Exports Issues (%d):\n", emoji.Error, len(ruleResult.UnusedExports))
 
 					exportsToDisplay := ruleResult.UnusedExports
 
@@ -475,11 +548,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more unused export issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Unused Exports\n")
+					fmt.Printf("  %s Unused Exports\n", emoji.Success)
 				}
 			case "dev-deps-usage-on-prod":
 				if len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 {
-					fmt.Printf("  ❌ Dev Deps Usage On Prod Issues (%d):\n", len(ruleResult.RestrictedDevDependenciesUsageViolations))
+					fmt.Printf("  %s Dev Deps Usage On Prod Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedDevDependenciesUsageViolations))
 
 					violationsToDisplay := ruleResult.RestrictedDevDependenciesUsageViolations
 					remaining := 0
@@ -513,11 +586,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more Dev Deps Usage On Prod Issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Dev Deps Usage On Prod\n")
+					fmt.Printf("  %s Dev Deps Usage On Prod\n", emoji.Success)
 				}
 			case "restricted-imports":
 				if len(ruleResult.RestrictedImportsViolations) > 0 {
-					fmt.Printf("  ❌ Restricted Imports Issues (%d):\n", len(ruleResult.RestrictedImportsViolations))
+					fmt.Printf("  %s Restricted Imports Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedImportsViolations))
 
 					violationsToDisplay := ruleResult.RestrictedImportsViolations
 					slices.SortFunc(violationsToDisplay, func(a, b checks.RestrictedImportViolation) int {
@@ -602,11 +675,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 
 					printRestrictedImportsResolveHint(ruleResult, cwd)
 				} else {
-					fmt.Printf("  ✅ Restricted Imports\n")
+					fmt.Printf("  %s Restricted Imports\n", emoji.Success)
 				}
 			case "restricted-importers":
 				if len(ruleResult.RestrictedImportersViolations) > 0 {
-					fmt.Printf("  ❌ Restricted Importers Issues (%d):\n", len(ruleResult.RestrictedImportersViolations))
+					fmt.Printf("  %s Restricted Importers Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedImportersViolations))
 
 					violationsToDisplay := ruleResult.RestrictedImportersViolations
 					remaining := 0
@@ -653,11 +726,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 
 					printRestrictedImportersResolveHint(ruleResult, cwd)
 				} else {
-					fmt.Printf("  ✅ Restricted Importers\n")
+					fmt.Printf("  %s Restricted Importers\n", emoji.Success)
 				}
 			case "restricted-direct-importers":
 				if len(ruleResult.RestrictedDirectImportersViolations) > 0 {
-					fmt.Printf("  ❌ Restricted Direct Importers Issues (%d):\n", len(ruleResult.RestrictedDirectImportersViolations))
+					fmt.Printf("  %s Restricted Direct Importers Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedDirectImportersViolations))
 
 					violationsToDisplay := ruleResult.RestrictedDirectImportersViolations
 					remaining := 0
@@ -703,28 +776,28 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more restricted direct importer issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Restricted Direct Importers\n")
+					fmt.Printf("  %s Restricted Direct Importers\n", emoji.Success)
 				}
 			}
 		}
 
 		// Show warning if no files found for this rule
 		if ruleResult.FileCount == 0 {
-			fmt.Printf("  ⚠️  No files found for this rule - check if the path is correct\n")
+			fmt.Printf("  %s  No files found for this rule - check if the path is correct\n", emoji.Warning)
 		}
 
 		// Show warning if package.json is missing in the rule path directory
 		if ruleResult.MissingPackageJson {
 			packageJsonPath := filepath.Join(cwd, ruleResult.RulePath, "package.json")
-			fmt.Printf("  ⚠️  Warning: Rule path missing package.json - some features may not work (missing: %s)\n", packageJsonPath)
+			fmt.Printf("  %s  Warning: Rule path missing package.json - some features may not work (missing: %s)\n", emoji.Warning, packageJsonPath)
 		}
 	}
 
 	// Print final verdict
 	if !result.HasFailures {
-		fmt.Printf("\n✅ All checks passed!\n")
+		fmt.Printf("\n%s All checks passed!\n", emoji.Success)
 	} else {
-		fmt.Printf("\n❌ Checks failed! See details above.\n")
+		fmt.Printf("\n%s Checks failed! See details above.\n", emoji.Error)
 	}
 
 	// Print autofix summary if any fixes were applied or unfixable issues found
@@ -740,19 +813,19 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 		if len(summary) > 0 {
 			// Capitalize first letter of first summary part
 			summary[0] = strings.ToUpper(summary[0][:1]) + summary[0][1:]
-			fmt.Printf("✍️ %s\n", strings.Join(summary, ", "))
+			fmt.Printf("%s %s\n", emoji.Fix, strings.Join(summary, ", "))
 		}
 	}
 
 	if result.FixableIssuesCount > 0 {
-		fmt.Printf("💡 Fixable issues: %d. Use '--fix' flag to autofix.\n", result.FixableIssuesCount)
+		fmt.Printf("%s Fixable issues: %d. Use '--fix' flag to autofix.\n", emoji.Tip, result.FixableIssuesCount)
 	}
 
 	if result.UnfixableAliasingCount > 0 {
-		fmt.Printf("⚠️ Warning: %d inter-domain relative imports could not be automatically fixed because target domains lack aliases or are not defined in config.\n", result.UnfixableAliasingCount)
+		fmt.Printf("%s Warning: %d inter-domain relative imports could not be automatically fixed because target domains lack aliases or are not defined in config.\n", emoji.Warning, result.UnfixableAliasingCount)
 	}
 	if shouldWarnAboutImportConventionWithPJsonImports {
-		fmt.Println("⚠️ Warning: Support for package.json imports map aliases is not yet implemented for import conventions checks")
+		fmt.Println(emoji.Warning + " Warning: Support for package.json imports map aliases is not yet implemented for import conventions checks")
 	}
 }
 
@@ -768,6 +841,8 @@ func init() {
 	configRunCmd.Flags().BoolVar(&runConfigRecheck, "recheck", false, "Run all checks again after '--fix' to validate the final state")
 	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "rules", []string{}, "Subset of rules to run (comma-separated list of rule paths)")
+	configRunCmd.Flags().BoolVar(&runConfigLint, "lint-config", false, "Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use `config lint` for details and --fix")
+	configRunCmd.Flags().StringSliceVar(&runConfigLintRules, "lint-config-rules", nil, "Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")

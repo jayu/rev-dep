@@ -1,10 +1,12 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -19,7 +21,7 @@ import (
 
 type CircularImportsOptions struct {
 	Enabled           bool   `json:"enabled"`
-	IgnoreTypeImports bool   `json:"ignoreTypeImports"`
+	IgnoreTypeImports bool   `json:"ignoreTypeImports,omitempty"`
 	Algorithm         string `json:"algorithm,omitempty"`
 }
 
@@ -146,31 +148,79 @@ func (r *Rule) getRestrictedDirectImportersDetections() []*RestrictedDirectImpor
 	return r.RestrictedDirectImportersDetections
 }
 
+// setDetectorEnabled sets the bool `Enabled` field of a detection options struct via reflection.
+// Every detection options type embeds an `Enabled bool` field; this lets the generic detection
+// parsing/marshaling helpers toggle it without a per-type interface.
+func setDetectorEnabled[T any](item *T, enabled bool) {
+	field := reflect.ValueOf(item).Elem().FieldByName("Enabled")
+	if field.IsValid() && field.CanSet() && field.Kind() == reflect.Bool {
+		field.SetBool(enabled)
+	}
+}
+
+// parseDetectorValue parses a single detection value, accepting either the boolean shorthand
+// (`true`/`false`) or the object form. For the object form the `enabled` field is optional: when
+// the key is absent the detector is treated as enabled (the object's presence opts it in).
+func parseDetectorValue[T any](raw json.RawMessage) (*T, error) {
+	trimmed := bytes.TrimSpace(raw)
+	item := new(T)
+
+	if len(trimmed) > 0 && (trimmed[0] == 't' || trimmed[0] == 'f') {
+		var enabled bool
+		if err := json.Unmarshal(trimmed, &enabled); err != nil {
+			return nil, err
+		}
+		setDetectorEnabled(item, enabled)
+		return item, nil
+	}
+
+	if err := json.Unmarshal(trimmed, item); err != nil {
+		return nil, err
+	}
+
+	// Default `enabled` to true when the object omits it, so a detector configured purely by its
+	// other options works without an explicit enabled flag.
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &keys); err != nil {
+		return nil, err
+	}
+	if _, ok := keys["enabled"]; !ok {
+		setDetectorEnabled(item, true)
+	}
+
+	return item, nil
+}
+
 func parseOneOrManyObjects[T any](raw json.RawMessage) ([]*T, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
 	}
 
-	var single T
-	if err := json.Unmarshal(raw, &single); err == nil {
-		item := new(T)
-		*item = single
-		return []*T{item}, nil
+	trimmed := bytes.TrimSpace(raw)
+
+	// Array form: a list of detections, each of which may itself be a boolean or an object.
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		var rawItems []json.RawMessage
+		if err := json.Unmarshal(trimmed, &rawItems); err != nil {
+			return nil, err
+		}
+		result := make([]*T, 0, len(rawItems))
+		for _, rawItem := range rawItems {
+			item, err := parseDetectorValue[T](rawItem)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, item)
+		}
+		return result, nil
 	}
 
-	var many []T
-	if err := json.Unmarshal(raw, &many); err != nil {
+	// Single form: a boolean or an object.
+	item, err := parseDetectorValue[T](trimmed)
+	if err != nil {
 		return nil, err
 	}
-
-	result := make([]*T, 0, len(many))
-	for i := range many {
-		item := new(T)
-		*item = many[i]
-		result = append(result, item)
-	}
-
-	return result, nil
+	return []*T{item}, nil
 }
 
 func marshalOneOrManyObjects[T any](items []*T) interface{} {
@@ -421,11 +471,11 @@ func ConfigFileNameJSONC() string {
 
 // CurrentConfigVersion is the config schema version this CLI release treats as current — the one
 // `config init` writes into generated configs. Keep it as the last entry of supportedConfigVersions.
-const CurrentConfigVersion = "1.11"
+const CurrentConfigVersion = "1.12"
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", CurrentConfigVersion}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", CurrentConfigVersion}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -957,19 +1007,29 @@ func validateRawDetectionObjectOrArray(
 	fieldName string,
 	validateInstance func(map[string]interface{}, string) error,
 ) error {
+	// Boolean shorthand: `true`/`false` enables/disables the detector with default options.
+	if _, ok := raw.(bool); ok {
+		return nil
+	}
+
 	if detectionMap, ok := raw.(map[string]interface{}); ok {
 		return validateInstance(detectionMap, fmt.Sprintf("rules[%d].%s", ruleIndex, fieldName))
 	}
 
 	detectionArray, ok := raw.([]interface{})
 	if !ok {
-		return fmt.Errorf("rules[%d].%s must be an object or array of objects, got %T", ruleIndex, fieldName, raw)
+		return fmt.Errorf("rules[%d].%s must be a boolean, an object, or an array of objects, got %T", ruleIndex, fieldName, raw)
 	}
 
 	for i, item := range detectionArray {
+		// Each array element may also use the boolean shorthand.
+		if _, ok := item.(bool); ok {
+			continue
+		}
+
 		detectionMap, ok := item.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("rules[%d].%s[%d] must be an object, got %T", ruleIndex, fieldName, i, item)
+			return fmt.Errorf("rules[%d].%s[%d] must be a boolean or an object, got %T", ruleIndex, fieldName, i, item)
 		}
 
 		if err := validateInstance(detectionMap, fmt.Sprintf("rules[%d].%s[%d]", ruleIndex, fieldName, i)); err != nil {
@@ -977,6 +1037,24 @@ func validateRawDetectionObjectOrArray(
 		}
 	}
 
+	return nil
+}
+
+// validateRawEnabledField validates the optional `enabled` field shared by every detection object.
+// The field is optional: a detection object without it is treated as enabled (the object's presence
+// opts the detector in). When present it must be a non-null boolean. Detectors are disabled either
+// via the boolean shorthand (`false`) or an explicit `"enabled": false`.
+func validateRawEnabledField(detectionMap map[string]interface{}, prefix string) error {
+	enabled, exists := detectionMap["enabled"]
+	if !exists {
+		return nil
+	}
+	if enabled == nil {
+		return fmt.Errorf("%s.enabled cannot be null", prefix)
+	}
+	if _, ok := enabled.(bool); !ok {
+		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	}
 	return nil
 }
 
@@ -1103,14 +1181,8 @@ func validateRawCircularImportsDetectionInstance(circularMap map[string]interfac
 		}
 	}
 
-	if _, exists := circularMap["enabled"]; !exists {
-		return fmt.Errorf("%s.enabled is required", prefix)
-	}
-
-	if enabled, ok := circularMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("%s.enabled cannot be null", prefix)
-	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	if err := validateRawEnabledField(circularMap, prefix); err != nil {
+		return err
 	}
 
 	if ignoreType, exists := circularMap["ignoreTypeImports"]; exists && ignoreType != nil {
@@ -1148,14 +1220,8 @@ func validateRawOrphanFilesDetectionInstance(orphanMap map[string]interface{}, p
 		}
 	}
 
-	if _, exists := orphanMap["enabled"]; !exists {
-		return fmt.Errorf("%s.enabled is required", prefix)
-	}
-
-	if enabled, ok := orphanMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("%s.enabled cannot be null", prefix)
-	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	if err := validateRawEnabledField(orphanMap, prefix); err != nil {
+		return err
 	}
 
 	// Validate array fields
@@ -1208,14 +1274,8 @@ func validateRawUnusedNodeModulesDetectionInstance(unusedMap map[string]interfac
 		}
 	}
 
-	if _, exists := unusedMap["enabled"]; !exists {
-		return fmt.Errorf("%s.enabled is required", prefix)
-	}
-
-	if enabled, ok := unusedMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("%s.enabled cannot be null", prefix)
-	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	if err := validateRawEnabledField(unusedMap, prefix); err != nil {
+		return err
 	}
 
 	// Validate array fields
@@ -1256,14 +1316,8 @@ func validateRawMissingNodeModulesDetectionInstance(missingMap map[string]interf
 		}
 	}
 
-	if _, exists := missingMap["enabled"]; !exists {
-		return fmt.Errorf("%s.enabled is required", prefix)
-	}
-
-	if enabled, ok := missingMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("%s.enabled cannot be null", prefix)
-	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	if err := validateRawEnabledField(missingMap, prefix); err != nil {
+		return err
 	}
 
 	// Validate array fields
@@ -1308,14 +1362,8 @@ func validateRawUnusedExportsDetectionInstance(unusedExportsMap map[string]inter
 		}
 	}
 
-	if _, exists := unusedExportsMap["enabled"]; !exists {
-		return fmt.Errorf("%s.enabled is required", prefix)
-	}
-
-	if enabled, ok := unusedExportsMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("%s.enabled cannot be null", prefix)
-	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	if err := validateRawEnabledField(unusedExportsMap, prefix); err != nil {
+		return err
 	}
 
 	// Validate array fields
@@ -1711,14 +1759,8 @@ func validateRawUnresolvedImportsDetectionInstance(unresolvedMap map[string]inte
 		}
 	}
 
-	if _, exists := unresolvedMap["enabled"]; !exists {
-		return fmt.Errorf("%s.enabled is required", prefix)
-	}
-
-	if enabled, ok := unresolvedMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("%s.enabled cannot be null", prefix)
-	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	if err := validateRawEnabledField(unresolvedMap, prefix); err != nil {
+		return err
 	}
 
 	if ignore, exists := unresolvedMap["ignore"]; exists && ignore != nil {
@@ -1806,14 +1848,8 @@ func validateRawRestrictedDevDependenciesUsageDetectionInstance(restrictedDevDep
 		}
 	}
 
-	if _, exists := restrictedDevDepsMap["enabled"]; !exists {
-		return fmt.Errorf("%s.enabled is required", prefix)
-	}
-
-	if enabled, ok := restrictedDevDepsMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("%s.enabled cannot be null", prefix)
-	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	if err := validateRawEnabledField(restrictedDevDepsMap, prefix); err != nil {
+		return err
 	}
 
 	if entryPoints, exists := restrictedDevDepsMap["prodEntryPoints"]; exists && entryPoints != nil {
@@ -1931,14 +1967,8 @@ func validateRawRestrictedImportsDetectionInstance(restrictedImportsMap map[stri
 		}
 	}
 
-	if _, exists := restrictedImportsMap["enabled"]; !exists {
-		return fmt.Errorf("%s.enabled is required", prefix)
-	}
-
-	if enabled, ok := restrictedImportsMap["enabled"]; !ok || enabled == nil {
-		return fmt.Errorf("%s.enabled cannot be null", prefix)
-	} else if _, ok := enabled.(bool); !ok {
-		return fmt.Errorf("%s.enabled must be a boolean, got %T", prefix, enabled)
+	if err := validateRawEnabledField(restrictedImportsMap, prefix); err != nil {
+		return err
 	}
 
 	arrayFields := []string{"entryPoints", "graphExclude", "denyFiles", "denyModules", "ignoreMatches"}

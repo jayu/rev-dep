@@ -17,4 +17,7 @@ tmp
 cli-telemetry.env
 .sdbx
 .claude
+
+/.gocache/
+/.gotmp/
 .pnpm-store

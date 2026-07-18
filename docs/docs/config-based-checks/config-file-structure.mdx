@@ -57,6 +57,15 @@ And any detector setup:
 
 > Detectors can be defined as **a single object or an array of objects**. Defining multiple configurations for the same detector allows to run it multiple times with different settings (e.g., different entry points or different deny rules for restricted imports) within the same rule.
 
+### Compact detector syntax
+
+Detectors support a shorthand so simple configs stay short:
+
+- **Boolean.** A detector that only needs to be switched on (no extra setup) can be written as a boolean. `"circularImportsDetection": true` enables it and `"circularImportsDetection": false` disables it — equivalent to `{ "enabled": true }` and `{ "enabled": false }`.
+- **Optional `enabled`.** When a detector is configured with other options, the `enabled` flag is optional and defaults to `true`. `"restrictedImportsDetection": { "entryPoints": ["src/index.ts"] }` is enough to turn the check on; add `"enabled": false` to keep the options but switch it off.
+
+`rev-dep config init` writes configs in this compact form, and `rev-dep config lint --fix` rewrites an existing config to it (folding `{ "enabled": true }` to `true` and dropping redundant `enabled` flags) without touching your comments or formatting — see the `compact` rule in [Linting the config](./linting-the-config.mdx).
+
 ## Quick Start configuration
 
 ```json
@@ -68,21 +77,14 @@ And any detector setup:
       "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
       "devEntryPoints": ["scripts/**", "**/*.test.*"],
       "unusedExportsDetection": {
-        "enabled": true,
         "autofix": true
       },
       "orphanFilesDetection": {
-        "enabled": true,
         "autofix": true
       },
-      "unusedNodeModulesDetection": { 
-        "enabled": true 
-      },
-      "circularImportsDetection": { 
-        "enabled": true 
-      },
+      "unusedNodeModulesDetection": true,
+      "circularImportsDetection": true,
       "devDepsUsageOnProdDetection": {
-        "enabled": true,
         "ignoreTypeImports": true
       }
     }

@@ -187,11 +187,11 @@ func TestRemoveMember_Middle(t *testing.T) {
 	src := "{\n  \"configVersion\": \"1.11\",\n  \"ignoreFiles\": [\n    \"a.ts\"\n  ],\n  \"rules\": []\n}"
 	want := "{\n  \"configVersion\": \"1.11\",\n  \"rules\": []\n}"
 	doc, _ := ParseJSONC([]byte(src))
-	ch, ok := RemoveMember(doc.Original, doc.Root, "ignoreFiles")
+	edits, ok := RemoveMember(doc.Original, doc.Root, "ignoreFiles")
 	if !ok {
 		t.Fatal("member not found")
 	}
-	if got := string(ApplyEdits(doc.Original, []Edit{ch})); got != want {
+	if got := string(ApplyEdits(doc.Original, edits)); got != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
@@ -200,11 +200,11 @@ func TestRemoveMember_Last(t *testing.T) {
 	src := "{\n  \"configVersion\": \"1.11\",\n  \"ignoreFiles\": [\n    \"a.ts\"\n  ]\n}"
 	want := "{\n  \"configVersion\": \"1.11\"\n}"
 	doc, _ := ParseJSONC([]byte(src))
-	ch, ok := RemoveMember(doc.Original, doc.Root, "ignoreFiles")
+	edits, ok := RemoveMember(doc.Original, doc.Root, "ignoreFiles")
 	if !ok {
 		t.Fatal("member not found")
 	}
-	if got := string(ApplyEdits(doc.Original, []Edit{ch})); got != want {
+	if got := string(ApplyEdits(doc.Original, edits)); got != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
@@ -213,11 +213,11 @@ func TestRemoveMember_Only(t *testing.T) {
 	src := `{ "enabled": true }`
 	want := `{}`
 	doc, _ := ParseJSONC([]byte(src))
-	ch, ok := RemoveMember(doc.Original, doc.Root, "enabled")
+	edits, ok := RemoveMember(doc.Original, doc.Root, "enabled")
 	if !ok {
 		t.Fatal("member not found")
 	}
-	if got := string(ApplyEdits(doc.Original, []Edit{ch})); got != want {
+	if got := string(ApplyEdits(doc.Original, edits)); got != want {
 		t.Fatalf("got:\n%q\nwant:\n%q", got, want)
 	}
 }
@@ -231,6 +231,45 @@ func TestReplaceNode(t *testing.T) {
 	got := string(ApplyEdits(doc.Original, []Edit{ReplaceNode(node, "true")}))
 	want := `{ "orphanFilesDetection": true }`
 	if got != want {
+		t.Fatalf("got:\n%q\nwant:\n%q", got, want)
+	}
+}
+
+// TestRemoveArrayElement_TrailingPreservesSurvivorComment is the regression test for the
+// trailing-run bug: removing the LAST element must not swallow an inline comment that
+// belongs to the surviving element on the line above it.
+func TestRemoveArrayElement_TrailingPreservesSurvivorComment(t *testing.T) {
+	src := "{\n  \"ignoreFiles\": [\n    \"a.ts\", // KEEP ME\n    \"dead.ts\"\n  ]\n}"
+	want := "{\n  \"ignoreFiles\": [\n    \"a.ts\" // KEEP ME\n  ]\n}"
+	doc, _ := ParseJSONC([]byte(src))
+	arr := doc.Root.Members[0].Value
+	edits := RemoveArrayElements(doc.Original, arr, []int{1})
+	if got := string(ApplyEdits(doc.Original, edits)); got != want {
+		t.Fatalf("got:\n%q\nwant:\n%q", got, want)
+	}
+}
+
+// TestRemoveArrayElement_TrailingMultipleWithComment removes several trailing dead elements
+// while the survivor carries an inline comment.
+func TestRemoveArrayElement_TrailingMultipleWithComment(t *testing.T) {
+	src := "{\n  \"ignoreFiles\": [\n    \"a.ts\", // note\n    \"d1.ts\",\n    \"d2.ts\"\n  ]\n}"
+	want := "{\n  \"ignoreFiles\": [\n    \"a.ts\" // note\n  ]\n}"
+	doc, _ := ParseJSONC([]byte(src))
+	arr := doc.Root.Members[0].Value
+	edits := RemoveArrayElements(doc.Original, arr, []int{1, 2})
+	if got := string(ApplyEdits(doc.Original, edits)); got != want {
+		t.Fatalf("got:\n%q\nwant:\n%q", got, want)
+	}
+}
+
+// TestRemoveMember_LastPreservesSurvivorComment verifies the same comment-preservation for
+// removing the last object member (RemoveObjectMembers path).
+func TestRemoveMember_LastPreservesSurvivorComment(t *testing.T) {
+	src := "{\n  \"a\": 1, // KEEP\n  \"dead\": 2\n}"
+	want := "{\n  \"a\": 1 // KEEP\n}"
+	doc, _ := ParseJSONC([]byte(src))
+	edits := RemoveObjectMembers(doc.Original, doc.Root, []int{1})
+	if got := string(ApplyEdits(doc.Original, edits)); got != want {
 		t.Fatalf("got:\n%q\nwant:\n%q", got, want)
 	}
 }

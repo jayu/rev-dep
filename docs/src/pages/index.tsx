@@ -22,8 +22,8 @@ function HomepageHeader() {
         <img
           src="img/logo-text.svg"
           alt="Rev-dep logo"
-          className="mx-auto d-block"
-          style={{ maxWidth: '50%', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          className={clsx('mx-auto d-block', styles.heroLogo)}
+          style={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
         />
         <Heading as="h1" className="hero__title" style={{color: 'white'}}>
           High-speed linter for your dependency graph.
@@ -56,16 +56,16 @@ function CodebaseScalingProblemSection() {
               As codebases scale, maintaining a mental map of dependencies becomes impossible.
             </p>
             <p className={styles.problemCopy}>
-              <strong className="font-weight-bold">Rev-dep</strong> is a high-speed static analysis tool designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
+              <strong className="font-weight-bold">Rev-dep</strong> is a static analysis tool that enforces architecture integrity and dependency hygiene across large-scale JS/TS projects.
             </p>
             <p className={styles.problemCopy}>
-              It consolidates fragmented, sequential checks from multiple slow tools into a single, high-performance engine that runs in one parallelized pass.
+              It replaces a stack of slow, single-purpose tools with one engine that runs every check in a single parallelized pass.
             </p>
           </div>
           <div className={styles.problemHighlightCard}>
             <p className={styles.problemHighlightLabel}>Dependency graph governance</p>
             <p className={styles.problemHighlightQuote}>
-              Think of Rev-dep as a high-speed linter for your dependency graph.
+              Architecture rules enforced before you finish reading this.
             </p>
             <div className={styles.problemStatsRow}>
               <div className={styles.problemStat}>
@@ -108,7 +108,7 @@ function CodebaseScalingProblemSection() {
             </article>
           </div>
           <p className={styles.problemPanelFooter}>
-            Rev-dep serves as a <strong className="font-weight-bold">high-speed gatekeeper</strong> for your CI, ensuring your dependency graph remains lean and your architecture stays intact as you iterate.
+            Rev-dep serves as a <strong className="font-weight-bold">gatekeeper</strong> for your CI, keeping your dependency graph lean and your architecture intact as you iterate.
           </p>
         </div>
       </div>
@@ -131,12 +131,12 @@ const WhyRevDepFeatureList: WhyRevDepFeature[] = [
   {
     emoji: '🛡️',
     title: 'Config-Based Codebase Governance',
-    description: 'Move beyond passive scanning. Use the configuration engine to enforce Module Boundaries and Import Conventions.',
+    description: 'Use the configuration engine to enforce module boundaries and import conventions across your workspace.',
   },
   {
     emoji: '🔍',
     title: 'Exploratory Toolkit',
-    description: 'CLI toolkit that helps debug issues with dependencies between files. Understand transitive relation between files and fix issues.',
+    description: 'CLI commands to debug how files depend on each other, trace transitive relationships, and untangle problem imports.',
   },
   {
     emoji: '⚡',

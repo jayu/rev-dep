@@ -66,8 +66,76 @@ func BuildIncludePrefixes(matchers []GlobMatcher) []string {
 	return out
 }
 
+// recursiveCoverRoot reports, for a whole-subtree exclude pattern, the internal-form
+// directory path at (and below) which every descendant path is matched. It recognises the
+// two provable forms — a bare `**` (root = the matcher root) and `<staticPrefix>/**` where
+// the prefix has no glob metacharacters — and returns ok=false for anything else. The
+// returned root always carries a trailing slash so prefix tests are boundary-safe.
+func recursiveCoverRoot(matcher GlobMatcher) (string, bool) {
+	pattern := matcher.inputString
+	if pattern == "**" {
+		return pathutil.StandardiseDirPathInternal(strings.TrimSuffix(matcher.patternRoot, "/")), true
+	}
+	stem, ok := strings.CutSuffix(pattern, "/**")
+	if !ok || stem == "" || containsGlobMeta(stem) {
+		return "", false
+	}
+	full := pathutil.NormalizePathForInternal(matcher.patternRoot + stem)
+	return pathutil.StandardiseDirPathInternal(strings.TrimSuffix(full, "/")), true
+}
+
+// StaticPrefixPath resolves a pattern's leading glob-free segment to an absolute
+// internal-form directory (trailing slash) under root, or returns "" when the pattern
+// begins with a glob metacharacter (so it could match at any depth). It lets callers reason
+// about which subtree a pattern can possibly touch — e.g. whether it could match inside a
+// directory the walk pruned whole.
+func StaticPrefixPath(pattern, root string) string {
+	pattern = strings.TrimSpace(pattern)
+	pattern = strings.TrimPrefix(pattern, "!")
+	pattern = strings.TrimPrefix(pattern, "/")
+	prefix := getStaticPrefixBeforeGlob(pattern)
+	if prefix == "" {
+		return ""
+	}
+	rootNorm := pathutil.NormalizePathForInternal(root)
+	if rootNorm != "" && !strings.HasSuffix(rootNorm, "/") {
+		rootNorm += "/"
+	}
+	return pathutil.StandardiseDirPathInternal(strings.TrimSuffix(rootNorm+prefix, "/"))
+}
+
+// DirFullyExcluded reports whether EVERY possible path under dirPath is excluded, so the
+// walk can prune the directory instead of descending to exclude each file one by one.
+// A plain `<dir>/**` pattern does NOT match the bare directory path (only its contents),
+// so IsExcludedByPatterns alone never prunes such a directory — this recovers that case.
+//
+// It is deliberately conservative and only returns true for provable full coverage: if any
+// negation is present in the set (a re-inclusion could rescue a descendant) it returns
+// false, and it ignores non-recursive patterns. That guarantees pruning never drops a file
+// the file-by-file path would have kept — it is a pure optimisation, not a semantic change.
+func DirFullyExcluded(dirPath string, excludePatterns []GlobMatcher) bool {
+	if len(excludePatterns) == 0 {
+		return false
+	}
+	dirInternal := pathutil.StandardiseDirPathInternal(strings.TrimSuffix(pathutil.NormalizePathForInternal(dirPath), "/"))
+	covered := false
+	for i := range excludePatterns {
+		if excludePatterns[i].isNegated {
+			return false
+		}
+		if covered {
+			continue // keep scanning for a negation that would veto pruning
+		}
+		coverRoot, ok := recursiveCoverRoot(excludePatterns[i])
+		if ok && strings.HasPrefix(dirInternal, coverRoot) {
+			covered = true
+		}
+	}
+	return covered
+}
+
 func ShouldTraverseDir(dirPath string, excludePatterns []GlobMatcher, includePatterns []GlobMatcher, includePrefixes []string) bool {
-	if !IsExcludedByPatterns(dirPath, excludePatterns, includePatterns) {
+	if !IsExcludedByPatterns(dirPath, excludePatterns, includePatterns) && !DirFullyExcluded(dirPath, excludePatterns) {
 		return true
 	}
 	if len(includePrefixes) == 0 {

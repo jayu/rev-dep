@@ -104,17 +104,30 @@ func ApplyLintFix(result *LintResult) (*FixResult, error) {
 				fix.ReportOnlyKept += len(deads)
 				continue
 			}
+			// Keep only in-range indices. A stale/out-of-range index must never inflate the
+			// "every element is dead" decision below (which deletes the WHOLE member) — that
+			// could drop live elements. Such indices are left in place and reported instead.
 			deadIdx := make([]int, 0, len(deads))
 			for _, dp := range deads {
-				deadIdx = append(deadIdx, dp.ElementIndex)
+				if dp.ElementIndex >= 0 && dp.ElementIndex < len(arr.Elems) {
+					deadIdx = append(deadIdx, dp.ElementIndex)
+				} else {
+					fix.ReportOnlyKept++
+				}
 			}
-			if uniqueCount(deadIdx) >= len(arr.Elems) {
+			if len(deadIdx) == 0 {
+				continue
+			}
+			// Count unique elements actually removed, not the number of findings (duplicate
+			// findings can target the same element), so the summary is accurate.
+			removed := uniqueCount(deadIdx)
+			if removed == len(arr.Elems) {
 				// Every element is dead — mark the whole member for batched removal.
 				wholeMemberKeys = append(wholeMemberKeys, optKey)
-				wholeMemberCount += len(deads)
+				wholeMemberCount += removed
 			} else {
 				edits = append(edits, RemoveArrayElements(doc.Original, arr, deadIdx)...)
-				fix.RemovedCount += len(deads)
+				fix.RemovedCount += removed
 			}
 		}
 

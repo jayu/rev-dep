@@ -71,11 +71,42 @@ func findAndProcessGitIgnoreFilesUpToRepoRoot(dirPath string, globMatchers []glo
 	return findAndProcessGitIgnoreFilesUpToRepoRoot(parent, globMatchers)
 }
 
+// DiscoveryExclusions records the paths a discovery walk left out — individual files an
+// exclude pattern matched, and whole directories the walk pruned as fully excluded. Files
+// inside pruned directories are intentionally NOT enumerated (that is the point of
+// pruning); PrunedDirs marks those subtrees so a caller (e.g. the config linter) can reason
+// about them without a second, unpruned walk. All paths are internal-normalized.
+type DiscoveryExclusions struct {
+	ExcludedFiles []string
+	PrunedDirs    []string
+}
+
+// GetFiles walks directory and returns every source file not excluded by the given
+// matchers. It is the plain entry point used when the caller does not need to know what was
+// excluded.
 func GetFiles(directory string, existingFiles []string, parentGlobMatchers []globutil.GlobMatcher, includeMatchers []globutil.GlobMatcher) []string {
-	includePrefixes := globutil.BuildIncludePrefixes(includeMatchers)
+	files, _ := getFiles(directory, existingFiles, parentGlobMatchers, includeMatchers, globutil.BuildIncludePrefixes(includeMatchers), nil)
+	return files
+}
+
+// GetFilesWithExclusions is GetFiles that also reports what the walk left out (see
+// DiscoveryExclusions). The linter uses it to decide which ignore patterns still match
+// something from the SAME pruned walk, avoiding a second unpruned traversal of large
+// ignored directories.
+func GetFilesWithExclusions(directory string, parentGlobMatchers []globutil.GlobMatcher, includeMatchers []globutil.GlobMatcher) ([]string, *DiscoveryExclusions) {
+	rec := &DiscoveryExclusions{}
+	files, _ := getFiles(directory, nil, parentGlobMatchers, includeMatchers, globutil.BuildIncludePrefixes(includeMatchers), rec)
+	return files, rec
+}
+
+// getFiles is the shared recursive walk. includePrefixes is computed once by the public
+// entry points and threaded down (it is derived only from includeMatchers, which never
+// change during the walk). When rec is non-nil, excluded files and pruned directories are
+// recorded.
+func getFiles(directory string, existingFiles []string, parentGlobMatchers []globutil.GlobMatcher, includeMatchers []globutil.GlobMatcher, includePrefixes []string, rec *DiscoveryExclusions) ([]string, *DiscoveryExclusions) {
 	entries, err := os.ReadDir(directory)
 	if err != nil {
-		return existingFiles
+		return existingFiles, rec
 	}
 
 	for _, entry := range entries {
@@ -98,18 +129,27 @@ func GetFiles(directory string, existingFiles []string, parentGlobMatchers []glo
 					ignoreGlobs = parentGlobMatchers
 				}
 
-				existingFiles = GetFiles(entryFilePath, existingFiles, ignoreGlobs, includeMatchers)
+				existingFiles, rec = getFiles(entryFilePath, existingFiles, ignoreGlobs, includeMatchers, includePrefixes, rec)
+			} else if rec != nil {
+				rec.PrunedDirs = append(rec.PrunedDirs, pathutil.NormalizePathForInternal(entryFilePath))
 			}
 			continue
 		}
 
-		if hasCorrectExtension(entryName) && !globutil.IsExcludedByPatterns(entryFilePath, parentGlobMatchers, includeMatchers) {
-			// store internal normalized path (forward slashes) for analysis and tests
-			existingFiles = append(existingFiles, pathutil.NormalizePathForInternal(entryFilePath))
+		if !hasCorrectExtension(entryName) {
+			continue
 		}
+		if globutil.IsExcludedByPatterns(entryFilePath, parentGlobMatchers, includeMatchers) {
+			if rec != nil {
+				rec.ExcludedFiles = append(rec.ExcludedFiles, pathutil.NormalizePathForInternal(entryFilePath))
+			}
+			continue
+		}
+		// store internal normalized path (forward slashes) for analysis and tests
+		existingFiles = append(existingFiles, pathutil.NormalizePathForInternal(entryFilePath))
 	}
 
-	return existingFiles
+	return existingFiles, rec
 }
 
 func GetMissingFile(modulePath string, moduleSuffixes []string) string {

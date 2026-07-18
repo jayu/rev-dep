@@ -675,3 +675,223 @@ func TestLintConfig_FixPreservesCommentsAndLivePatterns(t *testing.T) {
 		t.Fatalf("fixed config no longer parses: %v\n%s", err, got)
 	}
 }
+
+// TestLintConfig_BigIgnoredDirIsPrunedButLive verifies fix #1: an ignoreFiles pattern for a
+// large committed directory (`build/**`) is NOT reported dead even though the walk prunes
+// that directory (so its files are never enumerated), while a pattern for a directory that
+// does not exist IS still reported dead, and an individually-excluded file stays live.
+func TestLintConfig_BigIgnoredDirIsPrunedButLive(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("package.json", `{"name":"fx","version":"1.0.0"}`)
+	mustWrite("src/index.ts", "export const app = 1\n")
+	mustWrite("src/used.ts", "export const used = 1\n")
+	// A committed (NOT gitignored) build dir with source files under it.
+	mustWrite("build/bundle.ts", "export const bundle = 1\n")
+	mustWrite("build/nested/more.ts", "export const more = 1\n")
+	mustWrite("rev-dep.config.jsonc", `{
+  "configVersion": "1.11",
+  "ignoreFiles": [
+    "build/**",
+    "src/used.ts",
+    "gone/**",
+    "**/*.spec.ts"
+  ],
+  "rules": [{ "path": "src", "prodEntryPoints": ["index.ts"] }]
+}`)
+
+	cfg, err := LoadConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+
+	isDead := func(value string) bool {
+		return findDead(result.DeadPatterns, "", "ignoreFiles", value) != nil
+	}
+
+	// Live: build/** targets an existing (pruned) dir; src/used.ts is a real excluded file.
+	if isDead("build/**") {
+		t.Errorf("build/** should be live (its directory exists and was pruned), but was reported dead")
+	}
+	if isDead("src/used.ts") {
+		t.Errorf("src/used.ts should be live (it exists and is excluded), but was reported dead")
+	}
+	// Dead: gone/** targets a non-existent dir; **/*.spec.ts matches no file.
+	if !isDead("gone/**") {
+		t.Errorf("gone/** should be dead (its directory does not exist)")
+	}
+}
+
+// TestLintConfig_GitignoredDirDoesNotSuppressBroadDead verifies that a directory pruned by
+// GITIGNORE (not by the config) does not make a broad ignore pattern indeterminate: a
+// `**/*.spec.ts` pattern with a spec file present only inside a gitignored node_modules must
+// still be reported dead, because gitignored files are outside the ignore-scope universe.
+func TestLintConfig_GitignoredDirDoesNotSuppressBroadDead(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("package.json", `{"name":"fx","version":"1.0.0"}`)
+	mustWrite(".gitignore", "node_modules\n")
+	mustWrite("src/index.ts", "export const app = 1\n")
+	mustWrite("node_modules/pkg/thing.spec.ts", "export const t = 1\n")
+	mustWrite("rev-dep.config.jsonc", `{
+  "configVersion": "1.11",
+  "ignoreFiles": ["**/*.spec.ts"],
+  "rules": [{ "path": "src", "prodEntryPoints": ["index.ts"] }]
+}`)
+
+	cfg, err := LoadConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+	if findDead(result.DeadPatterns, "", "ignoreFiles", "**/*.spec.ts") == nil {
+		t.Errorf("**/*.spec.ts should be dead: its only match is inside a gitignored dir, outside ignore scope")
+	}
+}
+
+// TestApplyLintFix_OutOfRangeIndexDoesNotDeleteWholeMember is the regression test for the
+// unbounded all-dead routing: a stale/out-of-range ElementIndex must not inflate the
+// "every element is dead" decision and delete the whole option (with its live elements).
+func TestApplyLintFix_OutOfRangeIndexDoesNotDeleteWholeMember(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "rev-dep.config.jsonc")
+	src := "{\n  \"configVersion\": \"1.11\",\n  \"ignoreFiles\": [\n    \"a.ts\",\n    \"b.ts\"\n  ],\n  \"rules\": []\n}"
+	if err := os.WriteFile(cfgPath, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := &LintResult{
+		ConfigFilePath: cfgPath,
+		RulesRun:       []LintRuleName{RuleOrphanFileGlobs},
+		DeadPatterns: []DeadPattern{
+			{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles", ElementIndex: 0, Value: "a.ts", Kind: KindFile, Severity: SeverityError, Removable: true},
+			// Out-of-range index (e.g. stale) — must be ignored, not treated as "all dead".
+			{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles", ElementIndex: 5, Value: "ghost", Kind: KindFile, Severity: SeverityError, Removable: true},
+		},
+	}
+
+	fix, err := ApplyLintFix(result)
+	if err != nil {
+		t.Fatalf("ApplyLintFix: %v", err)
+	}
+	got, _ := os.ReadFile(cfgPath)
+	want := "{\n  \"configVersion\": \"1.11\",\n  \"ignoreFiles\": [\n    \"b.ts\"\n  ],\n  \"rules\": []\n}"
+	if string(got) != want {
+		t.Fatalf("only element 0 should be removed.\n got: %q\nwant: %q", string(got), want)
+	}
+	if fix.RemovedCount != 1 {
+		t.Errorf("RemovedCount = %d, want 1", fix.RemovedCount)
+	}
+	if fix.ReportOnlyKept != 1 {
+		t.Errorf("ReportOnlyKept = %d, want 1 (the out-of-range index)", fix.ReportOnlyKept)
+	}
+}
+
+// TestApplyLintFix_DuplicateFindingsCountedOnce verifies element-accurate counts (#4): two
+// findings pointing at the same element remove one element and report RemovedCount 1.
+func TestApplyLintFix_DuplicateFindingsCountedOnce(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "rev-dep.config.jsonc")
+	src := "{\n  \"configVersion\": \"1.11\",\n  \"ignoreFiles\": [\n    \"a.ts\",\n    \"b.ts\"\n  ],\n  \"rules\": []\n}"
+	if err := os.WriteFile(cfgPath, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	dead := DeadPattern{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles", ElementIndex: 0, Value: "a.ts", Kind: KindFile, Severity: SeverityError, Removable: true}
+	result := &LintResult{
+		ConfigFilePath: cfgPath,
+		RulesRun:       []LintRuleName{RuleOrphanFileGlobs},
+		DeadPatterns:   []DeadPattern{dead, dead}, // same element, twice
+	}
+	fix, err := ApplyLintFix(result)
+	if err != nil {
+		t.Fatalf("ApplyLintFix: %v", err)
+	}
+	if fix.RemovedCount != 1 {
+		t.Errorf("RemovedCount = %d, want 1 (duplicate findings collapse to one element)", fix.RemovedCount)
+	}
+}
+
+// TestLintConfig_IgnoreFilesNegationLiveness exercises dead-pattern detection for negated
+// glob patterns in the top-level ignoreFiles array, e.g. ["some/path/**", "!some/path/keep"].
+// A negation is alive when the file it re-includes exists (its exception does something) and
+// dead only when its target is gone; a dead negation is a non-removable warning, never an
+// error. The positive pattern it pairs with must stay live too.
+func TestLintConfig_IgnoreFilesNegationLiveness(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("package.json", `{"name":"n","version":"1.0.0"}`)
+	mustWrite("src/index.ts", "export const app = 1\n")
+	mustWrite("some/path/other.ts", "export const o = 1\n")
+	mustWrite("some/path/keep-this.ts", "export const k = 1\n") // negation target that EXISTS
+	mustWrite("rev-dep.config.jsonc", `{
+  "configVersion": "1.11",
+  "ignoreFiles": [
+    "some/path/**",
+    "!some/path/keep-this.ts",
+    "!some/path/keep-gone.ts"
+  ],
+  "rules": [{ "path": "src", "prodEntryPoints": ["index.ts"] }]
+}`)
+
+	cfg, err := LoadConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+
+	dead := func(value string) *DeadPattern { return findDead(result.DeadPatterns, "", "ignoreFiles", value) }
+
+	// The positive pattern matches real files → live.
+	if dead("some/path/**") != nil {
+		t.Errorf("'some/path/**' should be live (it matches files under some/path)")
+	}
+	// The negation whose target EXISTS is a meaningful exception → must NOT be reported.
+	if dead("!some/path/keep-this.ts") != nil {
+		t.Errorf("'!some/path/keep-this.ts' should be live: keep-this.ts exists, so the exception is doing something")
+	}
+	// The negation whose target is GONE matches nothing → reported, but as a non-removable warning.
+	gone := dead("!some/path/keep-gone.ts")
+	if gone == nil {
+		t.Fatalf("'!some/path/keep-gone.ts' should be reported dead (its target does not exist)")
+	}
+	if gone.Severity != SeverityWarning {
+		t.Errorf("dead negation severity = %q, want warning", gone.Severity)
+	}
+	if gone.Removable {
+		t.Errorf("dead negation must never be auto-removable")
+	}
+}

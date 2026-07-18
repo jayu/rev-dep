@@ -210,20 +210,15 @@ type LintGraph struct {
 	AllFiles        []string
 	FullTree        model.MinimalDependencyTree
 	ResolverManager *resolve.ResolverManager
-	// SupersetFiles is the file set discovered WITHOUT the config's ignoreFiles, used for
-	// the top-level ignoreFiles dead-check. The normal discovery prunes those dirs, so this
-	// is a separate walk; a caller can run it concurrently (e.g. alongside `config run`) and
-	// set SupersetComputed to have the linter reuse it instead of walking again.
-	SupersetFiles    []string
-	SupersetComputed bool
-}
-
-// DiscoverLintSuperset walks the workspace WITHOUT applying the config's ignoreFiles,
-// returning the file set the top-level ignoreFiles dead-check needs. Callers can run this
-// concurrently with other work and pass the result via LintGraph.SupersetFiles.
-func DiscoverLintSuperset(cwd string, processIgnoredFiles []string) ([]string, error) {
-	files, _, _, err := discoverAllFilesForConfig(cwd, nil, processIgnoredFiles)
-	return files, err
+	// IgnoreScopeFiles / IgnorePrunedDirs are the byproducts of the caller's (pruned)
+	// discovery walk that the top-level ignoreFiles/processIgnoredFiles dead-check needs:
+	// the files the walk saw (discovered + individually excluded) and the directories it
+	// pruned whole because the config's ignore patterns fully cover them. Reusing them
+	// avoids a second, unpruned walk of large ignored directories. Set IgnoreScopeComputed
+	// when these are populated; otherwise the linter recomputes them from its own walk.
+	IgnoreScopeFiles    []string
+	IgnorePrunedDirs    []string
+	IgnoreScopeComputed bool
 }
 
 // LintConfig analyzes cfg and returns every dead pattern for the selected rules (all
@@ -276,40 +271,37 @@ func LintConfigWithGraph(cfg *RevDepConfig, cwd, packageJson, tsconfigJson strin
 	// Only the file/module/overlap rules need file discovery. When only trailing-commas
 	// or compact is selected, skip discovery entirely — those are pure document scans.
 	if runFile || runModule || runOverlap {
-		// The top-level ignoreFiles dead-check needs a "superset" walk (files the normal
-		// discovery prunes, e.g. under ".superset/**"). It is independent of everything else,
-		// so launch it FIRST — it overlaps with the discovery + tree build below and the
-		// per-rule checks, and is joined only at the very end. When the caller already
-		// computed it (config run --lint-config runs it alongside the run), it is reused for free.
-		needSuperset := (runFile || runOverlap) && (len(cfg.IgnoreFiles) > 0 || len(cfg.ProcessIgnoredFiles) > 0)
-		var supersetFiles []string
-		var supersetCh chan []string
-		if needSuperset {
-			if graph != nil && graph.SupersetComputed {
-				supersetFiles = graph.SupersetFiles
-			} else {
-				supersetCh = make(chan []string, 1)
-				go func() {
-					d, _, _, _ := discoverAllFilesForConfig(cwd, nil, cfg.ProcessIgnoredFiles)
-					supersetCh <- d
-				}()
-			}
-		}
-
 		// Discovered files (respecting gitignore + the config's ignoreFiles), needed by the
-		// file/overlap rules and the module rule. Reused from the prebuilt graph when given.
-		var allFiles []string
+		// file/overlap rules and the module rule. The top-level ignoreFiles/processIgnoredFiles
+		// dead-check additionally needs the walk's exclusion byproducts — ignoreScopeFiles (what
+		// the walk saw) and ignorePrunedDirs (subtrees skipped whole). These come from the SAME
+		// pruned walk, so no second unpruned traversal of large ignored dirs is required. All are
+		// reused from the prebuilt graph when given.
+		var allFiles, ignoreScopeFiles, ignorePrunedDirs []string
 		if graph != nil {
 			allFiles = graph.AllFiles
+			ignoreScopeFiles, ignorePrunedDirs = graph.IgnoreScopeFiles, graph.IgnorePrunedDirs
+			if !graph.IgnoreScopeComputed && (runFile || runOverlap) && (len(cfg.IgnoreFiles) > 0 || len(cfg.ProcessIgnoredFiles) > 0) {
+				// Defensive: a caller reused the graph but did not populate the ignore-scope
+				// byproducts. Recover them from a recording walk so the dead-check stays correct.
+				_, _, _, exclusions, err := discoverAllFilesForConfig(cwd, cfg.IgnoreFiles, cfg.ProcessIgnoredFiles)
+				if err != nil {
+					return nil, err
+				}
+				ignoreScopeFiles = ignoreScope(allFiles, exclusions)
+				ignorePrunedDirs = configRelevantPrunedDirs(exclusions.PrunedDirs, cfg.IgnoreFiles, cwd)
+			}
 			if runModule {
 				ctx.moduleUniverse = buildModuleUniverse(graph.FullTree, graph.ResolverManager, cfg, cwd)
 			}
 		} else {
-			discovered, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, cfg.IgnoreFiles, cfg.ProcessIgnoredFiles)
+			discovered, excludePatterns, includePatterns, exclusions, err := discoverAllFilesForConfig(cwd, cfg.IgnoreFiles, cfg.ProcessIgnoredFiles)
 			if err != nil {
 				return nil, err
 			}
 			allFiles = discovered
+			ignoreScopeFiles = ignoreScope(discovered, exclusions)
+			ignorePrunedDirs = configRelevantPrunedDirs(exclusions.PrunedDirs, cfg.IgnoreFiles, cwd)
 			// The module universe requires the parsed dependency tree — build it only when the
 			// module rule runs, so file-only rule selections skip parsing entirely.
 			if runModule {
@@ -336,14 +328,11 @@ func LintConfigWithGraph(cfg *RevDepConfig, cwd, packageJson, tsconfigJson strin
 			}
 		}
 
-		// Join the superset walk (overlapped with everything above) and submit the
-		// top-level checks too.
-		if needSuperset {
-			if supersetCh != nil {
-				supersetFiles = <-supersetCh
-			}
-			ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles"}, cfg.IgnoreFiles, cwd, supersetFiles, true)
-			ctx.checkFileArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "processIgnoredFiles"}, cfg.ProcessIgnoredFiles, cwd, supersetFiles, true)
+		// Top-level ignoreFiles/processIgnoredFiles: a pattern is dead only when it matches
+		// nothing the walk saw AND cannot reach into a directory the walk pruned whole.
+		if runFile || runOverlap {
+			ctx.checkIgnoreScopeArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles"}, cfg.IgnoreFiles, cwd, ignoreScopeFiles, ignorePrunedDirs)
+			ctx.checkIgnoreScopeArray(patternLoc{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "processIgnoredFiles"}, cfg.ProcessIgnoredFiles, cwd, ignoreScopeFiles, ignorePrunedDirs)
 		}
 
 		ctx.taskWg.Wait()
@@ -431,6 +420,19 @@ func isNegationPattern(pattern string) bool {
 	return strings.HasPrefix(strings.TrimSpace(pattern), "!")
 }
 
+// positivePatternForm returns the pattern a "matches any file" test should use. For a
+// negation (`!X`) that is its positive target `X`: a negation is alive when the file it
+// re-includes actually exists, so its liveness is decided by whether `X` matches something.
+// (A lone negated matcher never counts as a positive match, so testing the raw `!X` would
+// report every negation — even a live one — as matching nothing.) Non-negations are
+// returned unchanged.
+func positivePatternForm(pattern string) string {
+	if isNegationPattern(pattern) {
+		return strings.TrimPrefix(strings.TrimSpace(pattern), "!")
+	}
+	return pattern
+}
+
 // optionPresent reports whether the option at loc physically exists as an array in the
 // config file. This filters out values synthesized by rule-level entry-point
 // inheritance, which are not in the file and cannot be reported or removed. When the
@@ -483,7 +485,7 @@ func (ctx *lintCtx) checkFileGlobsAndOverlaps(loc patternLoc, values []string, b
 		if strings.TrimSpace(v) == "" {
 			continue // empty → never dead, never overlaps
 		}
-		matchers := globutil.CreateGlobMatchers([]string{v}, base)
+		matchers := globutil.CreateGlobMatchers([]string{positivePatternForm(v)}, base)
 		if len(matchers) == 0 {
 			continue // uncompilable → not our concern
 		}
@@ -502,6 +504,59 @@ func (ctx *lintCtx) checkFileGlobsAndOverlaps(loc patternLoc, values []string, b
 		}
 	}
 	ctx.overlapPairs(loc, pats)
+}
+
+// checkIgnoreScopeArray runs the file-based rules over the top-level ignoreFiles /
+// processIgnoredFiles arrays. Unlike checkFileArray it is pruned-walk aware: a pattern is
+// reported dead only when it matches none of the files the walk saw (knownFiles) AND cannot
+// reach into any directory the walk pruned whole (prunedDirs) — whose contents were
+// intentionally not enumerated. That lets the linter avoid a second, unpruned walk of large
+// ignored directories while never falsely flagging a pattern that targets one of them.
+func (ctx *lintCtx) checkIgnoreScopeArray(loc patternLoc, values []string, base string, knownFiles, prunedDirs []string) {
+	if len(values) == 0 || !ctx.optionPresent(loc) {
+		return
+	}
+	ctx.submit(func() {
+		if ctx.runFile {
+			for idx, v := range values {
+				if strings.TrimSpace(v) == "" {
+					continue
+				}
+				if patternMatchesAnyFile(v, base, knownFiles) {
+					continue
+				}
+				if patternMayMatchUnderPrunedDir(v, base, prunedDirs) {
+					continue // could match inside a pruned subtree → not certainly dead
+				}
+				ctx.add(loc, idx, v, KindFile, true)
+			}
+		}
+		if ctx.runOverlap {
+			// Overlaps are computed over the files the walk saw; contents of pruned dirs are
+			// not enumerated, so overlaps entirely within a pruned subtree are not reported.
+			ctx.checkOverlaps(loc, values, base, knownFiles)
+		}
+	})
+}
+
+// patternMayMatchUnderPrunedDir reports whether pattern could match some path inside a
+// directory the walk pruned whole. A pattern with no static prefix (leading glob) can match
+// at any depth, so any pruned dir makes it indeterminate; otherwise it is indeterminate only
+// when its static prefix and a pruned dir lie on the same path (one contains the other).
+func patternMayMatchUnderPrunedDir(pattern, base string, prunedDirs []string) bool {
+	if len(prunedDirs) == 0 {
+		return false
+	}
+	staticPrefix := globutil.StaticPrefixPath(pattern, base)
+	for _, dir := range prunedDirs {
+		prunedInternal := pathutil.StandardiseDirPathInternal(strings.TrimSuffix(pathutil.NormalizePathForInternal(dir), "/"))
+		if staticPrefix == "" ||
+			strings.HasPrefix(staticPrefix, prunedInternal) ||
+			strings.HasPrefix(prunedInternal, staticPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkModuleArray flags each module pattern that matches nothing in the module universe.
@@ -660,7 +715,9 @@ func patternMatchesAnyFile(pattern, base string, files []string) bool {
 	if strings.TrimSpace(pattern) == "" {
 		return true
 	}
-	matchers := globutil.CreateGlobMatchers([]string{pattern}, base)
+	// A negation is alive when its positive target matches an existing file, so test that
+	// form (a lone negated matcher would never register a positive match).
+	matchers := globutil.CreateGlobMatchers([]string{positivePatternForm(pattern)}, base)
 	if len(matchers) == 0 {
 		return true // uncompilable pattern is not our concern
 	}

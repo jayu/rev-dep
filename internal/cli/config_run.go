@@ -63,20 +63,11 @@ var configRunCmd = &cobra.Command{
 		}
 
 		// When linting after the run and reusing the run's graph, the top-level ignoreFiles
-		// dead-check needs a "superset" walk (files the run's discovery prunes). That walk is
-		// independent of the run, so kick it off NOW to overlap it with the run's own
-		// discovery + tree build — hiding its cost entirely.
+		// dead-check reuses the run's own discovery byproducts (the files it saw and the
+		// directories it pruned), so no extra walk is needed. Reuse is only safe for an
+		// unfiltered run (see runConfigLintSummary).
 		lintWanted := runConfigLint || len(runConfigLintRules) > 0
 		reuseGraphForLint := lintWanted && len(runConfigRules) == 0
-		var supersetCh chan []string
-		if reuseGraphForLint && (len(cfg.IgnoreFiles) > 0 || len(cfg.ProcessIgnoredFiles) > 0) {
-			processIgnored := append([]string(nil), cfg.ProcessIgnoredFiles...)
-			supersetCh = make(chan []string, 1)
-			go func() {
-				files, _ := config.DiscoverLintSuperset(cwd, processIgnored)
-				supersetCh <- files
-			}()
-		}
 
 		if err := filterRunConfigRules(&cfg, runConfigRules); err != nil {
 			return err
@@ -94,7 +85,7 @@ var configRunCmd = &cobra.Command{
 		// printed here — use `rev-dep config lint` for per-finding detail and `--fix`.
 		lintHasErrors := false
 		if lintWanted {
-			failed, err := runConfigLintSummary(cwd, result, reuseGraphForLint, supersetCh)
+			failed, err := runConfigLintSummary(cwd, result, reuseGraphForLint)
 			if err != nil {
 				return err
 			}
@@ -121,7 +112,7 @@ var configRunCmd = &cobra.Command{
 // reused, so linting adds almost no cost. It is only safe to reuse when the run was NOT
 // rule-filtered: a filtered run builds a narrower graph (fewer registered packages),
 // which could make the module universe incomplete for the full config.
-func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, reuseGraph bool, supersetCh chan []string) (hasErrors bool, err error) {
+func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, reuseGraph bool) (hasErrors bool, err error) {
 	lintRules, err := config.ParseLintRules(runConfigLintRules)
 	if err != nil {
 		return false, err
@@ -137,14 +128,12 @@ func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, 
 	var graph *config.LintGraph
 	if reuseGraph && runResult != nil {
 		graph = &config.LintGraph{
-			AllFiles:        runResult.DiscoveredFiles,
-			FullTree:        runResult.FullTree,
-			ResolverManager: runResult.ResolverManager,
-		}
-		// Collect the superset walk launched concurrently with the run (already done by now).
-		if supersetCh != nil {
-			graph.SupersetFiles = <-supersetCh
-			graph.SupersetComputed = true
+			AllFiles:            runResult.DiscoveredFiles,
+			FullTree:            runResult.FullTree,
+			ResolverManager:     runResult.ResolverManager,
+			IgnoreScopeFiles:    runResult.IgnoreScopeFiles,
+			IgnorePrunedDirs:    runResult.IgnorePrunedDirs,
+			IgnoreScopeComputed: true,
 		}
 	}
 

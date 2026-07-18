@@ -501,16 +501,28 @@ func afterCommaInline(content []byte, valEnd int) int {
 	return j
 }
 
-// singleItemRemoval computes the deletion for one item removed on its own. prevEnd is
-// the end of the preceding surviving sibling; it is only consulted when isLast.
-func singleItemRemoval(content []byte, itemStart, itemEnd int, isLast bool, prevEnd int) Edit {
-	if isLast {
-		return Edit{Start: prevEnd, End: includeInlineComment(content, itemEnd)}
-	}
+// singleItemRemoval computes the deletion for one item that has a following sibling: the
+// whole line (indent → newline) when it sits on its own line, otherwise the inline
+// `value, ` span. It never reaches back into a preceding sibling, so it is safe to use for
+// trailing dead items without disturbing the surviving element's line or its comment.
+func singleItemRemoval(content []byte, itemStart, itemEnd int) Edit {
 	if isLineStart(content, lineIndentStart(content, itemStart)) {
 		return Edit{Start: lineIndentStart(content, itemStart), End: endOfLineAfterComma(content, itemEnd)}
 	}
 	return Edit{Start: itemStart, End: afterCommaInline(content, itemEnd)}
+}
+
+// commaAfter returns the offset of the comma that follows a value (skipping spaces/tabs),
+// or -1 when the next non-space byte is not a comma (e.g. a block comment sits between).
+func commaAfter(content []byte, valEnd int) int {
+	j := valEnd
+	for j < len(content) && (content[j] == ' ' || content[j] == '\t') {
+		j++
+	}
+	if j < len(content) && content[j] == ',' {
+		return j
+	}
+	return -1
 }
 
 // removeSequenceItems returns non-overlapping deletions that remove the given item
@@ -542,15 +554,29 @@ func removeSequenceItems(content []byte, items []span, deadIdx []int) []Edit {
 	var edits []Edit
 	handled := make([]bool, n)
 
-	// The trailing dead run is removed as one range from the end of the last survivor
-	// through the last dead item, dropping the survivor's now-dangling comma. A survivor
-	// exists here, so trailingStart > 0. The newline before the closing bracket stays.
+	// The trailing dead run needs the survivor's now-dangling comma dropped. A survivor
+	// exists here, so trailingStart > 0.
 	if trailingStart < n {
-		prevEnd := items[trailingStart-1].end
-		delEnd := includeInlineComment(content, items[n-1].end)
-		edits = append(edits, Edit{Start: prevEnd, End: delEnd})
-		for i := trailingStart; i < n; i++ {
-			handled[i] = true
+		survivorEnd := items[trailingStart-1].end
+		if isLineStart(content, lineIndentStart(content, items[trailingStart].start)) {
+			// Own-line items: remove ONLY the survivor's trailing comma (preserving any inline
+			// comment that trails it — it belongs to the survivor), then remove each dead item
+			// as its own line. A single range from survivorEnd would swallow that comment.
+			if commaPos := commaAfter(content, survivorEnd); commaPos >= 0 {
+				edits = append(edits, Edit{Start: survivorEnd, End: commaPos + 1})
+			}
+			for i := trailingStart; i < n; i++ {
+				edits = append(edits, singleItemRemoval(content, items[i].start, items[i].end))
+				handled[i] = true
+			}
+		} else {
+			// Inline items: no own-line comment can be lost, so a single range from the end of
+			// the last survivor through the last dead item is cleanest.
+			delEnd := includeInlineComment(content, items[n-1].end)
+			edits = append(edits, Edit{Start: survivorEnd, End: delEnd})
+			for i := trailingStart; i < n; i++ {
+				handled[i] = true
+			}
 		}
 	}
 
@@ -558,7 +584,7 @@ func removeSequenceItems(content []byte, items []span, deadIdx []int) []Edit {
 		if !dead[i] || handled[i] {
 			continue
 		}
-		edits = append(edits, singleItemRemoval(content, items[i].start, items[i].end, false, 0))
+		edits = append(edits, singleItemRemoval(content, items[i].start, items[i].end))
 	}
 	return edits
 }
@@ -597,12 +623,14 @@ func RemoveObjectMembers(content []byte, obj *JSONNode, keyIdx []int) []Edit {
 	return removeSequenceItems(content, objectSpans(obj), keyIdx)
 }
 
-// RemoveMember removes the whole `"key": value` member from obj. Returns ok=false if
-// the key is absent. When it is the object's only member, the object body is emptied,
-// leaving the `{}` shape intact.
-func RemoveMember(content []byte, obj *JSONNode, key string) (Edit, bool) {
+// RemoveMember removes the whole `"key": value` member from obj, returning the edits that
+// delete it (removing the last member can take two edits — dropping the prior member's
+// dangling comma while preserving its inline comment). Returns ok=false if the key is
+// absent. When it is the object's only member, the object body is emptied, leaving the `{}`
+// shape intact.
+func RemoveMember(content []byte, obj *JSONNode, key string) ([]Edit, bool) {
 	if obj == nil || obj.Kind != JSONObject {
-		return Edit{}, false
+		return nil, false
 	}
 	idx := -1
 	for i := range obj.Members {
@@ -612,17 +640,17 @@ func RemoveMember(content []byte, obj *JSONNode, key string) (Edit, bool) {
 		}
 	}
 	if idx == -1 {
-		return Edit{}, false
+		return nil, false
 	}
 
 	if len(obj.Members) == 1 {
 		// Sole member: clear the whole interior between the braces, leaving `{}`.
-		return Edit{Start: obj.Start + 1, End: obj.End - 1}, true
+		return []Edit{{Start: obj.Start + 1, End: obj.End - 1}}, true
 	}
 
 	edits := removeSequenceItems(content, objectSpans(obj), []int{idx})
-	if len(edits) == 1 {
-		return edits[0], true
+	if len(edits) == 0 {
+		return nil, false
 	}
-	return Edit{}, false
+	return edits, true
 }

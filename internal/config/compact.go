@@ -214,8 +214,8 @@ func compactDetectorObject(doc *JSONDocument, obj *JSONNode, allowBoolFold bool)
 	if enabled == nil || !enabledValue {
 		return nil
 	}
-	if edit, ok := RemoveMember(doc.Original, obj, "enabled"); ok {
-		return []Edit{edit}
+	if edits, ok := RemoveMember(doc.Original, obj, "enabled"); ok {
+		return edits
 	}
 	return nil
 }

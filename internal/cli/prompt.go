@@ -10,6 +10,8 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/term"
+
+	"rev-dep-go/internal/emoji"
 )
 
 // Interactive terminal prompts. These are generic CLI helpers, independent of any particular
@@ -193,13 +195,13 @@ func selectOne(in io.Reader, out io.Writer, prompt string, options []string, def
 				fmt.Fprintln(out)
 				return defaultIndex, options[defaultIndex], nil
 			}
-			fmt.Fprintf(out, "  ⚠️  please choose a number between 1 and %d.\n\n", len(options))
+			fmt.Fprintf(out, "  %s  please choose a number between 1 and %d.\n\n", emoji.Warning, len(options))
 			continue
 		}
 
 		n, convErr := strconv.Atoi(line)
 		if convErr != nil || n < 1 || n > len(options) {
-			fmt.Fprintf(out, "  ⚠️  %q is not a valid choice (1-%d).\n\n", line, len(options))
+			fmt.Fprintf(out, "  %s  %q is not a valid choice (1-%d).\n\n", emoji.Warning, line, len(options))
 			continue
 		}
 		fmt.Fprintln(out)

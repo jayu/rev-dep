@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/emoji"
 	globutil "rev-dep-go/internal/glob"
 	"rev-dep-go/internal/monorepo"
 	"rev-dep-go/internal/pathutil"
@@ -774,33 +775,33 @@ func packageDirsToSortedRelPaths(cwd string, packageDirs []string) []string {
 
 // printInitConfigResults prints the results of config initialization
 func printInitConfigResults(result *initConfigResult) {
-	fmt.Printf("✅ Created .rev-dep.config.jsonc at %s\n", result.configPath)
+	fmt.Printf("%s Created .rev-dep.config.jsonc at %s\n", emoji.Success, result.configPath)
 
 	fmt.Println()
 	switch {
 	case result.createdForMonorepoSubPackage:
-		fmt.Printf("⚠️  Created config for monorepo sub-package. This file targets the current package only.\n")
+		fmt.Printf("%s  Created config for monorepo sub-package. This file targets the current package only.\n", emoji.Warning)
 	case result.isMonorepo:
 		if len(result.workspacePackagePaths) > 0 {
-			fmt.Printf("📦 Monorepo detected: discovered %d workspace %s and created a rule for each:\n", len(result.workspacePackagePaths), packagesWord(len(result.workspacePackagePaths)))
+			fmt.Printf("%s Monorepo detected: discovered %d workspace %s and created a rule for each:\n", emoji.Package, len(result.workspacePackagePaths), packagesWord(len(result.workspacePackagePaths)))
 			for _, relPath := range result.workspacePackagePaths {
 				fmt.Printf("   - %s\n", relPath)
 			}
 		} else {
-			fmt.Printf("📦 Monorepo detected: no workspace packages found.\n")
+			fmt.Printf("%s Monorepo detected: no workspace packages found.\n", emoji.Package)
 		}
 	case result.rootHasPackageJson:
-		fmt.Printf("📁 Created a rule for the root package.\n")
+		fmt.Printf("%s Created a rule for the root package.\n", emoji.Rule)
 	case len(result.standalonePackagePaths) == 0:
-		fmt.Printf("📁 No package.json found; created a single rule for the root directory.\n")
+		fmt.Printf("%s No package.json found; created a single rule for the root directory.\n", emoji.Rule)
 	default:
-		fmt.Printf("📁 No root package.json found; created rules for standalone packages only.\n")
+		fmt.Printf("%s No root package.json found; created rules for standalone packages only.\n", emoji.Rule)
 	}
 
 	// Separate section for standalone packages discovered in subdirectories.
 	if len(result.standalonePackagePaths) > 0 {
 		fmt.Println()
-		fmt.Printf("🧩 Discovered %d standalone %s in subdirectories (not part of a monorepo) and created a rule for each:\n", len(result.standalonePackagePaths), packagesWord(len(result.standalonePackagePaths)))
+		fmt.Printf("%s Discovered %d standalone %s in subdirectories (not part of a monorepo) and created a rule for each:\n", emoji.Standalone, len(result.standalonePackagePaths), packagesWord(len(result.standalonePackagePaths)))
 		for _, relPath := range result.standalonePackagePaths {
 			fmt.Printf("   - %s\n", relPath)
 		}
@@ -808,7 +809,7 @@ func printInitConfigResults(result *initConfigResult) {
 
 	if result.entryPointsDetected {
 		fmt.Println()
-		fmt.Printf("🔎 Auto-detected entry points for %d %s (production/development classified by path).\n", result.entryPointPackageCount, packagesWord(result.entryPointPackageCount))
+		fmt.Printf("%s Auto-detected entry points for %d %s (production/development classified by path).\n", emoji.Search, result.entryPointPackageCount, packagesWord(result.entryPointPackageCount))
 	}
 
 	fmt.Println()
@@ -820,6 +821,6 @@ func printInitConfigResults(result *initConfigResult) {
 	}
 
 	fmt.Println()
-	fmt.Printf("📖 Integration guide: %s\n", integrationGuide)
-	fmt.Printf("🛟  Troubleshooting: https://rev-dep.com/troubleshooting\n\n")
+	fmt.Printf("%s Integration guide: %s\n", emoji.Guide, integrationGuide)
+	fmt.Printf("%s  Troubleshooting: https://rev-dep.com/troubleshooting\n\n", emoji.Troubleshooting)
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"rev-dep-go/internal/emoji"
 )
 
 // findCircularDependencies detects circular dependencies in the dependency tree
@@ -234,7 +236,7 @@ func findDeterministicCycle(start string, adj map[string][]string, inSCC map[str
 func formatCircularDependencies(cycles [][]string, pathPrefix string, deps MinimalDependencyTree, includeHeader bool, baseIndentation int) string {
 	if len(cycles) == 0 {
 		if includeHeader {
-			return fmt.Sprintln("✅ No circular dependencies found! ")
+			return fmt.Sprintln(emoji.Success + " No circular dependencies found! ")
 		}
 		return ""
 	}

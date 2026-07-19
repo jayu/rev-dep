@@ -1,0 +1,25 @@
+---
+description: "How rev-dep handles Vue .vue single-file components - basic support that parses imports from the script block using standard module resolution."
+title: Vue support
+---
+
+# Vue support
+
+rev-dep discovers and analyzes `.vue` single-file components. Support is **basic**: it parses imports, nothing framework-specific.
+
+## What works
+
+- `.vue` files are discovered like any other source file.
+- Imports inside `<script>` blocks are parsed - including `<script>` and `<script setup>`, with or without `lang="ts"`.
+- Those imports resolve with the standard rules: relative paths, [tsconfig aliases, and package.json maps](./module-resolution-and-path-aliases.mdx).
+
+So a Vue component participates in the dependency graph through its script imports - reachability, orphans, unused exports, circular imports, and node-module checks all apply to them.
+
+## What is not analyzed
+
+- The `<template>` and `<style>` blocks are not analyzed. Components imported in `<script setup>`/`<script>` and used in the template are tracked (the `import` lives in the script); what is not seen is template-only references such as a dynamic `<component :is="...">` target or asset URLs, and `@import`s in `<style>`.
+- There is no Vue-specific resolution beyond what your `tsconfig`/`package.json` declares (for example the common `@/*` alias must exist in `tsconfig.json` paths).
+
+## In practice
+
+A standard Vue project using standard module resolution works. If you rely on framework-specific aliases, declare them in `tsconfig.json` paths so rev-dep can resolve them, and validate a small area first.

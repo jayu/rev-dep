@@ -1,0 +1,103 @@
+---
+title: Consistent Import Conventions
+description: Enforce consistent import styles (like relative vs. absolute imports) across your codebase to maintain clear domain boundaries and improve readability.
+---
+
+# Import conventions
+
+`importConventions` enforces a consistent import style across your codebase, such as preferring aliases over fragile relative paths or ensuring consistent use of absolute imports for certain domains.
+
+## What this check does
+
+The check analyzes import statements and compares them against the defined conventions for specific domains (defined as directories). 
+
+Currently only one rule `relative-internal-absolute-external` is supported. 
+This rule makes sure that:
+- **Relative imports** are used for files within the same domain,
+- **Absolute imports** (using defined aliases) are used for imports between files from different domains.
+
+Rule offers autofix capabilities, so it can automatically convert imports to the correct style based on the defined domain aliases.
+
+## Why it is important
+
+Consecutively used `relative-internal-absolute-external` rule helps to maintain clear mental model about domains boundaries. 
+
+Whatever is imported using relative path belongs to the same domain, while absolute imports indicate file belongs to a different domain.
+
+Just by looking at imports you can understand whether the file colocation is correct or not and whether given modules should import each other.
+
+## Simplified domains Configuration
+
+Use this for broad, pattern-based conventions. In this mode, you only provide a glob patterns (e.g., `"src/utils/*"`) that define which directories creates a domain.
+
+Rev-dep will automatically attempt to match imports to this domain by resolving the paths through your `tsconfig.json` paths mapping.
+
+*Note: Simplified mode does not support `package.json` imports maps yet.*
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "importConventions": [
+        {
+          "rule": "relative-internal-absolute-external",
+          "domains": ["src/utils/*", "src/components"],
+        }
+      ]
+    }
+  ]
+}
+```
+
+In this example all subdirectories of `src/utils` form a separate domains and there is additional `src/components` domain defined.
+
+## Detailed domains Configuration
+
+Use this when you need to explicitly define an alias for a specific path. This is necessary when the alias is not automatically resolvable by your build tool or TypeScript configuration.
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "importConventions": [
+        {
+          "rule": "relative-internal-absolute-external",
+          "domains": [
+            {
+              "path": "src/utils/ui",
+              "alias": "@ui-utils"
+            },
+            {
+              "path": "src/utils/server",
+              "alias": "@server-utils"
+            },
+            {
+              "path": "src/components",
+              "alias": "@design-system"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Options
+
+- `rule` (string): The type of convention rule to apply. Currently supports `relative-internal-absolute-external`.
+- `domains` (array): The domains to enforce conventions between. Use **one** style for the whole array - simplified and detailed cannot be mixed:
+    - **Simplified:** glob-pattern strings (e.g., `src/utils/*`), matched through your `tsconfig.json` paths.
+    - **Detailed:** objects, each with:
+        - `path` (string): The path to the domain.
+        - `alias` (string): The alias to use for absolute imports (e.g., `@ui`).
+- `autofix` (boolean): Whether to automatically fix import convention violations. Defaults to `false`.
+
+### Also referred as
+Consistent Import Conventions is also known as:
+- Import style enforcement
+- Import convention enforcement
+- Standardizing imports
+- Consistent imports

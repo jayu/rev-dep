@@ -1,0 +1,35 @@
+---
+description: "Compare rev-dep with knip, dependency-cruiser, depcheck, madge, dpdm, ts-prune, ts-unused-exports, unimported, skott, eslint-plugin-import, good-fences, sheriff and npm-check."
+title: Comparison with other tools
+sidebar_label: Overview
+---
+
+<head>
+  <title>Rev-dep vs knip, madge, depcheck, dependency-cruiser and more</title>
+</head>
+
+# Comparison with other tools
+
+How does rev-dep compare to the tools you may already use? Each page is an honest, side-by-side look at features, performance, and when to choose which.
+
+In one line: rev-dep runs the checks these tools do - and more - in a single fast Go-powered pass driven by one config. The honest trade-off: it does not render dependency-graph images, and it analyzes at the file/export/dependency level rather than at member or namespace granularity.
+
+## Comparisons
+
+| vs Rev-dep | the other tool's focus |
+| --- | --- |
+| [knip](./knip-vs-rev-dep.mdx) | unused files, exports, dependencies |
+| [dependency-cruiser](./dependency-cruiser-vs-rev-dep.mdx) | dependency rules, circular & orphan, visualization |
+| [depcheck](./depcheck-vs-rev-dep.mdx) | unused & missing dependencies |
+| [madge](./madge-vs-rev-dep.mdx) | circular dependencies, graph visualization |
+| [dpdm](./dpdm-vs-rev-dep.mdx) | circular dependencies, unused files |
+| [ts-prune](./ts-prune-vs-rev-dep.mdx) | unused exports |
+| [ts-unused-exports](./ts-unused-exports-vs-rev-dep.mdx) | unused exports |
+| [unimported](./unimported-vs-rev-dep.mdx) | unused files, unused & unresolved imports |
+| [skott](./skott-vs-rev-dep.mdx) | circular deps, unused files & deps, visualization |
+| [eslint-plugin-import](./eslint-plugin-import-vs-rev-dep.mdx) | import-graph ESLint rules |
+| [good-fences](./good-fences-vs-rev-dep.mdx) | directory import boundaries |
+| [sheriff](./sheriff-vs-rev-dep.mdx) | module boundaries & dependency rules |
+| [npm-check](./npm-check-vs-rev-dep.mdx) | unused dependencies, version updates |
+
+Ready to switch rather than compare? See the [migration guides](../migrating-from-other-tools/overview.mdx).

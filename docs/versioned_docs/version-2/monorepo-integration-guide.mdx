@@ -1,0 +1,315 @@
+---
+description: "Step-by-step guide to integrating rev-dep into a monorepo - generate a config, verify resolution, define entry points, and enable each check in a sensible order."
+title: Monorepo integration guide
+---
+
+# Monorepo integration guide
+
+This guide takes you from zero to a working rev-dep setup in a monorepo, one step at a time. The order matters: initial steps builds the foundation the next one relies on.
+
+> This guide assumes rev-dep is already installed. If not, see [Installation](./installation.mdx) and the [intro](./intro.mdx) first.
+> Working in a single workspace project? Use the [single workspace integration guide](./single-workspace-integration-guide.mdx) instead.
+
+The mental model is simple: rev-dep builds one dependency graph from your source files, and each check is a query against that graph. Most of the work is making sure the graph is accurate (steps 1-4); after that, enabling checks is quick.
+
+## 1. Generate the base config
+
+```bash
+rev-dep config init
+```
+
+Run at the **monorepo root**, this creates a root rule plus one rule per discovered workspace package. 
+
+It writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. See [config file structure](./config-based-checks/config-file-structure.mdx).
+
+> The examples below use the [compact detector syntax](./config-based-checks/config-file-structure.mdx#compact-detector-syntax): `"detector": true` switches a check on, and when a detector carries options the `enabled` flag is optional. Write `{ "enabled": true }` if you prefer the explicit form.
+
+### Rules: monorepo root vs per-package
+
+A **rule** is a scope - usually one workspace. Two levels are available, and you will use both:
+
+- **The root rule (`path: "."`)** sees the *whole* monorepo. Use it for checks that need cross-package context - most importantly orphan files and unused exports of **shared** packages.
+- **A per-package rule (eg. `path: "apps/web"`)** is scoped to one package (plus the packages it follows). Use it for package-local checks and for compiled apps, where not imported code is genuinely dead.
+
+Every check below can be placed at either level. The guidance per check notes where it belongs.
+
+> Note that field name `rule` in config file might be confusing, it's early stage naming mistake. It would be better to name it `workspace`, because each rule refers to different workspace. 
+
+### Following monorepo packages
+
+When a rule encounters an import of another workspace package, `followMonorepoPackages` decides whether rev-dep traces into that package's **source** (follow) or treats it as an external boundary (don't). Rules follow **all** packages by default.
+
+This matters for almost every check in a monorepo: follow the packages whose source is compiled by the consumer (just-in-time/shared packages), and leave pre-compiled packages unfollowed. See [Following monorepo packages](./other-concepts-and-features/following-monorepo-packages.mdx).
+
+### Node modules resolution
+
+Once you follow a package, its source brings in **its own** third-party imports. The top-level `nodeModulesResolution` option decides which `package.json` those imports are validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. Set it once; it applies to every rule.
+
+Configure it as an object and set `resolutionType` to one of:
+
+- `"entry-package"` (default) validates every import against the consuming rule's `package.json`. Use it when the consumer can resolve every dependency it pulls in (npm, classic yarn).
+- `"nearest-package"` validates each import against the `package.json` that owns the file it lives in. Use it when every package resolves only the dependencies it declares itself (pnpm's default layout).
+
+```jsonc
+{
+  "nodeModulesResolution": { "resolutionType": "nearest-package", "includeDevDepsFromRoot": false },
+  "rules": [ /* ... */ ]
+}
+```
+
+This is the form `rev-dep config init` generates.
+
+**If you use pnpm with its default layout, set `resolutionType: "nearest-package"`.** Otherwise a followed package's own declared dependencies get reported as `missing` against the consumer that doesn't declare them - a flood of false positives. In `nearest-package` mode each package is judged by its own `package.json`: a followed package that imports something it forgot to declare is correctly flagged (just as a strict pnpm install would break), while its properly-declared dependencies are left alone. Full details and per-check effects: [Node modules resolution](./other-concepts-and-features/node-modules-resolution.mdx).
+
+The object also accepts `includeDevDepsFromRoot` (default `false`). If your monorepo declares shared dev dependencies (linters, test runners, build tools, type packages) **once at the repo root** instead of in each package, set it to `true` so importing them from package code isn't reported as `missing` or `unresolved`. It is strictly opt-in because root-shared devDeps make dependency ownership less explicit - enable it only if your project deliberately follows that approach. See [Including root devDependencies](./other-concepts-and-features/node-modules-resolution.mdx#including-root-devdependencies-includedevdepsfromroot).
+
+> A bare string (e.g. `"nodeModulesResolution": "nearest-package"`) is also accepted as a shorthand for `resolutionType`, kept for backward compatibility - prefer the object form shown above.
+
+## 2. Run and (auto)fix
+
+```bash
+rev-dep config run                     # report (5 first issues per check)
+rev-dep config run --list-all-issues   # full report
+rev-dep config run --rules apps/web    # only selected rules/workspaces
+```
+
+Adopt checks incrementally - enable one, run it, resolve the findings, commit, repeat. That keeps CI noise manageable.
+
+**Autofix** needs two things together: the check must have `"autofix": true` in the config, **and** you must pass `--fix`:
+
+```bash
+rev-dep config run --fix           # apply fixes for autofix-enabled checks
+rev-dep config run --fix --recheck # apply, then re-validate
+```
+
+Only `unusedExportsDetection`, `orphanFilesDetection`, and `importConventions` support autofix. Details: [Running checks and autofix](./config-based-checks/running-checks-and-autofix.mdx).
+
+## 3. Verify resolution: unresolved imports
+
+Enable this **first**. It tells you whether rev-dep can parse and resolve your project the way your tooling does - the precondition for every other check.
+
+```jsonc
+{
+  "rules": [
+    { "path": ".", "unresolvedImportsDetection": true }
+  ]
+}
+```
+
+If it reports nothing, your imports parse and resolve cleanly - move on. If it reports imports you expected to resolve, work through the [unresolved imports troubleshooting guide](./troubleshooting/unresolved-imports-troubleshooting.mdx) before going further (common causes: unsupported aliases, condition names, asset extensions, gitignored files).
+
+> When investigating with the exploratory CLI in a monorepo, pass `--follow-monorepo-packages` - those commands do not follow by default, so cross-package imports look unresolved otherwise.
+
+Learn more about the [`unresolvedImportsDetection`](./config-based-checks/checks/unresolved-imports.mdx) check configuration.
+
+## 4. Define entry points
+
+Entry points are the roots of reachability - the foundation for orphan files, unused exports, and dev-dependency checks. Define them once per rule:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": "apps/web",
+      "prodEntryPoints": ["app/**/page.tsx", "pages/**", "server/index.ts"],
+      "devEntryPoints": ["**/*.test.*", "*.config.*", "scripts/**"],
+      "ignoreEntryPoints": ["app/legacy/oldDashboard.tsx"]
+    }
+  ]
+}
+```
+
+- [`prodEntryPoints`](./config-based-checks/entry-points-definition.mdx#kinds-of-entry-points) - real application roots (what ships).
+- [`devEntryPoints`](./config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points) - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
+- [`ignoreEntryPoints`](./config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points) - leftover-but-committed files you no longer use. Matching files are excluded from reporting: never flagged as orphan files, and their unused exports are suppressed.
+
+Keep the list honest and start narrow. See [entry points definition guide](./config-based-checks/entry-points-definition.mdx).
+
+> **Paths with brackets?** Entry-point patterns are globs, so a literal path containing `[ ]` or `{ }` - such as a Next.js dynamic route `pages/[clientId]/edit.tsx` - won't match unless you escape the brackets: `"pages/\\[clientId\\]/edit.tsx"`. See [Glob patterns](./other-concepts-and-features/glob-patterns.mdx).
+
+## 5. Node-module hygiene
+
+rev-dep checks dependency **declarations** against a `package.json` (it never scans `node_modules/`). The rule of thumb: **whoever compiles the code declares its dependencies**. Enable these on each package that owns a `package.json`.
+
+Which `package.json` is "whoever" depends on [`nodeModulesResolution`](#node-modules-resolution) from step 1 - the consuming rule's package (`entry-package`, default) or each file's own nearest package (`nearest-package`, for pnpm's default layout). Set that first, or the two checks below may report false positives.
+
+### Unused node modules
+
+Declared in `package.json` but never imported.
+
+```jsonc
+{
+  "unusedNodeModulesDetection": true
+}
+```
+
+Tooling-only packages (bundler plugins, CLIs) aren't imported by source and may look unused - point the detector at them with `pkgJsonFieldsWithBinaries` / `filesWithBinaries` / `filesWithModules` instead of disabling it.
+
+Learn more about the [`unusedNodeModulesDetection`](./config-based-checks/checks/unused-node-modules.mdx) check configuration.
+
+### Missing node modules
+
+Imported in code but not declared.
+
+```jsonc
+{
+  "missingNodeModulesDetection": true
+}
+```
+
+If you see false positives in a monorepo - usually `nodeModulesResolution` not set to `nearest-package` for a pnpm-style layout, a dependency declared in the wrong package, or following misconfigured - the [missing or unused dependency false positives](./troubleshooting/missing-or-unused-dependency-false-positives.mdx) troubleshooting guide explains how to fix them.
+
+Learn more about the [`missingNodeModulesDetection`](./config-based-checks/checks/missing-node-modules.mdx) check configuration.
+
+### Dev dependencies in production
+
+A follow-up to the above: flags `devDependencies` reachable from your production entry points (they would crash a production install). Needs `prodEntryPoints` from step 4.
+
+```jsonc
+{
+  "devDepsUsageOnProdDetection": {
+    // Optional: type-only imports are stripped from production builds, so a dev
+    // dependency imported only as a type is not a runtime risk. Opt in to skip them.
+    "ignoreTypeImports": true
+  }
+}
+```
+
+Learn more about the [`devDepsUsageOnProdDetection`](./config-based-checks/checks/dev-deps-on-prod.mdx) check configuration.
+
+## 6. Orphan files
+
+Files not reachable from any entry point - dead files left by refactors. Supports autofix (deletes the file).
+
+```jsonc
+{
+  "orphanFilesDetection": {
+    "autofix": true
+  }
+}
+```
+
+A useful pattern is a second detector that excludes test files from the graph, to surface utilities used only by tests:
+
+```jsonc
+{
+  "orphanFilesDetection": [
+    true,
+    {
+      "graphExclude": ["**/*.test.*"]
+    }
+  ]
+}
+```
+
+**Monorepo placement matters.** Enable it on **compiled apps** (their dead code is truly dead) and at the **root** to catch unused files in shared packages - but **not** scoped to a shared package on its own, where cross-package usage is invisible. If shared-package files are wrongly reported, the [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide explains the fix.
+
+Learn more about the [`orphanFilesDetection`](./config-based-checks/checks/orphan-files.mdx) check configuration.
+
+## 7. Unused exports
+
+Exported members never imported anywhere reachable. Enable it only once entry points are trustworthy - incomplete roots make live exports look dead. Supports autofix.
+
+```jsonc
+{
+  "unusedExportsDetection": {
+    "autofix": true
+  }
+}
+```
+
+Like orphan files, run it at the **root** for shared packages so cross-package usage is counted. To also catch app-local unused exports, enable it on the **compiled app** - but because the app follows shared source, its report will include shared-package exports; suppress those with an `ignoreFiles` pattern relative to the rule (e.g. `"ignoreFiles": ["../../packages/**"]`) and let the root rule own the shared findings. The [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide explains why unused exports leaks across packages while orphan files does not, and walks through this setup.
+
+Learn more about the [`unusedExportsDetection`](./config-based-checks/checks/unused-exports.mdx) check configuration.
+
+## 8. Circular dependencies
+
+A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime import cycles while tolerating existing type-only ones; `SCC` is the recommended algorithm.
+
+```jsonc
+{
+  "circularImportsDetection": {
+    "ignoreTypeImports": true,
+    "algorithm": "SCC"
+  }
+}
+```
+
+Learn more about the [`circularImportsDetection`](./config-based-checks/checks/circular-imports.mdx) check configuration.
+
+## 9. Restricted imports
+
+Block specific files/modules from being reachable from chosen entry points - e.g. keep server-only code out of client bundles. Entry-point driven; `entryPoints` does **not** fall back to rule-level entry points.
+
+```jsonc
+{
+  "restrictedImportsDetection": {
+    "entryPoints": ["app/**/page.tsx"],
+    "denyFiles": ["server/**"],
+    "denyModules": ["fs", "child_process"]
+  }
+}
+```
+
+Learn more about the [`restrictedImportsDetection`](./config-based-checks/checks/restricted-imports.mdx) check configuration.
+
+## 10. Module boundaries
+
+Enforce layer/feature separation by file-path patterns: files matching `pattern` may not import paths in `deny`. Ideal for monorepo package boundaries (e.g. mobile must not import web).
+
+```jsonc
+{
+  "moduleBoundaries": [
+    {
+      "name": "mobile-isolation",
+      "pattern": "apps/mobile/**",
+      "allow": ["apps/mobile/**", "packages/shared/**"]
+    }
+  ]
+}
+```
+
+Boundaries are path-to-path; restricted imports is reachability-from-entry-points.
+
+Learn more about the [`moduleBoundaries`](./config-based-checks/checks/module-boundaries.mdx) check configuration.
+
+## 11. Import conventions
+
+Enforce a consistent import style - relative within a domain, aliased across domains - so import shape alone reveals whether colocation is correct. Supports autofix.
+
+```jsonc
+{
+  "importConventions": [
+    {
+      "rule": "relative-internal-absolute-external",
+      "autofix": true,
+      "domains": [
+        {
+          "path": "src/utils/ui",
+          "alias": "@ui-utils"
+        },
+        {
+          "path": "src/utils/server",
+          "alias": "@server-utils"
+        },
+        {
+          "path": "src/components",
+          "alias": "@design-system"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Learn more about the [`importConventions`](./config-based-checks/checks/import-conventions.mdx) check configuration.
+
+## 12. Wire into CI
+
+`rev-dep config run` exits `0` when everything passes and `1` when any check fails, so a single step gates your pipeline:
+
+```bash
+rev-dep config run
+```
+
+Run it on every PR to keep the dependency graph clean against both human and AI-introduced regressions. For machine-readable results, see [output formats](./config-based-checks/output-formats.mdx).

@@ -45,9 +45,25 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl: 'https://github.com/jayu/rev-dep/blob/master/docs',
+          // v3 is the `current` version and is edited in place in `docs/`, so it
+          // keeps the unprefixed /docs/* URLs that are already indexed by search
+          // engines. v2 is a frozen snapshot served under /docs/2/*.
+          lastVersion: 'current',
+          versions: {
+            current: {label: '3.x', badge: true},
+            '2': {
+              label: '2.x',
+              path: '2',
+              banner: 'unmaintained',
+              // v2 pages are near-duplicates of the canonical /docs/* v3 pages.
+              // Keeping them out of the index avoids splitting ranking authority.
+              noIndex: true,
+            },
+          },
+          // Must be the function form: a static string would point the "edit this
+          // page" link on a v2 page at the v3 source file.
+          editUrl: ({versionDocsDirPath, docPath}) =>
+            `https://github.com/jayu/rev-dep/blob/master/docs/${versionDocsDirPath}/${docPath}`,
         },
         blog: {
           showReadingTime: true,
@@ -124,6 +140,7 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
+        {type: 'docsVersionDropdown', position: 'right'},
         {type: 'search', position: 'right'},
         // {to: '/blog', label: 'Blog', position: 'left'},
         {type:'html', position:'right', value:'<iframe src="https://ghbtns.com/github-btn.html?user=jayu&repo=rev-dep&type=star&count=true" frameborder="0" scrolling="0" width="90" height="20" title="GitHub" style="margin-top: 8px;"></iframe>'},

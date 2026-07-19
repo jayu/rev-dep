@@ -1,0 +1,44 @@
+---
+description: "dpdm vs rev-dep: compare circular-dependency and unused-file detection, performance and scope. rev-dep is a faster, config-driven alternative that covers more."
+title: dpdm vs Rev-dep
+sidebar_label: dpdm
+---
+
+<head>
+  <title>dpdm vs Rev-dep: features &amp; performance compared</title>
+</head>
+
+# dpdm vs Rev-dep
+
+[dpdm](https://github.com/acrazing/dpdm) is a static analyzer that detects circular dependencies and unused files. rev-dep covers both and folds them into one config alongside the rest of a dependency-hygiene suite.
+
+## At a glance
+
+| | dpdm | Rev-dep |
+| --- | --- | --- |
+| Primary focus | circular deps + unused files | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**up to 13x faster**) |
+| Circular dependencies | yes | yes |
+| Unused files | yes | yes |
+| Dependency tree output (JSON) | yes | no |
+| Graph image | no | no |
+| Unused exports / dependencies | no | yes |
+| Architecture rules | no | yes |
+
+## Where rev-dep is stronger
+
+- **One config for the whole suite** - on top of cycles and unused files, rev-dep adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), and [restricted imports](../config-based-checks/checks/restricted-imports.mdx).
+- **Speed** on large repos.
+- **Precise orphan detection** anchored to real entry points, not just "files no one imports".
+
+## Where dpdm may still fit
+
+dpdm prints and serializes the dependency **tree** directly. rev-dep exposes the graph through the [exploratory toolkit](../exploratory-toolkit/overview.mdx) and JSON output, which is similar, but if you script against dpdm's tree format specifically, that's a difference to weigh.
+
+## Which should you choose?
+
+For circular detection plus broader hygiene in CI, **rev-dep**. If you only need a quick circular-dependency tree dump, dpdm is a small, focused option.
+
+## Migrating
+
+See [Migrating from dpdm](../migrating-from-other-tools/migrating-from-dpdm.mdx).

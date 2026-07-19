@@ -1,0 +1,91 @@
+---
+description: "Why unused exports - but not orphan files - leak from shared packages into a compiled app's report, and the two setups that fix it: root-level detection plus an ignoreFiles pattern."
+title: Orphan files and unused exports in shared packages
+---
+
+# Orphan files and unused exports in shared packages
+
+Both `orphanFilesDetection` and `unusedExportsDetection` answer a reachability question - "is this file reachable from an entry point?" / "is this export imported anywhere?". In a monorepo a **shared package** exists to be consumed by *other* packages, so most of its files and exports are used across package boundaries, not inside the shared package itself.
+
+Two different situations over-report that cross-package code, and they behave differently:
+
+- A check **scoped to the shared package itself** - cross-package usage is invisible, so almost everything looks dead. This affects both checks equally.
+- A check on a **compiled app that follows the shared package** - here orphan files behaves correctly, but unused exports leaks shared-package findings. The reason for the difference is explained below, and it shapes the recommended setup.
+
+## Why a shared-package-scoped rule over-reports
+
+A rule only sees its own package's graph (plus the packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx)). A shared package has very few real entry points of its own - an app's `index.ts` lives in the app, not in `packages/shared`. So when a check runs against `packages/shared` in isolation, the files and exports that apps import look like they have no consumer.
+
+The fix is to **not** enable these checks scoped to a shared package, and instead run them at the monorepo **root** (`path: "."`). There rev-dep builds the whole-monorepo graph and, with workspace-package following on (the default), resolves cross-package imports into the shared source. A shared export imported by any app then counts as used; only code used by nobody *anywhere* is reported.
+
+## Orphan files vs. unused exports on a compiled app
+
+You also want these checks on the **compiled apps** themselves, to catch app-local dead code. When an app follows its shared packages (the default), the two checks diverge:
+
+- **Orphan files does not leak.** The app's graph is built by following imports outward from its entry points. A *truly dead* shared file has no link pointing to it, so it is never discovered - it simply never enters the graph, and a file that was never discovered cannot be reported as anything. So app-level orphan detection only ever surfaces app-local dead files. No suppression needed.
+- **Unused exports does leak.** This check works on the exported members of every file that is *in the graph*, and a shared file the app imports **is** in the graph. If the app uses only one of that file's three exports, the other two look unused from this app's point of view - even though another app may import them. So an app rule reports unused exports that actually belong to shared packages.
+
+That asymmetry is the whole reason the two checks need different handling on a compiled app.
+
+## Suppressing shared-package unused exports on a compiled app
+
+Add an `ignoreFiles` pattern to the app's `unusedExportsDetection` that points at the shared packages. `ignoreFiles` patterns are matched relative to the rule's `path`, so from `apps/web` you climb out of the app directory to reach `packages`:
+
+```jsonc
+{
+  "path": "apps/web",
+  "unusedExportsDetection": {
+    "enabled": true,
+    "ignoreFiles": ["../../packages/**"]
+  }
+}
+```
+
+Now the app rule reports only its own unused exports, and the real signal for shared-package exports comes from the root rule, which counts cross-package usage correctly. Orphan detection needs no equivalent ignore - it never leaked.
+
+## Why the root rule doesn't make app-level detection redundant
+
+It is tempting to run everything at the root with broad entry points - `prodEntryPoints: ["apps/web/**"]` - and skip per-app rules. That shortcut works for **shared-package** dead code, but it cannot find dead code **inside an app**: when every file under `apps/web/**` is marked as an entry point, every app file is considered a root, so none is ever unreachable and no export is ever unused. App-internal orphan files and unused exports become invisible.
+
+So the two scopes do different jobs:
+
+- **Root rule, broad app entry points** - catches dead code in **shared packages**, reached transitively through followed source.
+- **App rule, the app's real (narrow) entry points** - catches dead code **inside the app**. Orphan detection here is clean; unused-exports here needs the `ignoreFiles` pattern above to stay out of the shared packages.
+
+## Example
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["apps/web/**", "apps/mobile/**"],
+      "orphanFilesDetection": { "enabled": true, "autofix": true },
+      "unusedExportsDetection": { "enabled": true, "autofix": true }
+    },
+    {
+      "path": "apps/web",
+      "prodEntryPoints": ["**/pages/**", "**/api/**", "server/src/index.ts"],
+      "devEntryPoints": ["*.config.*", "**/*.test.*", "**/*.stories.*"],
+      "orphanFilesDetection": { "enabled": true },
+      "unusedExportsDetection": {
+        "enabled": true,
+        "ignoreFiles": ["../../packages/**"]
+      }
+    },
+    {
+      "path": "packages/shared",
+      "circularImportsDetection": { "enabled": true }
+    }
+  ]
+}
+```
+
+The root rule's broad entry points make every app file reachable, so it reports only dead **shared** code. The `apps/web` rule uses the app's real entry points to surface app-local orphans and unused exports, while `ignoreFiles` keeps its unused-exports report out of the shared packages. `packages/shared` runs neither check - its orphan files and unused exports are the root rule's job.
+
+## Notes
+
+- **Autofix.** On the root rule, `autofix` deletes dead shared files and strips unused shared exports once you trust the entry-point lists; on the app rule it does the same for app-local code.
+- **Adjust the `ignoreFiles` depth.** The pattern is relative to the rule's `path`, so the number of `../` segments depends on how deeply the app is nested (`apps/web` → `../../packages/**`).
+
+See [orphan files detection](../config-based-checks/checks/orphan-files.mdx), [unused exports detection](../config-based-checks/checks/unused-exports.mdx), and [entry points](../config-based-checks/entry-points-definition.mdx) for the per-check details.

@@ -1,0 +1,41 @@
+---
+description: "Sheriff vs rev-dep: compare module boundaries, dependency rules and encapsulation. rev-dep enforces boundaries with path patterns and adds a full hygiene suite."
+title: Sheriff vs Rev-dep
+sidebar_label: sheriff
+---
+
+<head>
+  <title>Sheriff vs Rev-dep: features compared</title>
+</head>
+
+# Sheriff vs Rev-dep
+
+[Sheriff](https://github.com/softarc-consulting/sheriff) enforces module boundaries and dependency rules using tags and `depRules`, and can require barrel-file (`index.ts`) encapsulation. rev-dep enforces the same boundaries with path patterns and adds the rest of a hygiene suite - but it does not enforce barrel encapsulation.
+
+## At a glance
+
+| | Sheriff | Rev-dep |
+| --- | --- | --- |
+| Primary focus | module boundaries + encapsulation | dependency hygiene + architecture |
+| Runtime | Node / ESLint | Go - single parallel pass (**faster**) |
+| Boundary model | tags + `depRules` | path patterns ([module boundaries](../config-based-checks/checks/module-boundaries.mdx)) |
+| Barrel / public-API encapsulation | yes (`index.ts`) | partial (deny deep imports) |
+| Circular / unused exports / dependencies | no | yes |
+
+## Where rev-dep is stronger
+
+- **Broader** - boundaries *and* [circular imports](../config-based-checks/checks/circular-imports.mdx), [unused exports](../config-based-checks/checks/unused-exports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx), and [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx).
+- **Speed** and CI-ready exit codes.
+
+## Where Sheriff may still fit
+
+Sheriff's **barrel-file encapsulation** - requiring a module be imported only through its public `index.ts` - is something rev-dep can only approximate with [restricted imports](../config-based-checks/checks/restricted-imports.mdx) `denyFiles`. Its **tag-based** rules also scale neatly for many similar modules. If strict encapsulation is central to your architecture, keep Sheriff.
+
+## Which should you choose?
+
+- Need enforced public-API/barrel encapsulation and tag-based rules? **Sheriff.**
+- Want path-pattern boundaries plus the rest of a hygiene suite in one fast pass? **rev-dep.**
+
+## Migrating
+
+See [Migrating from Sheriff](../migrating-from-other-tools/migrating-from-sheriff.mdx).

@@ -1,0 +1,41 @@
+---
+description: "An overview of rev-dep config-based checks, highlighting high performance and the ability to run multiple detectors in a single, parallelized pass."
+title: Overview
+---
+
+# Config-Based Checks
+
+Execution of checks based on a configuration file is designed to optimize the speed of running multiple checks for many workspaces at once.
+
+All checks are executed in a single pass, each file is read and parsed only once, which allows for significant resource savings.
+
+Additionally set of detectors for each rule (typically workspace) is executed in parallel and particular detectors within each rule are also executed in parallel utilizing all available CPU cores in optimal way.
+
+Adding more detectors usually increases overall execution time only by few milliseconds, which makes **rev-dep** an excellent choice for huge monorepos.
+
+<p align="center">
+<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output" width="400"/>
+</p>
+
+## Checks overview
+
+Available checks are:
+
+- `moduleBoundaries` - enforce architecture boundaries between modules.
+- `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
+- `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
+- `restrictedDirectImportersDetection` - constrain which files may directly import a set of files/modules (non-transitive).
+- `importConventions` - enforce import style conventions (offers autofix).
+- `circularImportsDetection` - detect circular imports.
+- `orphanFilesDetection` - detect dead/orphan files (offers autofix).
+- `unusedExportsDetection` - detect exports that are never used (offers autofix).
+- `unusedNodeModulesDetection` - detect dependencies declared but not used.
+- `missingNodeModulesDetection` - detect imports missing from package json.
+- `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
+- `unresolvedImportsDetection` - detect unresolved import requests.
+
+## Next steps
+
+New to config-based checks? Follow a step-by-step setup with the 
+- [Monorepo integration guide](../monorepo-integration-guide.mdx) 
+- [Single-workspace integration guide](../single-workspace-integration-guide.mdx).

@@ -1,0 +1,41 @@
+---
+description: "Migrate to rev-dep from knip, dependency-cruiser, depcheck, madge, dpdm, ts-prune, ts-unused-exports, unimported, skott, eslint-plugin-import, good-fences, sheriff, or npm-check."
+title: Migrating from other tools
+sidebar_label: Overview
+---
+
+<head>
+  <title>Migrate to Rev-dep from knip, madge, depcheck and more</title>
+</head>
+
+# Migrating from other tools
+
+rev-dep overlaps with a range of existing JavaScript/TypeScript analysis tools. If you already use one of them, these guides show exactly how its features and config map onto rev-dep.
+
+## Why migrate
+
+- **Performance.** rev-dep is written in Go and runs every check in a single parallel pass, typically much faster than Node-based tools on large codebases.
+- **Consolidation.** Most tools below do one thing - circular deps, or unused exports, or unused dependencies. rev-dep covers them in one config, so you can replace several tools with one.
+- **More capability.** On top of the unused/graph checks, rev-dep adds architecture governance most of these tools lack: [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [import conventions](../config-based-checks/checks/import-conventions.mdx), and [dev-dependencies-in-production](../config-based-checks/checks/dev-deps-on-prod.mdx).
+
+Each guide is honest about what rev-dep does **not** replace (for example graph visualization, or member-level unused detection), so you can decide whether to migrate fully or run rev-dep alongside a tool for a feature it does not cover.
+
+## Guides
+
+| From | rev-dep replaces it for |
+| --- | --- |
+| [knip](./migrating-from-knip.mdx) | unused files, exports, dependencies, unlisted & unresolved imports |
+| [dependency-cruiser](./migrating-from-dependency-cruiser.mdx) | forbidden-dependency rules, circular deps, orphan files |
+| [depcheck](./migrating-from-depcheck.mdx) | unused & missing dependencies |
+| [madge](./migrating-from-madge.mdx) | circular dependencies, orphan files |
+| [dpdm](./migrating-from-dpdm.mdx) | circular dependencies |
+| [ts-prune](./migrating-from-ts-prune.mdx) | unused exports |
+| [ts-unused-exports](./migrating-from-ts-unused-exports.mdx) | unused exports |
+| [unimported](./migrating-from-unimported.mdx) | unused files, unused & unresolved imports |
+| [skott](./migrating-from-skott.mdx) | circular deps, third-party usage, orphan files |
+| [eslint-plugin-import](./migrating-from-eslint-plugin-import.mdx) | cycles, unused/unresolved/extraneous imports, restricted paths |
+| [good-fences](./migrating-from-good-fences.mdx) | directory import boundaries |
+| [sheriff](./migrating-from-sheriff.mdx) | module boundaries & dependency rules |
+| [npm-check](./migrating-from-npm-check.mdx) | unused dependencies |
+
+New to rev-dep? Start with the [monorepo integration guide](../monorepo-integration-guide.mdx).

@@ -1,0 +1,105 @@
+---
+description: "Why rev-dep reports unresolved imports - missing files, unsupported aliases, condition names, asset extensions, gitignore, monorepo following, and parser bugs - with a fix for each."
+title: Unresolved imports troubleshooting
+---
+
+# Unresolved imports troubleshooting
+
+An import is **unresolved** when rev-dep cannot map the request to a target it understands - a project file, a recognized package, or a known asset. This guide walks the common causes, each with its fix. Work top-down.
+
+## First, in a monorepo: follow workspace packages
+
+Config rules follow all workspace packages **by default**, but the exploratory CLI commands follow **none** unless told to. If you investigate with `rev-dep unresolved`, `resolve`, `files`, etc. in a monorepo, pass `--follow-monorepo-packages` - otherwise cross-package imports look unresolved even when they are fine.
+
+```bash
+rev-dep unresolved --follow-monorepo-packages
+rev-dep unresolved --follow-monorepo-packages @acme/shared,@acme/ui
+```
+
+See [Following monorepo packages](../other-concepts-and-features/following-monorepo-packages.mdx).
+
+## See exactly what rev-dep parsed
+
+Before changing config, confirm rev-dep parsed the import the way you expect:
+
+```bash
+rev-dep debug parse-file --file src/suspect.ts
+```
+
+Each dependency shows its raw `request` and resolved `id` (empty `id` = unresolved). If the import is **missing from the output** or its `request` is wrong, the parser mis-read the file - that is a bug, not a config issue. Report it with a minimal reproduction. See [debug commands](../exploratory-toolkit/debug.mdx).
+
+## Cause: the file does not exist
+
+The most common cause is the simplest: a typo, a wrong relative path, a renamed or deleted file, or wrong path casing (which "works" on case-insensitive file systems but not in CI).
+
+**Fix:** correct the path or restore the file. `debug parse-file` shows the exact `request` rev-dep tried to resolve.
+
+## Cause: the alias is not in a supported form
+
+rev-dep resolves aliases through **tsconfig `paths`** and **package.json `imports`/`exports`** maps only. Bundler-specific aliases (webpack `resolve.alias`, Vite `resolve.alias`) are not read unless they are also declared in `tsconfig.json` or `package.json`.
+
+Two tsconfig caveats matter here:
+
+- only the **first** target of a `paths` array is used (TypeScript allows several)
+- alias targets must be **relative** paths; non-relative ones are skipped
+
+**Fix:** declare the alias in `tsconfig.json` paths or a package map, and make sure rev-dep reads the right config (`--tsconfig-json` / `--package-json`, or the rule's `path`). 
+
+See also [Module resolution and path aliases](../other-concepts-and-features/module-resolution-and-path-aliases.mdx).
+
+## Cause: wrong condition names
+
+`exports`/`imports` maps can resolve to different targets per condition. If the path you need lives under a non-default condition, rev-dep won't find it. The `default` condition is always honored; pass any others your runtime uses.
+
+```bash
+rev-dep unresolved --condition-names node,import
+```
+
+```jsonc
+{ "conditionNames": ["node", "import"] }
+```
+
+## Cause: unsupported asset extension
+
+An import of a non-code asset your bundler handles (`.glb`, `.mp3`, `.wasm`, …) has no source to resolve to, so it is reported unresolved. Register the extension so rev-dep treats it as a resolvable asset.
+
+```bash
+rev-dep unresolved --custom-asset-extensions glb,mp3,wasm
+```
+
+```jsonc
+{ "customAssetExtensions": ["glb", "mp3", "wasm"] }
+```
+
+Note: this only covers *assets*. Parsed source files are a fixed set (the JS/TS family plus `.vue`/`.svelte`); you cannot register new source extensions. See [Supported file types](../other-concepts-and-features/supported-file-types.mdx).
+
+## Cause: the target file is gitignored
+
+A file excluded by `.gitignore` or `ignoreFiles` is never discovered, so imports pointing at it cannot resolve. This often hits generated files committed under `dist/` or `build/`.
+
+**Fix:** bring the needed files back into discovery with `processIgnoredFiles` (config) or `--process-ignored-files` (CLI).
+
+```bash
+rev-dep unresolved --process-ignored-files 'dist/**/*.generated.ts'
+```
+
+See [Ignoring files](../other-concepts-and-features/ignoring-files.mdx).
+
+## Cause: workspace-package following is off or too narrow
+
+If the import targets another workspace package and you want it traced into source, that package must be followed. Config follows all by default; the CLI needs `--follow-monorepo-packages`; an array follows only the packages you list.
+
+Behavior when **not** followed:
+
+- if the package is declared as a dependency, rev-dep treats it as an external node module (resolved, but not traced into source)
+- if it is neither declared nor followed, the import is **unresolved**
+
+**Fix:** enable following on the rule/command, or add the package to the follow list.
+
+## Cause: it is actually an undeclared npm package
+
+If the request is a bare package name (`some-pkg`, `@scope/pkg`) that is not installed or declared in the relevant `package.json`, that is a **missing dependency**, not a path problem. See [Missing or unused dependency false positives](./missing-or-unused-dependency-false-positives.mdx).
+
+## Suppressing a known, intentional case
+
+When an import is genuinely unresolvable but expected (a virtual module, a generated path you don't commit), suppress just that finding instead of disabling the check - with `ignore`, `ignoreFiles`, or `ignoreImports`. See [the unresolved imports check](../config-based-checks/checks/unresolved-imports.mdx) and [Ignoring files](../other-concepts-and-features/ignoring-files.mdx).

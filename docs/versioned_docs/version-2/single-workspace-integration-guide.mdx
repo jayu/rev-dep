@@ -1,0 +1,264 @@
+---
+description: "Step-by-step guide to integrating rev-dep into a single-package project - generate a config, verify resolution, define entry points, and enable each check in order."
+title: Single-workspace integration guide
+---
+
+# Single-workspace integration guide
+
+This guide takes you from zero to a working rev-dep setup in a single-package project, one step at a time. The order matters: each step builds the foundation the next one relies on.
+
+> This guide assumes rev-dep is already installed. If not, see [Installation](./installation.mdx) and the [intro](./intro.mdx) first. 
+> Working in a monorepo? Use the [monorepo integration guide](./monorepo-integration-guide.mdx) instead.
+
+The mental model is simple: rev-dep builds one dependency graph from your source files, and each check is a query against that graph. Most of the work is making sure the graph is accurate (steps 1-4); after that, enabling checks is quick.
+
+## 1. Generate the base config
+
+```bash
+rev-dep config init
+```
+
+Run inside your project, this creates a single rule with `path: "."` and writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. A **rule** is a scope; in a single-package project you have just one, and every check below goes inside it. See [config file structure](./config-based-checks/config-file-structure.mdx).
+
+> The examples below use the [compact detector syntax](./config-based-checks/config-file-structure.mdx#compact-detector-syntax): `"detector": true` switches a check on, and when a detector carries options the `enabled` flag is optional. Write `{ "enabled": true }` if you prefer the explicit form.
+
+## 2. Run and (auto)fix
+
+```bash
+rev-dep config run                    # report (first issues per check)
+rev-dep config run --list-all-issues  # full report
+```
+
+Adopt checks incrementally - enable one, run it, resolve the findings, commit, repeat. That keeps CI noise manageable.
+
+**Autofix** needs two things together: the check must have `"autofix": true` in the config, **and** you must pass `--fix`:
+
+```bash
+rev-dep config run --fix           # apply fixes for autofix-enabled checks
+rev-dep config run --fix --recheck # apply, then re-validate
+```
+
+Only `unusedExportsDetection`, `orphanFilesDetection`, and `importConventions` support autofix. Details: [Running checks and autofix](./config-based-checks/running-checks-and-autofix.mdx).
+
+## 3. Verify resolution: unresolved imports
+
+Enable this **first**. It tells you whether rev-dep can parse and resolve your project the way your tooling does - the precondition for every other check.
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "unresolvedImportsDetection": true
+    }
+  ]
+}
+```
+
+If it reports nothing, your imports parse and resolve cleanly - move on. If it reports imports you expected to resolve, work through the [unresolved imports troubleshooting guide](./troubleshooting/unresolved-imports-troubleshooting.mdx) before going further (common causes: unsupported aliases, condition names, asset extensions, or gitignored files).
+
+Learn more about the [`unresolvedImportsDetection`](./config-based-checks/checks/unresolved-imports.mdx) check configuration.
+
+## 4. Define entry points
+
+Entry points are the roots of reachability - the foundation for orphan files, unused exports, and dev-dependency checks.
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+      "devEntryPoints": ["**/*.test.*", "*.config.*", "scripts/**"],
+      "ignoreEntryPoints": ["src/legacy/oldDashboard.tsx"]
+    }
+  ]
+}
+```
+
+- [`prodEntryPoints`](./config-based-checks/entry-points-definition.mdx#kinds-of-entry-points) - real application roots (what ships).
+- [`devEntryPoints`](./config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points) - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
+- [`ignoreEntryPoints`](./config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points) - leftover-but-committed files you no longer use. Matching files are excluded from reporting: never flagged as orphan files, and their unused exports are suppressed.
+
+Keep the list honest and start narrow. See [entry points](./config-based-checks/entry-points-definition.mdx).
+
+> **Paths with brackets?** Entry-point patterns are globs, so a literal path containing `[ ]` or `{ }` - such as a Next.js dynamic route `pages/[clientId]/edit.tsx` - won't match unless you escape the brackets: `"pages/\\[clientId\\]/edit.tsx"`. See [Glob patterns](./other-concepts-and-features/glob-patterns.mdx).
+
+## 5. Node-module hygiene
+
+rev-dep checks dependency **declarations** in your `package.json` (it never scans `node_modules/`): a package is flagged if it's declared but unused, or imported but undeclared.
+
+### Unused node modules
+
+Declared in `package.json` but never imported.
+
+```jsonc
+{
+  "unusedNodeModulesDetection": true
+}
+```
+
+Tooling-only packages (bundler plugins, CLIs) aren't imported by source and may look unused - point the detector at them with `pkgJsonFieldsWithBinaries` / `filesWithBinaries` / `filesWithModules` instead of disabling it.
+
+Learn more about the [`unusedNodeModulesDetection`](./config-based-checks/checks/unused-node-modules.mdx) check configuration.
+
+### Missing node modules
+
+Imported in code but not declared.
+
+```jsonc
+{
+  "missingNodeModulesDetection": true
+}
+```
+
+Learn more about the [`missingNodeModulesDetection`](./config-based-checks/checks/missing-node-modules.mdx) check configuration.
+
+### Dev dependencies in production
+
+A follow-up to the above: flags `devDependencies` reachable from your production entry points (they would crash a production install). Needs `prodEntryPoints` from step 4.
+
+```jsonc
+{
+  "devDepsUsageOnProdDetection": {
+    // Optional: type-only imports are stripped from production builds, so a dev
+    // dependency imported only as a type is not a runtime risk. Opt in to skip them.
+    "ignoreTypeImports": true
+  }
+}
+```
+
+Learn more about the [`devDepsUsageOnProdDetection`](./config-based-checks/checks/dev-deps-on-prod.mdx) check configuration.
+
+## 6. Orphan files
+
+Files not reachable from any entry point - dead files left by refactors. Supports autofix (deletes the file).
+
+```jsonc
+{
+  "orphanFilesDetection": {
+    "autofix": true
+  }
+}
+```
+
+A useful pattern is a second detector that excludes test files from the graph, to surface utilities used only by tests:
+
+```jsonc
+{
+  "orphanFilesDetection": [
+    true,
+    {
+      "graphExclude": ["**/*.test.*"]
+    }
+  ]
+}
+```
+
+Learn more about the [`orphanFilesDetection`](./config-based-checks/checks/orphan-files.mdx) check configuration.
+
+## 7. Unused exports
+
+Exported members never imported anywhere reachable. Enable it only once entry points are trustworthy - incomplete roots make live exports look dead. Supports autofix.
+
+```jsonc
+{
+  "unusedExportsDetection": {
+    "autofix": true
+  }
+}
+```
+
+Learn more about the [`unusedExportsDetection`](./config-based-checks/checks/unused-exports.mdx) check configuration.
+
+## 8. Circular dependencies
+
+A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime cycles while tolerating existing type-only ones; `SCC` is the recommended algorithm.
+
+```jsonc
+{
+  "circularImportsDetection": {
+    "ignoreTypeImports": true,
+    "algorithm": "SCC"
+  }
+}
+```
+
+Learn more about the [`circularImportsDetection`](./config-based-checks/checks/circular-imports.mdx) check configuration.
+
+## 9. Restricted imports
+
+Block specific files/modules from being reachable from chosen entry points - e.g. keep server-only code out of client bundles. Entry-point driven; `entryPoints` does **not** fall back to rule-level entry points.
+
+```jsonc
+{
+  "restrictedImportsDetection": {
+    "entryPoints": ["src/pages/**/*.tsx"],
+    "denyFiles": ["src/server/**"],
+    "denyModules": ["fs", "child_process"]
+  }
+}
+```
+
+Learn more about the [`restrictedImportsDetection`](./config-based-checks/checks/restricted-imports.mdx) check configuration.
+
+## 10. Module boundaries
+
+Enforce layer/feature separation by file-path patterns: files matching `pattern` may not import paths in `deny`. Ideal for keeping UI free of API internals, or isolating features.
+
+```jsonc
+{
+  "moduleBoundaries": [
+    {
+      "name": "ui-not-to-api",
+      "pattern": "src/ui/**",
+      "deny": ["src/api/**"]
+    }
+  ]
+}
+```
+
+Boundaries are path-to-path; restricted imports is reachability-from-entry-points.
+
+Learn more about the [`moduleBoundaries`](./config-based-checks/checks/module-boundaries.mdx) check configuration.
+
+## 11. Import conventions
+
+Enforce a consistent import style - relative within a domain, aliased across domains - so import shape alone reveals whether colocation is correct. Supports autofix.
+
+```jsonc
+{
+  "importConventions": [
+    {
+      "rule": "relative-internal-absolute-external",
+      "autofix": true,
+      "domains": [
+        {
+          "path": "src/utils/ui",
+          "alias": "@ui-utils"
+        },
+        {
+          "path": "src/utils/server",
+          "alias": "@server-utils"
+        },
+        {
+          "path": "src/components",
+          "alias": "@design-system"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Learn more about the [`importConventions`](./config-based-checks/checks/import-conventions.mdx) check configuration.
+
+## 12. Wire into CI
+
+`rev-dep config run` exits `0` when everything passes and `1` when any check fails, so a single step gates your pipeline:
+
+```bash
+rev-dep config run
+```
+
+Run it on every PR to keep the dependency graph clean against both human and AI-introduced regressions. For machine-readable results, see [output formats](./config-based-checks/output-formats.mdx).

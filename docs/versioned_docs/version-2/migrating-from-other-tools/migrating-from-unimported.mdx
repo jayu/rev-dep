@@ -1,0 +1,95 @@
+---
+description: "Migrate from unimported to rev-dep: map unused files, unused dependencies and unresolved imports onto rev-dep's checks in a single fast pass."
+title: Migrating from unimported
+sidebar_label: unimported
+---
+
+<head>
+  <title>unimported alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from unimported
+
+[unimported](https://github.com/smeijer/unimported) reports dangling files, unused dependencies, and unresolved imports. rev-dep covers all three and folds them into one config with the rest of its checks.
+
+## Why migrate
+
+- **unimported is archived.** It is no longer maintained and its README points elsewhere - so moving off it is overdue.
+- **Speed and a single pass.** rev-dep is Go-based - **faster** on large repos.
+- **More checks.** On top of unimported's three, rev-dep adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [missing dependencies](../config-based-checks/checks/missing-node-modules.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), and architecture rules.
+
+## What carries over, what changes
+
+- **Covered well:** unimported (orphan) files, unused dependencies, unresolved imports.
+- **Entry points.** unimported derives entry files (or you set `entry`); rev-dep uses `prodEntryPoints`/`devEntryPoints` the same way to anchor reachability.
+- **Autofix.** unimported's `--fix` removes dangling files; rev-dep's [`orphanFilesDetection` autofix](../config-based-checks/checks/orphan-files.mdx) does the same under `config run --fix`.
+
+## Feature mapping
+
+| unimported | rev-dep |
+| --- | --- |
+| unimported files | [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) |
+| unused dependencies | [`unusedNodeModulesDetection`](../config-based-checks/checks/unused-node-modules.mdx) |
+| unresolved imports | [`unresolvedImportsDetection`](../config-based-checks/checks/unresolved-imports.mdx) |
+| `entry` | `prodEntryPoints` / `devEntryPoints` |
+| `ignoreUnimported` | orphan `validEntryPoints` / `ignoreEntryPoints` |
+| `ignoreUnused` | `excludeModules` |
+| `ignoreUnresolved` | `ignoreImports` on [`unresolvedImportsDetection`](../config-based-checks/checks/unresolved-imports.mdx) |
+| `ignorePatterns` | `ignoreFiles` |
+| `aliases` | `tsconfig.json` `paths` (read automatically) |
+| `--fix` | `config run --fix` (orphan files) |
+
+## Translating your config
+
+A `.unimportedrc.json`:
+
+```json
+{
+  "entry": ["src/index.ts"],
+  "ignorePatterns": ["**/*.stories.tsx"],
+  "ignoreUnused": ["husky"],
+  "ignoreUnresolved": ["virtual:*"]
+}
+```
+
+becomes a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "ignoreFiles": ["**/*.stories.tsx"],
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/index.ts"],
+      "unresolvedImportsDetection": {
+        "enabled": true,
+        "ignoreImports": ["virtual:*"]
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "excludeModules": ["husky"]
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "autofix": true
+      }
+    }
+  ]
+}
+```
+
+## Running it
+
+```bash
+# unimported
+npx unimported
+
+# rev-dep
+rev-dep config run
+rev-dep config run --fix   # removes dangling files
+```
+
+## Next steps
+
+- Verify resolution first with [`unresolvedImportsDetection`](../config-based-checks/checks/unresolved-imports.mdx) - see [unresolved imports troubleshooting](../troubleshooting/unresolved-imports-troubleshooting.mdx).
+- In monorepos, run orphan-file detection at the root: [orphan files and unused exports in shared packages](../troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx).

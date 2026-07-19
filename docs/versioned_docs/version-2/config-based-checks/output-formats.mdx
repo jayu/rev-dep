@@ -1,0 +1,53 @@
+---
+description: "Explore the different output formats available in rev-dep cli, including human-readable, JSON, and issues-list formats for local use and CI integration."
+title: Output formats
+---
+
+# Output formats
+
+By default, `rev-dep config run` prints human-readable output for local use.
+
+It truncates the list of displayed issues to up to 5 per detector.
+
+```bash
+rev-dep config run
+```
+
+If you will to list all issues without truncation, use:
+
+```bash
+rev-dep config run --list-all-issues
+```
+
+## JSON output
+
+For CI integrations and machine consumers, use:
+
+```bash
+rev-dep config run --format json
+```
+
+- returns all issues, not the usual truncated view
+- includes overall failure state
+- includes rule-level and check-level results
+- includes fix summary counts
+- includes issue locations where rev-dep can resolve them from the analyzed tree
+
+If you are consuming the JSON programmatically, validate against the published schema in `output-schema/1.1.schema.json` in the repository (the `version` field in the output tells you which schema applies).
+
+## Issues-list output
+
+For a compact, grep-friendly text view, use:
+
+```bash
+rev-dep config run --format issues-list
+```
+
+This groups issues by type and prints location-oriented output.
+
+If no issues are found, it prints `No issues found`
+
+## Exit code
+
+- `0` when all enabled checks pass
+- `1` when failures exist

@@ -1,0 +1,159 @@
+---
+title: Enforcing Module Boundaries in Monorepos
+description: Enforce architectural constraints and dependency boundaries in monorepos by preventing files in certain directories from importing files in forbidden directories, ensuring clean layer separation and preventing spaghetti dependencies.
+---
+
+# Module boundaries
+
+`moduleBoundaries` enforces architectural constraints by preventing files in certain directories (or patterns) from importing files in other forbidden directories.
+
+## What this check does
+
+The check looks at files matching a specific `pattern` and analyzes their import statements. If any of these imports match a pattern listed in the `deny` list, a violation is reported. The `allow` list works the opposite way - as a **whitelist**: when it is set, any import that is *not* matched by `allow` is reported. `deny` is evaluated first, so when an import matches both lists the `deny` result takes precedence.
+
+## Why it is important
+
+Maintaining clear boundaries is crucial for the long-scale health of a codebase:
+
+- **Architectural Integrity:** It prevents "spaghetti dependencies" where any part of the system can import any other part, leading to an unmanageable dependency graph.
+- **Layer Separation:** It ensures that higher-level layers (like UI) cannot depend on lower-level implementation details (like database internals) that should be hidden.
+- **Feature Isolation:** It helps maintain the independence of features or packages, making them easier to test, refont, or even extract into separate repositories.
+- **Monorepo Governance:** It is highly effective for enforcing boundaries between monorepo packages, such as preventing a mobile app package from accidentally importing server-side logic.
+
+It's especially important in an increasingly agentic development landscape, preventing AI agents from introducing structural regressions or violating design principles they may not be contextually aware of.
+
+## Module Boundaries vs. Restricted Imports
+
+It is important to distinguish `moduleBoundaries` from [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx).
+
+- **`moduleBoundaries`** is centered on **colocation and patterns**. It checks the relationship between files based on their paths: "If a file matching pattern A imports a file matching pattern B, it is a violation." It works on a file-to-file level.
+- **`restrictedImports`** is centered on **reachability and entry points**. It starts from a set of defined entry points and traces the dependency graph, looking if any unwanted file path path is imported transitively. It works on an dependency graph level.
+
+## Configuration
+
+Below is an example of how `moduleBoundaries` fits within the `rules` array. The first rule uses `deny` as a blocklist; the second uses `allow` as a whitelist:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "moduleBoundaries": [
+        {
+          "name": "ui-cannot-import-api",
+          "pattern": "src/ui/**",
+          "deny": ["src/api/**"]
+        },
+        {
+          "name": "auth-allowlist",
+          "pattern": "src/features/auth/**",
+          "allow": ["src/features/auth/**", "src/shared/**"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+The `ui-cannot-import-api` rule forbids `src/ui` from importing `src/api`, but leaves every other import free. The `auth-allowlist` rule is stricter: files in `src/features/auth` may import **only** themselves and `src/shared` - any import outside those two patterns is reported as `not_allowed`.
+
+### Carving exceptions out of `deny`
+
+Sometimes you want to forbid a whole area *except* for one part of it - "`src/ui` may not import `src/api`, except its public DTOs". `deny` alone cannot express this (its entries are additive - there is no negation), so use `denyIgnore`: an import matched by `deny` is **not** reported if it is also matched by `denyIgnore`.
+
+```json
+{
+  "name": "ui-no-api-internals",
+  "pattern": "src/ui/**",
+  "deny": ["src/api/**"],
+  "denyIgnore": ["src/api/dto/**"]
+}
+```
+
+- `src/api/internal/db.ts` → denied, not excepted → **violation**
+- `src/api/dto/user.ts` → denied but matched by `denyIgnore` → **allowed**
+- `src/widgets/button.ts` → never denied → **allowed**
+
+Crucially this keeps the rule **default-open**: everything outside `src/api` stays importable. That is different from the `allow` whitelist, which is default-closed (it would also block `src/widgets`). `denyIgnore` only removes the `deny` verdict - it is only meaningful alongside `deny`, and using it without `deny` is a config validation error.
+
+### Carving exceptions out of `allow`
+
+The whitelist has its own carve-out, and it needs no extra field: just add `deny`. Because `deny` is evaluated first, it punches a hole *inside* the allowed zone. "Files in `src/ui` may import `src/api`, but not its internals":
+
+```json
+{
+  "name": "ui-api-but-not-internal",
+  "pattern": "src/ui/**",
+  "allow": ["src/api/**"],
+  "deny": ["src/api/internal/**"]
+}
+```
+
+- `src/api/public/x.ts` → in `allow`, not denied → **allowed**
+- `src/api/internal/db.ts` → `deny` matches first → **violation**
+- `src/widgets/button.ts` → not in `allow` → **not_allowed**
+
+So the two forms are symmetric: `allow` is a default-closed whitelist whose holes are punched by `deny`, and `deny` is a default-open blocklist whose holes are punched by `denyIgnore`. Since `deny` always wins, the layers even compose - `allow` a zone, `deny` a hole inside it, then `denyIgnore` an exception inside that hole.
+
+## Mutually exclusive groups (sibling isolation)
+
+A common pattern is **sibling isolation**: a set of modules under a common parent where each may import itself (and any shared code), but none may import another. Expressed with explicit boundaries this is an N×N chore - every module needs a `deny` listing all the *others*, and adding a module means editing every existing rule.
+
+`mutuallyExclusive` is sugar for exactly that shape. It takes a **flat list of globs**, and a file matching one glob may not import a file matching any *other* glob in the list. Imports *within* a single glob are fine, and any path not listed in the group is unrestricted (so shared code is simply left out of the list):
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "moduleBoundaries": [
+        {
+          "name": "feature-isolation",
+          "mutuallyExclusive": [
+            "src/modules/analytics/**",
+            "src/modules/billing/**",
+            "src/modules/reporting/**"
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+This is equivalent to writing three explicit boundaries, each with a `deny` listing the other two - `analytics` may not import `billing` or `reporting`, `billing` may not import `analytics` or `reporting`, and so on. Adding a fourth module is a single new line instead of edits across every rule.
+
+`mutuallyExclusive` and the explicit `pattern`/`allow`/`deny` form are **mutually exclusive on the same boundary** - a rule uses one shape or the other, and combining them is a config validation error. The list must contain at least two globs. Use a separate boundary entry when you need both forms.
+
+## Options
+
+A boundary rule comes in one of two forms - an explicit boundary or a mutuallyExclusive group:
+
+- `name` (string): A descriptive name for the boundary rule. Required for both forms.
+
+**Explicit boundary:**
+
+- `pattern` (string): The glob pattern defining which importing files belong to this boundary.
+- `deny` (array of strings, optional): A blocklist of glob patterns that the files matching `pattern` may not import.
+- `denyIgnore` (array of strings, optional): Exceptions carved out of `deny` - a denied import matched here is not reported. Keeps the rule default-open. Only valid alongside `deny`.
+- `allow` (array of strings, optional): A whitelist of glob patterns. When set, any import *not* matched by `allow` is reported. `deny` is evaluated first and takes precedence.
+
+**Mutually exclusive group:**
+
+- `mutuallyExclusive` (array of strings, at least two): A flat list of globs that may not import across each other. Cannot be combined with `pattern`, `allow`, or `deny`.
+
+## Related checks
+
+- [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx) - deny specific files/modules reachable from selected entry points.
+- [`restrictedImporters`](config-based-checks/checks/restricted-importers.mdx) - whitelist which entry points may transitively reach a target.
+- [`restrictedDirectImporters`](config-based-checks/checks/restricted-direct-importers.mdx) - constrain which files may directly import a target (non-transitive).
+
+### Also referred as
+Module Boundary Enforcement is also known as:
+- Module boundaries
+- Dependency boundaries
+- Architectural boundaries
+- Layer separation enforcement
+- Prohibited imports between modules
+- Enforce Module Boundaries
+- Monorepo Dependency Management

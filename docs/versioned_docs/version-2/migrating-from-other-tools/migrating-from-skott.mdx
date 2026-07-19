@@ -1,0 +1,85 @@
+---
+description: "Migrate from skott to rev-dep: replace circular-dependency, unused-file and unused-dependency detection with a fast, config-driven check suite."
+title: Migrating from skott
+sidebar_label: skott
+---
+
+<head>
+  <title>skott alternative - migrate to Rev-dep, up to 74x faster</title>
+</head>
+
+# Migrating from skott
+
+[skott](https://github.com/antoine-coulon/skott) builds a dependency graph and detects circular dependencies, unused files, and unused third-party dependencies. rev-dep covers the same checks in one config, and adds architecture rules.
+
+## Why migrate
+
+- **Speed.** rev-dep is written in Go and runs every check in a single parallel pass - **up to 74x faster** on large codebases.
+- **One config for the whole suite.** On top of skott's checks, rev-dep adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [missing dependencies](../config-based-checks/checks/missing-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), and [import conventions](../config-based-checks/checks/import-conventions.mdx).
+
+## What carries over, what changes
+
+- **Covered well:** circular dependencies, unused source files, unused npm dependencies.
+- **Not replaced - visualization.** skott can render a web app and static graph images (`--displayMode=webapp/svg/png`). rev-dep has **no graph rendering**; it answers graph questions as text via the [exploratory toolkit](../exploratory-toolkit/overview.mdx). Keep skott if the visual explorer is important to you.
+
+## Feature mapping
+
+| skott | rev-dep |
+| --- | --- |
+| `--showCircularDependencies` | [`circular`](../exploratory-toolkit/circular.mdx) / [`circularImportsDetection`](../config-based-checks/checks/circular-imports.mdx) |
+| `--showUnusedFiles` | [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) |
+| `--showUnusedDependencies` | [`unusedNodeModulesDetection`](../config-based-checks/checks/unused-node-modules.mdx) |
+| `--trackThirdPartyDependencies` | dependency analysis is built into the node-modules checks |
+| `--displayMode=webapp/svg/png` (visual) | - (no image output) |
+| - | [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx), [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx), [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx), [`importConventions`](../config-based-checks/checks/import-conventions.mdx), [`devDepsUsageOnProdDetection`](../config-based-checks/checks/dev-deps-on-prod.mdx) |
+
+## Translating your usage
+
+```bash
+skott --showCircularDependencies --showUnusedFiles --showUnusedDependencies
+```
+
+becomes a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/index.ts"],
+      "circularImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true,
+        "algorithm": "SCC"
+      },
+      "orphanFilesDetection": {
+        "enabled": true
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+| skott option | rev-dep equivalent |
+| --- | --- |
+| `--fileExtensions` | built-in source extensions ([supported file types](../other-concepts-and-features/supported-file-types.mdx)) |
+| `--ignorePattern` | `graphExclude` / `ignoreFiles` (globs) |
+| `--tsConfig` (tsConfigPath) | read automatically; `--tsconfig-json` to override |
+
+## Running it
+
+```bash
+# skott
+npx skott --showCircularDependencies
+
+# rev-dep
+rev-dep config run
+```
+
+## Next steps
+
+- For unused files and dependencies in monorepos, see [orphan files and unused exports in shared packages](../troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) and [missing or unused dependency false positives](../troubleshooting/missing-or-unused-dependency-false-positives.mdx).
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).

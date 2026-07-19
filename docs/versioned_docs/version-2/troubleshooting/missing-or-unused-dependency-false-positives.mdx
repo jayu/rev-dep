@@ -1,0 +1,109 @@
+---
+description: "Why rev-dep reports missing or unused node modules in monorepos, and how to fix it - declare each dependency in the package that compiles the code."
+title: Missing or unused dependency false positives
+---
+
+# Missing or unused dependency false positives
+
+Most "false positive" missing/unused reports come down to one thing: a dependency declared in the wrong `package.json`. The code still runs, because your package manager hoists or symlinks the module so it resolves at runtime - but rev-dep never looks inside `node_modules/`.
+
+## How rev-dep decides
+
+rev-dep does not scan `node_modules/`. For a rule, it reads the `dependencies` and `devDependencies` of **that rule's `package.json`** and compares them against every third-party import in the rule's graph:
+
+- **missing** - a module imported somewhere in the graph but not declared in that `package.json`
+- **unused** - a module declared in that `package.json` but not imported anywhere in the graph
+
+The rule's graph includes the source of any monorepo packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx) (the default is to follow all). So a single rule's check spans the compiling package **and** the just-in-time packages whose source it pulls in.
+
+## Rule of thumb: whoever compiles owns the modules
+
+> The package that compiles the code must declare every third-party module used across its compiled graph.
+
+- A **compiled or published** package is built on its own, so it declares its own dependencies. Give it a rule; a module it imports but does not declare is correctly reported *missing*.
+- A **shared, just-in-time** package is not built on its own - a consumer compiles its source. Its third-party modules belong in the **consumer's** `package.json`. Put the detection on the consumer's rule (which follows the shared package), and do **not** enable missing/unused detection on the shared package in isolation.
+
+That is exactly why a module can resolve fine at runtime yet still be reported: a hoisted layout lets shared code borrow the consumer's `node_modules`, but the *declaration* still has to live with the package that owns the build.
+
+### Example
+
+```
+packages/
+  web/                 # compiled app
+    package.json       # declares "lodash"
+  shared/              # just-in-time, compiled inside web
+    package.json       # does NOT declare "lodash"
+    src/format.ts      # import _ from 'lodash'
+```
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": "packages/web",
+      "followMonorepoPackages": true,
+      "missingNodeModulesDetection": { "enabled": true },
+      "unusedNodeModulesDetection": { "enabled": true }
+    }
+    // no missing/unused rule on packages/shared
+  ]
+}
+```
+
+`shared/src/format.ts` imports `lodash`; because `web` follows `shared`, that import is part of `web`'s graph and is satisfied by `web`'s declaration. No false missing, no false unused.
+
+## "It is imported and works, but reported missing"
+
+The module is declared in the wrong place - usually the repo root or a sibling package - while the package that compiles the importing file declares nothing.
+
+**Fix:** declare the module in the `package.json` of the package that compiles that code (the rule's `path`). Moving a `dependencies` entry from the root into the workspace that actually uses it is the most common fix.
+
+## "It is declared and used, but reported unused"
+
+The module is used only by a package your rule does not follow, so that usage is invisible to the rule and the declaration looks dead.
+
+**Fix:** enable [`followMonorepoPackages`](../other-concepts-and-features/following-monorepo-packages.mdx) on the rule (or list the specific package) so the shared/consumed source is part of the graph. Usage in followed source then counts against the declaration.
+
+## "Every workspace dependency is reported missing"
+
+This is workspace discovery failing: the rule resolves against the root `package.json` instead of each workspace's, so every workspace-local dependency looks undeclared. A glob-matching bug that caused this in pnpm monorepos was fixed in **2.11.0**.
+
+**Fix:**
+
+1. Upgrade to rev-dep 2.11.0 or newer.
+2. Run `rev-dep config init` at the repo root and confirm it generates one rule per workspace. If many workspaces collapse into a single root rule, your workspace globs are not being discovered - check how workspaces are declared (`pnpm-workspace.yaml`, the `workspaces` field) and open an issue with a small reproduction.
+
+## "A build or tooling package is reported unused"
+
+Tools invoked by scripts or config (bundler plugins, CLIs, Storybook, TypeScript) are not `import`ed by your source, so they look unused even though they are needed.
+
+**Fix** - give the detector the missing context instead of disabling it:
+
+```jsonc
+{
+  "unusedNodeModulesDetection": {
+    "enabled": true,
+    "pkgJsonFieldsWithBinaries": ["scripts", "bin"],
+    "filesWithBinaries": ["scripts/**/*.sh"],
+    "filesWithModules": [".storybook/main.ts", "webpack.config.js"],
+    "excludeModules": ["@types/*"]
+  }
+}
+```
+
+- `pkgJsonFieldsWithBinaries` / `filesWithBinaries` - scan `package.json` scripts and shell files for CLI usage of a package's binary.
+- `filesWithModules` - extra config files to scan for package name - content of file is treated as plain text, just searches for package name substring.
+- `excludeModules` - last resort for packages with no detectable usage.
+
+## Verify what rev-dep sees
+
+```bash
+rev-dep node-modules missing --cwd packages/web --follow-monorepo-packages
+rev-dep node-modules unused --cwd packages/web --follow-monorepo-packages
+rev-dep node-modules used --group-by-module --cwd packages/web
+rev-dep resolve --module lodash --cwd packages/web --follow-monorepo-packages
+```
+
+Use `resolve --module` to see which files actually pull a package in before deciding a report is wrong.
+
+For orphan-file and unused-export false positives in shared packages, see [orphan files and unused exports in shared packages](./orphan-files-and-unused-exports-in-shared-packages.mdx).

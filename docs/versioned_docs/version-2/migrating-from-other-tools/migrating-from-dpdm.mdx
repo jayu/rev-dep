@@ -1,0 +1,83 @@
+---
+description: "Migrate from dpdm to rev-dep: replace circular-dependency and unused-file detection with a fast, config-driven suite of checks."
+title: Migrating from dpdm
+sidebar_label: dpdm
+---
+
+<head>
+  <title>dpdm alternative - migrate to Rev-dep, up to 13x faster</title>
+</head>
+
+# Migrating from dpdm
+
+[dpdm](https://github.com/acrazing/dpdm) is a static dependency analyzer that detects circular dependencies and unused files. rev-dep covers both and folds them into one config alongside the rest of a dependency-hygiene suite.
+
+## Why migrate
+
+- **Speed and a single pass.** rev-dep is Go-based and parallel - **up to 13x faster** on large repos.
+- **More checks, one config.** dpdm focuses on cycles and unused files. rev-dep adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), and more.
+
+## What carries over, what changes
+
+- **Covered well:** circular dependencies, unused (orphan) files.
+- **Different output:** dpdm can print/serialize the dependency tree (`--tree`, JSON). rev-dep exposes the graph through the [exploratory toolkit](../exploratory-toolkit/overview.mdx) ([`files`](../exploratory-toolkit/files.mdx), [`resolve`](../exploratory-toolkit/resolve.mdx)) and a JSON output for `config run`.
+
+## Feature mapping
+
+| dpdm | rev-dep |
+| --- | --- |
+| `--circular` | [`circular`](../exploratory-toolkit/circular.mdx) command / [`circularImportsDetection`](../config-based-checks/checks/circular-imports.mdx) |
+| `--detect-unused-files-from <glob>` | [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) (with entry points) |
+| `--tree` / `-o, --output` (JSON) | exploratory [`files`](../exploratory-toolkit/files.mdx) - lists files imported by selected entry point|
+| `--exit-code circular:1` | `config run` / `rev-dep circular` exit non-zero on cycles |
+| `--skip-dynamic-imports` | rev-dep traces dynamic imports as usage by design |
+
+## Translating your usage
+
+```bash
+dpdm --circular --tree false src/index.ts
+dpdm --detect-unused-files-from 'src/**/*.ts' src/index.ts
+```
+
+become:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/index.ts"],
+      "circularImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true,
+        "algorithm": "SCC"
+      },
+      "orphanFilesDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+| dpdm option | rev-dep equivalent |
+| --- | --- |
+| `--tsconfig` | read automatically; `--tsconfig-json` to override |
+| `--extensions` | built-in source extensions ([supported file types](../other-concepts-and-features/supported-file-types.mdx)) |
+| `--exclude <regexp>` | `graphExclude` / `ignoreFiles` (globs) |
+
+## Running it
+
+```bash
+# dpdm
+npx dpdm --circular src/index.ts
+
+# rev-dep
+rev-dep circular        # ad-hoc
+rev-dep config run      # CI gate
+```
+
+## Next steps
+
+- [Orphan files check](../config-based-checks/checks/orphan-files.mdx) - and note the [monorepo placement guidance](../troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx).
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).

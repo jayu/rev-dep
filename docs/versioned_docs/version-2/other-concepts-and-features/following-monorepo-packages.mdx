@@ -1,0 +1,55 @@
+---
+description: "Control whether rev-dep traces from one workspace package into another package's source with followMonorepoPackages - all, none, or selected packages."
+title: Following monorepo packages
+---
+
+# Following monorepo packages
+
+`followMonorepoPackages` decides whether rev-dep, when it sees an import of an internal workspace package, traces into that package's **source** or treats it as an opaque external dependency.
+
+## The three modes
+
+- `true` - follow every workspace package (trace into all of them)
+- `false` - follow none (every workspace package is an external boundary)
+- `["@acme/shared", "@acme/ui"]` - follow only the listed packages, treat the rest as external
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": "packages/app",
+      "followMonorepoPackages": ["@acme/shared", "@acme/ui"],
+      "prodEntryPoints": ["src/main.tsx"],
+      "orphanFilesDetection": { "enabled": true },
+      "unusedExportsDetection": { "enabled": true }
+    }
+  ]
+}
+```
+
+## Compiled vs. just-in-time packages
+
+This setting exists for monorepos that mix two kinds of internal packages:
+
+- **Just-in-time (source) packages** are consumed directly as TS/JS source, with no build step. Follow these so rev-dep traces into them and counts their files and exports.
+- **Compiled packages** are built to their published output and consumed through it. Leave these unfollowed so rev-dep treats them as external module boundaries, the same way the consumer does at runtime.
+
+The per-package array form is how you express exactly that split: list the source-consumed packages, omit the compiled ones.
+
+## How a followed package resolves
+
+When a package is followed, its import resolves through the package's own `package.json` `exports`/`imports` map into the source file it points to. A package is only followed if the consumer actually declares it in its `dependencies` or `devDependencies` - undeclared packages are not traced even with `followMonorepoPackages: true`.
+
+## Defaults differ between config and CLI
+
+- **Config:** a rule with no `followMonorepoPackages` key defaults to `true` (follow all).
+- **CLI:** commands follow nothing unless you pass `--follow-monorepo-packages`. Passed without a value it means "follow all"; with a comma-separated list it follows those packages.
+
+```bash
+rev-dep resolve --file packages/app/src/main.tsx --follow-monorepo-packages
+rev-dep resolve --file packages/app/src/main.tsx --follow-monorepo-packages @acme/shared,@acme/ui
+```
+
+## Tradeoff
+
+Following more packages broadens the graph and changes which files count as reachable. Use the smallest scope that matches how the package is actually consumed.

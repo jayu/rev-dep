@@ -1,0 +1,91 @@
+---
+description: "Migrate from Sheriff (softarc) to rev-dep: express module boundaries and dependency rules as path-pattern checks in one fast pass."
+title: Migrating from Sheriff
+sidebar_label: sheriff
+---
+
+<head>
+  <title>Sheriff alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from Sheriff
+
+[Sheriff](https://github.com/softarc-consulting/sheriff) enforces module boundaries and dependency rules in TypeScript projects using tags and `depRules`. rev-dep enforces the same boundaries with path-pattern [module boundaries](../config-based-checks/checks/module-boundaries.mdx), and adds the rest of a dependency-hygiene suite.
+
+## Why migrate
+
+- **Speed and one pass.** rev-dep is Go-based - **faster** on large codebases.
+- **Boundaries plus everything else.** Sheriff focuses on boundaries and encapsulation. rev-dep enforces boundaries *and* detects [circular imports](../config-based-checks/checks/circular-imports.mdx), [unused exports](../config-based-checks/checks/unused-exports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx), and [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx).
+
+## What carries over, what changes
+
+- **Covered well:** which modules may depend on which (Sheriff's `depRules`).
+- **Different model.** Sheriff tags modules (via the `modules` map) and writes rules between tags; rev-dep uses **path patterns** directly. You translate `tag → allowed tags` into `pattern → allow/deny`.
+- **Not replaced - barrel encapsulation.** Sheriff can require that a module is only imported through its `index.ts` public API. rev-dep has no barrel-file rule; you can approximate "no deep imports" with [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) `denyFiles`, but it is not a one-to-one match. Keep Sheriff if strict barrel encapsulation is essential.
+
+## Feature mapping
+
+| Sheriff (`sheriff.config.ts`) | rev-dep |
+| --- | --- |
+| `modules` (path globs → tags) | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) `pattern` |
+| `depRules` (allowed deps between tags) | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) `allow` / `deny` |
+| barrel / public-API encapsulation | partial - [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) `denyFiles` for deep imports |
+| - | circular, unused exports, orphan files, unused/missing dependencies, conventions |
+
+## Translating your config
+
+A `sheriff.config.ts` where `feature` modules may depend on `shared` but not on each other:
+
+```ts
+export const config = {
+  modules: {
+    'src/app/<feature>': ['feature:<feature>'],
+    'src/shared': ['shared'],
+  },
+  depRules: {
+    'feature:*': ['shared', sameTag],
+    shared: [],
+  },
+};
+```
+
+becomes path-pattern boundaries in `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "moduleBoundaries": [
+        {
+          "name": "shared-is-leaf",
+          "pattern": "src/shared/**",
+          "allow": ["src/shared/**"]
+        },
+        {
+          "name": "features-use-shared-only",
+          "pattern": "src/app/orders/**",
+          "allow": ["src/app/orders/**", "src/shared/**"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+rev-dep has no wildcard "same tag" concept, so cross-feature isolation is expressed as one boundary per feature (or a shared `deny` of sibling feature paths).
+
+## Running it
+
+```bash
+# Sheriff (ESLint plugin or CLI)
+npx eslint .   # with @softarc/eslint-plugin-sheriff
+
+# rev-dep
+rev-dep config run
+```
+
+## Next steps
+
+- [Module boundaries](../config-based-checks/checks/module-boundaries.mdx) and [restricted imports](../config-based-checks/checks/restricted-imports.mdx).
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).

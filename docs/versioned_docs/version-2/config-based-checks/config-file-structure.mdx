@@ -1,0 +1,218 @@
+---
+description: "Understand the structure of the rev-dep configuration file, including top-level fields, rule-level fields, and how to define various project checks."
+title: Config file structure
+---
+
+# Config file structure
+
+To get started, initialise your config:
+
+```bash
+rev-dep config init
+```
+
+Rev-dep automatically detects project context and creates scaffolding for each workspace package it discovers.
+
+> The config file can be named `rev-dep.config.json`, `rev-dep.config.jsonc`, `.rev-dep.config.json`, or `.rev-dep.config.jsonc` depending on your preference.
+
+## Top-level fields
+
+- `configVersion`: Configuration version string
+- `$schema`: JSON schema reference for validation
+- [`conditionNames`](other-concepts-and-features/module-resolution-and-path-aliases.mdx#condition-names): custom condition order for `package.json` imports/exports resolution.
+- [`customAssetExtensions`](other-concepts-and-features/supported-file-types.mdx#extending-asset-extensions): additional extensions that should be treated as resolvable imports.
+- [`ignoreFiles`](other-concepts-and-features/ignoring-files.mdx): files excluded from analysis by rev-dep config, in addition to gitignored files.
+- [`processIgnoredFiles`](other-concepts-and-features/ignoring-files.mdx): files that should still be processed even if gitignore or ignore patterns would normally skip them.
+- [`nodeModulesResolution`](other-concepts-and-features/node-modules-resolution.mdx): controls which `package.json` third-party imports are validated against (and whether monorepo-root devDependencies count as available).
+- `rules`: array of rules defining checks for different parts of the codebase. Typically single rule defines checks for single workspace package. However, you can have multiple rules with the same `path` if that's needed.
+
+> Name `rules` might be confusing, it's a bad design choice made at the beginning. This will be likely renamed to `workspaces` or `scopes` in next major release to better reflect how it is actually being used.
+
+## Rule-level fields
+
+Each rule must define:
+
+- `path` - relative path to the workspace package that this rule applies to. Can be `.` for the root package.
+
+And can additionally define:
+
+- [`followMonorepoPackages`](other-concepts-and-features/following-monorepo-packages.mdx): Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
+- [`prodEntryPoints`](config-based-checks/entry-points-definition.mdx): Rule-level production entry point patterns for detector defaults
+- [`devEntryPoints`](config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points): Rule-level development entry point patterns for detector defaults
+- [`ignoreEntryPoints`](config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points): Rule-level patterns for leftover entry points to exclude from reporting. Matching files are never reported as orphan files and their unused exports are not reported.
+
+And any detector setup:
+- [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx): Array of module boundary rules
+- [`restrictedImportsDetection`](config-based-checks/checks/restricted-imports.mdx): Restrict importing denied files/modules from selected entry points
+- [`restrictedImportersDetection`](config-based-checks/checks/restricted-importers.mdx): Whitelist which entry points may transitively reach a set of files or modules
+- [`restrictedDirectImportersDetection`](config-based-checks/checks/restricted-direct-importers.mdx): Constrain which files may directly import a set of files or modules (non-transitive)
+- [`importConventions`](config-based-checks/checks/import-conventions.mdx): Array of import convention rules
+- [`circularImportsDetection`](config-based-checks/checks/circular-imports.mdx): Circular import detection configuration
+- [`orphanFilesDetection`](config-based-checks/checks/orphan-files.mdx): Orphan files detection configuration
+- [`unusedExportsDetection`](config-based-checks/checks/unused-exports.mdx): Unused exports detection configuration
+- [`unusedNodeModulesDetection`](config-based-checks/checks/unused-node-modules.mdx): Unused node modules detection configuration
+- [`missingNodeModulesDetection`](config-based-checks/checks/missing-node-modules.mdx): Missing node modules detection configuration
+- [`devDepsUsageOnProdDetection`](config-based-checks/checks/dev-deps-on-prod.mdx): Restricted dev dependencies usage detection configuration
+- [`unresolvedImportsDetection`](config-based-checks/checks/unresolved-imports.mdx): Unresolved imports detection configuration
+
+> Detectors can be defined as **a single object or an array of objects**. Defining multiple configurations for the same detector allows to run it multiple times with different settings (e.g., different entry points or different deny rules for restricted imports) within the same rule.
+
+### Compact detector syntax
+
+Detectors support a shorthand so simple configs stay short:
+
+- **Boolean.** A detector that only needs to be switched on (no extra setup) can be written as a boolean. `"circularImportsDetection": true` enables it and `"circularImportsDetection": false` disables it — equivalent to `{ "enabled": true }` and `{ "enabled": false }`.
+- **Optional `enabled`.** When a detector is configured with other options, the `enabled` flag is optional and defaults to `true`. `"restrictedImportsDetection": { "entryPoints": ["src/index.ts"] }` is enough to turn the check on; add `"enabled": false` to keep the options but switch it off.
+
+`rev-dep config init` writes configs in this compact form, and `rev-dep config lint --fix` rewrites an existing config to it (folding `{ "enabled": true }` to `true` and dropping redundant `enabled` flags) without touching your comments or formatting — see the `compact` rule in [Linting the config](./linting-the-config.mdx).
+
+## Quick Start configuration
+
+```json
+{
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+      "devEntryPoints": ["scripts/**", "**/*.test.*"],
+      "unusedExportsDetection": {
+        "autofix": true
+      },
+      "orphanFilesDetection": {
+        "autofix": true
+      },
+      "unusedNodeModulesDetection": true,
+      "circularImportsDetection": true,
+      "devDepsUsageOnProdDetection": {
+        "ignoreTypeImports": true
+      }
+    }
+  ]
+}
+```
+
+Add the `$schema` field (see the comprehensive example below) for editor autocomplete and validation.
+
+## Comprehensive Config Example
+
+Here's a comprehensive example showing all available properties:
+
+```json
+{
+  "configVersion": "1.10",
+  // enables json autocompletion
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.10.schema.json?raw=true", 
+  "conditionNames": ["import", "default"],
+  "ignoreFiles": ["**/*.test.*"],
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
+  "rules": [
+    {
+      "path": ".",
+      "followMonorepoPackages": true,
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx", "src/server.ts"],
+      "devEntryPoints": ["scripts/**", "**/*.test.*"],
+      "ignoreEntryPoints": ["src/legacy/oldDashboard.tsx"],
+      "moduleBoundaries": [
+        {
+          "name": "ui-components",
+          "pattern": "src/components/**/*",
+          "allow": ["src/utils/**/*", "src/types/**/*"],
+          "deny": ["src/api/**/*"]
+        },
+        {
+          "name": "api-layer",
+          "pattern": "src/api/**/*",
+          "allow": ["src/utils/**/*", "src/types/**/*"],
+          "deny": ["src/components/**/*"]
+        }
+      ],
+      "importConventions": [
+        {
+          "rule": "relative-internal-absolute-external",
+          "autofix": true,
+          "domains": [
+            {
+              "path": "src/features/auth",
+              "alias": "@auth",
+              "enabled": true
+            },
+            {
+              "path": "src/shared/ui",
+              "alias": "@ui-kit",
+              "enabled": false // checks disabled for this domain, but alias is still used for absolute imports from other domains
+            }
+          ]
+        }
+      ],
+      "circularImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true,
+        "graphExclude": ["**/*.test.*", "**/stories/**/*"],
+        "autofix": true
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["@myorg/**"],
+        "excludeModules": ["@types/**"],
+        "pkgJsonFieldsWithBinaries": ["scripts", "bin"],
+        "filesWithBinaries": ["scripts/check-something.sh"],
+        "filesWithModules": [".storybook/main.ts"],
+        "outputType": "groupByModule"
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true,
+        "includeModules": ["lodash", "axios"],
+        "excludeModules": ["@types/**"],
+        "outputType": "groupByFile"
+      },
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true,
+        "ignoreTypeExports": true,
+        "graphExclude": ["**/*.stories.tsx"],
+        "ignore": {
+          "src/types.ts": "B*",
+          "**/generated/**/*.ts": "*"
+        },
+        "ignoreFiles": ["**/*.generated.ts"],
+        "ignoreExports": ["default", "unused*"],
+      },
+      "unresolvedImportsDetection": {
+        "enabled": true,
+        "ignore": {
+          "src/index.ts": "legacy-*"
+        },
+        "ignoreFiles": ["**/*.generated.ts"],
+        "ignoreImports": ["@internal/*"]
+      },
+      "devDepsUsageOnProdDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true
+      },
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["src/server.ts", "src/server/**/*.ts"],
+        "graphExclude": ["some-file-coupling-other-files.ts"],
+        "denyFiles": ["**/*.tsx"],
+        "denyModules": ["react", "react-*"],
+        "ignoreMatches": ["src/server/allowed-view.tsx", "react-awesome-lib"],
+        "ignoreTypeImports": true
+      },
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "files": ["src/legacy/**"],
+        "modules": ["moment", "@legacy/*"],
+        "allowedImporters": ["src/legacy-adapter.ts"],
+        "graphExclude": ["**/*.test.*"],
+        "ignoreMatches": ["src/legacy/public-api.ts"],
+        "ignoreTypeImports": true
+      }
+    }
+  ]
+}
+```

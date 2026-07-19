@@ -1,0 +1,44 @@
+---
+description: "Which file types rev-dep parses, how asset imports are recognized, and how to extend the recognized asset extensions via config."
+title: Supported file types
+---
+
+# Supported file types
+
+rev-dep is a JavaScript and TypeScript dependency analysis tool. It also discovers and parses framework single-file components and recognizes asset imports.
+
+## Parsed source files
+
+rev-dep discovers and parses imports from these extensions:
+
+`.ts` `.tsx` `.d.ts` `.mts` `.js` `.jsx` `.cjs` `.mjs` `.mjsx` `.vue` `.svelte`
+
+`.vue` and `.svelte` files get basic support - only their `<script>` blocks are parsed. See [Svelte support](./svelte-support.mdx) and [Vue support](./vue-support.mdx).
+
+## Asset imports
+
+Imports that point to non-source assets are recognized by extension and treated as **resolved** (so they are not reported as unresolved imports), but their contents are not parsed.
+
+Recognized by default:
+
+`json` `png` `jpeg` `jpg` `webp` `svg` `gif` `ttf` `otf` `woff` `woff2` `css` `scss` `yml` `yaml`
+
+### Extending asset extensions
+
+If your project imports other asset types (e.g. `.glb`, `.mp3`, `.wasm`), add them so they resolve cleanly instead of surfacing as unresolved imports.
+
+For config-based checks, use the top-level `customAssetExtensions` field:
+
+```jsonc
+{
+  "customAssetExtensions": ["glb", "mp3", "wasm"]
+}
+```
+
+For ad-hoc exploratory toolkit commands, use the `--custom-asset-extensions` flag:
+
+```bash
+rev-dep unresolved --custom-asset-extensions glb,mp3,wasm
+```
+
+Extensions are given **without a leading dot** and matched case-insensitively. The list extends the defaults rather than replacing them.

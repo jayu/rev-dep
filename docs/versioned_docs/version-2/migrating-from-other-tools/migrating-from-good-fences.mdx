@@ -1,0 +1,86 @@
+---
+description: "Migrate from good-fences to rev-dep: express directory import boundaries as module-boundary and restricted-import checks in one fast pass."
+title: Migrating from good-fences
+sidebar_label: good-fences
+---
+
+<head>
+  <title>good-fences alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from good-fences
+
+[good-fences](https://github.com/smikula/good-fences) segments a TypeScript project into areas and controls what each can import, using `fence.json` files. rev-dep expresses the same boundaries as central [module boundaries](../config-based-checks/checks/module-boundaries.mdx) and [restricted imports](../config-based-checks/checks/restricted-imports.mdx) checks.
+
+## Why migrate
+
+- **Speed.** rev-dep is Go-based and runs in a single parallel pass - **faster** on large codebases.
+- **One config, more checks.** good-fences only does boundaries. rev-dep enforces boundaries *and* detects [circular imports](../config-based-checks/checks/circular-imports.mdx), [unused exports](../config-based-checks/checks/unused-exports.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), and more.
+
+## What carries over, what changes
+
+- **Covered well:** controlling which areas may import which, and which npm dependencies an area may use.
+- **Different model.** good-fences uses **tags** and per-directory `fence.json` files; rev-dep uses **path patterns** in one central config. You express the same intent ("UI may not import API") as a path-pattern boundary instead of tagging directories.
+- **No per-directory files.** Boundaries live in `rev-dep.config.jsonc`, not scattered `fence.json` files - simpler to review, but a different workflow.
+
+## Feature mapping
+
+| good-fences (`fence.json`) | rev-dep |
+| --- | --- |
+| `tags` + `imports` (which tags may be imported) | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) (`pattern` + `allow` / `deny`) |
+| `exports` (`accessibleTo`) - who may import this area | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) / [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) |
+| `dependencies` (allowed npm packages) | [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) (`denyModules`) |
+| - | circular, unused exports, unused/missing dependencies, conventions |
+
+## Translating your config
+
+A `fence.json` in `src/ui` that may only be imported by `app` and forbids importing `api`:
+
+```json
+{
+  "tags": ["ui"],
+  "exports": [{ "modules": "*", "accessibleTo": ["app"] }],
+  "imports": ["ui", "shared"]
+}
+```
+
+becomes a path-pattern boundary in `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "moduleBoundaries": [
+        {
+          "name": "ui-imports",
+          "pattern": "src/ui/**",
+          "allow": ["src/ui/**", "src/shared/**"]
+        },
+        {
+          "name": "only-app-imports-ui",
+          "pattern": "src/!(app|ui)/**",
+          "deny": ["src/ui/**"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+To restrict which npm packages an area may import (good-fences `dependencies`), use [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) with `denyModules`.
+
+## Running it
+
+```bash
+# good-fences
+npx gf
+
+# rev-dep
+rev-dep config run
+```
+
+## Next steps
+
+- [Module boundaries](../config-based-checks/checks/module-boundaries.mdx) - the core mapping for fences.
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).

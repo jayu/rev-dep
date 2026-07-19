@@ -1,0 +1,124 @@
+---
+description: "Migrate from knip to rev-dep: map unused files, exports, dependencies and unlisted/unresolved imports onto rev-dep checks, with config translation."
+title: Migrating from knip
+sidebar_label: knip
+---
+
+<head>
+  <title>knip alternative - migrate to Rev-dep, up to 20x faster</title>
+</head>
+
+# Migrating from knip
+
+[knip](https://knip.dev) finds unused files, exports, and dependencies in JavaScript/TypeScript projects. rev-dep covers that same core, adds architecture checks knip does not have, and runs as a single Go-powered pass.
+
+## Why migrate
+
+- **Speed.** knip runs on Node; rev-dep is written in Go and runs every check in one parallel pass - **up to 20x faster** on large codebases, which keeps it cheap to run on every PR.
+- **More than unused code.** knip focuses on unused files/exports/dependencies. rev-dep does that *and* enforces architecture - [circular imports](../config-based-checks/checks/circular-imports.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [import conventions](../config-based-checks/checks/import-conventions.mdx), and [dev-dependencies in production](../config-based-checks/checks/dev-deps-on-prod.mdx) - so it can replace several tools at once.
+- **Built for monorepos.** A single config runs per-workspace rules in parallel and resolves cross-package imports, with whole-repo context when you need it.
+
+## What carries over, what changes
+
+- **Covered well:** unused files, unused exports, unused dependencies, unlisted (missing) dependencies, unresolved imports.
+- **rev-dep adds:** circular imports, module boundaries, restricted imports, import conventions, and dev-dependencies-in-production.
+- **Not replaced:** knip's more granular reports - unused class/enum members, namespace-level exports, duplicate exports, unused catalog entries, and missing/optional binaries - have no equivalent in rev-dep, which works at the file/export/dependency level.
+
+## Feature mapping
+
+| knip issue type | rev-dep check | Notes |
+| --- | --- | --- |
+| `dependencies` | [`unusedNodeModulesDetection`](../config-based-checks/checks/unused-node-modules.mdx) | Declared but unused dependencies. |
+| `devDependencies` | [`unusedNodeModulesDetection`](../config-based-checks/checks/unused-node-modules.mdx) | Unused `devDependencies` surface as unused declared modules. |
+| `unlisted` | [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx) | Imports not declared in `package.json`. |
+| `unresolved` | [`unresolvedImportsDetection`](../config-based-checks/checks/unresolved-imports.mdx) | Import requests that don't resolve. |
+| `exports` | [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx) | Unused exports. |
+| `types` | [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx) | Covered while `ignoreTypeExports` is `false` (the default). |
+| `files` | [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) | Unused/unreachable files. |
+| `binaries` | - | No equivalent. |
+| `catalog` | - | No equivalent. |
+| `duplicates` | - | No equivalent. |
+| `classMembers`, `enumMembers` | - | rev-dep has no member-level detector. |
+| `nsExports`, `nsTypes` | - | rev-dep has no namespace-member detector. |
+| - | [`circularImportsDetection`](../config-based-checks/checks/circular-imports.mdx) | New capability. |
+| - | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) | New capability. |
+| - | [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) | New capability. |
+| - | [`importConventions`](../config-based-checks/checks/import-conventions.mdx) | New capability. |
+| - | [`devDepsUsageOnProdDetection`](../config-based-checks/checks/dev-deps-on-prod.mdx) | New capability. |
+
+## Translating your config
+
+knip infers most things from your `entry` and `project` globs. rev-dep is rule-based: each rule targets a `path` (usually a workspace) and enables checks explicitly.
+
+A typical `knip.json`:
+
+```json
+{
+  "entry": ["src/index.ts", "src/cli.ts"],
+  "project": ["src/**/*.ts"],
+  "ignore": ["**/*.stories.tsx"],
+  "ignoreDependencies": ["husky", "@types/jest"]
+}
+```
+
+becomes a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/index.ts", "src/cli.ts"],
+      "ignoreEntryPoints": ["**/*.stories.tsx"]
+      "unresolvedImportsDetection": {
+        "enabled": true
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true
+      },
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "excludeModules": ["husky", "@types/jest"]
+      },
+      "orphanFilesDetection": {
+        "enabled": true,
+      },
+      "unusedExportsDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+Key translations:
+
+| knip option | rev-dep equivalent |
+| --- | --- |
+| `entry` | `prodEntryPoints` (and `devEntryPoints` for tests/tooling) |
+| `project` | the rule's `path` - rev-dep discovers all files under it (respecting `.gitignore` and `ignoreFiles`) |
+| `workspaces` | one entry in `rules` per package |
+| `ignoreDependencies` | `excludeModules` on the node-modules checks |
+| `ignore` | per-check `ignoreFiles`, or top-level `ignoreFiles` or `ignoreEntryPoints` |
+| `ignoreUnresolved` | `ignoreImports` / `ignoreFiles` on [`unresolvedImportsDetection`](../config-based-checks/checks/unresolved-imports.mdx) |
+| `paths` | declared in `tsconfig.json` `paths` (rev-dep reads them automatically) |
+
+For per-check ignore options and the exact data shapes, see [Ignoring files](../other-concepts-and-features/ignoring-files.mdx).
+
+## Running it
+
+```bash
+# knip
+npx knip
+
+# rev-dep
+rev-dep config run
+rev-dep config run --fix   # applies autofixes (unused exports, orphan files, import conventions)
+```
+
+Both exit non-zero when issues are found, so the CI swap is direct. See [running checks and autofix](../config-based-checks/running-checks-and-autofix.mdx).
+
+## Next steps
+
+- Verify resolution first with [`unresolvedImportsDetection`](../config-based-checks/checks/unresolved-imports.mdx) - see the [monorepo integration guide](../monorepo-integration-guide.mdx).
+- In a monorepo, run unused-exports and orphan-file checks at the root so cross-package usage is visible: [orphan files and unused exports in shared packages](../troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx).

@@ -1,0 +1,86 @@
+---
+description: "Migrate from depcheck to rev-dep: map unused and missing dependency detection onto rev-dep's node-modules checks in a single fast pass."
+title: Migrating from depcheck
+sidebar_label: depcheck
+---
+
+<head>
+  <title>depcheck alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from depcheck
+
+[depcheck](https://github.com/depcheck/depcheck) finds unused and missing dependencies. rev-dep does the same with two checks, and adds the rest of a dependency-hygiene suite.
+
+## Why migrate
+
+- **depcheck is no longer maintained.** Its README now recommends moving on - so a migration is worthwhile regardless.
+- **Speed.** rev-dep is Go-based and runs in a single parallel pass - **faster** on large repos.
+- **More than dependencies.** rev-dep also covers [unused exports](../config-based-checks/checks/unused-exports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), [dev-deps in production](../config-based-checks/checks/dev-deps-on-prod.mdx), and architecture rules.
+
+## What carries over, what changes
+
+- **Covered well:** unused dependencies, missing (unlisted) dependencies.
+- **Tooling-only packages.** depcheck has `specials`/`parsers` to recognize packages used by config ecosystems. rev-dep handles the same gap with explicit hints (`pkgJsonFieldsWithBinaries`, `filesWithBinaries`, `filesWithModules`) - see [unused node modules](../config-based-checks/checks/unused-node-modules.mdx).
+
+## Feature mapping
+
+| depcheck | rev-dep |
+| --- | --- |
+| unused dependencies | [`unusedNodeModulesDetection`](../config-based-checks/checks/unused-node-modules.mdx) |
+| missing dependencies | [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx) |
+| `ignoreMatches` | `excludeModules` |
+| `ignorePatterns` | `ignoreFiles` (top-level) |
+| `skipMissing` | simply don't enable [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx) |
+| `specials` / `parsers` (non-import usage) | `pkgJsonFieldsWithBinaries` / `filesWithBinaries` / `filesWithModules` |
+
+## Translating your config
+
+A `.depcheckrc`:
+
+```yaml
+ignores:
+  - "@types/*"
+  - "husky"
+ignorePatterns:
+  - "dist"
+  - "*.stories.tsx"
+skipMissing: false
+```
+
+becomes a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "ignoreFiles": ["dist/**", "**/*.stories.tsx"],
+  "rules": [
+    {
+      "path": ".",
+      "unusedNodeModulesDetection": {
+        "enabled": true,
+        "excludeModules": ["@types/*", "husky"]
+      },
+      "missingNodeModulesDetection": {
+        "enabled": true
+      }
+    }
+  ]
+}
+```
+
+## Running it
+
+```bash
+# depcheck
+npx depcheck
+
+# rev-dep
+rev-dep config run
+```
+
+Both exit non-zero on findings. In a monorepo, declare dependencies in the package that compiles the code - see [missing or unused dependency false positives](../troubleshooting/missing-or-unused-dependency-false-positives.mdx).
+
+## Next steps
+
+- [Unused node modules](../config-based-checks/checks/unused-node-modules.mdx) and [missing node modules](../config-based-checks/checks/missing-node-modules.mdx) check options.
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).

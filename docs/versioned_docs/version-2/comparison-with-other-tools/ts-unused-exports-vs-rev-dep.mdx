@@ -1,0 +1,42 @@
+---
+description: "ts-unused-exports vs rev-dep: compare unused-export detection, performance and scope. rev-dep is a faster alternative that also finds orphan files and more."
+title: ts-unused-exports vs Rev-dep
+sidebar_label: ts-unused-exports
+---
+
+<head>
+  <title>ts-unused-exports vs Rev-dep: features compared</title>
+</head>
+
+# ts-unused-exports vs Rev-dep
+
+[ts-unused-exports](https://github.com/pzavolinsky/ts-unused-exports) reports unused exported symbols in a TypeScript project. rev-dep covers that with [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx) and a lot more.
+
+## At a glance
+
+| | ts-unused-exports | Rev-dep |
+| --- | --- | --- |
+| Primary focus | unused exports | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**faster**) |
+| Unused exports | yes | yes |
+| Completely-unused files | yes (`--findCompletelyUnusedFiles`) | yes ([orphan files](../config-based-checks/checks/orphan-files.mdx)) |
+| Autofix | no | yes (`config run --fix`) |
+| Dependencies / cycles / boundaries | no | yes |
+
+## Where rev-dep is stronger
+
+- **One tool** for unused exports, orphan files, dependencies, cycles, and architecture rules.
+- **Autofix** removes dead exports.
+- **Speed** on large repos, and monorepo-aware whole-graph context.
+
+## Where ts-unused-exports may still fit
+
+It's a focused, scriptable CLI with fine-grained flags (`--allowUnusedTypes`, `--ignoreLocallyUsed`, inline `// ts-unused-exports:disable-next-line`). rev-dep maps most of these to config options, but if you've built tooling around its exact CLI output, factor that in.
+
+## Which should you choose?
+
+For ongoing, repo-wide hygiene, **rev-dep**. For a minimal, single-purpose unused-export check, ts-unused-exports stays viable.
+
+## Migrating
+
+See [Migrating from ts-unused-exports](../migrating-from-other-tools/migrating-from-ts-unused-exports.mdx).

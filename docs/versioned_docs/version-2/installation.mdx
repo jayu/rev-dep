@@ -1,0 +1,53 @@
+---
+description: "Quickly install and set up rev-dep in your JS/TS project using pnpm, npm, or yarn, and learn how to initialize your configuration."
+title: Installation and Quick Start
+---
+
+# Installation
+
+For project checks, install `rev-dep` as a development dependency.
+
+```bash
+pnpm add -D rev-dep
+```
+
+```bash
+npm install -D rev-dep
+```
+
+```bash
+yarn add -D rev-dep
+```
+
+Global installation is fine for one-off CLI use, but local installation is the better default for teams and CI.
+
+## Initialize Configuration
+
+Follow a step-by-step setup with the 
+- [Monorepo integration guide](./monorepo-integration-guide.mdx) 
+- [Single-workspace integration guide](./single-workspace-integration-guide.mdx).
+
+
+Or create a configuration file straight away to start defining your rules:
+
+```bash
+npx rev-dep config init
+```
+
+
+Exec the configuration file:
+
+```bash
+npx rev-dep config run
+```
+
+> More about [config file structure](config-based-checks/config-file-structure.mdx).
+
+
+## Run a Exploratory Toolkit Check
+
+If you just want to look around, use exploratory toolkit. For example detect circular imports in your project:
+
+```bash
+npx rev-dep circular
+```

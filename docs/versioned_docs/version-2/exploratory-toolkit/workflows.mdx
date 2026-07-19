@@ -1,0 +1,64 @@
+---
+description: "Practical recipes that chain rev-dep exploratory commands to investigate reachability, package hygiene, and config entry points."
+title: Common investigative workflows
+---
+
+# Common investigative workflows
+
+Recipes that chain the exploratory commands to answer real questions.
+
+## Why is this file reachable?
+
+1. `rev-dep imported-by --file src/utils/math.ts` - who imports it directly
+2. `rev-dep resolve --file src/utils/math.ts` - the full path(s) from all entry points
+3. `rev-dep resolve --file src/utils/math.ts --entry-points src/index.ts` - the full path(s) from selected entry point
+4. `rev-dep resolve --file src/utils/math.ts --entry-points src/index.ts --all` - every path, when one is not enough
+
+To enforce that a file must *not* be reachable from certain entry points, adopt the config [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) rule - it declares which files (or modules) are disallowed from given entry points.
+
+## What does this entry point pull in?
+
+1. `rev-dep files --entry-point src/index.ts --count` - size of the reachable set
+2. `rev-dep files --entry-point src/index.ts` - the full file list
+3. `rev-dep files --entry-point src/index.ts --ignore-type-imports` - just runtime dependencies
+4. `rev-dep files --entry-point src/index.ts --follow-monorepo-packages` - include files pulled from other workspaces
+
+To forbid specific files from being pulled into an entry point, adopt the config [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) rule - it declares which files (or modules) are disallowed from given entry points.
+
+## Why is this package marked missing or unused?
+
+1. `rev-dep node-modules used` - confirm whether the code imports it at all
+2. `rev-dep node-modules missing` / `rev-dep node-modules unused` - see the exact verdict
+3. compare with package scripts, build tooling, and workspace setup
+
+For continuous enforcement, adopt the config [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx) and [`unusedNodeModulesDetection`](../config-based-checks/checks/unused-node-modules.mdx) checks.
+
+## Which code uses this node module?
+
+1. `rev-dep resolve --module lodash` - trace the paths from entry points to a package
+2. `rev-dep resolve --module lodash --all` - every path that reaches it
+3. `rev-dep resolve --module some-dev-tool --entry-points src/main.ts` - check whether a package is reachable from a specific (e.g. production) entry point
+
+If a dev-only dependency turns out to be reachable from a production entry point, adopt the config [`devDepsUsageOnProdDetection`](../config-based-checks/checks/dev-deps-on-prod.mdx) check to catch it continuously.
+
+## Which files are dead (orphaned)?
+
+`entry-points` lists every file that nothing else imports. Your genuine roots (app entries, tests, scripts, build/config files) are expected there - anything else in the list is imported by nothing and isn't a real entry point, which makes it a likely dead/orphan file.
+
+1. `rev-dep entry-points` - list every file nothing imports
+2. scan the list and mentally subtract the genuine roots; what remains are orphan candidates
+3. `rev-dep imported-by --file src/legacy/oldThing.ts` - confirm a candidate has zero importers
+4. `rev-dep entry-points --print-deps-count` - a candidate that drags in a large subtree is dead code worth removing first
+
+For continuous, enforced detection, move this to the config [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) check (it does exactly this subtraction against your configured entry points, and can autofix).
+
+## Where should config entry points come from?
+
+1. `rev-dep entry-points` - list auto-detected roots
+2. confirm the real application roots among them
+3. add tests, scripts, and Storybook as dev entry points where needed
+
+## Is the graph healthy before adopting config?
+
+1. `rev-dep circular` - fail fast on cycles
+2. `rev-dep entry-points --print-deps-count` - spot unexpectedly large or orphaned roots

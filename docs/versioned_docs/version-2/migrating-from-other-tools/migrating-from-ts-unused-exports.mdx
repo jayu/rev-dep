@@ -1,0 +1,84 @@
+---
+description: "Migrate from ts-unused-exports to rev-dep: map unused-export detection (and completely-unused files) onto rev-dep checks in one fast pass."
+title: Migrating from ts-unused-exports
+sidebar_label: ts-unused-exports
+---
+
+<head>
+  <title>ts-unused-exports alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from ts-unused-exports
+
+[ts-unused-exports](https://github.com/pzavolinsky/ts-unused-exports) reports exported symbols that are never used in a TypeScript project. rev-dep covers that with [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx), plus orphan files, dependencies, cycles, and architecture rules.
+
+## Why migrate
+
+- **Speed and a single pass.** rev-dep is Go-based and runs every check at once - **faster** on large repos.
+- **One tool instead of several.** ts-unused-exports only finds unused exports. rev-dep also covers [orphan files](../config-based-checks/checks/orphan-files.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), and more.
+- **Autofix.** rev-dep can remove the dead `export` for you.
+
+## What carries over, what changes
+
+- **Covered well:** unused exported functions, variables, types, interfaces, enums.
+- **`--findCompletelyUnusedFiles`** (files whose every export is unused) maps to rev-dep's [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx).
+- **Different model:** ts-unused-exports reads your `tsconfig` files/includes; rev-dep traces from entry points, so define `prodEntryPoints`/`devEntryPoints` to keep public-API exports from being reported.
+
+## Feature mapping
+
+| ts-unused-exports | rev-dep |
+| --- | --- |
+| unused exports | [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx) |
+| `--allowUnusedTypes` / `--allowUnusedEnums` | `ignoreTypeExports: true` (types) |
+| `--excludeDeclarationFiles` | `ignoreFiles: ["**/*.d.ts"]` |
+| `--ignoreFiles` (regex) | `ignoreFiles` (globs) |
+| `--ignoreLocallyUsed` | default (only cross-file usage counts) |
+| `--findCompletelyUnusedFiles` | [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) |
+| `// ts-unused-exports:disable-next-line` | `ignore` / `ignoreExports` in config |
+| `--exitWithCount` | `config run` exits non-zero on findings |
+
+## Translating your config
+
+ts-unused-exports is CLI-driven:
+
+```bash
+ts-unused-exports tsconfig.json --excludeDeclarationFiles --allowUnusedTypes --ignoreFiles="\.stories\."
+```
+
+becomes a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/index.ts"],
+      "devEntryPoints": ["**/*.test.ts"],
+      "unusedExportsDetection": {
+        "enabled": true,
+        "autofix": true,
+        "ignoreTypeExports": true,
+        "ignoreFiles": ["**/*.d.ts", "**/*.stories.tsx"]
+      }
+    }
+  ]
+}
+```
+
+`--ignoreFiles` takes regular expressions; rev-dep uses glob patterns. For per-export exceptions, use `ignore`/`ignoreExports` - see [unused exports options](../config-based-checks/checks/unused-exports.mdx).
+
+## Running it
+
+```bash
+# ts-unused-exports
+npx ts-unused-exports tsconfig.json
+
+# rev-dep
+rev-dep config run
+rev-dep config run --fix
+```
+
+## Next steps
+
+- [Entry points](../config-based-checks/entry-points-definition.mdx) determine which exports are "public" - set them first.
+- [Monorepo integration guide](../monorepo-integration-guide.mdx) for per-workspace setup.

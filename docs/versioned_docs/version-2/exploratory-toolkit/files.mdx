@@ -1,0 +1,31 @@
+---
+description: "List every file reachable from an entry point with rev-dep files to understand bundle scope and why a file is considered reachable."
+title: Inspect dependency tree
+---
+
+# Inspect dependency tree
+
+Use:
+
+```bash
+rev-dep files --entry-point src/index.ts
+```
+
+This lists every file reachable from the chosen entry point, including the entry point itself. It is useful for understanding bundle scope or investigating why a file is pulled in.
+
+`--entry-point` is required and takes a single file.
+
+## Useful flags
+
+```bash
+rev-dep files --entry-point src/index.ts --count
+rev-dep files --entry-point src/index.ts --ignore-type-imports
+rev-dep files --entry-point apps/web/src/index.ts --follow-monorepo-packages
+rev-dep files --entry-point src/index.ts --process-ignored-files 'dist/**/*.generated.ts'
+```
+
+- `--count` prints only the number of reachable files.
+- `--ignore-type-imports` excludes files only reached through type-only imports.
+- `--follow-monorepo-packages` use to surface files imported from other packages in monorepo
+
+To go the other direction - find who pulls in a file - use [`imported-by`](./imported-by.mdx) or [`resolve`](./resolve.mdx).

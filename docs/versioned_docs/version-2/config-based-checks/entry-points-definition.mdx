@@ -1,0 +1,96 @@
+---
+description: "Learn how to define production and development entry points in rev-dep to ensure accurate dependency analysis and dead code detection."
+title: Entry points definition
+---
+
+# Entry points
+
+Entry points are the foundation of graph-based checks. They tell `rev-dep` which files should be treated as the roots of reachable code.
+
+## Kinds of entry points
+
+- `prodEntryPoints`: application code that ships or runs in production
+- `devEntryPoints`: tests, scripts, Storybook, build files, and other development-only entry points
+- `ignoreEntryPoints`: leftover entry points you no longer care about (see [Ignoring leftover entry points](#ignoring-leftover-entry-points))
+
+## Why they matter
+
+These checks depend heavily on entry points:
+
+- `orphanFilesDetection`
+- `unusedExportsDetection`
+- `devDepsUsageOnProdDetection`
+
+If entry points are incomplete, reachable files may look orphaned and real tooling packages may look unused.
+
+## Good defaults
+
+```json
+{
+  "prodEntryPoints": ["src/index.ts*", "src/pages/**/*.ts*"],
+  "devEntryPoints": ["scripts/**", "**/*.test.ts", ".storybook/**/*.ts"]
+}
+```
+
+When in doubt, start narrow, review results, then add missing roots explicitly.
+
+## Paths with `[ ]` or `{ }` (e.g. Next.js routes)
+
+Entry-point patterns are matched as [glob patterns](../other-concepts-and-features/glob-patterns.mdx), so `[`, `]`, `{`, and `}` are **special characters**. A literal path that contains them - such as a Next.js dynamic route `pages/admin/[clientId]/edit.tsx` - is read as a glob (`[clientId]` becomes a character class) and matches **nothing**, so the entry point is silently ignored.
+
+**If an entry-point path contains square or curly brackets, escape them** - for example `"pages/admin/\\[clientId\\]/edit.tsx"`. See [Glob patterns](../other-concepts-and-features/glob-patterns.mdx) for the full explanation and more examples.
+
+## Rule-level defaults vs detector overrides
+
+Most reachability-based detectors use rule-level `prodEntryPoints` and `devEntryPoints` as their foundation.
+
+Some detectors also expose their own narrower knobs:
+
+- `orphanFilesDetection` - `validEntryPoints`
+- `unusedExportsDetection` - `validEntryPoints`
+- `devDepsUsageOnProdDetection` - `prodEntryPoints`
+
+Use those when one detector needs a smaller or more specific set of roots than the whole rule.
+
+## Ignoring leftover entry points
+
+Sometimes a file is no longer wired into your application but still has to stay committed to the repository - an old page, a deprecated script, or a snippet kept around for reference. Such a file is not reachable from any real entry point, so it shows up as an orphan file, and any of its exports show up as unused exports.
+
+Add these files to `ignoreEntryPoints` to tell `rev-dep` to leave them alone:
+
+```json
+{
+  "prodEntryPoints": ["src/index.ts*", "src/pages/**/*.ts*"],
+  "ignoreEntryPoints": ["src/legacy/oldDashboard.tsx"]
+}
+```
+
+Files matching `ignoreEntryPoints` are **not processed as issues**:
+
+- they are never reported as orphan files
+- their unused exports are never reported
+
+Unlike `prodEntryPoints` and `devEntryPoints`, `ignoreEntryPoints` is not a statement that the file is a real root of your app - it simply marks the file as a known leftover that should be excluded from reporting. Use `prodEntryPoints`/`devEntryPoints` for files you actively rely on, and `ignoreEntryPoints` only for dead-but-committed files.
+
+## What belongs in dev entry points
+
+Good candidates:
+
+- tests
+- Storybook files
+- scripts
+- local tooling entry scripts
+- code generation entry files
+
+In practice all not imported files that are in use for something should be added dev entry points. 
+
+## Dealing with very long list of entry points
+
+Some real life huge projects might have tens of entry points in different folders.
+
+Good practice to keep the config lean is to group them by folders and use glob patterns to include all files in the folder.
+
+If folders does not work, you can use file extension pattern like `**/*.generated.ts` or `**/*.test.ts`
+
+With good convention in place, it's easier to add new entry points without needing to update the config every time.
+

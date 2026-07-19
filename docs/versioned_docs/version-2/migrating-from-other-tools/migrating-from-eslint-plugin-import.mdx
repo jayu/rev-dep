@@ -1,0 +1,94 @@
+---
+description: "Migrate import-graph ESLint rules (no-cycle, no-unused-modules, no-unresolved, no-extraneous-dependencies, no-restricted-paths) to rev-dep's faster whole-graph checks."
+title: Migrating from eslint-plugin-import
+sidebar_label: eslint-plugin-import
+---
+
+<head>
+  <title>eslint-plugin-import alternative - migrate to Rev-dep</title>
+</head>
+
+# Migrating from eslint-plugin-import
+
+[eslint-plugin-import](https://github.com/import-js/eslint-plugin-import) (and the actively maintained fork `eslint-plugin-import-x`) provides ESLint rules for the import graph. Several of them have direct rev-dep equivalents that run far faster on the whole graph at once.
+
+## Why migrate
+
+- **Speed.** The graph-aware import rules (especially `no-cycle` and `no-unused-modules`) are notoriously slow on large repos because ESLint re-resolves per file. rev-dep builds the graph once in Go - **faster**.
+- **Consolidation.** One rev-dep config covers cycles, unused exports, unresolved/extraneous dependencies, and path restrictions together.
+- **You can keep ESLint.** Migrate just the heavy graph rules to rev-dep and leave the rest of your ESLint setup in place.
+
+## What carries over, what changes
+
+- **Covered well:** cycles, unused exports, unresolved imports, extraneous/missing dependencies, restricted paths.
+- **Different execution model.** ESLint reports per file in the editor and on lint; rev-dep is a whole-graph batch check for CI/local runs. You lose inline editor squiggles for these rules but gain speed and cross-package accuracy.
+
+## Feature mapping
+
+| eslint-plugin-import rule | rev-dep |
+| --- | --- |
+| `import/no-cycle` | [`circularImportsDetection`](../config-based-checks/checks/circular-imports.mdx) |
+| `import/no-unused-modules` | [`unusedExportsDetection`](../config-based-checks/checks/unused-exports.mdx) (+ [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) for files with no used exports) |
+| `import/no-unresolved` | [`unresolvedImportsDetection`](../config-based-checks/checks/unresolved-imports.mdx) |
+| `import/no-extraneous-dependencies` | [`missingNodeModulesDetection`](../config-based-checks/checks/missing-node-modules.mdx) + [`devDepsUsageOnProdDetection`](../config-based-checks/checks/dev-deps-on-prod.mdx) (rev-dep also adds [`unusedNodeModulesDetection`](../config-based-checks/checks/unused-node-modules.mdx) for declared-but-unused packages, which this rule does not detect) |
+| `import/no-restricted-paths` | [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) / [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) |
+| `import/no-internal-modules` | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) / [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) |
+| `import/no-relative-packages` | [`importConventions`](../config-based-checks/checks/import-conventions.mdx) |
+
+## Translating your config
+
+ESLint rules like:
+
+```js
+// eslint.config.js (flat config)
+rules: {
+  'import/no-cycle': 'error',
+  'import/no-unused-modules': ['error', { unusedExports: true }],
+  'import/no-restricted-paths': ['error', {
+    zones: [{ target: 'src/ui', from: 'src/api' }]
+  }],
+}
+```
+
+become a `rev-dep.config.jsonc`:
+
+```jsonc
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/index.ts"],
+      "circularImportsDetection": {
+        "enabled": true
+      },
+      "unusedExportsDetection": {
+        "enabled": true
+      },
+      "moduleBoundaries": [
+        {
+          "name": "ui-not-from-api",
+          "pattern": "src/ui/**",
+          "deny": ["src/api/**"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`no-restricted-paths` zones (`target` / `from`) map to either [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) (file-pattern to file-pattern) or [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) (reachability from entry points) - see [which to use](../config-based-checks/checks/restricted-imports.mdx#restricted-imports-vs-module-boundaries).
+
+## Running it
+
+```bash
+# eslint
+npx eslint .
+
+# rev-dep
+rev-dep config run
+```
+
+## Next steps
+
+- [Module boundaries](../config-based-checks/checks/module-boundaries.mdx) and [restricted imports](../config-based-checks/checks/restricted-imports.mdx).
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).

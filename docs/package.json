@@ -31,6 +31,9 @@
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.10.1",
+    "@docusaurus/plugin-content-docs": "3.10.1",
+    "@docusaurus/theme-classic": "3.10.1",
+    "@docusaurus/theme-common": "3.10.1",
     "@docusaurus/tsconfig": "3.10.1",
     "@docusaurus/types": "3.10.1",
     "@types/react": "^19.0.0",

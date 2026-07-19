@@ -1,0 +1,123 @@
+---
+title: Restricted Importers
+description: Constrain which entry points may transitively reach a set of files or node modules - the reverse of restricted imports. Useful for keeping new code from coupling to legacy files or dependencies.
+---
+
+# Restricted importers
+
+`restrictedImportersDetection` constrains **which entry points may transitively reach (import) a set of files and/or node modules**. It is the reverse of [`restrictedImportsDetection`](config-based-checks/checks/restricted-imports.mdx): instead of "what may this entry point import", it answers "which entry points may reach this target".
+
+## What this check does
+
+You declare a set of `files` and/or `modules` (glob patterns) and a whitelist of `allowedEntryPoints`: only entry points matching `allowedEntryPoints` may reach a target. Any **other** entry point that reaches one of the `files`, or transitively imports one of the `modules`, is a violation.
+
+"Reaches" means **transitively**: the check builds the dependency graph from each entry point and looks for a path to any target file (or to any file that imports a target module). An entry point that pulls in a target three hops down the chain is treated exactly like one that imports it directly.
+
+The universe of entry points the whitelist is applied to is the **rule's `prodEntryPoints` + `devEntryPoints`**.
+
+
+## Why it is important
+
+The primary use case is **migrating away from legacy code**: list the legacy files as targets and whitelist the one entry point (or the few) that is still allowed to depend on them. Any other entry point whose dependency graph reaches the legacy code is flagged immediately, so the legacy surface can only shrink.
+
+- **Contain legacy code:** stop new entry points from growing a dependency on code you are removing.
+- **Guard sensitive areas:** ensure only specific entry points can reach a given file or module.
+- **Architecture hygiene:** keep a clear boundary around code that should have limited reach.
+- **Quarantine a banned dependency:** list a legacy node module so it cannot spread beyond the entry points already allowed to use it, and cannot be reintroduced into new code.
+
+## Restricted Importers vs. Restricted Imports vs. Restricted Direct Importers
+
+They are duals - same dependency edges, opposite ends:
+
+- **`restrictedImports`** restricts **what** an entry point may reach (deny targets reachable from entry points).
+- **`restrictedImporters`** whitelists **which entry points** may reach a target (only the allowed entry points may transitively reach the listed files/modules).
+- **`restrictedDirectImporters`** is the non-transitive version of `restrictedImporters`: it only checks the direct importers of a target, not the transitive reachers.
+
+
+## Configuration
+
+Whitelist - only `src/admin/main.ts` may reach the legacy code:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/app/main.ts", "src/admin/main.ts"],
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "files": ["src/legacy/**"],
+        "allowedEntryPoints": ["src/admin/main.ts"]
+      }
+    }
+  ]
+}
+```
+
+With this config, if `src/app/main.ts` reaches `src/legacy/**` through any chain it is a violation, while `src/admin/main.ts` is allowed.
+
+### Constraining a node module
+
+Use `modules` to constrain which entry points may transitively import a node module. This is handy for quarantining a banned or legacy dependency - only the allowlisted entry points may pull it in, and any new code that reintroduces it is flagged:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/**/main.ts"],
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "modules": ["moment", "@legacy/*"],
+        "allowedEntryPoints": ["src/legacy-shell/main.ts"]
+      }
+    }
+  ]
+}
+```
+
+`modules` are matched as **module-name glob patterns** (the same matching `restrictedImports` uses for `denyModules`): `moment` matches `moment` and `moment/locale/...`, and `@legacy/*` matches any package in the `@legacy` scope. You can set `files`, `modules`, or both in the same detector.
+
+## Options
+
+- `enabled` (boolean, required): Whether to enable restricted importers detection.
+- `files` (array of strings): Glob patterns for the files whose transitive importers are constrained. At least one of `files` or `modules` is required when enabled.
+- `modules` (array of strings): Node-module name glob patterns whose transitive importers are constrained. At least one of `files` or `modules` is required when enabled.
+- `allowedEntryPoints` (array of strings, required when enabled): Whitelist of entry points permitted to reach the targets. Any other entry point that reaches a target file or module is a violation.
+- `graphExclude` (array of strings, optional): Glob patterns to prune from the dependency graph before the analysis.
+- `ignoreMatches` (array of strings, optional): Entry-point patterns to drop from the results.
+- `ignoreTypeImports` (boolean, optional): Ignore type-only imports when tracing entry points to targets (default: false).
+
+## Defining multiple restricted importers rules
+
+Like other detectors, `restrictedImportersDetection` can be a single object or an **array of objects** - use an array to constrain different sets of files or modules within the same workspace:
+
+```json
+{
+  "rules": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/**/main.ts"],
+      "restrictedImportersDetection": [
+        {
+          "enabled": true,
+          "files": ["src/legacy/**"],
+          "allowedEntryPoints": ["src/admin/main.ts"]
+        },
+        {
+          "enabled": true,
+          "files": ["src/internal/secrets/**"],
+          "allowedEntryPoints": ["src/internal/secrets/index.ts"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Related checks
+
+- [`restrictedDirectImporters`](config-based-checks/checks/restricted-direct-importers.mdx) - the direct-edge (non-transitive) counterpart.
+- [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx) - the dual: restrict what entry points may reach.
+- [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx) - directional allow/deny rules between groups of files.
+

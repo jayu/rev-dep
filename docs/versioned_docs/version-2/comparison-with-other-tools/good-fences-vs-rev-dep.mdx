@@ -1,0 +1,42 @@
+---
+description: "good-fences vs rev-dep: compare directory import boundaries, performance and scope. rev-dep enforces the same boundaries from one central config, plus much more."
+title: good-fences vs Rev-dep
+sidebar_label: good-fences
+---
+
+<head>
+  <title>good-fences vs Rev-dep: features compared</title>
+</head>
+
+# good-fences vs Rev-dep
+
+[good-fences](https://github.com/smikula/good-fences) controls what each area of a TypeScript project can import, using per-directory `fence.json` files and tags. rev-dep enforces the same boundaries from one central config with path patterns, and adds the rest of a hygiene suite.
+
+## At a glance
+
+| | good-fences | Rev-dep |
+| --- | --- | --- |
+| Primary focus | directory import boundaries | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**faster**) |
+| Boundary model | tags + per-directory `fence.json` | path patterns in one config |
+| Restrict allowed npm deps per area | yes | yes ([restricted imports](../config-based-checks/checks/restricted-imports.mdx)) |
+| Circular / unused exports / dependencies | no | yes |
+
+## Where rev-dep is stronger
+
+- **One central config** instead of `fence.json` files scattered across directories.
+- **Much broader** - boundaries *and* [circular imports](../config-based-checks/checks/circular-imports.mdx), [unused exports](../config-based-checks/checks/unused-exports.mdx), and [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx).
+- **Speed.**
+
+## Where good-fences may still fit
+
+Its **tag system** and **co-located** `fence.json` files let each directory own its own boundary rules, which some teams prefer. rev-dep expresses the same intent with central path-pattern [module boundaries](../config-based-checks/checks/module-boundaries.mdx) - simpler to review, but a different mental model (no tags, one file).
+
+## Which should you choose?
+
+- Prefer per-directory, tag-based ownership of boundaries? **good-fences.**
+- Want central boundaries plus the rest of a hygiene suite in one fast pass? **rev-dep.**
+
+## Migrating
+
+See [Migrating from good-fences](../migrating-from-other-tools/migrating-from-good-fences.mdx).

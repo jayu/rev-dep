@@ -87,6 +87,17 @@ const config: Config = {
         indexPages: false,
       },
     ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        // Short links used by `rev-dep config init` output.
+        redirects: [
+          {from: '/init/monorepo', to: '/docs/monorepo-integration-guide'},
+          {from: '/init/single-workspace', to: '/docs/single-workspace-integration-guide'},
+          {from: '/troubleshooting', to: '/docs/troubleshooting'},
+        ],
+      },
+    ],
   ],
 
   themeConfig: {

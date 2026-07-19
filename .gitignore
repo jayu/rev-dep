@@ -14,3 +14,10 @@ rev-dep-go-linux
 notes/**
 tmp
 .codex
+cli-telemetry.env
+.sdbx
+.claude
+
+/.gocache/
+/.gotmp/
+.pnpm-store

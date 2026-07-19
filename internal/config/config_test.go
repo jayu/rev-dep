@@ -208,18 +208,7 @@ func TestParseConfig_RequiredFields(t *testing.T) {
 					"moduleBoundaries": [{"name": "Test"}]
 				}]
 			}`,
-			expectedErr: "workspaces[0].moduleBoundaries[0].pattern is required",
-		},
-		{
-			name: "missing enabled field in detection options",
-			configJSON: `{
-				"configVersion": "1.0",
-				"workspaces": [{
-					"path": "./src",
-					"circularImportsDetection": {}
-				}]
-			}`,
-			expectedErr: "workspaces[0].circularImportsDetection.enabled is required",
+			expectedErr: "workspaces[0].moduleBoundaries[0].pattern is required (or use 'mutuallyExclusive')",
 		},
 	}
 
@@ -484,7 +473,7 @@ func TestParseConfig_InvalidTypes(t *testing.T) {
 					"circularImportsDetection": "not-object"
 				}]
 			}`,
-			expectedErr: "circularImportsDetection must be an object",
+			expectedErr: "circularImportsDetection must be a boolean, an object, or an array of objects",
 		},
 		{
 			name: "enabled field not boolean",
@@ -1718,7 +1707,7 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		}
 	})
 
-	t.Run("missing enabled field", func(t *testing.T) {
+	t.Run("missing enabled field defaults to enabled", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
 			"workspaces": [{
@@ -1727,12 +1716,13 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 			}]
 		}`
 
-		_, err := ParseConfig([]byte(configJSON))
-		if err == nil {
-			t.Fatal("Expected error, got nil")
+		cfg, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got: %s", err.Error())
 		}
-		if !contains(err.Error(), "unusedExportsDetection.enabled is required") {
-			t.Errorf("Expected 'enabled is required' error, got: %s", err.Error())
+		detections := cfg.Rules[0].UnusedExportsDetections
+		if len(detections) != 1 || !detections[0].IsEnabled() {
+			t.Errorf("Expected a single enabled detection, got: %+v", detections)
 		}
 	})
 
@@ -1891,8 +1881,8 @@ func TestParseConfig_UnusedExportsDetection(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error, got nil")
 		}
-		if !contains(err.Error(), "must be an object") {
-			t.Errorf("Expected object type error, got: %s", err.Error())
+		if !contains(err.Error(), "must be a boolean, an object, or an array of objects") {
+			t.Errorf("Expected type error, got: %s", err.Error())
 		}
 	})
 
@@ -2040,7 +2030,7 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 		}
 	})
 
-	t.Run("missing enabled field", func(t *testing.T) {
+	t.Run("missing enabled field defaults to enabled", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",
 			"workspaces": [{
@@ -2049,12 +2039,13 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 			}]
 		}`
 
-		_, err := ParseConfig([]byte(configJSON))
-		if err == nil {
-			t.Fatal("Expected error, got nil")
+		cfg, err := ParseConfig([]byte(configJSON))
+		if err != nil {
+			t.Fatalf("Expected no error, got: %s", err.Error())
 		}
-		if !contains(err.Error(), "unresolvedImportsDetection.enabled is required") {
-			t.Errorf("Expected enabled-is-required error, got: %s", err.Error())
+		detections := cfg.Rules[0].UnresolvedImportsDetections
+		if len(detections) != 1 || !detections[0].IsEnabled() {
+			t.Errorf("Expected a single enabled detection, got: %+v", detections)
 		}
 	})
 

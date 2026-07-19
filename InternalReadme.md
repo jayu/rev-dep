@@ -1,20 +1,20 @@
 ## Build native development
 
-`go build -tags "dev" -o rev-dep-go-dev .`
+`go build -tags "dev" -o rev-dep-go-dev ./cmd/cli`
 
 ## Build native production
 
-`go build -o rev-dep-go .`
+`go build -o rev-dep-go ./cmd/cli`
 
 ## Build native production without debug info in binary (smaller size)
 
-`go build -o rev-dep-go -ldflags="-s -w" .`
+`go build -o rev-dep-go -ldflags="-s -w" ./cmd/cli `
 
 ## Build linux
 
-`GOOS=linux GOARCH=amd64 go build -o rev-dep-go-linux .`
+`GOOS=linux GOARCH=amd64 go build -o rev-dep-go-linux ./cmd/cli `
 
-`GOOS=linux GOARCH=amd64 go build -o rev-dep-go-linux -ldflags="-s -w" .`
+`GOOS=linux GOARCH=amd64 go build -o rev-dep-go-linux -ldflags="-s -w" ./cmd/cli `
 
 
 ## CPU profiling 
@@ -24,19 +24,38 @@
 
 ## Publishing
 
-`node scripts/setVersions.js`
+> One-time setup: copy `cli-telemetry.env.example` to `cli-telemetry.env` (git-ignored) and
+> fill in the connection string. `scripts/buildProdBinaries.sh` reads it, bakes
+> it into the binaries, and fails the build if it is missing or did not link in — so a release can
+> never ship with telemetry silently disabled.
 
-`scripts/buildProdBinaries.sh`
+1. `node scripts/setVersions.js <version>`   (e.g. `2.15.0`)
+2. `scripts/buildProdBinaries.sh`
+3. `node scripts/addCliRefToReadmeAndDocs.js`
+4. `git add . && git commit -m "chore: release <version>"`
+5. `npm login`
+6. `scripts/publish.sh`
+7. `node scripts/release.js`   — tag + GitHub release (notes, binaries, checksums)
+8. `git push origin HEAD`
 
-`node scripts/addCliRefToReadmeAndDocs.js`
+`scripts/release.js` reads the version from `npm/rev-dep/package.json`, pushes the
+`<version>` tag, and creates a GitHub release with categorized notes (Features /
+Bug Fixes / Documentation / Other Changes, built from the commits since the
+previous tag - see `scripts/releaseNotes.js`), the three platform binaries, and a
+`checksums.txt` (sha256). Requires `gh` authenticated. Pre-release versions
+(`X.Y.Z-...`) are marked as pre-releases automatically.
 
-`git add . && git commit -m "chore: release`
+### Verifying a downloaded binary
 
-`npm login`
+Download the binary and `checksums.txt` from the release page, place them in the
+same folder, then:
 
-`scripts/publish.sh` 
+```
+shasum -a 256 -c checksums.txt
+```
 
-`git push origin HEAD` 
+(Users installing via npm get integrity verification automatically from the
+lockfile; the checksums are for people downloading the raw binary.)
 
 ## Resolution steps contribution to overall performance
 

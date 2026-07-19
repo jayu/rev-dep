@@ -27,6 +27,10 @@
         "1.6",
         "1.7",
         "1.8",
+        "1.9",
+        "1.10",
+        "1.11",
+        "1.12",
         "2.0"
       ]
     },
@@ -83,12 +87,52 @@
         ]
       ]
     },
+    "nodeModulesResolution": {
+      "description": "Which package.json each third-party import is validated against for the missing/unused/unresolved node module checks, and whether monorepo root devDependencies are treated as available to package code. Accepts either a bare string (the resolution type, kept for backward compatibility) or an object. 'entry-package' (default) validates every import in a rule's tree against that rule's entry package.json. 'nearest-package' validates each import against the package.json that owns the importing file (correct for isolated layouts such as pnpm's default).",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "entry-package",
+            "nearest-package"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "resolutionType": {
+              "type": "string",
+              "enum": [
+                "entry-package",
+                "nearest-package"
+              ],
+              "default": "entry-package",
+              "description": "Which package.json each third-party import is validated against."
+            },
+            "includeDevDepsFromRoot": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, the monorepo root (cwd) package.json devDependencies are treated as available to package code, so importing a dev dependency declared only at the monorepo root is not reported as missing. Opt-in; suits monorepos that declare shared dev dependencies once at the root instead of in every package."
+            }
+          }
+        }
+      ],
+      "examples": [
+        "entry-package",
+        "nearest-package",
+        {
+          "resolutionType": "entry-package",
+          "includeDevDepsFromRoot": false
+        }
+      ]
+    },
     "workspaces": {
       "type": "array",
       "items": {
         "$ref": "#/definitions/Rule"
       },
-      "description": "List of workspaces. Each entry defines the checks for one part of the project (typically one workspace package)."
+      "description": "Configuration rules"
     }
   },
   "definitions": {
@@ -134,7 +178,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Workspace-level production entry point patterns used as defaults by selected detectors"
+          "description": "Rule-level production entry point patterns used as defaults by selected detectors"
         },
         "devEntryPoints": {
           "type": "array",
@@ -142,7 +186,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Workspace-level development entry point patterns used as defaults by selected detectors"
+          "description": "Rule-level development entry point patterns used as defaults by selected detectors"
         },
         "ignoreEntryPoints": {
           "type": "array",
@@ -150,7 +194,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Workspace-level patterns for leftover entry points that are no longer relevant. Matching files are not processed as issues: they are never reported as orphan files and their unused exports are not reported."
+          "description": "Rule-level patterns for leftover entry points that are no longer relevant. Matching files are not processed as issues: they are never reported as orphan files and their unused exports are not reported."
         },
         "moduleBoundaries": {
           "type": "array",
@@ -161,6 +205,10 @@
         },
         "circularImportsDetection": {
           "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
             {
               "$ref": "#/definitions/CircularImportsOptions"
             },
@@ -175,6 +223,10 @@
         "orphanFilesDetection": {
           "oneOf": [
             {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
+            {
               "$ref": "#/definitions/OrphanFilesOptions"
             },
             {
@@ -187,6 +239,10 @@
         },
         "unusedNodeModulesDetection": {
           "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
             {
               "$ref": "#/definitions/UnusedNodeModulesOptions"
             },
@@ -201,6 +257,10 @@
         "missingNodeModulesDetection": {
           "oneOf": [
             {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
+            {
               "$ref": "#/definitions/MissingNodeModulesOptions"
             },
             {
@@ -213,6 +273,10 @@
         },
         "unusedExportsDetection": {
           "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
             {
               "$ref": "#/definitions/UnusedExportsOptions"
             },
@@ -227,6 +291,10 @@
         "unresolvedImportsDetection": {
           "oneOf": [
             {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
+            {
               "$ref": "#/definitions/UnresolvedImportsOptions"
             },
             {
@@ -239,6 +307,10 @@
         },
         "devDepsUsageOnProdDetection": {
           "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
             {
               "$ref": "#/definitions/RestrictedDevDependenciesUsageOptions"
             },
@@ -253,12 +325,50 @@
         "restrictedImportsDetection": {
           "oneOf": [
             {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
+            {
               "$ref": "#/definitions/RestrictedImportsDetectionOptions"
             },
             {
               "type": "array",
               "items": {
                 "$ref": "#/definitions/RestrictedImportsDetectionOptions"
+              }
+            }
+          ]
+        },
+        "restrictedImportersDetection": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
+            {
+              "$ref": "#/definitions/RestrictedImportersDetectionOptions"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/RestrictedImportersDetectionOptions"
+              }
+            }
+          ]
+        },
+        "restrictedDirectImportersDetection": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
+            {
+              "$ref": "#/definitions/RestrictedDirectImportersDetectionOptions"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/RestrictedDirectImportersDetectionOptions"
               }
             }
           ]
@@ -274,68 +384,115 @@
     },
     "BoundaryRule": {
       "type": "object",
-      "required": [
-        "name",
-        "pattern"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name of the boundary",
-          "examples": [
-            "Client Boundary",
-            "API Boundary"
-          ]
+      "description": "Either an explicit boundary (pattern + allow/deny) or a mutuallyExclusive group of globs. The two forms cannot be combined on the same rule.",
+      "oneOf": [
+        {
+          "required": [
+            "name",
+            "pattern"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the boundary",
+              "examples": [
+                "Client Boundary",
+                "API Boundary"
+              ]
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Glob pattern for files in this boundary",
+              "pattern": "^(?!\\.{1,2}[\\\\/]).+",
+              "examples": [
+                "packages/client/**",
+                "src/api/**"
+              ]
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+              },
+              "description": "Glob patterns for allowed imports",
+              "examples": [
+                [
+                  "packages/client/**",
+                  "packages/utils/**"
+                ]
+              ]
+            },
+            "deny": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+              },
+              "description": "Glob patterns for denied imports (overrides allow)",
+              "examples": [
+                [
+                  "packages/api/forbidden**"
+                ]
+              ]
+            },
+            "denyIgnore": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+              },
+              "description": "Exceptions carved out of 'deny': an import matched by 'deny' is not reported if it is also matched here. Only meaningful together with 'deny'.",
+              "examples": [
+                [
+                  "src/api/dto/**"
+                ]
+              ]
+            }
+          }
         },
-        "pattern": {
-          "type": "string",
-          "description": "Glob pattern for files in this boundary",
-          "pattern": "^(?!\\.{1,2}[\\\\/]).+",
-          "examples": [
-            "packages/client/**",
-            "src/api/**"
-          ]
-        },
-        "allow": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
-          },
-          "description": "Glob patterns for allowed imports",
-          "examples": [
-            [
-              "packages/client/**",
-              "packages/utils/**"
-            ]
-          ]
-        },
-        "deny": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
-          },
-          "description": "Glob patterns for denied imports (overrides allow)",
-          "examples": [
-            [
-              "packages/api/forbidden**"
-            ]
-          ]
+        {
+          "required": [
+            "name",
+            "mutuallyExclusive"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the boundary",
+              "examples": [
+                "feature-isolation"
+              ]
+            },
+            "mutuallyExclusive": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "string",
+                "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+              },
+              "description": "Flat list of globs that may not import across each other. A file matching one glob may not import a file matching any other glob in the list; imports within a single glob are allowed. Expands to one explicit boundary per glob.",
+              "examples": [
+                [
+                  "src/modules/analytics/**",
+                  "src/modules/billing/**",
+                  "src/modules/reporting/**"
+                ]
+              ]
+            }
+          }
         }
-      }
+      ]
     },
     "CircularImportsOptions": {
       "type": "object",
-      "required": [
-        "enabled"
-      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable circular imports detection"
+          "description": "Enable circular imports detection (optional; when omitted the detector is enabled)"
         },
         "ignoreTypeImports": {
           "type": "boolean",
@@ -355,14 +512,11 @@
     },
     "OrphanFilesOptions": {
       "type": "object",
-      "required": [
-        "enabled"
-      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable orphan files detection"
+          "description": "Enable orphan files detection (optional; when omitted the detector is enabled)"
         },
         "validEntryPoints": {
           "type": "array",
@@ -400,14 +554,11 @@
     },
     "UnusedNodeModulesOptions": {
       "type": "object",
-      "required": [
-        "enabled"
-      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable unused node modules detection"
+          "description": "Enable unused node modules detection (optional; when omitted the detector is enabled)"
         },
         "includeModules": {
           "type": "array",
@@ -458,14 +609,11 @@
     },
     "MissingNodeModulesOptions": {
       "type": "object",
-      "required": [
-        "enabled"
-      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable missing node modules detection"
+          "description": "Enable missing node modules detection (optional; when omitted the detector is enabled)"
         },
         "includeModules": {
           "type": "array",
@@ -496,14 +644,11 @@
     },
     "UnusedExportsOptions": {
       "type": "object",
-      "required": [
-        "enabled"
-      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable unused exports detection"
+          "description": "Enable unused exports detection (optional; when omitted the detector is enabled)"
         },
         "validEntryPoints": {
           "type": "array",
@@ -572,14 +717,11 @@
     },
     "UnresolvedImportsOptions": {
       "type": "object",
-      "required": [
-        "enabled"
-      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable unresolved imports detection"
+          "description": "Enable unresolved imports detection (optional; when omitted the detector is enabled)"
         },
         "ignore": {
           "type": "object",
@@ -616,14 +758,11 @@
     },
     "RestrictedDevDependenciesUsageOptions": {
       "type": "object",
-      "required": [
-        "enabled"
-      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable restricted dev dependencies usage detection"
+          "description": "Enable restricted dev dependencies usage detection (optional; when omitted the detector is enabled)"
         },
         "prodEntryPoints": {
           "type": "array",
@@ -648,14 +787,11 @@
     },
     "RestrictedImportsDetectionOptions": {
       "type": "object",
-      "required": [
-        "enabled"
-      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable restricted imports detection"
+          "description": "Enable restricted imports detection (optional; when omitted the detector is enabled)"
         },
         "entryPoints": {
           "type": "array",
@@ -706,6 +842,157 @@
         "ignoreTypeImports": {
           "type": "boolean",
           "description": "Ignore type-only imports while traversing entry point graph",
+          "default": false
+        }
+      }
+    },
+    "RestrictedImportersDetectionOptions": {
+      "type": "object",
+      "description": "The inverse of restrictedImportsDetection: it whitelists which entry points may transitively reach (import) a set of files and/or node modules. Any entry point (from the rule's prod/dev entry points) NOT matching allowedEntryPoints that reaches one of those targets is a violation. Useful when migrating away from legacy code - keep new entry points from coupling to the legacy surface, or stop a legacy node module from spreading across the codebase. (To forbid specific entry points from reaching a target, use restrictedImportsDetection instead.)",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable restricted importers detection (optional; when omitted the detector is enabled)"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "File patterns whose transitive importers (entry points) are constrained. At least one of files or modules is required when enabled.",
+          "examples": [
+            [
+              "legacy/**",
+              "src/deprecated/**/*.ts"
+            ]
+          ]
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Node module name glob patterns whose transitive importers (entry points) are constrained. Any non-allowlisted entry point that transitively imports a matching module is a violation - useful to stop a legacy/banned dependency from being reintroduced or spreading. At least one of files or modules is required when enabled.",
+          "examples": [
+            [
+              "moment",
+              "@legacy/*"
+            ]
+          ]
+        },
+        "allowedEntryPoints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Whitelist: only entry points matching these patterns may transitively reach a target file or module. Any other entry point (from the rule's prod/dev entry points) that reaches a target is a violation.",
+          "examples": [
+            [
+              "src/admin/main.ts"
+            ]
+          ]
+        },
+        "graphExclude": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!\\.{1,2}[\\\\/]).+"
+          },
+          "description": "Patterns to exclude from restricted importers graph analysis"
+        },
+        "ignoreMatches": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Entry-point patterns to ignore in restricted importers results"
+        },
+        "ignoreTypeImports": {
+          "type": "boolean",
+          "description": "Ignore type-only imports when tracing entry points to targets",
+          "default": false
+        }
+      }
+    },
+    "RestrictedDirectImportersDetectionOptions": {
+      "type": "object",
+      "description": "A non-transitive importer policy: for a set of target files XOR node modules, constrain which files may DIRECTLY import them. Unlike restrictedImportersDetection (transitive reachability from entry points), this only inspects direct import edges and never builds a dependency graph. Provide exactly one of files/modules and exactly one of allowImporters/denyImporters.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable restricted direct importers detection (optional; when omitted the detector is enabled)"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "File glob patterns for the targets whose direct importers are constrained. Mutually exclusive with modules; exactly one is required when enabled.",
+          "examples": [
+            [
+              "utils/configs/serverConfig/index.ts",
+              "src/legacy/**/*.ts"
+            ]
+          ]
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Node module name glob patterns for the targets whose direct importers are constrained. Mutually exclusive with files; exactly one is required when enabled.",
+          "examples": [
+            [
+              "axios",
+              "@legacy/*"
+            ]
+          ]
+        },
+        "allowImporters": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Whitelist: only files matching these patterns may directly import a target. Any other direct importer is a violation. Mutually exclusive with denyImporters; exactly one is required when enabled.",
+          "examples": [
+            [
+              "src/config/**"
+            ]
+          ]
+        },
+        "denyImporters": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Blacklist: files matching these patterns may not directly import a target. Any matching direct importer is a violation. Mutually exclusive with allowImporters; exactly one is required when enabled.",
+          "examples": [
+            [
+              "src/public/**"
+            ]
+          ]
+        },
+        "ignoreMatches": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Importer glob patterns to exempt from restricted direct importers results. Filters the importer side only; does not narrow the files/modules targets."
+        },
+        "ignoreTypeImports": {
+          "type": "boolean",
+          "description": "Ignore type-only imports when determining direct importers",
           "default": false
         }
       }

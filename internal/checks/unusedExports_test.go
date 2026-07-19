@@ -1366,6 +1366,52 @@ func TestFilterUnusedExports(t *testing.T) {
 			t.Fatalf("Expected only Bar to remain, got %s", filtered[0].ExportName)
 		}
 	})
+
+	// Relative globs that climb out of the current workspace must be honored in
+	// both ignore fields, so unused-export findings in a sibling workspace can be
+	// suppressed (e.g. handle them in that workspace's own rule instead).
+	t.Run("relative cross-workspace patterns work in both fields", func(t *testing.T) {
+		workspaceCwd := "/project/apps/web/"
+		findings := []UnusedExport{
+			{FilePath: "/project/apps/web/src/local.ts", ExportName: "localThing"},
+			{FilePath: "/project/apps/mobile/src/screen.ts", ExportName: "MobileScreen"},
+		}
+
+		mobileStillPresent := func(items []UnusedExport) bool {
+			for _, it := range items {
+				if it.FilePath == "/project/apps/mobile/src/screen.ts" {
+					return true
+				}
+			}
+			return false
+		}
+
+		t.Run("ignoreFiles", func(t *testing.T) {
+			filtered := FilterUnusedExports(findings, &UnusedExportsFilterOptions{
+				IgnoreFiles: []string{"../../apps/mobile/**"},
+			}, workspaceCwd)
+			if mobileStillPresent(filtered) {
+				t.Fatalf("ignoreFiles: expected sibling-workspace export to be filtered, got %+v", filtered)
+			}
+			if len(filtered) != 1 {
+				t.Fatalf("ignoreFiles: expected 1 remaining (local), got %d: %+v", len(filtered), filtered)
+			}
+		})
+
+		t.Run("ignore map", func(t *testing.T) {
+			filtered := FilterUnusedExports(findings, &UnusedExportsFilterOptions{
+				Ignore: globutil.FileValueIgnoreMap{
+					"../../apps/mobile/**": []string{"*"},
+				},
+			}, workspaceCwd)
+			if mobileStillPresent(filtered) {
+				t.Fatalf("ignore map: expected sibling-workspace export to be filtered, got %+v", filtered)
+			}
+			if len(filtered) != 1 {
+				t.Fatalf("ignore map: expected 1 remaining (local), got %d: %+v", len(filtered), filtered)
+			}
+		})
+	})
 }
 
 // applyChange applies a single Change to a source string

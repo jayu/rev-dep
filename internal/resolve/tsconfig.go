@@ -70,11 +70,12 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 	// resolve path of extends
 	candidates := []string{}
 
-	// `extends` values in tsconfig JSON use forward slashes regardless of OS, so
-	// detect a path-like value by "/" (or a backslash, just in case) - not
-	// filepath.Separator, which is "\" on Windows and would misclassify a
-	// relative path like "configs/base.json" as a package name.
-	if filepath.IsAbs(extStr) || strings.HasPrefix(extStr, ".") || strings.ContainsAny(extStr, "/\\") {
+	// Per TypeScript, an `extends` value is a file path only when it is absolute
+	// or starts with "./" or "../". Everything else - including names that
+	// contain "/", like "@docusaurus/tsconfig" or "pkg/tsconfig.json" - is a
+	// bare specifier resolved Node-style from node_modules. (Don't key off the
+	// presence of a slash: a scoped package name contains one.)
+	if filepath.IsAbs(extStr) || strings.HasPrefix(extStr, ".") {
 		// treat as file path relative to baseDir when not absolute
 		p := extStr
 		if !filepath.IsAbs(p) {
@@ -84,11 +85,8 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 		// try with .json suffix
 		candidates = append(candidates, p+".json")
 	} else {
-		// try package-style resolution inside node_modules for tsconfigs published as packages
-		// try <baseDir>/node_modules/<extStr>
-		candidates = append(candidates, filepath.Join(baseDir, "node_modules", extStr))
-		candidates = append(candidates, filepath.Join(baseDir, "node_modules", extStr, "tsconfig.json"))
-		candidates = append(candidates, filepath.Join(baseDir, "node_modules", extStr+".json"))
+		// Node-style resolution for a tsconfig published as a package.
+		candidates = append(candidates, tsConfigPackageExtendsCandidates(baseDir, extStr)...)
 	}
 
 	var baseCfg map[string]interface{}
@@ -174,6 +172,49 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 	delete(merged, "extends")
 	ensureCompilerOptions(merged)
 	return merged, nil
+}
+
+// tsConfigPackageExtendsCandidates returns candidate file paths for a bare
+// `extends` specifier (e.g. "@docusaurus/tsconfig" or "pkg/tsconfig.json"),
+// resolved Node-style by walking node_modules directories up from baseDir. For a
+// package directory it honors the package.json "main" entry and falls back to a
+// root "tsconfig.json".
+func tsConfigPackageExtendsCandidates(baseDir, extStr string) []string {
+	candidates := []string{}
+	dir := baseDir
+	for {
+		target := filepath.Join(dir, "node_modules", extStr)
+		// Direct file (e.g. "pkg/base.json" or "@scope/pkg/tsconfig.json").
+		candidates = append(candidates, target, target+".json")
+		// Package directory: honor package.json "main", then default tsconfig.json.
+		if main := readPackageJSONMain(target); main != "" {
+			candidates = append(candidates, filepath.Join(target, main))
+		}
+		candidates = append(candidates, filepath.Join(target, "tsconfig.json"))
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return candidates
+}
+
+// readPackageJSONMain returns the "main" field of pkgDir/package.json, or "" if
+// the file is missing or unparsable.
+func readPackageJSONMain(pkgDir string) string {
+	content, err := os.ReadFile(filepath.Join(pkgDir, "package.json"))
+	if err != nil {
+		return ""
+	}
+	var pkg struct {
+		Main string `json:"main"`
+	}
+	if err := json.Unmarshal(jsonc.ToJSON(content), &pkg); err != nil {
+		return ""
+	}
+	return pkg.Main
 }
 
 func ensureCompilerOptions(cfg map[string]interface{}) {

@@ -23,6 +23,8 @@ Available checks are:
 
 - `moduleBoundaries` - enforce architecture boundaries between modules.
 - `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
+- `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
+- `restrictedDirectImportersDetection` - constrain which files may directly import a set of files/modules (non-transitive).
 - `importConventions` - enforce import style conventions (offers autofix).
 - `circularImportsDetection` - detect circular imports.
 - `orphanFilesDetection` - detect dead/orphan files (offers autofix).

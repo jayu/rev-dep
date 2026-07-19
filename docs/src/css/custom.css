@@ -31,6 +31,15 @@
 
 .footer {
   background: #242526;
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+}
+
+@media screen and (max-width: 996px) {
+  .footer {
+    padding-top: 3.75rem;
+    padding-bottom: 3.75rem;
+  }
 }
 
 :root {

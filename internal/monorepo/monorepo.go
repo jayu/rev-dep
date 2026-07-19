@@ -439,6 +439,57 @@ func (ctx *MonorepoContext) walkForPackagesWithWorkerPool(basePath string, exclu
 	wg.Wait()
 }
 
+// RegisterExplicitPackages registers directories that should be treated as workspace
+// packages regardless of whether they are declared in a root package.json "workspaces"
+// field (or a pnpm-workspace file). Each dir must already be an absolute, internal-form
+// path; it is registered as a package only if it contains a parseable package.json with a
+// "name". This supports monorepo-style setups where the rev-dep config lists package
+// subdirectories directly and there is no root package.json, or a root package.json that
+// does not declare those directories as workspaces.
+func (ctx *MonorepoContext) RegisterExplicitPackages(packageDirs []string) {
+	for _, dir := range packageDirs {
+		ctx.processPossiblePackage(dir)
+	}
+}
+
+// DiscoverStandalonePackages walks the tree rooted at ctx.WorkspaceRoot and returns the
+// internal-form absolute directories that contain a parseable package.json, EXCLUDING the
+// workspace root itself and any directory already registered in ctx.PackageToPath (monorepo
+// workspace packages). .gitignore is always honored and node_modules is always skipped, so
+// this surfaces standalone packages that live in subdirectories but are not part of any
+// monorepo workspace declaration. Results are sorted.
+func (ctx *MonorepoContext) DiscoverStandalonePackages(excludeFilePatterns []globutil.GlobMatcher) []string {
+	gitIgnoreExcludePatterns := fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(ctx.WorkspaceRoot)
+	// Always skip node_modules explicitly so package discovery never descends into installed
+	// dependencies, even when the project has no .gitignore. Both the root-level and nested
+	// forms are excluded.
+	nodeModulesExclude := globutil.CreateGlobMatchers([]string{"node_modules", "**/node_modules"}, ctx.WorkspaceRoot)
+	allExcludePatterns := append(append(append([]globutil.GlobMatcher{}, excludeFilePatterns...), gitIgnoreExcludePatterns...), nodeModulesExclude...)
+
+	candidateDirs := map[string]bool{}
+	ctx.walkForPackagesWithWorkerPool(pathutil.DenormalizePathForOS(ctx.WorkspaceRoot), allExcludePatterns, nil, nil, candidateDirs)
+
+	knownPackageDirs := map[string]bool{}
+	for _, packagePath := range ctx.PackageToPath {
+		knownPackageDirs[pathutil.NormalizePathForInternal(packagePath)] = true
+	}
+
+	standalone := make([]string, 0)
+	for dir := range candidateDirs {
+		normalized := pathutil.NormalizePathForInternal(dir)
+		if normalized == ctx.WorkspaceRoot || knownPackageDirs[normalized] {
+			continue
+		}
+		// Skip directories whose package.json cannot be parsed.
+		if _, err := ctx.GetPackageConfig(normalized); err != nil {
+			continue
+		}
+		standalone = append(standalone, normalized)
+	}
+	slices.Sort(standalone)
+	return standalone
+}
+
 func (ctx *MonorepoContext) processPossiblePackage(path string) {
 	path = pathutil.NormalizePathForInternal(path)
 	pkgJsonPath := filepath.Join(pathutil.DenormalizePathForOS(path), "package.json")

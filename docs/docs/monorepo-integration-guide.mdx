@@ -22,6 +22,8 @@ Run at the **monorepo root**, this creates a root workspace plus one workspace p
 
 It writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. See [config file structure](./config-based-checks/config-file-structure.mdx).
 
+> The examples below use the [compact detector syntax](./config-based-checks/config-file-structure.mdx#compact-detector-syntax): `"detector": true` switches a check on, and when a detector carries options the `enabled` flag is optional. Write `{ "enabled": true }` if you prefer the explicit form.
+
 ### Workspaces: monorepo root vs per-package
 
 A **workspace** is a scope - usually one package. Two levels are available, and you will use both:
@@ -38,6 +40,30 @@ Every check below can be placed at either level. The guidance per check notes wh
 When a workspace encounters an import of another workspace package, `followMonorepoPackages` decides whether rev-dep traces into that package's **source** (follow) or treats it as an external boundary (don't). Workspaces follow **all** packages by default.
 
 This matters for almost every check in a monorepo: follow the packages whose source is compiled by the consumer (just-in-time/shared packages), and leave pre-compiled packages unfollowed. See [Following monorepo packages](./other-concepts-and-features/following-monorepo-packages.mdx).
+
+### Node modules resolution
+
+Once you follow a package, its source brings in **its own** third-party imports. The top-level `nodeModulesResolution` option decides which `package.json` those imports are validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. Set it once; it applies to every workspace.
+
+Configure it as an object and set `resolutionType` to one of:
+
+- `"entry-package"` (default) validates every import against the consuming workspace's `package.json`. Use it when the consumer can resolve every dependency it pulls in (npm, classic yarn).
+- `"nearest-package"` validates each import against the `package.json` that owns the file it lives in. Use it when every package resolves only the dependencies it declares itself (pnpm's default layout).
+
+```jsonc
+{
+  "nodeModulesResolution": { "resolutionType": "nearest-package", "includeDevDepsFromRoot": false },
+  "workspaces": [ /* ... */ ]
+}
+```
+
+This is the form `rev-dep config init` generates.
+
+**If you use pnpm with its default layout, set `resolutionType: "nearest-package"`.** Otherwise a followed package's own declared dependencies get reported as `missing` against the consumer that doesn't declare them - a flood of false positives. In `nearest-package` mode each package is judged by its own `package.json`: a followed package that imports something it forgot to declare is correctly flagged (just as a strict pnpm install would break), while its properly-declared dependencies are left alone. Full details and per-check effects: [Node modules resolution](./other-concepts-and-features/node-modules-resolution.mdx).
+
+The object also accepts `includeDevDepsFromRoot` (default `false`). If your monorepo declares shared dev dependencies (linters, test runners, build tools, type packages) **once at the repo root** instead of in each package, set it to `true` so importing them from package code isn't reported as `missing` or `unresolved`. It is strictly opt-in because root-shared devDeps make dependency ownership less explicit - enable it only if your project deliberately follows that approach. See [Including root devDependencies](./other-concepts-and-features/node-modules-resolution.mdx#including-root-devdependencies-includedevdepsfromroot).
+
+> A bare string (e.g. `"nodeModulesResolution": "nearest-package"`) is also accepted as a shorthand for `resolutionType`, kept for backward compatibility - prefer the object form shown above.
 
 ## 2. Run and (auto)fix
 
@@ -65,7 +91,7 @@ Enable this **first**. It tells you whether rev-dep can parse and resolve your p
 ```jsonc
 {
   "workspaces": [
-    { "path": ".", "unresolvedImportsDetection": { "enabled": true } }
+    { "path": ".", "unresolvedImportsDetection": true }
   ]
 }
 ```
@@ -93,15 +119,19 @@ Entry points are the roots of reachability - the foundation for orphan files, un
 }
 ```
 
-- `prodEntryPoints` - real application roots (what ships).
-- `devEntryPoints` - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
+- [`prodEntryPoints`](./config-based-checks/entry-points-definition.mdx#kinds-of-entry-points) - real application roots (what ships).
+- [`devEntryPoints`](./config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points) - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
 - [`ignoreEntryPoints`](./config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points) - leftover-but-committed files you no longer use. Matching files are excluded from reporting: never flagged as orphan files, and their unused exports are suppressed.
 
 Keep the list honest and start narrow. See [entry points definition guide](./config-based-checks/entry-points-definition.mdx).
 
+> **Paths with brackets?** Entry-point patterns are globs, so a literal path containing `[ ]` or `{ }` - such as a Next.js dynamic route `pages/[clientId]/edit.tsx` - won't match unless you escape the brackets: `"pages/\\[clientId\\]/edit.tsx"`. See [Glob patterns](./other-concepts-and-features/glob-patterns.mdx).
+
 ## 5. Node-module hygiene
 
-rev-dep checks dependency **declarations** against the workspace's `package.json` (it never scans `node_modules/`). The rule of thumb: **whoever compiles the code declares its dependencies**. Enable these on each package that owns a `package.json`.
+rev-dep checks dependency **declarations** against a `package.json` (it never scans `node_modules/`). The rule of thumb: **whoever compiles the code declares its dependencies**. Enable these on each package that owns a `package.json`.
+
+Which `package.json` is "whoever" depends on [`nodeModulesResolution`](#node-modules-resolution) from step 1 - the consuming workspace's package (`entry-package`, default) or each file's own nearest package (`nearest-package`, for pnpm's default layout). Set that first, or the two checks below may report false positives.
 
 ### Unused node modules
 
@@ -109,9 +139,7 @@ Declared in `package.json` but never imported.
 
 ```jsonc
 {
-  "unusedNodeModulesDetection": {
-    "enabled": true
-  }
+  "unusedNodeModulesDetection": true
 }
 ```
 
@@ -125,13 +153,11 @@ Imported in code but not declared.
 
 ```jsonc
 {
-  "missingNodeModulesDetection": {
-    "enabled": true
-  }
+  "missingNodeModulesDetection": true
 }
 ```
 
-If you see false positives in a monorepo - usually a dependency declared in the wrong package, or following misconfigured - the [missing or unused dependency false positives](./troubleshooting/missing-or-unused-dependency-false-positives.mdx) troubleshooting guide explains how to fix them.
+If you see false positives in a monorepo - usually `nodeModulesResolution` not set to `nearest-package` for a pnpm-style layout, a dependency declared in the wrong package, or following misconfigured - the [missing or unused dependency false positives](./troubleshooting/missing-or-unused-dependency-false-positives.mdx) troubleshooting guide explains how to fix them.
 
 Learn more about the [`missingNodeModulesDetection`](./config-based-checks/checks/missing-node-modules.mdx) check configuration.
 
@@ -142,7 +168,6 @@ A follow-up to the above: flags `devDependencies` reachable from your production
 ```jsonc
 {
   "devDepsUsageOnProdDetection": {
-    "enabled": true,
     // Optional: type-only imports are stripped from production builds, so a dev
     // dependency imported only as a type is not a runtime risk. Opt in to skip them.
     "ignoreTypeImports": true
@@ -159,7 +184,6 @@ Files not reachable from any entry point - dead files left by refactors. Support
 ```jsonc
 {
   "orphanFilesDetection": {
-    "enabled": true,
     "autofix": true
   }
 }
@@ -170,11 +194,8 @@ A useful pattern is a second detector that excludes test files from the graph, t
 ```jsonc
 {
   "orphanFilesDetection": [
+    true,
     {
-      "enabled": true
-    },
-    {
-      "enabled": true,
       "graphExclude": ["**/*.test.*"]
     }
   ]
@@ -192,13 +213,12 @@ Exported members never imported anywhere reachable. Enable it only once entry po
 ```jsonc
 {
   "unusedExportsDetection": {
-    "enabled": true,
     "autofix": true
   }
 }
 ```
 
-Like orphan files, run it at the **root** for shared packages so cross-package usage is counted; if shared-package exports are wrongly reported, see the [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide.
+Like orphan files, run it at the **root** for shared packages so cross-package usage is counted. To also catch app-local unused exports, enable it on the **compiled app** - but because the app follows shared source, its report will include shared-package exports; suppress those with an `ignoreFiles` pattern relative to the workspace (e.g. `"ignoreFiles": ["../../packages/**"]`) and let the root workspace own the shared findings. The [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide explains why unused exports leaks across packages while orphan files does not, and walks through this setup.
 
 Learn more about the [`unusedExportsDetection`](./config-based-checks/checks/unused-exports.mdx) check configuration.
 
@@ -209,7 +229,6 @@ A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you 
 ```jsonc
 {
   "circularImportsDetection": {
-    "enabled": true,
     "ignoreTypeImports": true,
     "algorithm": "SCC"
   }
@@ -225,7 +244,6 @@ Block specific files/modules from being reachable from chosen entry points - e.g
 ```jsonc
 {
   "restrictedImportsDetection": {
-    "enabled": true,
     "entryPoints": ["app/**/page.tsx"],
     "denyFiles": ["server/**"],
     "denyModules": ["fs", "child_process"]

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,10 +12,10 @@ import (
 
 	"rev-dep-go/internal/checks"
 	"rev-dep-go/internal/config"
-	globutil "rev-dep-go/internal/glob"
-	"rev-dep-go/internal/monorepo"
+	"rev-dep-go/internal/emoji"
 	"rev-dep-go/internal/node"
 	"rev-dep-go/internal/pathutil"
+	"rev-dep-go/internal/telemetry"
 )
 
 // ---------------- config ----------------
@@ -32,18 +31,20 @@ var configCmd = &cobra.Command{
 
 // ---------------- config run ----------------
 var (
-	runConfigCwd     string
-	runConfigListAll bool
-	runConfigFix     bool
-	runConfigRecheck bool
-	runConfigRules   []string
-	runConfigFormat  string
+	runConfigCwd       string
+	runConfigListAll   bool
+	runConfigFix       bool
+	runConfigRecheck   bool
+	runConfigRules     []string
+	runConfigFormat    string
+	runConfigLint      bool
+	runConfigLintRules []string
 )
 
 var configRunCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Execute all checks defined in (.)rev-dep.config.json(c)",
-	Long:  `Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, import conventions, node modules, unused exports, unresolved imports, restricted imports and restricted dev deps usage) per rule.`,
+	Long:  `Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, import conventions, node modules, unused exports, unresolved imports, restricted imports and restricted dev deps usage) per workspace.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		startTime := time.Now()
 		cwd := pathutil.ResolveAbsoluteCwd(runConfigCwd)
@@ -61,6 +62,13 @@ var configRunCmd = &cobra.Command{
 			return runConfigWithIssuesListOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck)
 		}
 
+		// When linting after the run and reusing the run's graph, the top-level ignoreFiles
+		// dead-check reuses the run's own discovery byproducts (the files it saw and the
+		// directories it pruned), so no extra walk is needed. Reuse is only safe for an
+		// unfiltered run (see runConfigLintSummary).
+		lintWanted := runConfigLint || len(runConfigLintRules) > 0
+		reuseGraphForLint := lintWanted && len(runConfigRules) == 0
+
 		if err := filterRunConfigRules(&cfg, runConfigRules); err != nil {
 			return err
 		}
@@ -72,10 +80,22 @@ var configRunCmd = &cobra.Command{
 
 		// Format and print results
 		formatAndPrintConfigResults(result, cwd, runConfigListAll)
-		executionTime := time.Since(startTime)
-		fmt.Printf("\n✨  Done in %dms.\n", executionTime.Milliseconds())
 
-		if shouldConfigRunExitNonZero(result, runConfigFix) {
+		// Optionally lint the config after running. Only the error/warning counts are
+		// printed here — use `rev-dep config lint` for per-finding detail and `--fix`.
+		lintHasErrors := false
+		if lintWanted {
+			failed, err := runConfigLintSummary(cwd, result, reuseGraphForLint)
+			if err != nil {
+				return err
+			}
+			lintHasErrors = failed
+		}
+
+		executionTime := time.Since(startTime)
+		fmt.Printf("\n%s  Done in %dms.\n", emoji.Done, executionTime.Milliseconds())
+
+		if shouldConfigRunExitNonZero(result, runConfigFix) || lintHasErrors {
 			os.Exit(1)
 		}
 
@@ -83,20 +103,55 @@ var configRunCmd = &cobra.Command{
 	},
 }
 
-// ---------------- config init ----------------
-var configInitCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize a new rev-dep.config.json file",
-	Long:  `Create a new rev-dep.config.json configuration file in the current directory with default settings.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cwd := pathutil.ResolveAbsoluteCwd(configCwd)
-		configPath, rules, createdForMonorepoSubPackage, err := initConfigFileCore(cwd)
-		if err != nil {
-			return err
+// runConfigLintSummary runs the config linter over the full config (independent of the
+// run's --workspaces filter) using the selected --lint-config-rules, prints only the error/warning
+// counts, and reports whether any lint ERROR was found. Fixing is intentionally not
+// offered here; users run `rev-dep config lint --fix` for that.
+//
+// When reuseGraph is true, the discovery + dependency tree the run already built are
+// reused, so linting adds almost no cost. It is only safe to reuse when the run was NOT
+// rule-filtered: a filtered run builds a narrower graph (fewer registered packages),
+// which could make the module universe incomplete for the full config.
+func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, reuseGraph bool) (hasErrors bool, err error) {
+	lintRules, err := config.ParseLintRules(runConfigLintRules)
+	if err != nil {
+		return false, err
+	}
+
+	// Load the config fresh so its rule order matches the raw file (the run may have
+	// filtered cfg.Rules via --workspaces, which would misalign the linter's presence checks).
+	lintCfg, err := config.LoadConfig(cwd)
+	if err != nil {
+		return false, fmt.Errorf("Could not load configuration for lint: %v", err)
+	}
+
+	var graph *config.LintGraph
+	if reuseGraph && runResult != nil {
+		graph = &config.LintGraph{
+			AllFiles:            runResult.DiscoveredFiles,
+			FullTree:            runResult.FullTree,
+			ResolverManager:     runResult.ResolverManager,
+			IgnoreScopeFiles:    runResult.IgnoreScopeFiles,
+			IgnorePrunedDirs:    runResult.IgnorePrunedDirs,
+			IgnoreScopeComputed: true,
 		}
-		printInitConfigResults(configPath, rules, createdForMonorepoSubPackage)
-		return nil
-	},
+	}
+
+	lintResult, err := config.LintConfigWithGraph(&lintCfg, cwd, packageJsonPath, tsconfigJsonPath, lintRules, graph)
+	if err != nil {
+		return false, fmt.Errorf("Error linting config: %v", err)
+	}
+
+	errors, warnings := countLintFindings(lintResult, false)
+	switch {
+	case errors > 0:
+		fmt.Printf("\n%s  Config lint: %d error(s), %d warning(s) — run `rev-dep config lint` for details (or --fix to apply).\n", emoji.Error, errors, warnings)
+	case warnings > 0:
+		fmt.Printf("\n%s  Config lint: 0 errors, %d warning(s) — run `rev-dep config lint` for details (or --fix to apply).\n", emoji.Warning, warnings)
+	default:
+		fmt.Printf("\n%s  Config lint: no issues.\n", emoji.Success)
+	}
+	return errors > 0, nil
 }
 
 const maxIssuesToList = 5
@@ -124,6 +179,8 @@ func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
 		totalIssues += len(ruleResult.UnresolvedImports)
 		totalIssues += len(ruleResult.RestrictedDevDependenciesUsageViolations)
 		totalIssues += len(ruleResult.RestrictedImportsViolations)
+		totalIssues += len(ruleResult.RestrictedImportersViolations)
+		totalIssues += len(ruleResult.RestrictedDirectImportersViolations)
 
 		fixableIssues += len(ruleResult.OrphanFilesAutofixable)
 
@@ -156,6 +213,10 @@ func processConfigRun(
 	if err != nil {
 		return nil, err
 	}
+
+	// Fire anonymous telemetry for this config run. This spawns a detached reporter and returns
+	// immediately; it is a no-op under tests, when opted out, or in builds without a baked-in key.
+	telemetry.Dispatch(cwd, cfg, len(result.FullTree))
 
 	if !fix || !recheck {
 		return result, nil
@@ -196,7 +257,7 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 		shouldWarnAboutImportConventionWithPJsonImports = shouldWarnAboutImportConventionWithPJsonImports || ruleResult.ShouldWarnAboutImportConventionWithPJsonImports
 
 		if ruleResult.RulePath != "" {
-			fmt.Printf("\n📁 Rule: %s (%d files)\n", ruleResult.RulePath, ruleResult.FileCount)
+			fmt.Printf("\n%s Rule: %s (%d files)\n", emoji.Rule, ruleResult.RulePath, ruleResult.FileCount)
 		}
 
 		// Show enabled checks and their status with indentation
@@ -204,7 +265,7 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 			switch check {
 			case "circular-imports":
 				if len(ruleResult.CircularDependencies) > 0 {
-					fmt.Printf("  ❌ Circular Dependencies Issues (%d):\n\n", len(ruleResult.CircularDependencies))
+					fmt.Printf("  %s Circular Dependencies Issues (%d):\n\n", emoji.Error, len(ruleResult.CircularDependencies))
 
 					circularDepsToDisplay := ruleResult.CircularDependencies
 					remaining := 0
@@ -220,11 +281,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more circular dependency issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Circular Dependencies\n")
+					fmt.Printf("  %s Circular Dependencies\n", emoji.Success)
 				}
 			case "orphan-files":
 				if len(ruleResult.OrphanFiles) > 0 {
-					fmt.Printf("  ❌  Orphan Files Issues (%d):\n", len(ruleResult.OrphanFiles))
+					fmt.Printf("  %s  Orphan Files Issues (%d):\n", emoji.Error, len(ruleResult.OrphanFiles))
 
 					orphanFilesToDisplay := ruleResult.OrphanFiles
 					remaining := 0
@@ -241,11 +302,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more orphan file issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Orphan Files\n")
+					fmt.Printf("  %s Orphan Files\n", emoji.Success)
 				}
 			case "module-boundaries":
 				if len(ruleResult.ModuleBoundaryViolations) > 0 {
-					fmt.Printf("  ❌ Module Boundary Issues (%d):\n", len(ruleResult.ModuleBoundaryViolations))
+					fmt.Printf("  %s Module Boundary Issues (%d):\n", emoji.Error, len(ruleResult.ModuleBoundaryViolations))
 
 					violationsToDisplay := ruleResult.ModuleBoundaryViolations
 					remaining := 0
@@ -270,11 +331,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more module boundary issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Module Boundaries\n")
+					fmt.Printf("  %s Module Boundaries\n", emoji.Success)
 				}
 			case "unused-node-modules":
 				if len(ruleResult.UnusedNodeModules) > 0 {
-					fmt.Printf("  ❌ Unused Node Modules Issues (%d):\n", len(ruleResult.UnusedNodeModules))
+					fmt.Printf("  %s Unused Node Modules Issues (%d):\n", emoji.Error, len(ruleResult.UnusedNodeModules))
 
 					modulesToDisplay := ruleResult.UnusedNodeModules
 					remaining := 0
@@ -296,11 +357,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more unused node module issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Unused Node Modules\n")
+					fmt.Printf("  %s Unused Node Modules\n", emoji.Success)
 				}
 			case "missing-node-modules":
 				if len(ruleResult.MissingNodeModules) > 0 {
-					fmt.Printf("  ❌ Missing Node Modules Issues (%d):\n", len(ruleResult.MissingNodeModules))
+					fmt.Printf("  %s Missing Node Modules Issues (%d):\n", emoji.Error, len(ruleResult.MissingNodeModules))
 
 					missingToDisplay := ruleResult.MissingNodeModules
 					remaining := 0
@@ -346,11 +407,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more missing node module issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Missing Node Modules\n")
+					fmt.Printf("  %s Missing Node Modules\n", emoji.Success)
 				}
 			case "import-conventions":
 				if len(ruleResult.ImportConventionViolations) > 0 {
-					fmt.Printf("  ❌ Import Convention Issues (%d):\n", len(ruleResult.ImportConventionViolations))
+					fmt.Printf("  %s Import Convention Issues (%d):\n", emoji.Error, len(ruleResult.ImportConventionViolations))
 
 					violationsToDisplay := ruleResult.ImportConventionViolations
 
@@ -394,11 +455,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more import convention issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Import Conventions\n")
+					fmt.Printf("  %s Import Conventions\n", emoji.Success)
 				}
 			case "unresolved-imports":
 				if len(ruleResult.UnresolvedImports) > 0 {
-					fmt.Printf("  ❌ Unresolved Imports (%d):\n", len(ruleResult.UnresolvedImports))
+					fmt.Printf("  %s Unresolved Imports (%d):\n", emoji.Error, len(ruleResult.UnresolvedImports))
 
 					// Sort all results before limiting
 					unresolvedToDisplay := ruleResult.UnresolvedImports
@@ -438,11 +499,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more unresolved import issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Unresolved Imports\n")
+					fmt.Printf("  %s Unresolved Imports\n", emoji.Success)
 				}
 			case "unused-exports":
 				if len(ruleResult.UnusedExports) > 0 {
-					fmt.Printf("  ❌ Unused Exports Issues (%d):\n", len(ruleResult.UnusedExports))
+					fmt.Printf("  %s Unused Exports Issues (%d):\n", emoji.Error, len(ruleResult.UnusedExports))
 
 					exportsToDisplay := ruleResult.UnusedExports
 
@@ -487,11 +548,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more unused export issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Unused Exports\n")
+					fmt.Printf("  %s Unused Exports\n", emoji.Success)
 				}
 			case "dev-deps-usage-on-prod":
 				if len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 {
-					fmt.Printf("  ❌ Dev Deps Usage On Prod Issues (%d):\n", len(ruleResult.RestrictedDevDependenciesUsageViolations))
+					fmt.Printf("  %s Dev Deps Usage On Prod Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedDevDependenciesUsageViolations))
 
 					violationsToDisplay := ruleResult.RestrictedDevDependenciesUsageViolations
 					remaining := 0
@@ -525,11 +586,11 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 						fmt.Printf("    ... and %d more Dev Deps Usage On Prod Issues\n", remaining)
 					}
 				} else {
-					fmt.Printf("  ✅ Dev Deps Usage On Prod\n")
+					fmt.Printf("  %s Dev Deps Usage On Prod\n", emoji.Success)
 				}
 			case "restricted-imports":
 				if len(ruleResult.RestrictedImportsViolations) > 0 {
-					fmt.Printf("  ❌ Restricted Imports Issues (%d):\n", len(ruleResult.RestrictedImportsViolations))
+					fmt.Printf("  %s Restricted Imports Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedImportsViolations))
 
 					violationsToDisplay := ruleResult.RestrictedImportsViolations
 					slices.SortFunc(violationsToDisplay, func(a, b checks.RestrictedImportViolation) int {
@@ -614,28 +675,129 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 
 					printRestrictedImportsResolveHint(ruleResult, cwd)
 				} else {
-					fmt.Printf("  ✅ Restricted Imports\n")
+					fmt.Printf("  %s Restricted Imports\n", emoji.Success)
+				}
+			case "restricted-importers":
+				if len(ruleResult.RestrictedImportersViolations) > 0 {
+					fmt.Printf("  %s Restricted Importers Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedImportersViolations))
+
+					violationsToDisplay := ruleResult.RestrictedImportersViolations
+					remaining := 0
+					if !listAll && len(violationsToDisplay) > maxIssuesToList {
+						remaining = len(violationsToDisplay) - maxIssuesToList
+						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
+					}
+
+					violationsByEntryPoint := make(map[string][]string)
+					seenByEntryPoint := make(map[string]map[string]bool)
+					var sortedEntryPoints []string
+
+					for _, violation := range violationsToDisplay {
+						entryPoint := getRelativePath(violation.EntryPoint)
+						if _, ok := seenByEntryPoint[entryPoint]; !ok {
+							seenByEntryPoint[entryPoint] = make(map[string]bool)
+							sortedEntryPoints = append(sortedEntryPoints, entryPoint)
+						}
+
+						item := violation.Module
+						if item == "" {
+							item = getRelativePath(violation.File)
+						}
+
+						if !seenByEntryPoint[entryPoint][item] {
+							violationsByEntryPoint[entryPoint] = append(violationsByEntryPoint[entryPoint], item)
+							seenByEntryPoint[entryPoint][item] = true
+						}
+					}
+
+					slices.Sort(sortedEntryPoints)
+					for _, entryPoint := range sortedEntryPoints {
+						fmt.Printf("    %s\n", entryPoint)
+						items := violationsByEntryPoint[entryPoint]
+						slices.Sort(items)
+						for _, item := range items {
+							fmt.Printf("     ➞ %s\n", item)
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more restricted importer issues\n", remaining)
+					}
+
+					printRestrictedImportersResolveHint(ruleResult, cwd)
+				} else {
+					fmt.Printf("  %s Restricted Importers\n", emoji.Success)
+				}
+			case "restricted-direct-importers":
+				if len(ruleResult.RestrictedDirectImportersViolations) > 0 {
+					fmt.Printf("  %s Restricted Direct Importers Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedDirectImportersViolations))
+
+					violationsToDisplay := ruleResult.RestrictedDirectImportersViolations
+					remaining := 0
+					if !listAll && len(violationsToDisplay) > maxIssuesToList {
+						remaining = len(violationsToDisplay) - maxIssuesToList
+						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
+					}
+
+					// Group by importer file (the actionable location), listing the targets it imports.
+					targetsByImporter := make(map[string][]string)
+					seenByImporter := make(map[string]map[string]bool)
+					var sortedImporters []string
+
+					for _, violation := range violationsToDisplay {
+						importer := getRelativePath(violation.ImporterFile)
+						if _, ok := seenByImporter[importer]; !ok {
+							seenByImporter[importer] = make(map[string]bool)
+							sortedImporters = append(sortedImporters, importer)
+						}
+
+						item := violation.Module
+						if item == "" {
+							item = getRelativePath(violation.File)
+						}
+
+						if !seenByImporter[importer][item] {
+							targetsByImporter[importer] = append(targetsByImporter[importer], item)
+							seenByImporter[importer][item] = true
+						}
+					}
+
+					slices.Sort(sortedImporters)
+					for _, importer := range sortedImporters {
+						fmt.Printf("    %s\n", importer)
+						items := targetsByImporter[importer]
+						slices.Sort(items)
+						for _, item := range items {
+							fmt.Printf("     ➞ %s\n", item)
+						}
+					}
+
+					if remaining > 0 {
+						fmt.Printf("    ... and %d more restricted direct importer issues\n", remaining)
+					}
+				} else {
+					fmt.Printf("  %s Restricted Direct Importers\n", emoji.Success)
 				}
 			}
 		}
 
 		// Show warning if no files found for this rule
 		if ruleResult.FileCount == 0 {
-			fmt.Printf("  ⚠️  No files found for this rule - check if the path is correct\n")
+			fmt.Printf("  %s  No files found for this rule - check if the path is correct\n", emoji.Warning)
 		}
 
 		// Show warning if package.json is missing in the rule path directory
 		if ruleResult.MissingPackageJson {
 			packageJsonPath := filepath.Join(cwd, ruleResult.RulePath, "package.json")
-			fmt.Printf("  ⚠️  Warning: Rule path missing package.json - some features may not work (missing: %s)\n", packageJsonPath)
+			fmt.Printf("  %s  Warning: Rule path missing package.json - some features may not work (missing: %s)\n", emoji.Warning, packageJsonPath)
 		}
 	}
 
 	// Print final verdict
 	if !result.HasFailures {
-		fmt.Printf("\n✅ All checks passed!\n")
+		fmt.Printf("\n%s All checks passed!\n", emoji.Success)
 	} else {
-		fmt.Printf("\n❌ Checks failed! See details above.\n")
+		fmt.Printf("\n%s Checks failed! See details above.\n", emoji.Error)
 	}
 
 	// Print autofix summary if any fixes were applied or unfixable issues found
@@ -651,109 +813,19 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 		if len(summary) > 0 {
 			// Capitalize first letter of first summary part
 			summary[0] = strings.ToUpper(summary[0][:1]) + summary[0][1:]
-			fmt.Printf("✍️ %s\n", strings.Join(summary, ", "))
+			fmt.Printf("%s %s\n", emoji.Fix, strings.Join(summary, ", "))
 		}
 	}
 
 	if result.FixableIssuesCount > 0 {
-		fmt.Printf("💡 Fixable issues: %d. Use '--fix' flag to autofix.\n", result.FixableIssuesCount)
+		fmt.Printf("%s Fixable issues: %d. Use '--fix' flag to autofix.\n", emoji.Tip, result.FixableIssuesCount)
 	}
 
 	if result.UnfixableAliasingCount > 0 {
-		fmt.Printf("⚠️ Warning: %d inter-domain relative imports could not be automatically fixed because target domains lack aliases or are not defined in config.\n", result.UnfixableAliasingCount)
+		fmt.Printf("%s Warning: %d inter-domain relative imports could not be automatically fixed because target domains lack aliases or are not defined in config.\n", emoji.Warning, result.UnfixableAliasingCount)
 	}
 	if shouldWarnAboutImportConventionWithPJsonImports {
-		fmt.Println("⚠️ Warning: Support for package.json imports map aliases is not yet implemented for import conventions checks")
-	}
-}
-
-func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string) {
-	absRulePath := filepath.Clean(filepath.Join(cwd, ruleResult.RulePath))
-	ruleCwdArg, err := filepath.Rel(cwd, absRulePath)
-	if err != nil || ruleCwdArg == "" {
-		ruleCwdArg = ruleResult.RulePath
-	}
-	ruleCwdArg = filepath.ToSlash(ruleCwdArg)
-
-	relToRule := func(absPath string) string {
-		if absPath == "" {
-			return absPath
-		}
-		rel, err := filepath.Rel(absRulePath, absPath)
-		if err != nil {
-			return filepath.ToSlash(absPath)
-		}
-		return filepath.ToSlash(rel)
-	}
-
-	getResolveExtraFlagsPart := func(violation *checks.RestrictedImportViolation) string {
-		resolveExtraFlags := []string{}
-		if violation != nil && violation.IgnoreType {
-			resolveExtraFlags = append(resolveExtraFlags, "--ignore-type-imports")
-		}
-		if violation != nil && len(violation.GraphExclude) > 0 {
-			for _, pattern := range violation.GraphExclude {
-				resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--graph-exclude %q", pattern))
-			}
-		}
-		if ruleResult.RestrictedImportsFollowMonorepoPackages.ShouldFollowAll() {
-			resolveExtraFlags = append(resolveExtraFlags, "--follow-monorepo-packages")
-		} else if len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages) > 0 {
-			pkgs := make([]string, 0, len(ruleResult.RestrictedImportsFollowMonorepoPackages.Packages))
-			for pkg := range ruleResult.RestrictedImportsFollowMonorepoPackages.Packages {
-				pkgs = append(pkgs, pkg)
-			}
-			slices.Sort(pkgs)
-			resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--follow-monorepo-packages \"%s\"", strings.Join(pkgs, ",")))
-		}
-		if len(ruleResult.ProcessIgnoredFiles) > 0 {
-			patterns := append([]string(nil), ruleResult.ProcessIgnoredFiles...)
-			slices.Sort(patterns)
-			for _, pattern := range patterns {
-				resolveExtraFlags = append(resolveExtraFlags, fmt.Sprintf("--process-ignored-files %q", pattern))
-			}
-		}
-		if len(resolveExtraFlags) == 0 {
-			return ""
-		}
-		return " " + strings.Join(resolveExtraFlags, " ")
-	}
-
-	var sampleFileViolation *checks.RestrictedImportViolation
-	var sampleModuleViolation *checks.RestrictedImportViolation
-	for i := range ruleResult.RestrictedImportsViolations {
-		v := &ruleResult.RestrictedImportsViolations[i]
-		if sampleFileViolation == nil && v.ViolationType == "file" && v.DeniedFile != "" {
-			sampleFileViolation = v
-		}
-		if sampleModuleViolation == nil && v.ViolationType == "module" {
-			sampleModuleViolation = v
-		}
-		if sampleFileViolation != nil && sampleModuleViolation != nil {
-			break
-		}
-	}
-
-	fmt.Printf("    Hint: trace resolution paths with `rev-dep resolve` from this rule cwd.\n")
-	if sampleFileViolation != nil {
-		fmt.Printf("    Example: `rev-dep resolve --file \"%s\" --entry-points \"%s\" --cwd \"%s\"%s`\n",
-			relToRule(sampleFileViolation.DeniedFile),
-			relToRule(sampleFileViolation.EntryPoint),
-			ruleCwdArg,
-			getResolveExtraFlagsPart(sampleFileViolation),
-		)
-	}
-	if sampleModuleViolation != nil {
-		moduleArg := sampleModuleViolation.ImportRequest
-		if moduleArg == "" {
-			moduleArg = sampleModuleViolation.DeniedModule
-		}
-		fmt.Printf("    Example: `rev-dep resolve --module %s --entry-points \"%s\" --cwd \"%s\"%s`\n",
-			moduleArg,
-			relToRule(sampleModuleViolation.EntryPoint),
-			ruleCwdArg,
-			getResolveExtraFlagsPart(sampleModuleViolation),
-		)
+		fmt.Println(emoji.Warning + " Warning: Support for package.json imports map aliases is not yet implemented for import conventions checks")
 	}
 }
 
@@ -769,233 +841,12 @@ func init() {
 	configRunCmd.Flags().BoolVar(&runConfigRecheck, "recheck", false, "Run all checks again after '--fix' to validate the final state")
 	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "workspaces", []string{}, "Subset of workspaces to run (comma-separated list of workspace paths)")
+	configRunCmd.Flags().BoolVar(&runConfigLint, "lint-config", false, "Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use `config lint` for details and --fix")
+	configRunCmd.Flags().StringSliceVar(&runConfigLintRules, "lint-config-rules", nil, "Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config")
 
 	// config init command
 	configInitCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")
 
 	// Add subcommands to config
 	configCmd.AddCommand(configRunCmd, configInitCmd)
-}
-
-// initConfigFileCore creates the config file without printing results
-func initConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
-	currentConfigVersion := "2.0"
-
-	// Check if any config file already exists
-	existingConfig, err := config.FindConfigFile(cwd)
-	if err == nil && existingConfig != "" {
-		return "", nil, false, fmt.Errorf("config file already exists at %s", existingConfig)
-	}
-
-	// Define the path for the new config file (always use the standard name)
-	configPath := filepath.Join(cwd, ".rev-dep.config.jsonc")
-
-	// Discover monorepo packages
-	var rules []config.Rule
-	monorepoCtx := monorepo.DetectMonorepo(cwd)
-	createdForMonorepoSubPackage := false
-
-	if monorepoCtx != nil {
-		// If invoked from inside a monorepo but not at the workspace root,
-		// create a config only for the current sub-package (single rule with Path '.')
-		if pathutil.StandardiseDirPath(cwd) != pathutil.StandardiseDirPath(monorepoCtx.WorkspaceRoot) {
-			packageRule := config.Rule{
-				Path: ".",
-				CircularImportsDetections: []*config.CircularImportsOptions{{
-					Enabled:           true,
-					IgnoreTypeImports: false,
-				}},
-				OrphanFilesDetections: []*config.OrphanFilesOptions{{
-					Enabled: false,
-				}},
-				UnusedNodeModulesDetections: []*config.UnusedNodeModulesOptions{{
-					Enabled: false,
-				}},
-				MissingNodeModulesDetections: []*config.MissingNodeModulesOptions{{
-					Enabled: false,
-				}},
-				UnusedExportsDetections: []*config.UnusedExportsOptions{{
-					Enabled: false,
-				}},
-				UnresolvedImportsDetections: []*config.UnresolvedImportsOptions{{
-					Enabled: true,
-				}},
-				DevDepsUsageOnProdDetections: []*config.RestrictedDevDependenciesUsageOptions{{
-					Enabled: false,
-				}},
-				RestrictedImportsDetections: []*config.RestrictedImportsDetectionOptions{{
-					Enabled: false,
-				}},
-			}
-			rules = append(rules, packageRule)
-			createdForMonorepoSubPackage = true
-		} else {
-			// Monorepo root: Root rule only has module boundaries
-			rootRule := config.Rule{
-				Path: ".",
-				ModuleBoundaries: []config.BoundaryRule{
-					{
-						Name:    "packages",
-						Pattern: "packages/**/*",
-						Allow:   []string{"packages/**/*"},
-					},
-				},
-				OrphanFilesDetections: []*config.OrphanFilesOptions{{
-					Enabled: false,
-				}},
-				UnusedExportsDetections: []*config.UnusedExportsOptions{{
-					Enabled: false,
-				}},
-			}
-			rules = append(rules, rootRule)
-
-			// Find workspace packages
-			excludePatterns := globutil.CreateGlobMatchers([]string{}, cwd)
-			monorepoCtx.FindWorkspacePackages(excludePatterns, nil)
-
-			// Collect and sort package paths
-			var packagePaths []string
-			for _, packagePath := range monorepoCtx.PackageToPath {
-				// Convert absolute path to relative path from cwd
-				relPath, err := filepath.Rel(cwd, packagePath)
-				if err != nil {
-					continue // Skip if we can't get relative path
-				}
-				relPath = filepath.ToSlash(relPath)
-
-				// Skip root package (already covered)
-				if relPath == "." || relPath == "" {
-					continue
-				}
-
-				packagePaths = append(packagePaths, relPath)
-			}
-
-			// Sort package paths alphabetically
-			slices.Sort(packagePaths)
-
-			// Create a rule for each discovered package in sorted order
-			for _, relPath := range packagePaths {
-				packageRule := config.Rule{
-					Path: relPath,
-					CircularImportsDetections: []*config.CircularImportsOptions{{
-						Enabled:           true,
-						IgnoreTypeImports: false,
-					}},
-					OrphanFilesDetections: []*config.OrphanFilesOptions{{
-						Enabled: false,
-					}},
-					UnusedNodeModulesDetections: []*config.UnusedNodeModulesOptions{{
-						Enabled: false,
-					}},
-					MissingNodeModulesDetections: []*config.MissingNodeModulesOptions{{
-						Enabled: false,
-					}},
-					UnusedExportsDetections: []*config.UnusedExportsOptions{{
-						Enabled: false,
-					}},
-					UnresolvedImportsDetections: []*config.UnresolvedImportsOptions{{
-						Enabled: true,
-					}},
-					DevDepsUsageOnProdDetections: []*config.RestrictedDevDependenciesUsageOptions{{
-						Enabled: false,
-					}},
-					RestrictedImportsDetections: []*config.RestrictedImportsDetectionOptions{{
-						Enabled: false,
-					}},
-				}
-				rules = append(rules, packageRule)
-			}
-		}
-	} else {
-		// Non-monorepo: Single rule with all checks including module boundaries
-		rootRule := config.Rule{
-			Path: ".",
-			ModuleBoundaries: []config.BoundaryRule{
-				{
-					Name:    "src",
-					Pattern: "src/**/*",
-					Allow:   []string{"src/**/*"},
-				},
-			},
-			CircularImportsDetections: []*config.CircularImportsOptions{{
-				Enabled:           true,
-				IgnoreTypeImports: false,
-			}},
-			OrphanFilesDetections: []*config.OrphanFilesOptions{{
-				Enabled: false,
-			}},
-			UnusedNodeModulesDetections: []*config.UnusedNodeModulesOptions{{
-				Enabled: false,
-			}},
-			MissingNodeModulesDetections: []*config.MissingNodeModulesOptions{{
-				Enabled: false,
-			}},
-			UnusedExportsDetections: []*config.UnusedExportsOptions{{
-				Enabled: false,
-			}},
-			UnresolvedImportsDetections: []*config.UnresolvedImportsOptions{{
-				Enabled: true,
-			}},
-			DevDepsUsageOnProdDetections: []*config.RestrictedDevDependenciesUsageOptions{{
-				Enabled: false,
-			}},
-			RestrictedImportsDetections: []*config.RestrictedImportsDetectionOptions{{
-				Enabled: false,
-			}},
-		}
-		rules = append(rules, rootRule)
-	}
-
-	// Create config structure
-	config := config.RevDepConfig{
-		ConfigVersion: currentConfigVersion,
-		Rules:         rules,
-		Schema:        "https://github.com/jayu/rev-dep/blob/master/config-schema/" + currentConfigVersion + ".schema.json?raw=true",
-	}
-
-	// Add schema reference if schema file exists
-	schemaPath := filepath.Join(cwd, "config-schema", "1.0.schema.json")
-	if _, err := os.Stat(schemaPath); err == nil {
-		// We'll add the schema field during JSON marshaling
-	}
-
-	// Marshal config to JSON with proper formatting
-	configJSON, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return "", nil, false, fmt.Errorf("failed to marshal config: %v", err)
-	}
-
-	// Write config file
-	if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
-		return "", nil, false, fmt.Errorf("failed to write config file: %v", err)
-	}
-
-	return configPath, rules, createdForMonorepoSubPackage, nil
-}
-
-// printInitConfigResults prints the results of config initialization
-func printInitConfigResults(configPath string, rules []config.Rule, createdForMonorepoSubPackage bool) {
-	fmt.Printf("✅ Created .rev-dep.config.jsonc at %s\n", configPath)
-	if createdForMonorepoSubPackage {
-		fmt.Printf("⚠️  Created config for monorepo sub-package. This file targets the current package only.\n")
-	}
-	if len(rules) > 1 {
-		fmt.Printf("📦 Discovered %d monorepo packages and created rules for each\n", len(rules)-1)
-	} else {
-		fmt.Printf("📁 Created single rule for root directory\n")
-	}
-
-	fmt.Println("Adjust rules to make them relevant to your project setup.\nGenerated module boundaries config is exemplary and does not make much sense.")
-	fmt.Println("Hint: feed LLM with config file JSON schema to get started.")
-}
-
-// initConfigFile initializes a new rev-dep.config.json file with minimal structure
-func initConfigFile(cwd string) error {
-	configPath, rules, createdForMonorepoSubPackage, err := initConfigFileCore(cwd)
-	if err != nil {
-		return err
-	}
-	printInitConfigResults(configPath, rules, createdForMonorepoSubPackage)
-	return nil
 }

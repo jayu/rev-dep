@@ -1,0 +1,46 @@
+---
+title: Telemetry
+description: rev-dep collects a single anonymous event during config run to understand how its features are used. It is fully opt-out, never slows the tool, and you can inspect exactly what is sent in the source.
+---
+
+# Telemetry
+
+rev-dep collects a single **anonymous** event, and only during `rev-dep config run`. It exists so the project can understand which features are actually used and prioritize accordingly. No other command reports anything.
+
+It's designed it to be transparent and privacy-preserving. This page explains exactly what is sent, how to turn it off, and where to read the source.
+
+## What is collected
+
+The event is anonymous. It contains:
+
+- Two **non-reversible hashes** - an approximate machine id and an approximate project id - used only to roughly distinguish installs and projects from one another.
+- A small set of **counts and environment facts**: OS, architecture, whether it is running in CI, the tool version, the config version, and per-detector usage counts / root-option usage flags.
+- A **coarse geographic location** - `City`, `StateOrProvince`, and `CountryOrRegion`. This is **not** part of the payload our code builds: the telemetry collector (Azure Application Insights) automatically derives it from the IP address of the request. The raw IP is used only for this lookup and is **not stored**.
+
+## What is never collected
+
+To be explicit: rev-dep never sends your file names, file paths, source code, dependency or package names, or any URLs. The request IP is used by the collector solely to derive the coarse location above and is then discarded - it is not retained.
+
+## Opting out
+
+Telemetry is fully opt-out. Set the environment variable below to disable it completely:
+
+```bash
+REV_DEP_TELEMETRY_OFF=true
+```
+
+With this set, no event is collected or sent.
+
+## It never slows the tool
+
+Delivery runs in a **detached background reporter process**, so it never adds latency to `rev-dep config run`. The check completes and exits exactly as it would otherwise.
+
+## Inspect exactly what is sent
+
+You don't have to take our word for it - the collected data is defined in the source, on the `master` branch:
+
+- The [`Payload` struct](https://github.com/jayu/rev-dep/blob/master/internal/telemetry/reporter.go) in `internal/telemetry/reporter.go` - the exact event that is sent.
+- The [`Metrics` struct](https://github.com/jayu/rev-dep/blob/master/internal/telemetry/metrics.go) in `internal/telemetry/metrics.go` - the counts and flags that are gathered.
+- The [package overview](https://github.com/jayu/rev-dep/blob/master/internal/telemetry/telemetry.go) in `internal/telemetry/telemetry.go`.
+
+The coarse location fields (`City`, `StateOrProvince`, `CountryOrRegion`) are the one thing **not** visible in this source, because they are added by the collector from the request IP rather than sent by the tool.

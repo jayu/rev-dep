@@ -20,6 +20,8 @@ rev-dep config init
 
 Run inside your project, this creates a single workspace with `path: "."` and writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. A **workspace** is a scope; in a single-package project you have just one, and every check below goes inside it. See [config file structure](./config-based-checks/config-file-structure.mdx).
 
+> The examples below use the [compact detector syntax](./config-based-checks/config-file-structure.mdx#compact-detector-syntax): `"detector": true` switches a check on, and when a detector carries options the `enabled` flag is optional. Write `{ "enabled": true }` if you prefer the explicit form.
+
 ## 2. Run and (auto)fix
 
 ```bash
@@ -47,9 +49,7 @@ Enable this **first**. It tells you whether rev-dep can parse and resolve your p
   "workspaces": [
     {
       "path": ".",
-      "unresolvedImportsDetection": {
-        "enabled": true
-      }
+      "unresolvedImportsDetection": true
     }
   ]
 }
@@ -76,11 +76,13 @@ Entry points are the roots of reachability - the foundation for orphan files, un
 }
 ```
 
-- `prodEntryPoints` - real application roots (what ships).
-- `devEntryPoints` - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
+- [`prodEntryPoints`](./config-based-checks/entry-points-definition.mdx#kinds-of-entry-points) - real application roots (what ships).
+- [`devEntryPoints`](./config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points) - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
 - [`ignoreEntryPoints`](./config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points) - leftover-but-committed files you no longer use. Matching files are excluded from reporting: never flagged as orphan files, and their unused exports are suppressed.
 
 Keep the list honest and start narrow. See [entry points](./config-based-checks/entry-points-definition.mdx).
+
+> **Paths with brackets?** Entry-point patterns are globs, so a literal path containing `[ ]` or `{ }` - such as a Next.js dynamic route `pages/[clientId]/edit.tsx` - won't match unless you escape the brackets: `"pages/\\[clientId\\]/edit.tsx"`. See [Glob patterns](./other-concepts-and-features/glob-patterns.mdx).
 
 ## 5. Node-module hygiene
 
@@ -92,9 +94,7 @@ Declared in `package.json` but never imported.
 
 ```jsonc
 {
-  "unusedNodeModulesDetection": {
-    "enabled": true
-  }
+  "unusedNodeModulesDetection": true
 }
 ```
 
@@ -108,9 +108,7 @@ Imported in code but not declared.
 
 ```jsonc
 {
-  "missingNodeModulesDetection": {
-    "enabled": true
-  }
+  "missingNodeModulesDetection": true
 }
 ```
 
@@ -123,7 +121,6 @@ A follow-up to the above: flags `devDependencies` reachable from your production
 ```jsonc
 {
   "devDepsUsageOnProdDetection": {
-    "enabled": true,
     // Optional: type-only imports are stripped from production builds, so a dev
     // dependency imported only as a type is not a runtime risk. Opt in to skip them.
     "ignoreTypeImports": true
@@ -140,7 +137,6 @@ Files not reachable from any entry point - dead files left by refactors. Support
 ```jsonc
 {
   "orphanFilesDetection": {
-    "enabled": true,
     "autofix": true
   }
 }
@@ -151,11 +147,8 @@ A useful pattern is a second detector that excludes test files from the graph, t
 ```jsonc
 {
   "orphanFilesDetection": [
+    true,
     {
-      "enabled": true
-    },
-    {
-      "enabled": true,
       "graphExclude": ["**/*.test.*"]
     }
   ]
@@ -171,7 +164,6 @@ Exported members never imported anywhere reachable. Enable it only once entry po
 ```jsonc
 {
   "unusedExportsDetection": {
-    "enabled": true,
     "autofix": true
   }
 }
@@ -186,7 +178,6 @@ A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you 
 ```jsonc
 {
   "circularImportsDetection": {
-    "enabled": true,
     "ignoreTypeImports": true,
     "algorithm": "SCC"
   }
@@ -202,7 +193,6 @@ Block specific files/modules from being reachable from chosen entry points - e.g
 ```jsonc
 {
   "restrictedImportsDetection": {
-    "enabled": true,
     "entryPoints": ["src/pages/**/*.tsx"],
     "denyFiles": ["src/server/**"],
     "denyModules": ["fs", "child_process"]

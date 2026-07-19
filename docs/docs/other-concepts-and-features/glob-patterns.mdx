@@ -1,0 +1,61 @@
+---
+title: Glob patterns
+description: How file-path glob patterns are matched in rev-dep - gitignore-style behavior - and how to escape special characters such as the square brackets in Next.js dynamic routes.
+---
+
+# Glob patterns
+
+Wherever rev-dep takes a file path or pattern - entry points, `files`, `denyFiles`, `ignoreMatches`, `ignoreFiles`, `graphExclude`, and so on - the value is matched as a **glob pattern**.
+
+Different tools implement slightly different glob "flavors". **rev-dep aims to mimic [`.gitignore`](https://git-scm.com/docs/gitignore) matching behavior**, so patterns you already use in `.gitignore` should behave the same way here.
+
+The usual wildcards apply:
+
+- `*` - matches any characters
+- `**` - matches across directory boundaries
+- `?` - matches a single character
+- `[...]` - a character class (matches one character from the set)
+- `{a,b}` - alternation (matches `a` or `b`)
+- `!` - a leading `!` **negates** the pattern (see below)
+
+## Negated patterns (`!`)
+
+A pattern that begins with `!` is a **negation**: it carves an exception out of the other patterns in the same list. Within a single list, a path matches when it matches **at least one** normal (positive) pattern **and none** of the negated ones. This mirrors `.gitignore`, where `!` re-includes something a previous rule would have matched.
+
+```jsonc
+{
+  "files": [
+    "src/**",          // everything under src…
+    "!src/vendor/**"   // …except the vendored code
+  ]
+}
+```
+
+## Troubleshooting: paths with `[ ]` or `{ }` (e.g. Next.js routes)
+
+Because `[`, `]`, `{`, and `}` are glob special characters, a literal path that contains them is **not** matched as-is. A Next.js dynamic route like `pages/admin/clients/[clientId]/edit.tsx` is read as a character class (`[clientId]` = "one of `c`, `l`, `i`, …"), so it never matches the real file - and the entry point silently does nothing.
+
+To match such a path literally, **escape the special characters with a backslash**. Because the config file is JSON, the backslash itself must be escaped, so you write `\\[` and `\\]` (and `\\{`, `\\}`):
+
+```jsonc
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "files": ["app/legacy/**"],
+        "allowedEntryPoints": [
+          "pages/admin/clients/\\[clientId\\]/edit.tsx"
+        ]
+      }
+    }
+  ]
+}
+```
+
+Here the config string `"\\[clientId\\]"` is read as the glob pattern `\[clientId\]`, which matches the literal `[clientId]` segment.
+
+> Tip: you only strictly need to escape the opening bracket - `"\\[clientId]"` also works, since once `[` is escaped there is no character class for `]` to close. Escaping both reads more clearly.
+
+You can still combine escaped segments with wildcards, e.g. `"pages/admin/clients/\\[clientId\\]/**"` to match everything under a dynamic-route directory.

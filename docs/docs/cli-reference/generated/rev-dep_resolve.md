@@ -33,7 +33,9 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
       --graph-exclude strings                                       Glob patterns to exclude files from dependency analysis
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
       --module string                                               Target node module name to check for dependencies
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)

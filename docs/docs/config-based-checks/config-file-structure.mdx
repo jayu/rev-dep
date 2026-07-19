@@ -19,10 +19,11 @@ Rev-dep automatically detects project context and creates scaffolding for each w
 
 - `configVersion`: Configuration version string
 - `$schema`: JSON schema reference for validation
-- `conditionNames`: custom condition order for `package.json` imports/exports resolution.
-- `customAssetExtensions`: additional extensions that should be treated as resolvable imports.
-- `ignoreFiles`: files excluded from analysis by rev-dep config, in addition to gitignored files.
-- `processIgnoredFiles`: files that should still be processed even if gitignore or ignore patterns would normally skip them.
+- [`conditionNames`](other-concepts-and-features/module-resolution-and-path-aliases.mdx#condition-names): custom condition order for `package.json` imports/exports resolution.
+- [`customAssetExtensions`](other-concepts-and-features/supported-file-types.mdx#extending-asset-extensions): additional extensions that should be treated as resolvable imports.
+- [`ignoreFiles`](other-concepts-and-features/ignoring-files.mdx): files excluded from analysis by rev-dep config, in addition to gitignored files.
+- [`processIgnoredFiles`](other-concepts-and-features/ignoring-files.mdx): files that should still be processed even if gitignore or ignore patterns would normally skip them.
+- [`nodeModulesResolution`](other-concepts-and-features/node-modules-resolution.mdx): controls which `package.json` third-party imports are validated against (and whether monorepo-root devDependencies count as available).
 - `workspaces`: array of entries defining checks for different parts of the codebase. Typically a single entry defines checks for a single workspace package. However, you can have multiple entries with the same `path` if that's needed.
 
 > In v2 this field was called `rules`. It was renamed to `workspaces` in v3 to better reflect how it is used (typically one entry per workspace package).
@@ -35,14 +36,16 @@ Each workspace must define:
 
 And can additionally define:
 
-- `followMonorepoPackages`: Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
-- `prodEntryPoints`: Workspace-level production entry point patterns for detector defaults
-- `devEntryPoints`: Workspace-level development entry point patterns for detector defaults
+- [`followMonorepoPackages`](other-concepts-and-features/following-monorepo-packages.mdx): Control monorepo package resolution. `true` follows all workspace packages (default), `false` disables it, array follows only selected package names.
+- [`prodEntryPoints`](config-based-checks/entry-points-definition.mdx): Workspace-level production entry point patterns for detector defaults
+- [`devEntryPoints`](config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points): Workspace-level development entry point patterns for detector defaults
 - [`ignoreEntryPoints`](config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points): Workspace-level patterns for leftover entry points to exclude from reporting. Matching files are never reported as orphan files and their unused exports are not reported.
 
 And any detector setup:
 - [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx): Array of module boundary rules
 - [`restrictedImportsDetection`](config-based-checks/checks/restricted-imports.mdx): Restrict importing denied files/modules from selected entry points
+- [`restrictedImportersDetection`](config-based-checks/checks/restricted-importers.mdx): Whitelist which entry points may transitively reach a set of files or modules
+- [`restrictedDirectImportersDetection`](config-based-checks/checks/restricted-direct-importers.mdx): Constrain which files may directly import a set of files or modules (non-transitive)
 - [`importConventions`](config-based-checks/checks/import-conventions.mdx): Array of import convention rules
 - [`circularImportsDetection`](config-based-checks/checks/circular-imports.mdx): Circular import detection configuration
 - [`orphanFilesDetection`](config-based-checks/checks/orphan-files.mdx): Orphan files detection configuration
@@ -54,34 +57,37 @@ And any detector setup:
 
 > Detectors can be defined as **a single object or an array of objects**. Defining multiple configurations for the same detector allows to run it multiple times with different settings (e.g., different entry points or different deny rules for restricted imports) within the same workspace.
 
+### Compact detector syntax
+
+Detectors support a shorthand so simple configs stay short:
+
+- **Boolean.** A detector that only needs to be switched on (no extra setup) can be written as a boolean. `"circularImportsDetection": true` enables it and `"circularImportsDetection": false` disables it — equivalent to `{ "enabled": true }` and `{ "enabled": false }`.
+- **Optional `enabled`.** When a detector is configured with other options, the `enabled` flag is optional and defaults to `true`. `"restrictedImportsDetection": { "entryPoints": ["src/index.ts"] }` is enough to turn the check on; add `"enabled": false` to keep the options but switch it off.
+
+`rev-dep config init` writes configs in this compact form, and `rev-dep config lint --fix` rewrites an existing config to it (folding `{ "enabled": true }` to `true` and dropping redundant `enabled` flags) without touching your comments or formatting — see the `compact` rule in [Linting the config](./linting-the-config.mdx).
+
 ## Quick Start configuration
 
 ```json
 {
-  "configVersion": "1.8",
+  "configVersion": "2.0",
   // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.0.schema.json?raw=true",
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "workspaces": [
     {
       "path": ".",
       "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
       "devEntryPoints": ["scripts/**", "**/*.test.*"],
       "unusedExportsDetection": {
-        "enabled": true,
         "autofix": true
       },
       "orphanFilesDetection": {
-        "enabled": true,
         "autofix": true
       },
-      "unusedNodeModulesDetection": { 
-        "enabled": true 
-      },
-      "circularImportsDetection": { 
-        "enabled": true 
-      },
+      "unusedNodeModulesDetection": true,
+      "circularImportsDetection": true,
       "devDepsUsageOnProdDetection": {
-        "enabled": true,
         "ignoreTypeImports": true
       }
     }
@@ -89,7 +95,7 @@ And any detector setup:
 }
 ```
 
-Use the schema URL for editor autocomplete and validation.
+Add the `$schema` field (see the comprehensive example below) for editor autocomplete and validation.
 
 ## Comprehensive Config Example
 
@@ -97,11 +103,12 @@ Here's a comprehensive example showing all available properties:
 
 ```json
 {
-  "configVersion": "1.8",
+  "configVersion": "1.10",
   // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", 
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.10.schema.json?raw=true", 
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "workspaces": [
     {
       "path": ".",
@@ -197,6 +204,15 @@ Here's a comprehensive example showing all available properties:
         "denyFiles": ["**/*.tsx"],
         "denyModules": ["react", "react-*"],
         "ignoreMatches": ["src/server/allowed-view.tsx", "react-awesome-lib"],
+        "ignoreTypeImports": true
+      },
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "files": ["src/legacy/**"],
+        "modules": ["moment", "@legacy/*"],
+        "allowedImporters": ["src/legacy-adapter.ts"],
+        "graphExclude": ["**/*.test.*"],
+        "ignoreMatches": ["src/legacy/public-api.ts"],
         "ignoreTypeImports": true
       }
     }

@@ -54,6 +54,21 @@ if (!fs.existsSync(binary)) {
   process.exit(1)
 }
 
+// config init needs interactive terminal
+const positionalArgs = binaryArgs.filter((arg) => !arg.startsWith('-'))
+const isConfigInit = positionalArgs[0] === 'config' && positionalArgs[1] === 'init'
+const isInteractiveTerminal = Boolean(process.stdin.isTTY && process.stdout.isTTY)
+
+if (isConfigInit && isInteractiveTerminal) {
+  const interactive = cp.spawnSync(binary, binaryArgs, { stdio: 'inherit' })
+  if (interactive.error) {
+    console.error(interactive.error.message)
+    process.exit(1)
+  }
+  // status is null when the child was killed by a signal; treat that as a failure.
+  process.exit(interactive.status === null ? 1 : interactive.status)
+}
+
 try {
   const binaryArgsWrapped = binaryArgs.map((arg) => `"${arg}"`)
 

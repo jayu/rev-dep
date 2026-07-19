@@ -1,0 +1,87 @@
+---
+title: Node modules resolution
+description: How rev-dep decides which package.json each third-party (node module) import is validated against - entry-package vs nearest-package - plus the includeDevDepsFromRoot option.
+---
+
+# Node modules resolution
+
+The top-level `nodeModulesResolution` option controls which `package.json` a third-party (node module) import is **validated against** for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. It is a single top-level value applied to every rule (the same setting is exposed on the CLI as `--node-modules-resolution`).
+
+It complements [`followMonorepoPackages`](./following-monorepo-packages.mdx): that option decides whether a followed package's **source** enters the dependency graph, while `nodeModulesResolution` decides which `package.json` the node-module imports in that graph are judged against.
+
+## Configuration
+
+`nodeModulesResolution` is configured as an **object** - this is the canonical form, and the one `rev-dep config init` always generates:
+
+```jsonc
+{
+  "nodeModulesResolution": {
+    "resolutionType": "entry-package",  // "entry-package" (default) | "nearest-package"
+    "includeDevDepsFromRoot": false     // default false
+  }
+}
+```
+
+- `resolutionType` selects the resolution mode (see [the two modes](#the-two-modes) below); it defaults to `"entry-package"`.
+- `includeDevDepsFromRoot` (default `false`) is described in [its own section](#including-root-devdependencies-includedevdepsfromroot).
+
+> **Shorthand.** A bare string is also accepted and sets just the resolution mode - `"nearest-package"` is equivalent to `{ "resolutionType": "nearest-package" }`. It exists only for backward compatibility; prefer the object form, which is the only way to also set `includeDevDepsFromRoot`.
+
+## The two modes
+
+`resolutionType` selects one of two modes:
+
+- **`entry-package`** (default) - every import in a rule's tree is validated against that rule's entry `package.json`, so the consumer is expected to declare every dependency it pulls in, including those reached through followed packages. This fits npm and classic yarn, and is the historical behavior.
+- **`nearest-package`** - each import is validated against the `package.json` that **owns the importing file**, so every package must declare the dependencies its own files use. This fits pnpm's default layout, and any setup where a file can only resolve the dependencies its own package declares.
+
+## Why `nearest-package` exists
+
+When you follow a workspace package, its source imports its own dependencies. Under `entry-package`, those imports are checked against the **consumer's** `package.json`, so every dependency the followed package declares but the consumer does not is reported as a false-positive `missing` dependency.
+
+`nearest-package` fixes this: a followed package's import of one of its own declared dependencies is correctly considered resolved, while an import the followed package uses but **fails to declare itself** is correctly flagged - exactly what a strict pnpm install would break on.
+
+## Effect per check (`nearest-package`)
+
+- **`missingNodeModules`** - reports, per file, any import not declared by that file's own `package.json` (tree-wide). A phantom dependency anywhere in the followed graph is surfaced, because when each package resolves only its own dependencies it breaks the entry's build.
+- **`unusedNodeModules`** - reports dependencies declared by the **entry** `package.json` that none of the **entry package's own files** use. A dependency the entry declares but only a followed package consumes is flagged as unused for the entry (under `nearest-package` the followed package must declare it itself). Unlike `missing`, this stays scoped to the entry package - an unused dependency elsewhere does not affect the entry build.
+- **`unresolvedImports`** - reports every import not declared by its owning package, with no entry-package suppression.
+
+## A note on `unresolvedImports` vs `missingNodeModules` in `entry-package` mode
+
+Under `entry-package`, a dependency that a followed package declares (so it resolves fine from that package) but the entry does not declare is reported by `missingNodeModules` yet **not** by `unresolvedImports`. That difference is intentional: `unresolvedImports` reflects raw module resolution, which succeeded against the followed package, while `missingNodeModules` answers "is it declared where the entry will look for it." Under `nearest-package` the two converge, because both then ask the same question of each file's own package.
+
+## Including root devDependencies (`includeDevDepsFromRoot`)
+
+`includeDevDepsFromRoot` (default `false`) is set on the object form of `nodeModulesResolution`. When `true`, the **monorepo root (cwd) `package.json` `devDependencies`** are unioned into the set of dependencies treated as *available* to every package's code.
+
+The effect:
+
+- Importing a dev dependency that is declared **only** at the monorepo root - and not in the individual package's `package.json` - is **no longer reported** by `missingNodeModules` or `unresolvedImports` (it is now a known, available dependency).
+- Conversely, those root devDeps **are** added to the set checked by `devDepsUsageOnProd`: because the flag declares them "available to package code", importing one from **production** code is still a dev-dependency-in-production leak and **is reported**.
+- Root devDeps are **not** added to the `unusedNodeModules` candidate set, so they are never falsely flagged as unused on a package that doesn't import them.
+
+It applies in both `entry-package` and `nearest-package` modes.
+
+Independently of this flag, `devDepsUsageOnProd` follows `resolutionType` for *which* package's devDependencies it checks each production file against: `entry-package` uses the entry package's devDependencies for every file, while `nearest-package` checks each file against its own nearest package's devDependencies (so a followed package's own devDep used in production is caught).
+
+```jsonc
+{
+  "nodeModulesResolution": {
+    "resolutionType": "nearest-package",
+    "includeDevDepsFromRoot": true
+  }
+}
+```
+
+**When to enable it.** Some monorepos deliberately declare shared dev dependencies - linters, test runners, build tools, type packages - **once at the repo root** instead of repeating them in every package's `package.json`, to avoid version drift and the burden of updating many files when a version changes. This is a real, existing practice, but it is **not the cleanest approach** in general: not every shared dev dependency will actually be declared at the package level, so dependency ownership becomes less explicit. For that reason the option is strictly opt-in (default `false`). Decide consciously whether your project follows this root-shared-devDeps approach before enabling it.
+
+## CLI
+
+The CLI exposes the same modes via `--node-modules-resolution` on the `resolve`, `unresolved`, `node-modules used|unused|missing`, and `debug parse-file|get-tree-for-cwd` commands (default `entry-package`). Because the CLI analyzes a single working directory, the mode maps directly to how imports are classified - so the `debug` commands' `resolvedType` output reflects the chosen mode, letting you see exactly what each mode resolves.
+
+```bash
+# pnpm-style validation while following a shared source package
+rev-dep node-modules missing -c packages/app --follow-monorepo-packages --node-modules-resolution nearest-package
+```
+
+> Edge case: with `--follow-monorepo-packages` and `--node-modules-resolution entry-package`, the CLI's `unresolved` command lists a followed package's undeclared-by-entry dependency that the config's `unresolvedImports` would instead report under `missing`. The primary `missing` signal is identical across both; only the secondary `unresolved` diagnostic differs. Without `--follow-monorepo-packages` the two modes are identical.

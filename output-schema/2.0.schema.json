@@ -4,7 +4,12 @@
   "title": "Rev-Dep JSON Output",
   "description": "JSON output format for rev-dep config run --format json",
   "type": "object",
-  "required": ["version", "hasFailures", "workspaces", "fixSummary"],
+  "required": [
+    "version",
+    "hasFailures",
+    "workspaces",
+    "fixSummary"
+  ],
   "additionalProperties": false,
   "properties": {
     "version": {
@@ -18,26 +23,36 @@
     },
     "workspaces": {
       "type": "array",
-      "description": "Results for each workspace in the configuration",
-      "items": { "$ref": "#/definitions/ruleResult" }
+      "description": "Results for each rule in the configuration",
+      "items": {
+        "$ref": "#/definitions/ruleResult"
+      }
     },
-    "fixSummary": { "$ref": "#/definitions/fixSummary" }
+    "fixSummary": {
+      "$ref": "#/definitions/fixSummary"
+    }
   },
   "definitions": {
     "ruleResult": {
       "type": "object",
-      "required": ["path", "fileCount", "checks"],
+      "required": [
+        "path",
+        "fileCount",
+        "checks"
+      ],
       "additionalProperties": false,
       "properties": {
         "path": {
           "type": "string",
-          "description": "Workspace path from the configuration"
+          "description": "Rule path from the configuration"
         },
         "fileCount": {
           "type": "integer",
-          "description": "Number of files matched by this workspace"
+          "description": "Number of files matched by this rule"
         },
-        "checks": { "$ref": "#/definitions/checks" }
+        "checks": {
+          "$ref": "#/definitions/checks"
+        }
       }
     },
     "checks": {
@@ -45,26 +60,58 @@
       "additionalProperties": false,
       "description": "Results for each enabled check. Only enabled checks are present.",
       "properties": {
-        "circularDependencies": { "$ref": "#/definitions/checkResult" },
-        "orphanFiles": { "$ref": "#/definitions/checkResult" },
-        "moduleBoundaries": { "$ref": "#/definitions/checkResult" },
-        "unusedNodeModules": { "$ref": "#/definitions/checkResult" },
-        "missingNodeModules": { "$ref": "#/definitions/checkResult" },
-        "importConventions": { "$ref": "#/definitions/checkResult" },
-        "unresolvedImports": { "$ref": "#/definitions/checkResult" },
-        "unusedExports": { "$ref": "#/definitions/checkResult" },
-        "restrictedDevDependenciesUsage": { "$ref": "#/definitions/checkResult" },
-        "restrictedImports": { "$ref": "#/definitions/checkResult" }
+        "circularDependencies": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "orphanFiles": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "moduleBoundaries": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "unusedNodeModules": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "missingNodeModules": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "importConventions": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "unresolvedImports": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "unusedExports": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "restrictedDevDependenciesUsage": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "restrictedImports": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "restrictedImporters": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "restrictedDirectImporters": {
+          "$ref": "#/definitions/checkResult"
+        }
       }
     },
     "checkResult": {
       "type": "object",
-      "required": ["status", "issues"],
+      "required": [
+        "status",
+        "issues"
+      ],
       "additionalProperties": false,
       "properties": {
         "status": {
           "type": "string",
-          "enum": ["pass", "fail"],
+          "enum": [
+            "pass",
+            "fail"
+          ],
           "description": "Whether the check passed or failed"
         },
         "issues": {
@@ -72,16 +119,42 @@
           "description": "List of issues found by the check (empty when status is pass)",
           "items": {
             "oneOf": [
-              { "$ref": "#/definitions/circularDependencyIssue" },
-              { "$ref": "#/definitions/orphanFileIssue" },
-              { "$ref": "#/definitions/moduleBoundaryIssue" },
-              { "$ref": "#/definitions/unusedNodeModuleIssue" },
-              { "$ref": "#/definitions/missingNodeModuleIssue" },
-              { "$ref": "#/definitions/importConventionIssue" },
-              { "$ref": "#/definitions/unresolvedImportIssue" },
-              { "$ref": "#/definitions/unusedExportIssue" },
-              { "$ref": "#/definitions/restrictedDevDepsIssue" },
-              { "$ref": "#/definitions/restrictedImportIssue" }
+              {
+                "$ref": "#/definitions/circularDependencyIssue"
+              },
+              {
+                "$ref": "#/definitions/orphanFileIssue"
+              },
+              {
+                "$ref": "#/definitions/moduleBoundaryIssue"
+              },
+              {
+                "$ref": "#/definitions/unusedNodeModuleIssue"
+              },
+              {
+                "$ref": "#/definitions/missingNodeModuleIssue"
+              },
+              {
+                "$ref": "#/definitions/importConventionIssue"
+              },
+              {
+                "$ref": "#/definitions/unresolvedImportIssue"
+              },
+              {
+                "$ref": "#/definitions/unusedExportIssue"
+              },
+              {
+                "$ref": "#/definitions/restrictedDevDepsIssue"
+              },
+              {
+                "$ref": "#/definitions/restrictedImportIssue"
+              },
+              {
+                "$ref": "#/definitions/restrictedImporterIssue"
+              },
+              {
+                "$ref": "#/definitions/restrictedDirectImporterIssue"
+              }
             ]
           }
         }
@@ -89,122 +162,381 @@
     },
     "circularDependencyIssue": {
       "type": "object",
-      "required": ["cycle"],
+      "required": [
+        "cycle"
+      ],
       "additionalProperties": false,
       "properties": {
         "cycle": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "File paths forming the circular dependency chain"
         }
       }
     },
     "orphanFileIssue": {
       "type": "object",
-      "required": ["filePath"],
+      "required": [
+        "filePath"
+      ],
       "additionalProperties": false,
       "properties": {
-        "filePath": { "type": "string" }
+        "filePath": {
+          "type": "string"
+        }
       }
     },
     "moduleBoundaryIssue": {
       "type": "object",
-      "required": ["ruleName", "filePath", "importPath", "violationType"],
+      "required": [
+        "ruleName",
+        "filePath",
+        "importPath",
+        "violationType"
+      ],
       "additionalProperties": false,
       "properties": {
-        "ruleName": { "type": "string" },
-        "filePath": { "type": "string" },
-        "importPath": { "type": "string" },
-        "violationType": { "type": "string" }
+        "ruleName": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "importPath": {
+          "type": "string"
+        },
+        "violationType": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
       }
     },
     "unusedNodeModuleIssue": {
       "type": "object",
-      "required": ["moduleName", "filePath"],
+      "required": [
+        "moduleName",
+        "filePath"
+      ],
       "additionalProperties": false,
       "properties": {
-        "moduleName": { "type": "string" },
-        "filePath": { "type": "string" },
-        "startLine": { "type": "integer" },
-        "startCol": { "type": "integer" },
-        "endLine": { "type": "integer" },
-        "endCol": { "type": "integer" }
+        "moduleName": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
       }
     },
     "missingNodeModuleIssue": {
       "type": "object",
-      "required": ["moduleName", "importedFrom"],
+      "required": [
+        "moduleName",
+        "importedFrom"
+      ],
       "additionalProperties": false,
       "properties": {
-        "moduleName": { "type": "string" },
+        "moduleName": {
+          "type": "string"
+        },
         "importedFrom": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
+        },
+        "locations": {
+          "type": "array",
+          "description": "Per-import source locations of the missing module",
+          "items": {
+            "type": "object",
+            "required": [
+              "filePath",
+              "startLine",
+              "startCol",
+              "endLine",
+              "endCol"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "filePath": {
+                "type": "string"
+              },
+              "startLine": {
+                "type": "integer"
+              },
+              "startCol": {
+                "type": "integer"
+              },
+              "endLine": {
+                "type": "integer"
+              },
+              "endCol": {
+                "type": "integer"
+              }
+            }
+          }
         }
       }
     },
     "importConventionIssue": {
       "type": "object",
-      "required": ["filePath", "importRequest", "violationType"],
+      "required": [
+        "filePath",
+        "importRequest",
+        "violationType"
+      ],
       "additionalProperties": false,
       "properties": {
-        "filePath": { "type": "string" },
-        "importRequest": { "type": "string" },
-        "violationType": { "type": "string" }
+        "filePath": {
+          "type": "string"
+        },
+        "importRequest": {
+          "type": "string"
+        },
+        "violationType": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
       }
     },
     "unresolvedImportIssue": {
       "type": "object",
-      "required": ["filePath", "request"],
+      "required": [
+        "filePath",
+        "request"
+      ],
       "additionalProperties": false,
       "properties": {
-        "filePath": { "type": "string" },
-        "request": { "type": "string" }
+        "filePath": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
       }
     },
     "unusedExportIssue": {
       "type": "object",
-      "required": ["filePath", "exportName", "isType"],
+      "required": [
+        "filePath",
+        "exportName",
+        "isType"
+      ],
       "additionalProperties": false,
       "properties": {
-        "filePath": { "type": "string" },
-        "exportName": { "type": "string" },
-        "isType": { "type": "boolean" }
+        "filePath": {
+          "type": "string"
+        },
+        "exportName": {
+          "type": "string"
+        },
+        "isType": {
+          "type": "boolean"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
       }
     },
     "restrictedDevDepsIssue": {
       "type": "object",
-      "required": ["devDependency", "filePath", "entryPoint"],
+      "required": [
+        "devDependency",
+        "filePath",
+        "entryPoint"
+      ],
       "additionalProperties": false,
       "properties": {
-        "devDependency": { "type": "string" },
-        "filePath": { "type": "string" },
-        "entryPoint": { "type": "string" }
+        "devDependency": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "entryPoint": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
       }
     },
     "restrictedImportIssue": {
       "type": "object",
-      "required": ["violationType", "importerFile", "entryPoint"],
+      "required": [
+        "violationType",
+        "importerFile",
+        "entryPoint"
+      ],
       "additionalProperties": false,
       "properties": {
-        "violationType": { "type": "string" },
-        "importerFile": { "type": "string" },
-        "entryPoint": { "type": "string" },
-        "deniedFile": { "type": "string" },
-        "deniedModule": { "type": "string" },
-        "importRequest": { "type": "string" }
+        "violationType": {
+          "type": "string"
+        },
+        "importerFile": {
+          "type": "string"
+        },
+        "entryPoint": {
+          "type": "string"
+        },
+        "deniedFile": {
+          "type": "string"
+        },
+        "deniedModule": {
+          "type": "string"
+        },
+        "importRequest": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    },
+    "restrictedImporterIssue": {
+      "type": "object",
+      "required": [
+        "entryPoint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "entryPoint": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      }
+    },
+    "restrictedDirectImporterIssue": {
+      "type": "object",
+      "required": [
+        "violationType",
+        "importerFile"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "violationType": {
+          "type": "string"
+        },
+        "importerFile": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "importRequest": {
+          "type": "string"
+        }
       }
     },
     "fixSummary": {
       "type": "object",
-      "required": ["fixedFilesCount", "fixedImportsCount", "deletedFilesCount", "fixableIssuesCount", "unfixableAliasingCount"],
+      "required": [
+        "fixedFilesCount",
+        "fixedImportsCount",
+        "deletedFilesCount",
+        "fixableIssuesCount",
+        "unfixableAliasingCount"
+      ],
       "additionalProperties": false,
       "properties": {
-        "fixedFilesCount": { "type": "integer" },
-        "fixedImportsCount": { "type": "integer" },
-        "deletedFilesCount": { "type": "integer" },
-        "fixableIssuesCount": { "type": "integer" },
-        "unfixableAliasingCount": { "type": "integer" }
+        "fixedFilesCount": {
+          "type": "integer"
+        },
+        "fixedImportsCount": {
+          "type": "integer"
+        },
+        "deletedFilesCount": {
+          "type": "integer"
+        },
+        "fixableIssuesCount": {
+          "type": "integer"
+        },
+        "unfixableAliasingCount": {
+          "type": "integer"
+        }
       }
     }
   }

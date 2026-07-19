@@ -17,6 +17,7 @@ type GlobMatcher struct {
 	patternRoot                        string
 	isAnchoredToPatternRoot            bool
 	isAdditional                       bool
+	isNegated                          bool
 }
 
 func rebaseRelativePattern(pattern string, patternRoot string) (string, string, bool, bool) {
@@ -65,6 +66,20 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 
 	for _, pattern := range patterns {
 		pattern = strings.TrimSpace(pattern)
+
+		// Negation (gitignore-style): a leading `!` marks an exception that re-includes paths a
+		// positive pattern would otherwise match. A leading `\!` is an escaped literal `!`.
+		isNegated := false
+		if strings.HasPrefix(pattern, "!") {
+			isNegated = true
+			pattern = pattern[1:]
+		} else if strings.HasPrefix(pattern, "\\!") {
+			pattern = pattern[1:] // drop the escaping backslash, keep the literal '!'
+		}
+		if isNegated && pattern == "" {
+			continue // a lone "!" is not a usable pattern
+		}
+
 		pattern = pathutil.NormalizeGlobPattern(pattern)
 
 		patternRootForPattern := patternRootNorm
@@ -118,6 +133,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 			isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
 			shouldMatchAnyFileOrDirWithPattern: shouldMatchAnyFileOrDirWithPattern,
 			isAdditional:                       false,
+			isNegated:                          isNegated,
 		}
 		globMatchers = append(globMatchers, item)
 		// !!! This glob library does not match files in using directory wildcard (**/) if file is in root directory. eg `**/*.log`` will not match against `file.log`, but will match against `dir/file.log`
@@ -132,6 +148,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 				isAnchoredToPatternRoot:            isAnchoredToPatternRoot,
 				shouldMatchAnyFileOrDirWithPattern: false,
 				isAdditional:                       true,
+				isNegated:                          isNegated,
 			}
 			globMatchers = append(globMatchers, additionalItem)
 		}
@@ -139,62 +156,82 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 	return globMatchers
 }
 
-func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) bool {
-	// convert candidate path to internal form (forward slashes)
-	fileInternal := pathutil.NormalizePathForInternal(filePath)
-	for _, matcher := range matchers {
-		// A pattern is interpreted relative to its root - the workspace, or the
-		// directory an explicit "../" climbed up to. An absolute file path outside
-		// that root is out of scope for this matcher. Without this guard an
-		// unanchored pattern like "**/api/**" leaks across workspaces: TrimPrefix
-		// below would be a no-op for a foreign absolute path and the leading "**"
-		// would happily swallow the "/repo/apps/other/..." prefix. To match other
-		// workspaces users must opt in explicitly with a relative "../" pattern,
-		// which has already rebased patternRoot upward so such files pass here.
-		//
-		// The guard applies only when BOTH the root and the candidate are absolute
-		// paths. MatchesAnyGlobMatcher is also used to match non-path strings -
-		// notably node-module specifiers like "react-dom/client" (restricted
-		// imports' ignoreMatches) - which are not workspace-relative and must not
-		// be scoped. An empty root means "no scoping" (callers that pass cwd="").
-		if pathutil.IsAbsoluteInternalPath(matcher.patternRoot) && pathutil.IsAbsoluteInternalPath(fileInternal) &&
-			!strings.HasPrefix(fileInternal, matcher.patternRoot) {
-			continue
-		}
-		fileWithoutPrefix := strings.TrimPrefix(fileInternal, matcher.patternRoot)
-		if debug {
-			fmt.Println("Matcher", matcher.globPattern, matcher.inputString, matcher.patternRoot, matcher.shouldMatchAnyFileOrDirWithPattern, matcher.isAdditional)
-			fmt.Println("Input", fileWithoutPrefix, filePath)
-		}
-		if matcher.globPattern.Match(fileWithoutPrefix) {
-			if debug {
-				fmt.Println(fileWithoutPrefix, "return matches pattern", matcher.globPattern)
-			}
-			return true
-		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
-			// matches file/dir with name exactly as the pattern (unnanchored only - anchored patterns like /boot must only match at root)
-			if debug {
-				fmt.Println(fileWithoutPrefix, "return matches file name exactly", matcher.inputString)
-			}
-			return true
-		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && matcher.isAnchoredToPatternRoot && strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/") {
-			// anchored patterns (e.g. /node_modules) should only match at this matcher root
-			if debug {
-				fmt.Println(fileWithoutPrefix, "return matches anchored directory", matcher.inputString)
-			}
-
-			return true
-		}
-		if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && (strings.Contains(fileWithoutPrefix, "/"+matcher.inputString+"/") || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/")) {
-			// matches directory with name exactly as the pattern
-			if debug {
-				fmt.Println(fileWithoutPrefix, "return matches directory", matcher.inputString)
-			}
-
-			return true
-		}
+// matchesOne reports whether a single matcher matches the (already internal-form) path.
+func (matcher GlobMatcher) matchesOne(fileInternal string, debug bool) bool {
+	// A pattern is interpreted relative to its root - the workspace, or the
+	// directory an explicit "../" climbed up to. An absolute file path outside
+	// that root is out of scope for this matcher. Without this guard an
+	// unanchored pattern like "**/api/**" leaks across workspaces: TrimPrefix
+	// below would be a no-op for a foreign absolute path and the leading "**"
+	// would happily swallow the "/repo/apps/other/..." prefix. To match other
+	// workspaces users must opt in explicitly with a relative "../" pattern,
+	// which has already rebased patternRoot upward so such files pass here.
+	//
+	// The guard applies only when BOTH the root and the candidate are absolute
+	// paths. MatchesAnyGlobMatcher is also used to match non-path strings -
+	// notably node-module specifiers like "react-dom/client" (restricted
+	// imports' ignoreMatches) - which are not workspace-relative and must not
+	// be scoped. An empty root means "no scoping" (callers that pass cwd="").
+	if pathutil.IsAbsoluteInternalPath(matcher.patternRoot) && pathutil.IsAbsoluteInternalPath(fileInternal) &&
+		!strings.HasPrefix(fileInternal, matcher.patternRoot) {
+		return false
+	}
+	fileWithoutPrefix := strings.TrimPrefix(fileInternal, matcher.patternRoot)
+	if debug {
+		fmt.Println("Matcher", matcher.globPattern, matcher.inputString, matcher.patternRoot, matcher.shouldMatchAnyFileOrDirWithPattern, matcher.isAdditional, "negated:", matcher.isNegated)
+		fmt.Println("Input", fileWithoutPrefix, fileInternal)
+	}
+	if matcher.globPattern.Match(fileWithoutPrefix) {
+		return true
+	}
+	if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
+		// matches file/dir with name exactly as the pattern (unnanchored only - anchored patterns like /boot must only match at root)
+		return true
+	}
+	if matcher.shouldMatchAnyFileOrDirWithPattern && matcher.isAnchoredToPatternRoot && strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/") {
+		// anchored patterns (e.g. /node_modules) should only match at this matcher root
+		return true
+	}
+	if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && (strings.Contains(fileWithoutPrefix, "/"+matcher.inputString+"/") || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/")) {
+		// matches directory with name exactly as the pattern
+		return true
 	}
 	return false
+}
+
+func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) bool {
+	fileInternal := pathutil.NormalizePathForInternal(filePath)
+
+	positiveMatched := false
+	hasNegated := false
+	for i := range matchers {
+		if matchers[i].isNegated {
+			hasNegated = true
+			continue
+		}
+		if positiveMatched {
+			continue // keep scanning cheaply to learn whether any negation exists
+		}
+		if matchers[i].matchesOne(fileInternal, debug) {
+			positiveMatched = true
+		}
+	}
+
+	if !positiveMatched {
+		return false
+	}
+	if !hasNegated {
+		return true
+	}
+
+	// A positive matched and the set has exceptions - a negated match cancels the result.
+	for i := range matchers {
+		if matchers[i].isNegated && matchers[i].matchesOne(fileInternal, debug) {
+			if debug {
+				fmt.Println(fileInternal, "cancelled by negated matcher", matchers[i].inputString)
+			}
+			return false
+		}
+	}
+	return true
 }

@@ -2,12 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/emoji"
 )
 
 func TestFormatAndPrintConfigResults_Summary(t *testing.T) {
@@ -22,14 +24,14 @@ func TestFormatAndPrintConfigResults_Summary(t *testing.T) {
 				FixedImportsCount: 5,
 				FixedFilesCount:   2,
 			},
-			expected: "✍️ Fixed 5 imports in 2 files",
+			expected: fmt.Sprintf("%s Fixed 5 imports in 2 files", emoji.Fix),
 		},
 		{
 			name: "Only files removed",
 			result: &config.ConfigProcessingResult{
 				DeletedFilesCount: 3,
 			},
-			expected: "✍️ Removed 3 orphan files",
+			expected: fmt.Sprintf("%s Removed 3 orphan files", emoji.Fix),
 		},
 		{
 			name: "Both fixed and removed",
@@ -38,7 +40,7 @@ func TestFormatAndPrintConfigResults_Summary(t *testing.T) {
 				FixedFilesCount:   2,
 				DeletedFilesCount: 3,
 			},
-			expected: "✍️ Fixed 5 imports in 2 files, removed 3 orphan files",
+			expected: fmt.Sprintf("%s Fixed 5 imports in 2 files, removed 3 orphan files", emoji.Fix),
 		},
 		{
 			name: "Nothing fixed",
@@ -69,7 +71,7 @@ func TestFormatAndPrintConfigResults_Summary(t *testing.T) {
 			output := buf.String()
 
 			if tt.expected == "" {
-				if strings.Contains(output, "✍️") {
+				if strings.Contains(output, emoji.Fix) {
 					t.Errorf("Expected no summary, but got: %q", output)
 				}
 			} else {

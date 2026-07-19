@@ -58,7 +58,11 @@ func FormatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 }
 
 func InitConfigFileCore(cwd string) (string, []config.Rule, bool, error) {
-	return initConfigFileCore(cwd)
+	result, err := initConfigFileCore(cwd)
+	if err != nil {
+		return "", nil, false, err
+	}
+	return result.configPath, result.rules, result.createdForMonorepoSubPackage, nil
 }
 
 func PrintRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string) {

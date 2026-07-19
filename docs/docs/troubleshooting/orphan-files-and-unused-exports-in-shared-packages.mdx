@@ -1,34 +1,56 @@
 ---
-description: "Why orphan files and unused exports are over-reported in monorepo shared packages, and the recommended root-level setup that sees cross-package usage."
+description: "Why unused exports - but not orphan files - leak from shared packages into a compiled app's report, and the two setups that fix it: root-level detection plus an ignoreFiles pattern."
 title: Orphan files and unused exports in shared packages
 ---
 
 # Orphan files and unused exports in shared packages
 
-Both `orphanFilesDetection` and `unusedExportsDetection` answer a reachability question - "is this file reachable from an entry point?" / "is this export imported anywhere?". In a monorepo, a **shared package** exists to be consumed by *other* packages, so most of its files and exports are used across package boundaries, not inside the shared package itself.
+Both `orphanFilesDetection` and `unusedExportsDetection` answer a reachability question - "is this file reachable from an entry point?" / "is this export imported anywhere?". In a monorepo a **shared package** exists to be consumed by *other* packages, so most of its files and exports are used across package boundaries, not inside the shared package itself.
 
-If you enable these checks **scoped to the shared package**, that cross-package usage is invisible and legitimately-used code gets reported as orphaned or unused.
+Two different situations over-report that cross-package code, and they behave differently:
 
-## Why it happens
+- A check **scoped to the shared package itself** - cross-package usage is invisible, so almost everything looks dead. This affects both checks equally.
+- A check on a **compiled app that follows the shared package** - here orphan files behaves correctly, but unused exports leaks shared-package findings. The reason for the difference is explained below, and it shapes the recommended setup.
 
-A workspace only sees its own package's graph (plus the packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx)). A shared package has very few real entry points of its own - an app's `index.ts` lives in the app, not in `packages/shared`. So when the check runs against `packages/shared` in isolation, the files and exports that apps import look like they have no consumer.
+## Why a shared-package-scoped workspace over-reports
 
-## The recommended setup
+A workspace only sees its own package's graph (plus the packages it [follows](../other-concepts-and-features/following-monorepo-packages.mdx)). A shared package has very few real entry points of its own - an app's `index.ts` lives in the app, not in `packages/shared`. So when a check runs against `packages/shared` in isolation, the files and exports that apps import look like they have no consumer.
 
-1. **Do not enable** `orphanFilesDetection` or `unusedExportsDetection` inside shared packages.
-2. **Enable them once at the monorepo root** (`path: "."`). There rev-dep builds the whole-monorepo graph and, with workspace-package following on (the default), resolves cross-package imports into the shared source. A shared export imported by any app now counts as used; only code used by nobody *anywhere* is reported.
-3. **Do enable them in compiled leaf packages** (web/mobile apps). Those packages are not meant to be imported elsewhere, so dangling code in them is genuinely dead and safe to flag - or autofix away.
+The fix is to **not** enable these checks scoped to a shared package, and instead run them at the monorepo **root** (`path: "."`). There rev-dep builds the whole-monorepo graph and, with workspace-package following on (the default), resolves cross-package imports into the shared source. A shared export imported by any app then counts as used; only code used by nobody *anywhere* is reported.
 
-The key is context: the root workspace has the whole monorepo; a shared-package workspace does not.
+## Orphan files vs. unused exports on a compiled app
 
-## Define entry points by intent
+You also want these checks on the **compiled apps** themselves, to catch app-local dead code. When an app follows its shared packages (the default), the two checks diverge:
 
-You don't have to hand-list every root. The simpler framing is **which workspaces are compilation targets and which are shared**:
+- **Orphan files does not leak.** The app's graph is built by following imports outward from its entry points. A *truly dead* shared file has no link pointing to it, so it is never discovered - it simply never enters the graph, and a file that was never discovered cannot be reported as anything. So app-level orphan detection only ever surfaces app-local dead files. No suppression needed.
+- **Unused exports does leak.** This check works on the exported members of every file that is *in the graph*, and a shared file the app imports **is** in the graph. If the app uses only one of that file's three exports, the other two look unused from this app's point of view - even though another app may import them. So an app workspace reports unused exports that actually belong to shared packages.
 
-- **Apps** (`apps/web`, `apps/mobile`) are compiled - they hold the real entry points, so treat *everything in them* as a root.
-- **Shared packages** (`packages/shared`) are not compiled on their own; they exist only to be imported by the apps.
+That asymmetry is the whole reason the two checks need different handling on a compiled app.
 
-So at the root workspace, point the entry points at the app workspaces. Any shared-package code the apps reach counts as used; any shared code reached from nowhere is reported. This is coarse but effective - you can narrow it later with more specific roots (see [entry points](../config-based-checks/entry-points-definition.mdx)).
+## Suppressing shared-package unused exports on a compiled app
+
+Add an `ignoreFiles` pattern to the app's `unusedExportsDetection` that points at the shared packages. `ignoreFiles` patterns are matched relative to the workspace's `path`, so from `apps/web` you climb out of the app directory to reach `packages`:
+
+```jsonc
+{
+  "path": "apps/web",
+  "unusedExportsDetection": {
+    "enabled": true,
+    "ignoreFiles": ["../../packages/**"]
+  }
+}
+```
+
+Now the app workspace reports only its own unused exports, and the real signal for shared-package exports comes from the root workspace, which counts cross-package usage correctly. Orphan detection needs no equivalent ignore - it never leaked.
+
+## Why the root workspace doesn't make app-level detection redundant
+
+It is tempting to run everything at the root with broad entry points - `prodEntryPoints: ["apps/web/**"]` - and skip per-app workspaces. That shortcut works for **shared-package** dead code, but it cannot find dead code **inside an app**: when every file under `apps/web/**` is marked as an entry point, every app file is considered a root, so none is ever unreachable and no export is ever unused. App-internal orphan files and unused exports become invisible.
+
+So the two scopes do different jobs:
+
+- **Root workspace, broad app entry points** - catches dead code in **shared packages**, reached transitively through followed source.
+- **App workspace, the app's real (narrow) entry points** - catches dead code **inside the app**. Orphan detection here is clean; unused-exports here needs the `ignoreFiles` pattern above to stay out of the shared packages.
 
 ## Example
 
@@ -36,23 +58,22 @@ So at the root workspace, point the entry points at the app workspaces. Any shar
 {
   "workspaces": [
     {
-      // Root: the apps are the compilation targets, so treat everything in them
-      // as a root. Shared-package code the apps never reach is dead and gets reported.
       "path": ".",
       "prodEntryPoints": ["apps/web/**", "apps/mobile/**"],
       "orphanFilesDetection": { "enabled": true, "autofix": true },
       "unusedExportsDetection": { "enabled": true, "autofix": true }
     },
     {
-      // Compiled app - not imported by anything else, so dangling code here is dead too.
       "path": "apps/web",
       "prodEntryPoints": ["**/pages/**", "**/api/**", "server/src/index.ts"],
       "devEntryPoints": ["*.config.*", "**/*.test.*", "**/*.stories.*"],
-      "orphanFilesDetection": { "enabled": true }
+      "orphanFilesDetection": { "enabled": true },
+      "unusedExportsDetection": {
+        "enabled": true,
+        "ignoreFiles": ["../../packages/**"]
+      }
     },
     {
-      // Shared, just-in-time package - consumed by apps, not built on its own.
-      // Orphan / unused-exports detection is intentionally NOT enabled here.
       "path": "packages/shared",
       "circularImportsDetection": { "enabled": true }
     }
@@ -60,9 +81,11 @@ So at the root workspace, point the entry points at the app workspaces. Any shar
 }
 ```
 
+The root workspace's broad entry points make every app file reachable, so it reports only dead **shared** code. The `apps/web` workspace uses the app's real entry points to surface app-local orphans and unused exports, while `ignoreFiles` keeps its unused-exports report out of the shared packages. `packages/shared` runs neither check - its orphan files and unused exports are the root workspace's job.
+
 ## Notes
 
-- **Orphan files can run in both places.** Root-level catches dead *shared* files; a per-app workspace catches app-local dead files. A second app-level `orphanFilesDetection` with `"graphExclude": ["**/*.test.*"]` surfaces utilities that are only used by tests (rename such a file to include `.testUtil.` if it is intentional).
-- **`autofix`** lets the root workspace delete orphan files and strip unused exports once you trust the entry-point list.
+- **Autofix.** On the root workspace, `autofix` deletes dead shared files and strips unused shared exports once you trust the entry-point lists; on the app workspace it does the same for app-local code.
+- **Adjust the `ignoreFiles` depth.** The pattern is relative to the workspace's `path`, so the number of `../` segments depends on how deeply the app is nested (`apps/web` → `../../packages/**`).
 
 See [orphan files detection](../config-based-checks/checks/orphan-files.mdx), [unused exports detection](../config-based-checks/checks/unused-exports.mdx), and [entry points](../config-based-checks/entry-points-definition.mdx) for the per-check details.

@@ -80,6 +80,8 @@ Available checks:
 - `circularImportsDetection` - detect circular imports.
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 - `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
+- `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
+- `restrictedDirectImportersDetection` - constrain which files may directly import a set of files/modules (non-transitive).
 
 ### Exploratory analysis (CLI-based) 🔍
 
@@ -180,6 +182,8 @@ Available checks are:
 - `circularImportsDetection` - detect circular imports.
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 - `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
+- `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
+- `restrictedDirectImportersDetection` - constrain which files may directly import a set of files/modules (non-transitive).
 
 Checks are grouped in workspaces. You can have multiple workspaces, eg. for each monorepo package.
 
@@ -225,8 +229,9 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "1.8",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true",
+  "configVersion": "2.0",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.0.schema.json?raw=true",
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "workspaces": [
     {
       "path": ".",
@@ -261,10 +266,11 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.8",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.8.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "1.10",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.10.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
+  "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "workspaces": [
     {
       "path": ".",
@@ -376,6 +382,7 @@ Here's a comprehensive example showing all available properties:
 - **`customAssetExtensions`** (optional): Additional asset extensions treated as resolvable imports (e.g. `["glb", "mp3"]`). Default list covers common extensions for fonts, images, config files.
 - **`ignoreFiles`** (optional): Global file patterns to ignore across all workspaces. Git ignored files are skipped by default.
 - **`processIgnoredFiles`** (optional): Global file patterns to process even if they match gitignore or `ignoreFiles`.
+- **`nodeModulesResolution`** (optional): Which `package.json` each third-party import is validated against for the `missingNodeModules`, `unusedNodeModules`, and `unresolvedImports` checks. Configure it as an object `{ "resolutionType": ..., "includeDevDepsFromRoot": ... }` - the form `rev-dep config init` generates. `resolutionType` is `"entry-package"` (default, validates against the workspace's entry `package.json`) or `"nearest-package"` (validates against the `package.json` owning each file - use for pnpm's default layout, where each package resolves only its own dependencies). `includeDevDepsFromRoot` (default `false`) lets package code use dev dependencies declared only at the monorepo root without `missingNodeModules` or `unresolvedImports` flagging them. A bare string (e.g. `"nearest-package"`) is also accepted as a backward-compatible shorthand for `resolutionType`. Applies to all workspaces. See the [docs](https://rev-dep.com/docs/other-concepts-and-features/node-modules-resolution).
 - **`workspaces`** (required): Array of workspace objects
 
 #### Workspace Properties
@@ -395,6 +402,8 @@ Each workspace can contain the following properties:
 - **`unresolvedImportsDetection`** (optional): Unresolved imports detection configuration (single object or array of objects)
 - **`devDepsUsageOnProdDetection`** (optional): Restricted dev dependencies usage detection configuration (single object or array of objects)
 - **`restrictedImportsDetection`** (optional): Restrict importing denied files/modules from selected entry points (single object or array of objects)
+- **`restrictedImportersDetection`** (optional): Whitelist which entry points may transitively reach a set of files/modules (single object or array of objects)
+- **`restrictedDirectImportersDetection`** (optional): Constrain which files may directly import a set of files/modules; non-transitive (single object or array of objects)
 - **`importConventions`** (optional): Array of import convention rules
 
 #### Module Boundary Properties
@@ -776,7 +785,7 @@ Execute all checks defined in (.)rev-dep.config.json(c)
 
 #### Synopsis
 
-Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, import conventions, node modules, unused exports, unresolved imports, restricted imports and restricted dev deps usage) per rule.
+Process (.)rev-dep.config.json(c) and execute all enabled checks (circular imports, orphan files, module boundaries, import conventions, node modules, unused exports, unresolved imports, restricted imports and restricted dev deps usage) per workspace.
 
 ```
 rev-dep config run [flags]
@@ -791,6 +800,8 @@ rev-dep config run [flags]
       --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
       --format string                                               Output format (json, issues-list)
   -h, --help                                                        help for run
+      --lint-config config lint                                     Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use config lint for details and --fix
+      --lint-config-rules strings                                   Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config
       --list-all-issues                                             List all issues instead of limiting output
       --package-json string                                         Path to package.json (default: ./package.json)
       --recheck                                                     Run all checks again after '--fix' to validate the final state
@@ -817,6 +828,43 @@ rev-dep config init [flags]
 ```
   -c, --cwd string   Working directory (default "$PWD")
   -h, --help         help for init
+```
+
+
+### rev-dep config lint
+
+Report (and optionally remove) config glob/path patterns that match nothing
+
+#### Synopsis
+
+Scan a (.)rev-dep.config.json(c) for "dead" glob and path patterns — ignore
+patterns, entry point patterns, workspace paths, graph excludes, denied files/modules and
+similar — that no longer match any discovered file or module. Over time configs
+accumulate patterns for files that were renamed or deleted; this command surfaces them
+so the config stays lean.
+
+With --fix, dead patterns are removed in place, preserving all comments and formatting.
+Some patterns are reported but never auto-removed because deleting them could change a
+check's behavior or make the config invalid — workspace paths, required entry points / files
+/ modules, and module-boundary selectors. These are marked "not auto-removed"; resolve
+them by hand.
+
+```
+rev-dep config lint [flags]
+```
+
+#### Options
+
+```
+      --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
+  -c, --cwd string                                                  Working directory (default "$PWD")
+      --fix                                                         Remove dead patterns from the config file (preserves comments and formatting)
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+  -h, --help                                                        help for lint
+      --package-json string                                         Path to package.json (default: ./package.json)
+      --rules strings                                               Lint rules to run (comma-separated): orphan-file-globs, orphan-module-globs, overlapping-globs, trailing-commas, compact. Default: all. orphan-file-globs/overlapping-globs use file discovery; orphan-module-globs parses the dependency tree; trailing-commas and compact only read the config file.
+      --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                                                     Show warnings and verbose output
 ```
 
 
@@ -1006,6 +1054,8 @@ rev-dep unresolved [flags]
       --ignore stringToString                                       Map of file path (relative to cwd) to exact import request to ignore (e.g. --ignore src/index.ts=some-module) (default [])
       --ignore-files strings                                        File path glob patterns to ignore in unresolved output
       --ignore-imports strings                                      Import requests to ignore globally in unresolved output
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1159,7 +1209,9 @@ rev-dep node-modules missing --entry-points=src/main.ts
       --group-by-module-files-count                                 Organize output by npm package name and show count of files using it
   -h, --help                                                        help for missing
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
   -i, --include-modules strings                                     list of modules to include in the output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings                            Additional package.json fields to check for binary usages
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1200,7 +1252,9 @@ rev-dep node-modules unused --exclude-modules=@types/*
       --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
   -h, --help                                                        help for unused
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
   -i, --include-modules strings                                     list of modules to include in the output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings                            Additional package.json fields to check for binary usages
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1248,7 +1302,9 @@ rev-dep node-modules used -p src/index.ts --group-by-module
       --group-by-module-show-entry-points                           Organize output by npm package name and list entry points using it
   -h, --help                                                        help for used
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
   -i, --include-modules strings                                     list of modules to include in the output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings                            Additional package.json fields to check for binary usages
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1288,7 +1344,9 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
       --graph-exclude strings                                       Glob patterns to exclude files from dependency analysis
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
       --module string                                               Target node module name to check for dependencies
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1359,6 +1417,12 @@ A dependency listed in **package.json** that is **never imported** in the source
 ### Root directory / Project root
 
 The top-level directory used as the starting point for dependency analysis.
+
+## Telemetry
+
+Rev-Dep collects a single **anonymous** event, only during `rev-dep config run`. Read more in [Telemetry docs](https://rev-dep.com/docs/telemetry).
+
+Opt out completely by setting `REV_DEP_TELEMETRY_OFF=true`.
 
 ## Made in 🇵🇱 and 🇯🇵 with 🧠 by [@jayu](https://github.com/jayu)
 

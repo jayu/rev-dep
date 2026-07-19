@@ -1,0 +1,135 @@
+---
+title: Restricted Direct Importers
+description: Constrain which files may directly import a set of files or node modules. A non-transitive, graph-free check - the direct-edge counterpart of restricted importers.
+---
+
+# Restricted direct importers
+
+`restrictedDirectImportersDetection` constrains **which files may directly import a set of target files or node modules**. It looks only at direct import edges - it does **not** follow transitive chains and never builds a dependency graph, which makes it cheap and precise for "only these files may import X" rules.
+
+## What this check does
+
+You declare the targets as either `files` **or** `modules` (glob patterns), then choose one policy:
+
+- `allowImporters` (whitelist): only files matching these patterns may directly import a target. Any other direct importer is a violation.
+- `denyImporters` (blacklist): files matching these patterns may not directly import a target. Any matching direct importer is a violation.
+
+Only **direct** imports count. If `a.ts` imports `b.ts` and `b.ts` imports the target, then `b.ts` is a direct importer (and may be reported) but `a.ts` is not - it only reaches the target transitively. To reason about transitive reachability from entry points, use [`restrictedImporters`](config-based-checks/checks/restricted-importers.mdx) instead.
+
+## Why it is important
+
+- **Enforce a single access point:** require that a config, client, or singleton is imported only through an approved wrapper (`allowImporters`), so usage stays centralized.
+- **Keep layers from reaching in:** forbid a set of files (e.g. `src/public/**`) from importing internal modules directly (`denyImporters`).
+- **Cheap and exact:** because it inspects only direct edges, it is fast and its findings map 1:1 to import statements you can fix.
+
+## Restricted Direct Importers vs. Restricted Importers
+
+Both answer "who may import this target", but at different depths:
+
+- **`restrictedImporters`** reasons about **transitive** reachability from a rule's entry points and requires a dependency graph.
+- **`restrictedDirectImporters`** reasons about **direct** import edges only - it flags the exact files that import the target, regardless of entry points, without building a graph.
+
+Reach for direct importers when you care about the import statement itself (the file that writes `import ... from 'target'`); reach for [`restrictedImporters`](config-based-checks/checks/restricted-importers.mdx) when you care about which entry points can end up depending on the target through any chain.
+
+## Configuration
+
+Whitelist - only the approved wrapper may import the server config directly:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedDirectImportersDetection": {
+        "enabled": true,
+        "files": ["utils/configs/internal.ts"],
+        "allowImporters": ["utils/configs/**"]
+      }
+    }
+  ]
+}
+```
+
+Any file outside `utils/configs/**` that directly imports `utils/configs/internal.ts` is reported.
+
+Blacklist - forbid public code from importing internal modules directly:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedDirectImportersDetection": {
+        "enabled": true,
+        "files": ["src/internal/**"],
+        "denyImporters": ["src/public/**"]
+      }
+    }
+  ]
+}
+```
+
+### Constraining a node module
+
+Use `modules` (instead of `files`) to constrain which files may directly import a node module. `modules` are matched as **module-name glob patterns** (the same matching `restrictedImports` uses for `denyModules`): `axios` matches `axios` and `axios/*`, and `@legacy/*` matches any package in the `@legacy` scope.
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedDirectImportersDetection": {
+        "enabled": true,
+        "modules": ["axios", "@legacy/*"],
+        "denyImporters": ["src/domain/**"]
+      }
+    }
+  ]
+}
+```
+
+`files` and `modules` are **mutually exclusive** - provide exactly one. `allowImporters` and `denyImporters` are **mutually exclusive** too - provide exactly one.
+
+## Options
+
+- `enabled` (boolean, required): Whether to enable restricted direct importers detection.
+- `files` (array of strings): Glob patterns for the target files whose direct importers are constrained. Mutually exclusive with `modules`; exactly one is required when enabled.
+- `modules` (array of strings): Node-module name glob patterns for the targets whose direct importers are constrained. Mutually exclusive with `files`; exactly one is required when enabled.
+- `allowImporters` (array of strings): Whitelist of files permitted to directly import a target. Any other direct importer is a violation. Mutually exclusive with `denyImporters`; exactly one is required when enabled.
+- `denyImporters` (array of strings): Blacklist of files forbidden from directly importing a target. Any matching direct importer is a violation. Mutually exclusive with `allowImporters`; exactly one is required when enabled.
+- `ignoreMatches` (array of strings, optional): Importer patterns to exempt - a direct importer matching any of these is never reported. This filters the **importer** side only; it does not narrow the `files`/`modules` targets.
+- `ignoreTypeImports` (boolean, optional): Ignore type-only imports when determining direct importers (default: false).
+
+All path and module fields (`files`, `modules`, `allowImporters`, `denyImporters`, `ignoreMatches`) support [glob patterns](other-concepts-and-features/glob-patterns.mdx).
+
+## Defining multiple restricted direct importers rules
+
+Like other detectors, `restrictedDirectImportersDetection` can be a single object or an **array of objects** - use an array to constrain different targets within the same workspace:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedDirectImportersDetection": [
+        {
+          "enabled": true,
+          "files": ["utils/configs/serverConfig/index.ts"],
+          "allowImporters": ["utils/configs/**"]
+        },
+        {
+          "enabled": true,
+          "modules": ["axios"],
+          "denyImporters": ["src/domain/**"]
+        }
+      ]
+    }
+  ]
+}
+
+```
+## Related checks
+
+- [`restrictedImporters`](config-based-checks/checks/restricted-importers.mdx) - the transitive reacher counterpart.
+- [`restrictedImports`](config-based-checks/checks/restricted-imports.mdx) - the dual: restrict what entry points may reach.
+- [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx) - directional allow/deny rules between groups of files.

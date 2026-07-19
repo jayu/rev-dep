@@ -40,7 +40,9 @@ rev-dep node-modules used -p src/index.ts --group-by-module
       --group-by-module-show-entry-points                           Organize output by npm package name and list entry points using it
   -h, --help                                                        help for used
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
   -i, --include-modules strings                                     list of modules to include in the output
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --package-json string                                         Path to package.json (default: ./package.json)
       --pkg-fields-with-binaries strings                            Additional package.json fields to check for binary usages
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)

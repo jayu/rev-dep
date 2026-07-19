@@ -61,6 +61,8 @@ type RuleResult struct {
 	UnresolvedImports                               []checks.UnresolvedImport
 	RestrictedDevDependenciesUsageViolations        []checks.RestrictedDevDependenciesUsageViolation
 	RestrictedImportsViolations                     []checks.RestrictedImportViolation
+	RestrictedImportersViolations                   []checks.RestrictedImporterViolation
+	RestrictedDirectImportersViolations             []checks.RestrictedDirectImporterViolation
 	RestrictedImportsFollowMonorepoPackages         model.FollowMonorepoPackagesValue
 	ProcessIgnoredFiles                             []string
 	MissingPackageJson                              bool
@@ -88,14 +90,26 @@ type ConfigProcessingResult struct {
 	UnfixableAliasingCount int
 	FixableIssuesCount     int
 	FullTree               model.MinimalDependencyTree
+	// Discovery/resolver artifacts, exposed so a caller (e.g. `config run --lint-config`) can
+	// lint without redoing the expensive discovery + dependency-tree build.
+	DiscoveredFiles []string
+	ResolverManager *resolve.ResolverManager
+	// IgnoreScopeFiles / IgnorePrunedDirs are byproducts of the SAME discovery walk, used by
+	// the linter's top-level ignoreFiles/processIgnoredFiles dead-check so it needs no second,
+	// unpruned walk. See ignoreScope / configRelevantPrunedDirs.
+	IgnoreScopeFiles []string
+	IgnorePrunedDirs []string
 }
 
-// discoverAllFilesForConfig discovers all files for config processing
+// discoverAllFilesForConfig discovers all files for config processing. It also returns the
+// walk's exclusion byproducts (files an ignore pattern matched, directories pruned whole),
+// which the linter uses to decide which top-level ignore patterns still match something
+// WITHOUT a second, unpruned traversal of large ignored directories.
 func discoverAllFilesForConfig(
 	cwd string,
 	ignoreFiles []string,
 	processIgnoredFiles []string,
-) ([]string, []globutil.GlobMatcher, []globutil.GlobMatcher, error) {
+) ([]string, []globutil.GlobMatcher, []globutil.GlobMatcher, *fs.DiscoveryExclusions, error) {
 	// Create glob matchers for ignore files
 	ignoreMatchers := globutil.CreateGlobMatchers(ignoreFiles, cwd)
 	processIgnoredMatchers := globutil.CreateGlobMatchers(processIgnoredFiles, cwd)
@@ -104,10 +118,43 @@ func discoverAllFilesForConfig(
 	gitignoreMatchers := fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
 	combinedMatchers := append(ignoreMatchers, gitignoreMatchers...)
 
-	// Get all files using the existing GetFiles function
-	files := fs.GetFiles(cwd, []string{}, combinedMatchers, processIgnoredMatchers)
+	// Get all files (and what the walk excluded/pruned) using the shared discovery walk.
+	files, exclusions := fs.GetFilesWithExclusions(cwd, combinedMatchers, processIgnoredMatchers)
 
-	return files, combinedMatchers, processIgnoredMatchers, nil
+	return files, combinedMatchers, processIgnoredMatchers, exclusions, nil
+}
+
+// ignoreScope returns the file set the top-level ignoreFiles/processIgnoredFiles dead-check
+// matches against: the discovered files plus the files the walk individually excluded
+// (everything the walk saw except the contents of pruned directories). A pattern that
+// matches none of these AND cannot reach into a pruned directory is certainly dead.
+func ignoreScope(discovered []string, exclusions *fs.DiscoveryExclusions) []string {
+	if exclusions == nil || len(exclusions.ExcludedFiles) == 0 {
+		return discovered
+	}
+	out := make([]string, 0, len(discovered)+len(exclusions.ExcludedFiles))
+	out = append(out, discovered...)
+	out = append(out, exclusions.ExcludedFiles...)
+	return out
+}
+
+// configRelevantPrunedDirs narrows the walk's pruned directories to those the CONFIG's own
+// ignore patterns cause (as opposed to gitignore). Only these hide files that would
+// otherwise be discovered, so only these make an ignore pattern's deadness indeterminate;
+// filtering out gitignore-pruned dirs (e.g. node_modules) keeps broad dead patterns like
+// "**/*.spec.ts" detectable in real projects.
+func configRelevantPrunedDirs(prunedDirs []string, ignoreFiles []string, cwd string) []string {
+	if len(prunedDirs) == 0 || len(ignoreFiles) == 0 {
+		return nil
+	}
+	ignoreMatchers := globutil.CreateGlobMatchers(ignoreFiles, cwd)
+	var out []string
+	for _, dir := range prunedDirs {
+		if globutil.IsExcludedByPatterns(dir, ignoreMatchers, nil) || globutil.DirFullyExcluded(dir, ignoreMatchers) {
+			out = append(out, dir)
+		}
+	}
+	return out
 }
 
 func anyRuleChecksForUnusedExports(config *RevDepConfig) bool {
@@ -143,6 +190,7 @@ func buildDependencyTreeForConfig(
 	tsconfigJson string,
 	customAssetExtensions []string,
 	parseMode model.ParseMode,
+	explicitPackageDirs []string,
 ) (model.MinimalDependencyTree, *resolve.ResolverManager, error) {
 	// For config processing, we always resolve type imports (we filter later per-check)
 	ignoreTypeImports := false
@@ -171,6 +219,7 @@ func buildDependencyTreeForConfig(
 		includePatterns,
 		conditionNames,
 		followMonorepoPackages,
+		explicitPackageDirs,
 		customAssetExtensions,
 		parseMode,
 		model.NodeModulesMatchingStrategySelfResolver,
@@ -295,6 +344,8 @@ func processRuleChecks(
 	resolverManager *resolve.ResolverManager,
 	cwd string,
 	fix bool,
+	nearestPackage bool,
+	includeDevDepsFromRoot bool,
 ) RuleResult {
 	// Track enabled checks
 	enabledChecks := []string{}
@@ -327,6 +378,12 @@ func processRuleChecks(
 	if anyEnabled(rule.getRestrictedImportsDetections()) {
 		enabledChecks = append(enabledChecks, "restricted-imports")
 	}
+	if anyEnabled(rule.getRestrictedImportersDetections()) {
+		enabledChecks = append(enabledChecks, "restricted-importers")
+	}
+	if anyEnabled(rule.getRestrictedDirectImportersDetections()) {
+		enabledChecks = append(enabledChecks, "restricted-direct-importers")
+	}
 	if len(rule.ImportConventions) > 0 {
 		enabledChecks = append(enabledChecks, "import-conventions")
 	}
@@ -346,6 +403,31 @@ func processRuleChecks(
 
 	if rulePathResolver != nil {
 		rulePathNodeModules = rulePathResolver.NodeModules()
+	}
+
+	// When includeDevDepsFromRoot is enabled, the monorepo root (cwd) package.json
+	// devDependencies are treated as available to package code, so importing a dev dependency
+	// declared only at the root is not reported as missing. These are passed to the missing
+	// check as extra allowed modules in both resolution modes. They are intentionally NOT added
+	// to the unused check's candidate set, since they belong to the root, not the package.
+	var rootDevDependencies map[string]bool
+	if includeDevDepsFromRoot {
+		if rootResolver := resolverManager.RootResolver(); rootResolver != nil {
+			rootDevDependencies = rootResolver.DevNodeModules()
+		}
+	}
+
+	// In nearest-package mode, "unused" (variant A) only counts an entry dependency as used when
+	// one of the entry package's OWN files imports it. Build that file set from the rule's files;
+	// entryOwnedFiles stays nil in entry-package mode, which means "all files".
+	var entryOwnedFiles map[string]bool
+	if nearestPackage && rulePathResolver != nil {
+		entryOwnedFiles = make(map[string]bool, len(ruleFiles))
+		for _, filePath := range ruleFiles {
+			if resolverManager.GetResolverForFile(filePath) == rulePathResolver {
+				entryOwnedFiles[filePath] = true
+			}
+		}
 	}
 
 	// Detect module-suffix variants to exclude from orphan/unused-exports detection.
@@ -491,6 +573,7 @@ func processRuleChecks(
 					"", // use empty path so it is discovered in fullRulePath
 					detection.IncludeModules,
 					detection.ExcludeModules,
+					entryOwnedFiles,
 				)
 				for _, moduleName := range found {
 					if !unusedSet[moduleName] {
@@ -535,6 +618,8 @@ func processRuleChecks(
 					detection.IncludeModules,
 					detection.ExcludeModules,
 					rulePathNodeModules,
+					rootDevDependencies,
+					nearestPackage,
 				)...)
 
 				if outputType == "" && detection.OutputType != "" {
@@ -613,15 +698,39 @@ func processRuleChecks(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// NotResolvedModule might be actually a node module, but defined rule path package (eg apps/main-app) not in just in time package (pacakges/shared)
-			// We are not able to detect that during module resolution for config file, becasue we resolve all modules without knowing which workspace contains app and which contains shared code
-			// During rule evaluation we can assume that package.json in rule path is the one that contains node modules for app build from that rule path
+			// entry-package mode: a NotResolvedModule might actually be a node module declared in the
+			// rule path package (e.g. apps/main-app) but not in the just-in-time package (packages/shared).
+			// We cannot detect that during module resolution for the config file, because we resolve all
+			// modules without knowing which workspace contains the app and which contains shared code.
+			// During rule evaluation we assume the package.json in the rule path is the one that contains
+			// node modules for the app built from that rule path, so we suppress those from unresolved.
+			//
+			// nearest-package mode: each import was resolved against the package.json that owns its file,
+			// so any NotResolvedModule is genuinely unresolved. Pass an empty set so nothing is suppressed.
+			ignoredNodeModules := rulePathNodeModules
+			if nearestPackage {
+				ignoredNodeModules = map[string]bool{}
+			}
+			// includeDevDepsFromRoot: the monorepo root devDependencies are treated as available to
+			// package code, so a root-declared dependency is not reported as unresolved (mirrors the
+			// missing check). Applied in both modes via a fresh copy so the resolver's own
+			// rulePathNodeModules map is never mutated.
+			if len(rootDevDependencies) > 0 {
+				merged := make(map[string]bool, len(ignoredNodeModules)+len(rootDevDependencies))
+				for moduleName := range ignoredNodeModules {
+					merged[moduleName] = true
+				}
+				for moduleName := range rootDevDependencies {
+					merged[moduleName] = true
+				}
+				ignoredNodeModules = merged
+			}
 			unresolved := make([]checks.UnresolvedImport, 0)
 			for _, detection := range rule.getUnresolvedImportsDetections() {
 				if !detection.Enabled {
 					continue
 				}
-				found := checks.DetectUnresolvedImports(ruleTree, rulePathNodeModules)
+				found := checks.DetectUnresolvedImports(ruleTree, ignoredNodeModules)
 				filterOpts := &checks.UnresolvedFilterOptions{
 					Ignore:        detection.Ignore,
 					IgnoreFiles:   detection.IgnoreFiles,
@@ -642,9 +751,71 @@ func processRuleChecks(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			var devDependencies map[string]bool
-			if rulePathResolver != nil {
-				devDependencies = rulePathResolver.DevNodeModules()
+
+			// The dev dependency set checked against a production import follows nodeModulesResolution,
+			// so a dev dependency leaking into production is reported regardless of where it is
+			// declared: entry-package uses the entry package's devDependencies for every file;
+			// nearest-package uses each file's own nearest package devDependencies; and
+			// includeDevDepsFromRoot adds the monorepo root devDependencies on top in either mode.
+			// The applicable dev-dependency set is constant within a workspace, so it is computed
+			// once per workspace up front rather than recomputed for every file. mergeWithRoot folds
+			// in the monorepo root devDependencies (includeDevDepsFromRoot) and returns the base
+			// untouched when there are none.
+			mergeWithRoot := func(base map[string]bool) map[string]bool {
+				if len(rootDevDependencies) == 0 {
+					return base
+				}
+				merged := make(map[string]bool, len(base)+len(rootDevDependencies))
+				for moduleName := range base {
+					merged[moduleName] = true
+				}
+				for moduleName := range rootDevDependencies {
+					merged[moduleName] = true
+				}
+				return merged
+			}
+
+			var devDepsForFile func(filePath string) map[string]bool
+			if nearestPackage {
+				// nearest-package: each file is checked against its own nearest package's
+				// devDependencies. Precompute one merged set per resolver root (keyed by the
+				// resolver root path) and attribute each file to a root via the canonical
+				// prefix-matching resolver lookup.
+				devDepsByResolverRoot := map[string]map[string]bool{}
+				registerResolver := func(resolver *resolve.ModuleResolver) {
+					if resolver == nil {
+						return
+					}
+					root := resolver.ResolverRoot()
+					if _, exists := devDepsByResolverRoot[root]; exists {
+						return
+					}
+					devDepsByResolverRoot[root] = mergeWithRoot(resolver.DevNodeModules())
+				}
+				registerResolver(resolverManager.RootResolver())
+				registerResolver(resolverManager.CwdResolver())
+				for _, subPkg := range resolverManager.SubpackageResolvers() {
+					registerResolver(subPkg.Resolver)
+				}
+
+				devDepsForFile = func(filePath string) map[string]bool {
+					fileResolver := resolverManager.GetResolverForFile(filePath)
+					if fileResolver == nil {
+						return nil
+					}
+					return devDepsByResolverRoot[fileResolver.ResolverRoot()]
+				}
+			} else {
+				// entry-package: every file in the rule is checked against the entry package's
+				// devDependencies, so the set is identical for all files and built once.
+				var entryDevDependencies map[string]bool
+				if rulePathResolver != nil {
+					entryDevDependencies = rulePathResolver.DevNodeModules()
+				}
+				entryMerged := mergeWithRoot(entryDevDependencies)
+				devDepsForFile = func(filePath string) map[string]bool {
+					return entryMerged
+				}
 			}
 
 			violations := make([]checks.RestrictedDevDependenciesUsageViolation, 0)
@@ -657,7 +828,7 @@ func processRuleChecks(
 					detection.ProdEntryPoints,
 					detection.IgnoreTypeImports,
 					fullRulePath,
-					devDependencies,
+					devDepsForFile,
 				)...)
 			}
 
@@ -690,6 +861,56 @@ func processRuleChecks(
 		}()
 	}
 
+	if anyEnabled(rule.getRestrictedImportersDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Universe of entry points for the allowlist policy: the rule's prod + dev entry points.
+			ruleEntryPoints := make([]string, 0, len(rule.ProdEntryPoints)+len(rule.DevEntryPoints))
+			ruleEntryPoints = append(ruleEntryPoints, rule.ProdEntryPoints...)
+			ruleEntryPoints = append(ruleEntryPoints, rule.DevEntryPoints...)
+
+			violations := make([]checks.RestrictedImporterViolation, 0)
+			for _, detection := range rule.getRestrictedImportersDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				violations = append(violations, checks.FindRestrictedImporters(
+					ruleTree,
+					detection,
+					fullRulePath,
+					ruleEntryPoints,
+				)...)
+			}
+
+			mu.Lock()
+			ruleResult.RestrictedImportersViolations = violations
+			mu.Unlock()
+		}()
+	}
+
+	if anyEnabled(rule.getRestrictedDirectImportersDetections()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			violations := make([]checks.RestrictedDirectImporterViolation, 0)
+			for _, detection := range rule.getRestrictedDirectImportersDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				violations = append(violations, checks.FindRestrictedDirectImporters(
+					ruleTree,
+					detection,
+					fullRulePath,
+				)...)
+			}
+
+			mu.Lock()
+			ruleResult.RestrictedDirectImportersViolations = violations
+			mu.Unlock()
+		}()
+	}
+
 	wg.Wait()
 	return ruleResult
 }
@@ -704,7 +925,7 @@ func ProcessConfig(
 	forceDetailed bool,
 ) (*ConfigProcessingResult, error) {
 	// Step 1: Discover all files
-	allFiles, excludePatterns, includePatterns, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles, config.ProcessIgnoredFiles)
+	allFiles, excludePatterns, includePatterns, exclusions, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles, config.ProcessIgnoredFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -713,6 +934,19 @@ func ProcessConfig(
 	parseMode := model.ParseModeBasic
 	if forceDetailed || anyRuleChecksForUnusedExports(config) {
 		parseMode = model.ParseModeDetailed
+	}
+
+	// Resolve the config's rule paths (always relative to cwd) to absolute, internal-form
+	// package directories. This lets the resolver register each rule directory that has its
+	// own package.json as a workspace package even when there is no workspace-aware root
+	// package.json, so per-package node_modules dependencies resolve instead of being
+	// reported as unresolved.
+	rulePackageDirs := make([]string, 0, len(config.Rules))
+	for _, rule := range config.Rules {
+		if rule.Path == "" {
+			continue
+		}
+		rulePackageDirs = append(rulePackageDirs, pathutil.NormalizePathForInternal(filepath.Clean(pathutil.JoinWithCwd(cwd, rule.Path))))
 	}
 
 	fullTree, resolverManager, err := buildDependencyTreeForConfig(
@@ -725,6 +959,7 @@ func ProcessConfig(
 		tsconfigJson,
 		config.CustomAssetExtensions,
 		parseMode,
+		rulePackageDirs,
 	)
 	if err != nil {
 		return nil, err
@@ -732,9 +967,13 @@ func ProcessConfig(
 
 	// Step 3: Process each rule in parallel
 	result := &ConfigProcessingResult{
-		RuleResults: make([]RuleResult, len(config.Rules)),
-		HasFailures: false,
-		FullTree:    fullTree,
+		RuleResults:      make([]RuleResult, len(config.Rules)),
+		HasFailures:      false,
+		FullTree:         fullTree,
+		DiscoveredFiles:  allFiles,
+		ResolverManager:  resolverManager,
+		IgnoreScopeFiles: ignoreScope(allFiles, exclusions),
+		IgnorePrunedDirs: configRelevantPrunedDirs(exclusions.PrunedDirs, config.IgnoreFiles, cwd),
 	}
 
 	// Validate package.json exists for all rule paths before parallel processing
@@ -763,6 +1002,8 @@ func ProcessConfig(
 				resolverManager,
 				cwd,
 				fix,
+				config.UsesNearestPackage(),
+				config.IncludeDevDepsFromRoot(),
 			)
 			ruleResult.ProcessIgnoredFiles = config.ProcessIgnoredFiles
 
@@ -779,7 +1020,9 @@ func ProcessConfig(
 				len(ruleResult.UnusedExports) > 0 ||
 				len(ruleResult.UnresolvedImports) > 0 ||
 				len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 ||
-				len(ruleResult.RestrictedImportsViolations) > 0
+				len(ruleResult.RestrictedImportsViolations) > 0 ||
+				len(ruleResult.RestrictedImportersViolations) > 0 ||
+				len(ruleResult.RestrictedDirectImportersViolations) > 0
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

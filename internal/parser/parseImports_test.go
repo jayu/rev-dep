@@ -1017,6 +1017,34 @@ func TestShouldNotParseNonStaticImportSource(t *testing.T) {
 			t.Errorf("Should not parse import: from '%v'", code)
 		}
 	})
+
+	// Computed paths whose string-literal operands themselves contain parentheses/brackets must
+	// still be treated as non-static (the parens are string content, not the end of the import()
+	// call, but the surrounding expression makes the path non-resolvable). Run both parser modes.
+	expressionWithParensCases := []struct {
+		name string
+		code string
+	}{
+		{"string-with-parens + variable", `import('string(asd).ts' + variable)`},
+		{"variable + string-with-parens", `import(variable + 'string(asd).ts')`},
+		{"grouped expr + string-with-parens", `import(('a' + var_name) + 'string(asd).ts')`},
+		{"import wrapped, operands with parens", `import((('a(b).ts' + variable + 'c(d).js')))`},
+		{"require wrapped, operands with parens", `require((('a(b).ts' + variable + 'c(d).js')))`},
+		{"concatenated paren-only strings", `import('(' + ')')`},
+		{"square-bracket string + variable", `import('a[b].ts' + variable)`},
+		{"variable + curly-brace string", `import(variable + 'a{b}.ts')`},
+		{"mixed brackets across operands", `import('a{b}.ts' + variable + 'c[d].js')`},
+	}
+	for _, tc := range expressionWithParensCases {
+		t.Run("Should not parse computed path with parens in strings - "+tc.name, func(t *testing.T) {
+			if got := ParseImportsForTests(tc.code); len(got) != 0 {
+				t.Errorf("basic parser should not parse computed import from '%v', got %+v", tc.code, got)
+			}
+			if got := ParseImportsForTestsDetailed(tc.code); len(got) != 0 {
+				t.Errorf("detailed parser should not parse computed import from '%v', got %+v", tc.code, got)
+			}
+		})
+	}
 }
 
 func TestShouldParseRequireSourceWrappedWithBrackets(t *testing.T) {
@@ -1036,6 +1064,16 @@ func TestShouldParseDynamicImportSourceWrappedWithBrackets(t *testing.T) {
 
 	if len(imports) != 1 || imports[0].Request != "path" {
 		t.Errorf("Should parse import: from '%v'", code)
+	}
+
+	// A static path that itself contains parentheses, wrapped in redundant brackets, must still
+	// resolve to the full path - the string-content parens must not unbalance the call's stack.
+	for _, parse := range []func(string) []Import{ParseImportsForTests, ParseImportsForTestsDetailed} {
+		withParens := `import((('a(b)/c.ts')))`
+		imports := parse(withParens)
+		if len(imports) != 1 || imports[0].Request != "a(b)/c.ts" {
+			t.Errorf("Should parse import: from '%v', got %+v", withParens, imports)
+		}
 	}
 }
 
@@ -1681,8 +1719,8 @@ func TestDetailedExportEnum(t *testing.T) {
 		t.Fatalf("Expected 1 import, got %d", len(imports))
 	}
 	k := imports[0].Keywords.Keywords[0]
-	if k.Name != "E" || !k.IsType {
-		t.Errorf("Expected type E, got: %+v", k)
+	if k.Name != "E" || k.IsType {
+		t.Errorf("Expected value E (enum emits runtime code), got: %+v", k)
 	}
 }
 
@@ -2098,7 +2136,7 @@ func TestDetailedKeywordsComprehensive(t *testing.T) {
 		{
 			name: "local export enum", code: `export enum E {}`,
 			wantCount: 1, isLocalExport: true,
-			keywords: []expectedKw{{Name: "E", IsType: true}},
+			keywords: []expectedKw{{Name: "E"}}, // enum is a runtime value, not type-only
 		},
 		{
 			name: "local export list", code: `export { A, B }`,
@@ -2671,7 +2709,6 @@ const m = import('./real-dynamic')
 		t.Fatalf("Expected only dynamic import './real-dynamic', got request=%q dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
 	}
 }
-
 
 func TestMemberImportCallWithSpacesAfterDotIsNotDynamicImport(t *testing.T) {
 	code := `
@@ -3762,5 +3799,205 @@ func TestDynamicImportWithWebpackMagicComment(t *testing.T) {
 	}
 	if imports[0].Request != "@scope/app/components/views/summary-view" || !imports[0].IsDynamicImport {
 		t.Fatalf("Expected dynamic import with webpack comment, got request=%q dynamic=%v", imports[0].Request, imports[0].IsDynamicImport)
+	}
+}
+
+// TestParseImportsNotBrokenByRegexLiteralsInFunction reproduces a parser bug: a function body
+// containing regex literals whose pattern is a quote character (e.g. /"/g or /'/g) desynced the
+// string scanner — the quote inside the regex opened a string scan that mis-paired quotes across
+// the rest of the file, so every import that appeared AFTER the function was silently dropped.
+func TestParseImportsNotBrokenByRegexLiteralsInFunction(t *testing.T) {
+	code := `import { foo } from "pkg-foo";
+import { bar } from "@/bar";
+
+function sanitizeText(input: string): string {
+    return input
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+import { baz } from "@/qux/baz";
+import { Widget } from "../widgets/widget";
+`
+
+	want := []string{"pkg-foo", "@/bar", "@/qux/baz", "../widgets/widget"}
+
+	for _, mode := range []struct {
+		name  string
+		parse func(string) []Import
+	}{
+		{"basic", ParseImportsForTests},
+		{"detailed", ParseImportsForTestsDetailed},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			imports := mode.parse(code)
+			got := make([]string, 0, len(imports))
+			for _, imp := range imports {
+				got = append(got, imp.Request)
+			}
+			if len(got) != len(want) {
+				t.Fatalf("%s parser: expected %d imports %v, got %d: %v", mode.name, len(want), want, len(got), got)
+			}
+			for i, w := range want {
+				if got[i] != w {
+					t.Errorf("%s parser: import[%d] = %q, want %q (all: %v)", mode.name, i, got[i], w, got)
+				}
+			}
+		})
+	}
+}
+
+// TestParseImportsRegexVsDivision guards the regex/division disambiguation: division operators
+// must NOT be skipped as regex literals (which could swallow following imports), while genuine
+// regex literals — including ones containing quotes or a [...] char class with quotes — must be
+// skipped so they do not desync the scanner.
+func TestParseImportsRegexVsDivision(t *testing.T) {
+	cases := []struct {
+		name string
+		code string
+		want []string
+	}{
+		{
+			"division operators are not mistaken for regex",
+			`import { a } from "a";
+function ratio(w: number, h: number) { return w / h / 2; }
+import { b } from "b";`,
+			[]string{"a", "b"},
+		},
+		{
+			"top-level regex literal containing a quote",
+			`import { a } from "a";
+const re = /'/g;
+import { b } from "b";`,
+			[]string{"a", "b"},
+		},
+		{
+			"regex with char class containing both quote types after return",
+			`import { a } from "a";
+function strip(s: string) { return /["']/g.test(s); }
+import { b } from "b";`,
+			[]string{"a", "b"},
+		},
+		{
+			"regex with escaped slash and quotes",
+			`import { a } from "a";
+function f(s: string) { return s.replace(/\/"'/g, ""); }
+import { b } from "b";`,
+			[]string{"a", "b"},
+		},
+		{
+			"division after indexing and call results",
+			`import { a } from "a";
+const x = arr[0] / fn() / 3;
+import { b } from "b";`,
+			[]string{"a", "b"},
+		},
+	}
+
+	for _, tc := range cases {
+		for _, mode := range []struct {
+			name  string
+			parse func(string) []Import
+		}{
+			{"basic", ParseImportsForTests},
+			{"detailed", ParseImportsForTestsDetailed},
+		} {
+			t.Run(tc.name+"/"+mode.name, func(t *testing.T) {
+				imports := mode.parse(tc.code)
+				got := make([]string, 0, len(imports))
+				for _, imp := range imports {
+					got = append(got, imp.Request)
+				}
+				if len(got) != len(tc.want) {
+					t.Fatalf("%s: expected %d imports %v, got %d: %v", mode.name, len(tc.want), tc.want, len(got), got)
+				}
+				for i, w := range tc.want {
+					if got[i] != w {
+						t.Errorf("%s: import[%d] = %q, want %q (all: %v)", mode.name, i, got[i], w, got)
+					}
+				}
+			})
+		}
+	}
+}
+
+// TestDynamicImportWithBracketsInPath covers a parser bug where brackets inside a dynamic
+// import's path string (e.g. import('some(path)/to/file.ts')) were mistaken for the closing
+// parenthesis of the import() call, corrupting the parenthesis stack and breaking the parse.
+// Parentheses '()' triggered the original bug; curly braces '{}' and square brackets '[]' are
+// covered too since the path scanner must treat all of them as string content. Every case runs
+// through both the basic (ParseModeBasic) and detailed (ParseModeDetailed) parsers, since both
+// share the dynamic-import path extraction.
+func TestDynamicImportWithBracketsInPath(t *testing.T) {
+	cases := []struct {
+		name string
+		code string
+		want string
+	}{
+		// Parentheses - the original bug.
+		{"reported case - await import with parens", `const file = await import('some(path)/to/file.ts')`, "some(path)/to/file.ts"},
+		{"closing paren first", `import('some)path.ts')`, "some)path.ts"},
+		{"leading paren", `import('(start)/end.ts')`, "(start)/end.ts"},
+		{"multiple parens, double quotes", `import("path(with)both(parens).js")`, "path(with)both(parens).js"},
+		{"require with versioned dir", `require('lib(1.0)/index.js')`, "lib(1.0)/index.js"},
+		{"unbalanced open paren in path", `import('weird(/file.ts')`, "weird(/file.ts"},
+		{"parens with webpack magic comment", `import(/* webpackChunkName: "x" */ 'some(path)/file.ts')`, "some(path)/file.ts"},
+		// Curly braces.
+		{"curly braces in path", `import('some{path}/file.ts')`, "some{path}/file.ts"},
+		{"closing curly brace first", `import('}weird{/file.ts')`, "}weird{/file.ts"},
+		{"require with curly braces", `require('pkg{scope}/index.js')`, "pkg{scope}/index.js"},
+		// Square brackets.
+		{"square brackets in path", `import('some[path]/file.ts')`, "some[path]/file.ts"},
+		{"closing square bracket first", `import(']weird[/file.ts')`, "]weird[/file.ts"},
+		{"require with square brackets", `require('pkg[1.0]/index.js')`, "pkg[1.0]/index.js"},
+		// All bracket types mixed together.
+		{"all bracket types mixed", `import('a(b){c}[d]/e.ts')`, "a(b){c}[d]/e.ts"},
+		{"all bracket types, double quotes", `import("(a){b}[c](d).ts")`, "(a){b}[c](d).ts"},
+	}
+
+	modes := []struct {
+		name  string
+		parse func(string) []Import
+	}{
+		{"basic", ParseImportsForTests},
+		{"detailed", ParseImportsForTestsDetailed},
+	}
+
+	for _, m := range modes {
+		for _, tc := range cases {
+			t.Run(m.name+"/"+tc.name, func(t *testing.T) {
+				imports := m.parse(tc.code)
+				if len(imports) != 1 {
+					t.Fatalf("%s parser: expected 1 import from %s, got %d: %+v", m.name, codeToString(tc.code), len(imports), imports)
+				}
+				if imports[0].Request != tc.want {
+					t.Errorf("%s parser: expected request %q from %s, got %q", m.name, tc.want, codeToString(tc.code), imports[0].Request)
+				}
+				if !imports[0].IsDynamicImport {
+					t.Errorf("%s parser: expected IsDynamicImport=true from %s", m.name, codeToString(tc.code))
+				}
+			})
+		}
+	}
+}
+
+// TestDynamicImportWithParensInPathLocations verifies the request start/end offsets still point
+// at the string-literal content when the path contains parentheses.
+func TestDynamicImportWithParensInPathLocations(t *testing.T) {
+	code := `import('a(b).ts')`
+	// content "a(b).ts" begins right after the opening quote at index 8 and ends at the
+	// closing quote at index 15.
+	imports := ParseImportsForTests(code)
+	if len(imports) != 1 {
+		t.Fatalf("Expected 1 import, got %d", len(imports))
+	}
+	if imports[0].Request != "a(b).ts" {
+		t.Fatalf("Expected request %q, got %q", "a(b).ts", imports[0].Request)
+	}
+	if imports[0].RequestStart != 8 || imports[0].RequestEnd != 15 {
+		t.Errorf("Expected start=8, end=15, got start=%d, end=%d", imports[0].RequestStart, imports[0].RequestEnd)
 	}
 }

@@ -123,6 +123,32 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 			return "", i, 0, 0
 		}
 		j++
+
+		// Inside a string literal every character is part of the module path until the
+		// matching closing quote. This MUST be handled before the parenthesis bookkeeping
+		// below: otherwise a '(' or ')' that is part of the path itself
+		// (e.g. import('some(path)/to/file.ts')) would be treated as call syntax and corrupt
+		// the parenthesis stack, breaking the parse.
+		if stringContext {
+			if code[i] == stringChar {
+				stringContext = false
+				moduleEnd = i
+				stringChar = 0
+				i++
+				continue
+			}
+			module = append(module, code[i])
+			i++
+			continue
+		}
+
+		if code[i] == '\'' || code[i] == '"' {
+			stringContext = true
+			stringChar = code[i]
+			moduleStart = i + 1
+			i++
+			continue
+		}
 		if code[i] == '(' {
 			parenthesisStack++
 			i++
@@ -136,25 +162,6 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 			} else {
 				continue
 			}
-		}
-		if !stringContext && (code[i] == '\'' || code[i] == '"') {
-			stringContext = true
-			stringChar = code[i]
-			moduleStart = i + 1
-			i++
-			continue
-		}
-		if stringContext && (code[i] == stringChar) {
-			stringContext = false
-			moduleEnd = i
-			stringChar = 0
-			i++
-			continue
-		}
-		if stringContext {
-			module = append(module, code[i])
-			i++
-			continue
 		}
 
 		// Skip whitespace and comments (e.g. /* webpackChunkName: "..." */) to reach the string literal.
@@ -221,6 +228,82 @@ func skipToStringEnd(code []byte, start int, quote byte) int {
 		}
 	}
 	return i
+}
+
+// regexAllowingKeywords are the keywords after which a '/' begins a regular expression literal
+// rather than a division operator.
+var regexAllowingKeywords = map[string]bool{
+	"return": true, "typeof": true, "instanceof": true, "in": true, "of": true,
+	"new": true, "delete": true, "void": true, "do": true, "else": true,
+	"yield": true, "await": true, "case": true,
+}
+
+// regexLiteralAllowedBefore reports whether a '/' at index slash can begin a regular expression
+// literal, using the standard heuristic of inspecting the previous significant (non-whitespace)
+// byte. A regex can start in expression position (after '(', ',', '=', operators, or keywords
+// like 'return') but not directly after a value (identifier, number, ')', ']', '}', string),
+// where '/' is a division operator. This lets the scanner skip regex literals such as /'/g so
+// the quote inside them does not desync string scanning.
+func regexLiteralAllowedBefore(code []byte, slash int) bool {
+	j := slash - 1
+	for j >= 0 && isWhiteSpace(code[j]) {
+		j--
+	}
+	if j < 0 {
+		return true // start of input -> expression position
+	}
+	c := code[j]
+	switch {
+	case isIdentifierCharForCode(c):
+		// An identifier or number ends here. Only a regex-allowing keyword (e.g. `return /re/`)
+		// permits a regex; any other identifier or numeric literal means division.
+		end := j + 1
+		for j >= 0 && isIdentifierCharForCode(code[j]) {
+			j--
+		}
+		return regexAllowingKeywords[string(code[j+1:end])]
+	case c == ')' || c == ']' || c == '}':
+		return false // end of a grouping/call/index/expression -> division
+	case c == '"' || c == '\'' || c == '`':
+		return false // end of a string/template literal -> division
+	default:
+		// Operators and punctuation ('(', ',', '=', ':', '[', '!', '&', '|', '?', ';', '{',
+		// arithmetic, etc.) leave us in expression position where a regex literal is allowed.
+		return true
+	}
+}
+
+// skipRegexLiteral skips a regular expression literal that starts at code[i] == '/'. It returns
+// the index just past the closing '/' and any flags, with ok=true. If a line break or the end of
+// input is reached before the terminating '/', it returns ok=false so the caller can treat the
+// '/' as a division operator instead.
+func skipRegexLiteral(code []byte, i int) (int, bool) {
+	n := len(code)
+	j := i + 1
+	inClass := false // inside a [...] character class, where '/' is literal
+	for j < n {
+		c := code[j]
+		if c == '\\' {
+			j += 2 // an escaped character (e.g. \/ or \]) is literal
+			continue
+		}
+		if c == '\n' || c == '\r' {
+			return i, false // regex literals cannot span lines -> it was division
+		}
+		if c == '[' {
+			inClass = true
+		} else if c == ']' {
+			inClass = false
+		} else if c == '/' && !inClass {
+			j++ // advance past the closing '/'
+			for j < n && isIdentifierCharForCode(code[j]) {
+				j++ // consume flags (g, i, m, s, u, y, d)
+			}
+			return j, true
+		}
+		j++
+	}
+	return i, false // unterminated -> not a regex
 }
 
 // skipLineComment skips to the end of a line comment
@@ -688,8 +771,8 @@ func parseLocalExportKeyword(code []byte, i int) (keyword KeywordInfo, next int)
 		return KeywordInfo{}, j
 	}
 
-	// `namespace`, `module`
-	for _, kw := range []string{"namespace", "module"} {
+	// `namespace`, `module`, `enum` — runtime values, NOT type-only.
+	for _, kw := range []string{"namespace", "module", "enum"} {
 		kwLen := len(kw)
 		if bytes.HasPrefix(code[i:], []byte(kw)) && (i+kwLen >= n || !isByteIdentifierChar(code[i+kwLen])) {
 			j := i + kwLen
@@ -702,8 +785,8 @@ func parseLocalExportKeyword(code []byte, i int) (keyword KeywordInfo, next int)
 		}
 	}
 
-	// `type`, `interface`, `enum` (IsType = true)
-	for _, kw := range []string{"type", "interface", "enum"} {
+	// `type`, `interface` (IsType = true)
+	for _, kw := range []string{"type", "interface"} {
 		kwLen := len(kw)
 		if bytes.HasPrefix(code[i:], []byte(kw)) && (i+kwLen >= n || !isByteIdentifierChar(code[i+kwLen])) {
 			j := i + kwLen
@@ -1306,6 +1389,14 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Imp
 					i = skipLineComment(code, i)
 				} else if i+1 < n && code[i+1] == '*' {
 					i = skipBlockComment(code, i)
+				} else if regexLiteralAllowedBefore(code, i) {
+					// Skip a regex literal so a quote inside it (e.g. /'/g or /"/g) is not
+					// mistaken for a string delimiter, which would desync the scanner.
+					if next, ok := skipRegexLiteral(code, i); ok {
+						i = next
+					} else {
+						i++
+					}
 				} else {
 					i++
 				}
@@ -1382,6 +1473,15 @@ func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Imp
 		if i+1 < n && code[i] == '/' && code[i+1] == '*' {
 			i = skipBlockComment(code, i)
 			continue
+		}
+
+		// skip regex literal so a quote inside it (e.g. /'/g or /"/g) is not mistaken for a
+		// string delimiter, which would desync scanning and drop subsequent imports.
+		if code[i] == '/' && regexLiteralAllowedBefore(code, i) {
+			if next, ok := skipRegexLiteral(code, i); ok {
+				i = next
+				continue
+			}
 		}
 
 		switch code[i] {

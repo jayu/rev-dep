@@ -180,6 +180,28 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 				}
 			}
 		}
+		if rule.Checks.RestrictedImporters != nil {
+			for _, issue := range rule.Checks.RestrictedImporters.Issues {
+				if v, ok := issue.(jsonRestrictedImporterIssue); ok {
+					target := v.File
+					if target == "" {
+						target = "module " + v.Module
+					}
+					add("Restricted Importers Issues", target, v.EntryPoint)
+				}
+			}
+		}
+		if rule.Checks.RestrictedDirectImporters != nil {
+			for _, issue := range rule.Checks.RestrictedDirectImporters.Issues {
+				if v, ok := issue.(jsonRestrictedDirectImporterIssue); ok {
+					target := v.File
+					if target == "" {
+						target = "module " + v.Module
+					}
+					add("Restricted Direct Importers Issues", target, v.ImporterFile)
+				}
+			}
+		}
 	}
 
 	order := []string{
@@ -193,6 +215,8 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 		"Unused Exports Issues",
 		"Dev Deps Usage On Prod Issues",
 		"Restricted Imports Issues",
+		"Restricted Importers Issues",
+		"Restricted Direct Importers Issues",
 	}
 
 	groups := make([]issuesListGroup, 0, len(order))

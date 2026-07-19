@@ -35,6 +35,8 @@ type jsonChecks struct {
 	UnusedExports                  *jsonCheckResult `json:"unusedExports,omitempty"`
 	RestrictedDevDependenciesUsage *jsonCheckResult `json:"restrictedDevDependenciesUsage,omitempty"`
 	RestrictedImports              *jsonCheckResult `json:"restrictedImports,omitempty"`
+	RestrictedImporters            *jsonCheckResult `json:"restrictedImporters,omitempty"`
+	RestrictedDirectImporters      *jsonCheckResult `json:"restrictedDirectImporters,omitempty"`
 }
 
 type jsonCheckResult struct {
@@ -128,6 +130,20 @@ type jsonRestrictedImportIssue struct {
 	DeniedModule  string `json:"deniedModule,omitempty"`
 	ImportRequest string `json:"importRequest,omitempty"`
 	jsonLocationFields
+}
+
+type jsonRestrictedImporterIssue struct {
+	EntryPoint string `json:"entryPoint"`
+	File       string `json:"file,omitempty"`
+	Module     string `json:"module,omitempty"`
+}
+
+type jsonRestrictedDirectImporterIssue struct {
+	ViolationType string `json:"violationType"`
+	ImporterFile  string `json:"importerFile"`
+	File          string `json:"file,omitempty"`
+	Module        string `json:"module,omitempty"`
+	ImportRequest string `json:"importRequest,omitempty"`
 }
 
 // ---------------- JSON output logic ----------------
@@ -396,6 +412,40 @@ func buildJSONRuleResult(ruleResult config.RuleResult, cwd string, locator *file
 				cr.Status = "pass"
 			}
 			jr.Checks.RestrictedImports = cr
+
+		case "restricted-importers":
+			cr := &jsonCheckResult{Issues: []interface{}{}}
+			if len(ruleResult.RestrictedImportersViolations) > 0 {
+				cr.Status = "fail"
+				for _, v := range ruleResult.RestrictedImportersViolations {
+					cr.Issues = append(cr.Issues, jsonRestrictedImporterIssue{
+						EntryPoint: relPath(v.EntryPoint),
+						File:       relPath(v.File),
+						Module:     v.Module,
+					})
+				}
+			} else {
+				cr.Status = "pass"
+			}
+			jr.Checks.RestrictedImporters = cr
+
+		case "restricted-direct-importers":
+			cr := &jsonCheckResult{Issues: []interface{}{}}
+			if len(ruleResult.RestrictedDirectImportersViolations) > 0 {
+				cr.Status = "fail"
+				for _, v := range ruleResult.RestrictedDirectImportersViolations {
+					cr.Issues = append(cr.Issues, jsonRestrictedDirectImporterIssue{
+						ViolationType: v.ViolationType,
+						ImporterFile:  relPath(v.ImporterFile),
+						File:          relPath(v.File),
+						Module:        v.Module,
+						ImportRequest: v.ImportRequest,
+					})
+				}
+			} else {
+				cr.Status = "pass"
+			}
+			jr.Checks.RestrictedDirectImporters = cr
 		}
 	}
 

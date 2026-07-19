@@ -19,7 +19,8 @@ sidebar_label: dependency-cruiser
 | Primary focus | dependency rules + visualization | dependency hygiene + architecture |
 | Runtime | Node | Go - single parallel pass (**faster**) |
 | Circular / orphan detection | yes | yes |
-| Path-to-path forbidden rules | yes (generic `from`/`to`) | yes (boundaries + restricted imports) |
+| Path-to-path forbidden rules | yes (generic `from`/`to`) | yes (module boundaries) |
+| Reachability rules - deny + whitelist | deny native; whitelist via negated `from` (`pathNot`) | dedicated checks both ways (restricted imports + restricted importers) |
 | Unused / missing dependencies | partial | yes |
 | Unused exports | no | yes |
 | Graph visualization (dot/mermaid/HTML) | yes | no |
@@ -27,7 +28,7 @@ sidebar_label: dependency-cruiser
 
 ## Where rev-dep is stronger
 
-- **Named checks instead of hand-written rules.** Boundaries, [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [circular](../config-based-checks/checks/circular-imports.mdx), and [orphan files](../config-based-checks/checks/orphan-files.mdx) are dedicated detectors rather than generic `from`/`to` rules.
+- **Named checks instead of hand-written rules.** Boundaries, [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [restricted importers](../config-based-checks/checks/restricted-importers.mdx) (the reverse - whitelist which entry points may reach a file or banned package), [circular](../config-based-checks/checks/circular-imports.mdx), and [orphan files](../config-based-checks/checks/orphan-files.mdx) are dedicated detectors rather than generic `from`/`to` rules. The whitelist direction in particular is awkward in dependency-cruiser (a negated `pathNot` reachability rule) and a first-class check in rev-dep.
 - **Broader hygiene** - it also detects [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx) and [unused exports](../config-based-checks/checks/unused-exports.mdx).
 - **Speed** across large monorepos.
 

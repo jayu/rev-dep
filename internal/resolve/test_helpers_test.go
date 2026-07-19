@@ -79,6 +79,6 @@ func getMinimalDepsTreeForCwdRel(
 	if !filepath.IsAbs(cwd) {
 		absCwd = filepath.Join(repoRoot(t), cwd)
 	}
-	tree, sortedFiles, manager := GetMinimalDepsTreeForCwd(absCwd, ignoreTypeImports, excludeFiles, nil, upfrontFilesList, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions)
+	tree, sortedFiles, manager := GetMinimalDepsTreeForCwd(absCwd, ignoreTypeImports, excludeFiles, nil, upfrontFilesList, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions, model.NodeModulesMatchingStrategyCwdResolver)
 	return normalizeTreeRelative(t, tree), normalizeListRelative(t, sortedFiles), manager
 }

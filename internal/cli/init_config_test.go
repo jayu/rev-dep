@@ -24,10 +24,11 @@ func TestInitConfigFile(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Test basic init
-	configPath, _, _, err := initConfigFileCore(tempDir)
+	result, err := initConfigFileCore(tempDir)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
+	configPath := result.configPath
 
 	// Check that config file was created
 	if _, err := os.Stat(configPath); err != nil {
@@ -35,7 +36,7 @@ func TestInitConfigFile(t *testing.T) {
 	}
 
 	// Test that init fails when config already exists
-	_, _, _, err = initConfigFileCore(tempDir)
+	_, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when config already exists, got nil")
 	}
@@ -46,7 +47,7 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with .rev-dep.config.json
 	hiddenConfigPath := filepath.Join(tempDir, ".rev-dep.config.json")
 	_ = os.WriteFile(hiddenConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, _, err = initConfigFileCore(tempDir)
+	_, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when hidden config exists, got nil")
 	}
@@ -55,7 +56,7 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with rev-dep.config.jsonc
 	jsoncConfigPath := filepath.Join(tempDir, "rev-dep.config.jsonc")
 	_ = os.WriteFile(jsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, _, err = initConfigFileCore(tempDir)
+	_, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when jsonc config exists, got nil")
 	}
@@ -64,17 +65,18 @@ func TestInitConfigFile(t *testing.T) {
 	// Test with .rev-dep.config.jsonc
 	hiddenJsoncConfigPath := filepath.Join(tempDir, ".rev-dep.config.jsonc")
 	_ = os.WriteFile(hiddenJsoncConfigPath, []byte(`{"configVersion": "1.0"}`), 0644)
-	_, _, _, err = initConfigFileCore(tempDir)
+	_, err = initConfigFileCore(tempDir)
 	if err == nil {
 		t.Errorf("Expected error when hidden jsonc config exists, got nil")
 	}
 	_ = os.Remove(hiddenJsoncConfigPath)
 
 	// Now test that it works when no config files exist
-	configPath, _, _, err = initConfigFileCore(tempDir)
+	result, err = initConfigFileCore(tempDir)
 	if err != nil {
 		t.Errorf("Expected no error when no config files exist, got %v", err)
 	}
+	configPath = result.configPath
 
 	// Read and verify the generated config
 	content, err := os.ReadFile(configPath)
@@ -87,8 +89,15 @@ func TestInitConfigFile(t *testing.T) {
 		t.Errorf("Failed to parse generated config: %v", err)
 	}
 
-	if cfg.ConfigVersion != "2.0" {
-		t.Errorf("Expected configVersion '2.0', got '%s'", cfg.ConfigVersion)
+	if cfg.ConfigVersion != config.CurrentConfigVersion {
+		t.Errorf("Expected configVersion '%s', got '%s'", config.CurrentConfigVersion, cfg.ConfigVersion)
+	}
+
+	if cfg.ResolutionType() != config.NodeModulesResolutionEntryPackage {
+		t.Errorf("Expected nodeModulesResolution '%s', got '%s'", config.NodeModulesResolutionEntryPackage, cfg.ResolutionType())
+	}
+	if cfg.IncludeDevDepsFromRoot() {
+		t.Errorf("Expected generated includeDevDepsFromRoot to be false")
 	}
 
 	if len(cfg.Rules) != 1 {
@@ -131,8 +140,8 @@ func TestInitConfigFile(t *testing.T) {
 		t.Errorf("Expected dev deps usage detection to be disabled")
 	}
 
-	if firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections) == nil || firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections).Enabled {
-		t.Errorf("Expected restricted imports detection to be disabled")
+	if len(cfg.Rules[0].RestrictedImportsDetections) != 0 {
+		t.Errorf("Expected no restricted imports detection (it needs extra config)")
 	}
 }
 
@@ -163,12 +172,14 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	}
 
 	// Run init in the sub-package directory
-	configPath, rules, createdForSubPackage, err := initConfigFileCore(pkgDir)
+	subResult, err := initConfigFileCore(pkgDir)
 	if err != nil {
 		t.Fatalf("initConfigFileCore failed: %v", err)
 	}
-	if !createdForSubPackage {
-		t.Fatalf("Expected createdForSubPackage to be true when running inside a workspace package")
+	configPath := subResult.configPath
+	rules := subResult.rules
+	if !subResult.createdForMonorepoSubPackage {
+		t.Fatalf("Expected createdForMonorepoSubPackage to be true when running inside a workspace package")
 	}
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("Expected config file to exist at %s", configPath)
@@ -195,19 +206,21 @@ func TestInitConfigFile_MonorepoSubpackage(t *testing.T) {
 	if firstDetectionOrNil(cfg.Rules[0].DevDepsUsageOnProdDetections) == nil || firstDetectionOrNil(cfg.Rules[0].DevDepsUsageOnProdDetections).Enabled {
 		t.Fatalf("Expected devDepsUsageOnProdDetection disabled in generated sub-package config")
 	}
-	if firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections) == nil || firstDetectionOrNil(cfg.Rules[0].RestrictedImportsDetections).Enabled {
-		t.Fatalf("Expected restrictedImportsDetection disabled in generated sub-package config")
+	if len(cfg.Rules[0].RestrictedImportsDetections) != 0 {
+		t.Fatalf("Expected no restrictedImportsDetection in generated sub-package config (it needs extra config)")
 	}
 
 	// Now run init at the workspace root and expect multiple rules
 	// Remove config created in package
 	_ = os.Remove(configPath)
 
-	rootConfigPath, rootRules, createdForRoot, err := initConfigFileCore(tempDir)
+	rootResult, err := initConfigFileCore(tempDir)
 	if err != nil {
 		t.Fatalf("initConfigFileCore failed at root: %v", err)
 	}
-	if createdForRoot {
+	rootConfigPath := rootResult.configPath
+	rootRules := rootResult.rules
+	if rootResult.createdForMonorepoSubPackage {
 		t.Fatalf("Expected createdForMonorepoSubPackage=false when running at monorepo root")
 	}
 	if _, err := os.Stat(rootConfigPath); err != nil {

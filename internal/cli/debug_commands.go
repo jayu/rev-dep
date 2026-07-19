@@ -42,11 +42,15 @@ var debugParseFileCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		nodeModulesStrategy, err := nodeModulesResolutionStrategy()
+		if err != nil {
+			return err
+		}
 		cwd := pathutil.ResolveAbsoluteCwd(debugFileCwd)
 		path := pathutil.JoinWithCwd(cwd, debugFile)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{path}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
+		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{path}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil, nodeModulesStrategy)
 
 		fmt.Println(path)
 
@@ -87,10 +91,14 @@ var debugGetTreeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		nodeModulesStrategy, err := nodeModulesResolutionStrategy()
+		if err != nil {
+			return err
+		}
 		cwd := pathutil.ResolveAbsoluteCwd(debugTreeCwd)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil)
+		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil, nodeModulesStrategy)
 
 		treeWithLabels := make(map[string][]MinimalDependencyWithLabels)
 		for key, deps := range minimalTree {
@@ -200,11 +208,13 @@ func init() {
 	debugParseFileCmd.Flags().StringVar(&debugFile, "file", "", "file to parse")
 	debugParseFileCmd.Flags().StringVar(&debugFileCwd, "cwd", currentDir, "Working directory for the command")
 	debugParseFileCmd.MarkFlagRequired("file")
+	addNodeModulesResolutionFlag(debugParseFileCmd)
 
 	// debug get-tree-for-cwd flags
 	addSharedFlags(debugGetTreeCmd)
 	debugGetTreeCmd.Flags().StringVar(&debugTreeCwd, "cwd", currentDir, "Working directory for the command")
 	debugGetTreeCmd.Flags().BoolVarP(&debugTreeIgnoreType, "ignore-type-imports", "t", false, "Exclude type imports from the analysis")
+	addNodeModulesResolutionFlag(debugGetTreeCmd)
 
 	// debug parse-tsconfig flags
 	debugTsconfigCmd.Flags().StringVar(&debugTsconfigPath, "tsconfig", "", "Path to TypeScript configuration file")

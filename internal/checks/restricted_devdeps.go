@@ -15,15 +15,21 @@ type RestrictedDevDependenciesUsageViolation struct {
 	EntryPoint    string `json:"entryPoint"`
 }
 
-// FindDevDependenciesInProduction detects when dev dependencies are used in production entry points
+// FindDevDependenciesInProduction detects when dev dependencies are used in production entry points.
+//
+// devDepsForFile returns the set of dev dependency names that count as a violation when imported by
+// the given file. Making it per-file lets the caller honor nodeModulesResolution: entry-package
+// returns the entry package's devDependencies for every file, nearest-package returns each file's
+// own nearest package devDependencies, and includeDevDepsFromRoot adds the monorepo root
+// devDependencies on top.
 func FindDevDependenciesInProduction(
 	ruleTree MinimalDependencyTree,
 	validEntryPoints []string,
 	ignoreTypeImports bool,
 	rulePath string,
-	devDependencies map[string]bool,
+	devDepsForFile func(filePath string) map[string]bool,
 ) []RestrictedDevDependenciesUsageViolation {
-	if len(validEntryPoints) == 0 {
+	if len(validEntryPoints) == 0 || devDepsForFile == nil {
 		return []RestrictedDevDependenciesUsageViolation{}
 	}
 
@@ -46,15 +52,20 @@ func FindDevDependenciesInProduction(
 
 	var violations []RestrictedDevDependenciesUsageViolation
 
-	// Check each reachable file for dev dependency usage
+	// Check each reachable file for dev dependency usage. The applicable dev dependency set is
+	// resolved once per file so it can reflect that file's own package (nearest-package mode).
 	for filePath, vertex := range graph.Vertices {
+		fileDevDeps := devDepsForFile(filePath)
+		if len(fileDevDeps) == 0 {
+			continue
+		}
 		for _, moduleRequest := range vertex.Modules {
 			moduleName := module.GetNodeModuleName(moduleRequest)
 			if moduleName == "" {
 				continue
 			}
 
-			if devDependencies[moduleName] {
+			if fileDevDeps[moduleName] {
 				entryPoint := FollowPathToGetEntryPoint(vertex, graph)
 
 				violations = append(violations, RestrictedDevDependenciesUsageViolation{

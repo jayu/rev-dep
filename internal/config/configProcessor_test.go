@@ -244,8 +244,7 @@ func TestProcessConfig_ProcessIgnoredFilesIncludesGitIgnored(t *testing.T) {
 		Rules: []Rule{{
 			Path: ".",
 			CircularImportsDetections: []*CircularImportsOptions{{
-				Enabled:   true,
-				Algorithm: "scc",
+				Enabled: true,
 			}},
 		}},
 	}

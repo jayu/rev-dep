@@ -1,5 +1,5 @@
 ---
-description: "Detect circular dependencies with rev-dep circular, with DFS and SCC algorithms and a non-zero exit code for lightweight CI use."
+description: "Detect circular dependencies with rev-dep circular, with a non-zero exit code for lightweight CI use."
 title: Detect circular dependencies
 ---
 
@@ -17,15 +17,14 @@ This gives cycle-focused output without requiring a config file, which is useful
 
 ```bash
 rev-dep circular --ignore-type-imports
-rev-dep circular --algorithm DFS
-rev-dep circular --algorithm SCC
 rev-dep circular --process-ignored-files 'dist/**/*.generated.ts'
 ```
 
 - `--ignore-type-imports` ignores type-only edges, so type-level cycles are not reported.
-- `--algorithm` selects cycle detection: `DFS` (default) reports concrete cycle chains; `SCC` groups strongly connected components and is faster on graphs with many cycles.
 
-`SCC` - Strongly Connected Components is recommended algorithm as it output less cycles. The default algo is `DFS` - Depth-first search, it's the default one because it was implement before SCC and to keep the tool semver compliant needs to remain default.
+## How cycles are detected
+
+Cycle detection uses Strongly Connected Components (SCC). Files that all depend on each other form one group, and the command reports one cycle per group. So a tangle of five files gives you one finding, not every possible path through it.
 
 ## Exit code
 

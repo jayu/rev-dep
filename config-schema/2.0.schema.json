@@ -498,15 +498,6 @@
           "type": "boolean",
           "description": "Ignore type-only imports",
           "default": false
-        },
-        "algorithm": {
-          "type": "string",
-          "description": "Cycle detection algorithm",
-          "enum": [
-            "DFS",
-            "SCC"
-          ],
-          "default": "DFS"
         }
       }
     },

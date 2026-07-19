@@ -21,17 +21,18 @@ func TestFindCircularDepsWithTypeImports(t *testing.T) {
 
 	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
+	// Cycles are reported in a deterministic, sorted order.
 	expectedCircularDeps := [][]string{
-		{
-			filepath.Join(cwd, "moduleSrc/fileA.tsx"),
-			filepath.Join(cwd, "src/types.ts"),
-			filepath.Join(cwd, "moduleSrc/fileA.tsx"),
-		},
 		{
 			filepath.Join(cwd, "moduleSrc/anotherFileForCycle.js"),
 			filepath.Join(cwd, "moduleSrc/oneMoreFileForCycle.tsx"),
 			filepath.Join(cwd, "moduleSrc/fileForCycle.ts"),
 			filepath.Join(cwd, "moduleSrc/anotherFileForCycle.js"),
+		},
+		{
+			filepath.Join(cwd, "moduleSrc/fileA.tsx"),
+			filepath.Join(cwd, "src/types.ts"),
+			filepath.Join(cwd, "moduleSrc/fileA.tsx"),
 		},
 	}
 
@@ -78,10 +79,11 @@ func TestFindMultipleCircularDepsFromSameNode(t *testing.T) {
 
 	circularDeps := FindCircularDependencies(minimalDepsTree, sortedFiles, false)
 
-	// This test case starts with _index.ts file to assert search order that discovers two cycles from fileA
+	// _index.ts, fileA.ts, fileB.ts and fileC.ts all belong to a single strongly
+	// connected component, so one representative cycle is reported for the whole
+	// group instead of one entry per distinct path through it.
 	expectedCircularDeps := [][]string{
 		{filepath.Join(cwd, "_index.ts"), filepath.Join(cwd, "fileA.ts"), filepath.Join(cwd, "fileB.ts"), filepath.Join(cwd, "_index.ts")},
-		{filepath.Join(cwd, "_index.ts"), filepath.Join(cwd, "fileA.ts"), filepath.Join(cwd, "fileC.ts"), filepath.Join(cwd, "_index.ts")},
 	}
 
 	equals := reflect.DeepEqual(circularDeps, expectedCircularDeps)

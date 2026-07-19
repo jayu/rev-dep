@@ -1,14 +1,14 @@
 Found 3 circular dependencies:
 
 Circular Dependency 1:
+ ➞ /src/paths/end.ts (cycle start)
+  ➞ /src/paths/start.ts ('./start')
+   ➞ /src/paths/end.ts ('@path-cycle/end')
+
+Circular Dependency 2:
  ➞ /src/standard/a.ts (cycle start)
   ➞ /src/standard/b.ts ('./b')
    ➞ /src/standard/a.ts ('./a')
-
-Circular Dependency 2:
- ➞ /src/paths/start.ts (cycle start)
-  ➞ /src/paths/end.ts ('@path-cycle/end')
-   ➞ /src/paths/start.ts ('./start')
 
 Circular Dependency 3:
  ➞ /src/types/type-a.ts (cycle start)

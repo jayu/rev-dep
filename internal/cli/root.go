@@ -621,7 +621,6 @@ Useful for understanding your application's architecture and dependencies.`,
 var (
 	circularCwd            string
 	circularIgnoreType     bool
-	circularAlgorithm      string
 	circularProcessIgnored []string
 )
 
@@ -629,20 +628,7 @@ func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPat
 	excludeFiles := []string{}
 
 	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, circularProcessIgnored, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
-	algo := strings.ToLower(strings.TrimSpace(circularAlgorithm))
-	if algo == "" {
-		algo = "dfs"
-	}
-
-	var cycles [][]string
-	switch algo {
-	case "dfs":
-		cycles = checks.FindCircularDependencies(minimalTree, files, ignoreType)
-	case "scc":
-		cycles = checks.FindCircularDependenciesSCC(minimalTree, files, ignoreType)
-	default:
-		return 0, fmt.Errorf("invalid value for --algorithm: %q (allowed: DFS, SCC)", circularAlgorithm)
-	}
+	cycles := checks.FindCircularDependencies(minimalTree, files, ignoreType)
 
 	formatted := checks.FormatCircularDependencies(cycles, cwd, minimalTree)
 	if len(cycles) > 0 {
@@ -1508,8 +1494,6 @@ func init() {
 		"Exclude type imports from the analysis")
 	circularCmd.Flags().StringSliceVar(&circularProcessIgnored, "process-ignored-files", []string{},
 		"Glob patterns to process even if they are ignored by gitignore or exclude patterns")
-	circularCmd.Flags().StringVar(&circularAlgorithm, "algorithm", "DFS",
-		"Cycle detection algorithm: DFS (default) or SCC")
 
 	// node-modules flags
 	addNodeModulesFlags(nodeModulesUsedCmd, false)

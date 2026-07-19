@@ -187,3 +187,76 @@ The mitigation is simple: **use a relative `../` pattern when you want to reach 
 1. In each per-workspace workspace (not the root), look at path-matching fields for patterns starting with `**/` or a bare directory name.
 2. If you intended any of them to reach files in *another* workspace, rewrite them with an explicit `../` prefix as shown.
 3. Re-run your checks after upgrading and compare reported file counts; most projects will see no change, since matching foreign workspaces is rarely intentional.
+
+---
+
+## Circular imports: the `algorithm` option is removed
+
+v2 had two cycle detection algorithms, `DFS` (default) and `SCC`. v3 always uses `SCC` and the option is gone.
+
+`DFS` was the default only because it came first. It is unstable: the same project could report a different number of cycles between runs. `SCC` is deterministic. 
+There is no need to keep `DFS` algo, it's not faster and it produces worse results.
+
+### What changes
+
+The `algorithm` field is removed from `circularImportsDetection`:
+
+```jsonc
+// v2
+{
+  "circularImportsDetection": {
+    "enabled": true,
+    "algorithm": "SCC"
+  }
+}
+```
+
+```jsonc
+// v3
+{
+  "circularImportsDetection": {
+    "enabled": true
+  }
+}
+```
+
+The `--algorithm` flag is removed from `rev-dep circular`:
+
+```bash
+# v2
+rev-dep circular --algorithm SCC
+
+# v3
+rev-dep circular
+```
+
+### How to update
+
+1. Delete the `algorithm` field from every `circularImportsDetection` in your config.
+2. Delete `--algorithm` from any `rev-dep circular` call in CI or scripts.
+
+A config still using `algorithm` fails fast:
+
+> the `algorithm` option was removed in v3. Cycle detection now always uses the SCC algorithm. Please remove the `algorithm` field from your config
+
+### What this changes in results
+
+If you already used `"algorithm": "SCC"`, your results stay the same.
+
+If you used the `DFS` default, expect **fewer reported cycles**. This is not a loss of coverage. When several files all depend on each other, `DFS` listed many overlapping paths through the same tangle. `SCC` groups those files and reports one cycle for the group.
+
+Example - four files in one tangle:
+
+```
+_index.ts → fileA.ts → fileB.ts → _index.ts
+_index.ts → fileA.ts → fileC.ts → _index.ts
+```
+
+| | Reported cycles |
+| --- | --- |
+| v2 (`DFS`) | 2 |
+| v3 (`SCC`) | 1 |
+
+Both point at the same tangle. Fix it once and both disappear.
+
+So if you track a cycle count in CI (for example a baseline number you do not want to exceed), lower it after upgrading.

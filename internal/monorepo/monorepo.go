@@ -31,8 +31,14 @@ type PackageJsonConfig struct {
 }
 
 type MonorepoContext struct {
-	WorkspaceRoot       string
-	PackageToPath       map[string]string
+	WorkspaceRoot string
+	// PackageToPath is fully populated during discovery and read-only afterwards, so it
+	// needs no synchronization.
+	PackageToPath map[string]string
+	// The two caches below are different: they are lazily filled during the concurrent
+	// import-resolution phase, so every access goes through cacheMu. Reads dominate
+	// (one entry per workspace package, hit repeatedly), hence RWMutex.
+	cacheMu             sync.RWMutex
 	PackageConfigCache  map[string]*PackageJsonConfig
 	PackageExportsCache map[string]*PackageJsonExports
 }
@@ -508,28 +514,47 @@ func (ctx *MonorepoContext) processPossiblePackage(path string) {
 	}
 
 	ctx.PackageToPath[config.Name] = path
+	// Discovery is sequential today, so this write cannot race the resolution phase. Take
+	// the cache lock anyway: it costs one uncontended acquire per workspace package, and it
+	// keeps PackageConfigCache's "never touched without cacheMu" invariant local to the
+	// cache instead of resting on an assumption about every caller.
+	ctx.cacheMu.Lock()
 	ctx.PackageConfigCache[path] = &config
+	ctx.cacheMu.Unlock()
 }
 
 func (ctx *MonorepoContext) GetPackageConfig(packageRoot string) (*PackageJsonConfig, error) {
 	packageRoot = pathutil.NormalizePathForInternal(packageRoot)
-	if config, ok := ctx.PackageConfigCache[packageRoot]; ok {
+
+	ctx.cacheMu.RLock()
+	config, ok := ctx.PackageConfigCache[packageRoot]
+	ctx.cacheMu.RUnlock()
+	if ok {
 		return config, nil
 	}
 
+	// Read and parse outside the lock: this does blocking file IO, and holding the write
+	// lock across it would serialise every resolver goroutine behind one disk read. A
+	// concurrent miss on the same package just parses twice, which is harmless — the
+	// re-check below makes sure every caller ends up with the same *PackageJsonConfig.
 	pkgJsonPath := filepath.Join(pathutil.DenormalizePathForOS(packageRoot), "package.json")
 	content, err := os.ReadFile(pkgJsonPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var config PackageJsonConfig
-	if err := json.Unmarshal(jsonc.ToJSON(content), &config); err != nil {
+	var parsed PackageJsonConfig
+	if err := json.Unmarshal(jsonc.ToJSON(content), &parsed); err != nil {
 		return nil, err
 	}
 
-	ctx.PackageConfigCache[packageRoot] = &config
-	return &config, nil
+	ctx.cacheMu.Lock()
+	defer ctx.cacheMu.Unlock()
+	if existing, raced := ctx.PackageConfigCache[packageRoot]; raced {
+		return existing, nil
+	}
+	ctx.PackageConfigCache[packageRoot] = &parsed
+	return &parsed, nil
 }
 
 // GetDevDependenciesFromConfig extracts dev dependencies from PackageJsonConfig
@@ -560,8 +585,12 @@ func GetProductionDependenciesFromConfig(config *PackageJsonConfig) map[string]b
 
 func (ctx *MonorepoContext) GetPackageExports(packageRoot string, conditionNames []string) (*PackageJsonExports, error) {
 	packageRoot = pathutil.NormalizePathForInternal(packageRoot)
-	if exports, ok := ctx.PackageExportsCache[packageRoot]; ok {
-		return exports, nil
+
+	ctx.cacheMu.RLock()
+	cached, ok := ctx.PackageExportsCache[packageRoot]
+	ctx.cacheMu.RUnlock()
+	if ok {
+		return cached, nil
 	}
 
 	config, err := ctx.GetPackageConfig(packageRoot)
@@ -625,6 +654,13 @@ func (ctx *MonorepoContext) GetPackageExports(packageRoot string, conditionNames
 		}
 	}
 
+	// Same double-check as GetPackageConfig: the build above runs unlocked, so a
+	// concurrent miss resolves to whichever entry landed first.
+	ctx.cacheMu.Lock()
+	defer ctx.cacheMu.Unlock()
+	if existing, raced := ctx.PackageExportsCache[packageRoot]; raced {
+		return existing, nil
+	}
 	ctx.PackageExportsCache[packageRoot] = exports
 	return exports, nil
 }

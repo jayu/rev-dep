@@ -26,10 +26,10 @@ func TestFindCircularDependenciesSCCStableOrdering(t *testing.T) {
 
 	expected := [][]string{{"A", "B", "C", "A"}, {"D", "E", "D"}}
 
-	if cycles := FindCircularDependenciesSCC(deps1, sorted, false); !reflect.DeepEqual(cycles, expected) {
+	if cycles := FindCircularDependencies(deps1, sorted, false); !reflect.DeepEqual(cycles, expected) {
 		t.Errorf("unexpected cycles for deps1: %v", cycles)
 	}
-	if cycles := FindCircularDependenciesSCC(deps2, sorted, false); !reflect.DeepEqual(cycles, expected) {
+	if cycles := FindCircularDependencies(deps2, sorted, false); !reflect.DeepEqual(cycles, expected) {
 		t.Errorf("unexpected cycles for deps2: %v", cycles)
 	}
 }
@@ -41,10 +41,10 @@ func TestFindCircularDependenciesSCCTypeImports(t *testing.T) {
 		"B": {{ID: "A", ImportKind: OnlyTypeImport}},
 	}
 
-	if cycles := FindCircularDependenciesSCC(deps, sorted, false); !reflect.DeepEqual(cycles, [][]string{{"A", "B", "A"}}) {
+	if cycles := FindCircularDependencies(deps, sorted, false); !reflect.DeepEqual(cycles, [][]string{{"A", "B", "A"}}) {
 		t.Errorf("unexpected cycles (types allowed): %v", cycles)
 	}
-	if cycles := FindCircularDependenciesSCC(deps, sorted, true); len(cycles) != 0 {
+	if cycles := FindCircularDependencies(deps, sorted, true); len(cycles) != 0 {
 		t.Errorf("expected no cycles when type imports are ignored, got: %v", cycles)
 	}
 }
@@ -55,7 +55,7 @@ func TestFindCircularDependenciesSCCSelfLoop(t *testing.T) {
 		"A": {{ID: "A", ImportKind: NotTypeOrMixedImport}},
 	}
 
-	if cycles := FindCircularDependenciesSCC(deps, sorted, false); !reflect.DeepEqual(cycles, [][]string{{"A", "A"}}) {
+	if cycles := FindCircularDependencies(deps, sorted, false); !reflect.DeepEqual(cycles, [][]string{{"A", "A"}}) {
 		t.Errorf("unexpected self-loop cycles: %v", cycles)
 	}
 }
@@ -68,7 +68,7 @@ func TestFindCircularDependenciesSCCCompleteGraph(t *testing.T) {
 		"c.ts": {{ID: "a.ts", ImportKind: NotTypeOrMixedImport}, {ID: "b.ts", ImportKind: NotTypeOrMixedImport}},
 	}
 
-	if cycles := FindCircularDependenciesSCC(deps, sorted, false); !reflect.DeepEqual(cycles, [][]string{{"a.ts", "b.ts", "a.ts"}}) {
+	if cycles := FindCircularDependencies(deps, sorted, false); !reflect.DeepEqual(cycles, [][]string{{"a.ts", "b.ts", "a.ts"}}) {
 		t.Errorf("unexpected cycles for complete graph: %v", cycles)
 	}
 }

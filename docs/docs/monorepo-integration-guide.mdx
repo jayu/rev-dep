@@ -224,13 +224,12 @@ Learn more about the [`unusedExportsDetection`](./config-based-checks/checks/unu
 
 ## 8. Circular dependencies
 
-A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime import cycles while tolerating existing type-only ones; `SCC` is the recommended algorithm.
+A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime import cycles while tolerating existing type-only ones.
 
 ```jsonc
 {
   "circularImportsDetection": {
-    "ignoreTypeImports": true,
-    "algorithm": "SCC"
+    "ignoreTypeImports": true
   }
 }
 ```

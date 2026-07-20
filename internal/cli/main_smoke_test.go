@@ -73,14 +73,8 @@ func captureOutput(fn func() error) (string, error) {
 }
 
 func TestCircularCmd(t *testing.T) {
-	prevAlgorithm := circularAlgorithm
-	t.Cleanup(func() {
-		circularAlgorithm = prevAlgorithm
-	})
-
 	t.Run("circular", func(t *testing.T) {
 		mockProjectPath := fixturePath(t, "circularSmoke")
-		circularAlgorithm = "DFS"
 
 		output, err := captureOutput(func() error {
 			// finds standard cycle and path-based cycle (default tsconfig.json)
@@ -94,7 +88,6 @@ func TestCircularCmd(t *testing.T) {
 
 	t.Run("circular --ignore-type-imports --condition-names node,imports", func(t *testing.T) {
 		mockProjectPath := fixturePath(t, "circularMonorepoSmoke")
-		circularAlgorithm = "DFS"
 
 		output, err := captureOutput(func() error {
 			// finds inter-package standard cycle AND condition-based cycle (node)
@@ -108,7 +101,6 @@ func TestCircularCmd(t *testing.T) {
 
 	t.Run("circular --package-json custom.package.json --tsconfig-json custom.tsconfig.json", func(t *testing.T) {
 		mockProjectPath := fixturePath(t, "circularSmoke")
-		circularAlgorithm = "DFS"
 
 		output, err := captureOutput(func() error {
 			// finds ONLY standard cycle because custom.tsconfig.json lacks paths
@@ -122,7 +114,6 @@ func TestCircularCmd(t *testing.T) {
 
 	t.Run("circular --follow-monorepo-packages --ignore-type-imports", func(t *testing.T) {
 		mockProjectPath := fixturePath(t, "circularMonorepoSmoke")
-		circularAlgorithm = "DFS"
 
 		output, err := captureOutput(func() error {
 			// finds inter-package cycles
@@ -132,34 +123,6 @@ func TestCircularCmd(t *testing.T) {
 
 		assert.NilError(t, err)
 		golden.Assert(t, output, goldenPath(t, "circular-monorepo-ignore-type.golden"))
-	})
-
-	t.Run("circular --algorithm SCC", func(t *testing.T) {
-		mockProjectPath := fixturePath(t, "circularSmoke")
-		circularAlgorithm = "SCC"
-
-		output, err := captureOutput(func() error {
-			_, err := circularCmdFn(mockProjectPath, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
-			return err
-		})
-
-		assert.NilError(t, err)
-		assert.Assert(t, strings.Contains(output, "Found 3 circular dependencies:"))
-		assert.Assert(t, strings.Contains(output, "/src/standard/a.ts"))
-		assert.Assert(t, strings.Contains(output, "/src/paths/start.ts"))
-		assert.Assert(t, strings.Contains(output, "/src/types/type-a.ts"))
-	})
-
-	t.Run("circular --algorithm invalid", func(t *testing.T) {
-		mockProjectPath := fixturePath(t, "circularSmoke")
-		circularAlgorithm = "wat"
-
-		_, err := captureOutput(func() error {
-			_, err := circularCmdFn(mockProjectPath, false, "", "", []string{}, model.FollowMonorepoPackagesValue{})
-			return err
-		})
-
-		assert.ErrorContains(t, err, `invalid value for --algorithm: "wat"`)
 	})
 }
 

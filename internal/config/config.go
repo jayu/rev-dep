@@ -20,9 +20,8 @@ import (
 )
 
 type CircularImportsOptions struct {
-	Enabled           bool   `json:"enabled"`
-	IgnoreTypeImports bool   `json:"ignoreTypeImports,omitempty"`
-	Algorithm         string `json:"algorithm,omitempty"`
+	Enabled           bool `json:"enabled"`
+	IgnoreTypeImports bool `json:"ignoreTypeImports,omitempty"`
 }
 
 func (o *CircularImportsOptions) IsEnabled() bool { return o != nil && o.Enabled }
@@ -637,14 +636,7 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 
 			// Apply rule-level entry point inheritance for selected detectors.
 			// Explicit detector arrays (including empty) override rule-level defaults.
-			for _, circularCfg := range config.Rules[i].getCircularImportsDetections() {
-				algo := strings.ToLower(strings.TrimSpace(circularCfg.Algorithm))
-				if algo == "" {
-					algo = "dfs"
-				}
-				circularCfg.Algorithm = algo
-			}
-
+			//
 			// Ignored entry points are merged into the valid entry points for orphan and
 			// unused-exports detection. This keeps "leftover" files from being reported as
 			// orphans and suppresses unused-export findings on them, while leaving them in
@@ -1179,7 +1171,13 @@ func validateRawCircularImportsDetectionInstance(circularMap map[string]interfac
 	allowedFields := map[string]bool{
 		"enabled":           true,
 		"ignoreTypeImports": true,
-		"algorithm":         true,
+	}
+
+	// The `algorithm` option was removed in v3. Cycle detection always uses SCC,
+	// which was the `SCC` option in v2. Detect the old key and explain the removal
+	// instead of reporting it as a generic unknown field.
+	if _, exists := circularMap["algorithm"]; exists {
+		return fmt.Errorf("%s.algorithm: the `algorithm` option was removed in v3. Cycle detection now always uses the SCC algorithm. Please remove the `algorithm` field from your config", prefix)
 	}
 
 	for field := range circularMap {
@@ -1195,12 +1193,6 @@ func validateRawCircularImportsDetectionInstance(circularMap map[string]interfac
 	if ignoreType, exists := circularMap["ignoreTypeImports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
 			return fmt.Errorf("%s.ignoreTypeImports must be a boolean, got %T", prefix, ignoreType)
-		}
-	}
-
-	if algo, exists := circularMap["algorithm"]; exists && algo != nil {
-		if _, ok := algo.(string); !ok {
-			return fmt.Errorf("%s.algorithm must be a string, got %T", prefix, algo)
 		}
 	}
 
@@ -1646,18 +1638,10 @@ func validateBoundaryRule(boundary *BoundaryRule, prefix string) error {
 	return nil
 }
 
-// validateCircularImportsOptions validates circular imports detection options
+// validateCircularImportsOptions validates circular imports detection options.
+// The options carry no values needing validation beyond the structural checks
+// already done on the raw config.
 func validateCircularImportsOptions(opts *CircularImportsOptions, prefix string) error {
-	if !opts.Enabled {
-		return nil
-	}
-	if opts.Algorithm != "" {
-		switch strings.ToLower(strings.TrimSpace(opts.Algorithm)) {
-		case "dfs", "scc":
-		default:
-			return fmt.Errorf("%s.algorithm: must be one of 'DFS', 'SCC', got '%s'", prefix, opts.Algorithm)
-		}
-	}
 	return nil
 }
 

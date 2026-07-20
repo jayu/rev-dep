@@ -463,24 +463,11 @@ func processRuleChecks(
 				if !detection.Enabled {
 					continue
 				}
-				algo := strings.ToLower(strings.TrimSpace(detection.Algorithm))
-				if algo == "" {
-					algo = "dfs"
-				}
-				switch algo {
-				case "scc":
-					circularDeps = append(circularDeps, checks.FindCircularDependenciesSCC(
-						ruleTree,
-						sortedRuleFiles,
-						detection.IgnoreTypeImports,
-					)...)
-				default:
-					circularDeps = append(circularDeps, checks.FindCircularDependencies(
-						ruleTree,
-						sortedRuleFiles,
-						detection.IgnoreTypeImports,
-					)...)
-				}
+				circularDeps = append(circularDeps, checks.FindCircularDependencies(
+					ruleTree,
+					sortedRuleFiles,
+					detection.IgnoreTypeImports,
+				)...)
 			}
 
 			mu.Lock()

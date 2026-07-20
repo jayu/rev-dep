@@ -29,7 +29,7 @@ While circular type imports are generally harmless at runtime (because they are 
 
 ## Comprehensive Configuration Example
 
-Example `circularImportsDetection` configuration using the `SCC` (Strongly Connected Components) algorithm for more efficient cycle detection:
+Example `circularImportsDetection` configuration:
 
 ```json
 {
@@ -38,8 +38,7 @@ Example `circularImportsDetection` configuration using the `SCC` (Strongly Conne
       "path": ".",
       "circularImportsDetection": {
         "enabled": true,
-        "ignoreTypeImports": true,
-        "algorithm": "SCC"
+        "ignoreTypeImports": true
       }
     }
   ]
@@ -50,7 +49,8 @@ Example `circularImportsDetection` configuration using the `SCC` (Strongly Conne
 
 - `enabled` (boolean): Whether to enable circular imports detection.
 - `ignoreTypeImports` (boolean): Whether to ignore type-only imports in the analysis.
-- `algorithm` (string): The algorithm used for cycle detection. Supports `DFS` (Depth-First Search) and `SCC` (Strongly Connected Components). Defaults to `DFS`.
+
+Cycle detection uses Strongly Connected Components (SCC). It reports one cycle per group of mutually dependent files, so a tangle of files gives you one finding instead of many overlapping ones.
 
 ### Also referred as
 Circular Dependency Detection is also known as:

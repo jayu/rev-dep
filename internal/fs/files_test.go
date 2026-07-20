@@ -37,8 +37,13 @@ func TestParseGitIgnoreMatching(t *testing.T) {
 		{"dist output is ignored", "/repo/dist/app.js", true},
 		{"nested dist output is ignored", "/repo/dist/assets/main.css", true},
 
+		// `dist/` excludes the *directory*, and gitignore cannot re-include a file whose
+		// parent directory is excluded - so the `!dist/manifest.json` exception has no
+		// effect here. Verified with `git check-ignore` (git 2.39.5). Had the pattern been
+		// `dist/**` (which does not match bare `dist`) the exception would apply.
+		{"exception cannot re-include under an excluded dir", "/repo/dist/manifest.json", true},
+
 		// negative paths - should NOT be ignored
-		{"manifest re-included by negation", "/repo/dist/manifest.json", false},
 		{"source file is not ignored", "/repo/src/index.ts", false},
 		{"a file named like a comment is not ignored", "/repo/dependencies.ts", false},
 	}

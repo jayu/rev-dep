@@ -62,78 +62,95 @@ A config still using `rules` fails fast with a dedicated message:
 
 ---
 
-## Glob patterns: `*` no longer crosses directory boundaries
+## Glob patterns now follow `.gitignore` rules
 
 :::note
 The v2 behavior described here is considered a bug. v3 fixes it.
 :::
 
-In v2 a single `*` in a glob pattern matched across `/`, so it could span multiple path segments. In v3 a single `*` matches **within one path segment only**. To match across directories you must use `**`.
-
-| Token | v2 (old) | v3 (new) |
-| --- | --- | --- |
-| `*` | matches anything, including `/` | matches anything **except** `/` (one segment) |
-| `?` | matches any character, including `/` | matches any single character **except** `/` |
-| `**` | matches anything, including `/` | matches anything, including `/` (unchanged) |
-
-### Why this might affect you
-
-If a pattern relied on `*` spanning directories, it matched more files in v2 than it will in v3. In v3 those patterns match **fewer** files (or none), which can cause checks to stop excluding/denying files they used to.
+v3 matches glob patterns the same way `git` matches `.gitignore` entries. v2 differed in four ways. Each is listed below with what to expect after the upgrade.
 
 ### Where it applies
 
-The change affects config fields whose globs are matched against **file paths**:
+The changes affect config fields whose globs are matched against **file paths**:
 
 - Top-level: `ignoreFiles`, `processIgnoredFiles`
-- Per rule: `entryPoints`
+- Per workspace: `entryPoints`
 - `restrictedImportsDetection`: `denyFiles`, `entryPoints`, `graphExclude`, and the file keys of `ignore`
 - `moduleBoundaries`: `pattern`, `allow`, `deny`
 - `orphanFilesDetection` / `unusedExportsDetection`: `graphExclude`, `ignoreFiles`, and the file keys of `ignore`
 - Equivalent CLI options that take path globs (e.g. `--graph-exclude`, `--process-ignored-files`, `--include`, `--exclude`)
 
-It does **not** affect globs matched against non-path values, which keep the old behavior:
+They do **not** affect globs matched against non-path values, which are unchanged: `ignoreImports` (e.g. `@internal/*`), `ignoreExports` (e.g. `Internal*`), and `restrictedImportsDetection.denyModules` (e.g. `lodash/*`).
 
-- Import-request globs: `ignoreImports` (e.g. `@internal/*`, `virtual:*`)
-- Export-name globs: `ignoreExports` (e.g. `Internal*`, `__legacy*`)
-- Module-name globs: `restrictedImportsDetection.denyModules` (e.g. `lodash/*`)
+### 1. `*` and `?` stop at `/`
 
-### What works the same (no change needed)
+In v2 a single `*` could span directories. In v3 it matches inside one path segment. Use `**` to cross directories.
 
-These already use `**`, a trailing slash, or a plain name, so they behave identically in v2 and v3:
-
-| Pattern | Matches |
-| --- | --- |
-| `**/*.ts` | every `.ts` file at any depth |
-| `src/**` | everything under `src/` at any depth |
-| `dist/` | everything under `dist/` at any depth |
-| `dist` | a directory named `dist` anywhere, and its contents |
-| `**/__tests__/**` | everything under any `__tests__` directory |
-| `src/components/Button.ts` | that exact file |
-
-### What changes, and how to update
-
-| v2 pattern | v2 matched | v3 matches | Update to keep v2 behavior |
+| Pattern | v2 also matched | v3 matches | Update to keep v2 behavior |
 | --- | --- | --- | --- |
-| `*.ts` | every `.ts` file at any depth | only `.ts` files in the root | `**/*.ts` |
-| `src/*` | everything under `src/` at any depth | only direct children of `src/` | `src/**` |
-| `src/*.ts` | every `.ts` under `src/` at any depth | only `.ts` directly in `src/` | `src/**/*.ts` |
-| `dist*` | the `dist` directory and its contents | only files named `dist...` in the root | `dist/**` (or `dist`) |
-| `a/*/b` | `b` at any depth under `a/` | `b` exactly one directory under `a/` | `a/**/b` (if any depth was intended) |
-| `**/use*.ts` | also files like `useThing/common.ts` | only files named `use*.ts` | `**/use*/**` or `**/use*/*.ts` (if you meant files inside a `use*` directory) |
+| `src/*.ts` | `src/a/b.ts` | only `.ts` directly in `src/` | `src/**/*.ts` |
+| `a/*/b` | `a/x/y/b` | `b` exactly one directory under `a/` | `a/**/b` |
+| `**/use*.ts` | `src/useSearch/common.ts` | only files named `use*.ts` | `**/use*/**` |
+| `/*.ts` | nested files | only `.ts` in the root | `**/*.ts` |
+
+**Expect:** these patterns match **fewer** files. Files they used to exclude may now appear in results.
+
+**Not affected:** `src/*`, `dist*`, `*.ts`. These match a *directory*, and a matched directory still covers everything inside it. You do not need to change them.
+
+### 2. Patterns without `/` match at any depth
+
+A pattern with no `/` is matched against every part of the path, so it applies at any depth. In v2 this only worked for plain names like `node_modules`, not for patterns with wildcards.
+
+| Pattern | v2 matched | v3 matches |
+| --- | --- | --- |
+| `use*.ts` | only in the root | `src/useThing.ts` at any depth |
+| `cache-*` | only in the root | `src/cache-x/` at any depth, and its contents |
+| `[ab].ts`, `a.*`, `?.ts` | only in the root | at any depth |
+
+**Expect:** these patterns match **more** files.
+
+### 3. `**/` can match zero directories
+
+`a/**/b` now means "zero or more directories between `a` and `b`", as in `.gitignore`.
+
+| Pattern | v2 matched | v3 also matches |
+| --- | --- | --- |
+| `src/**/*.ts` | `src/a/b.ts` | `src/index.ts` |
+| `src/pages/**/*.ts*` | `src/pages/a/index.tsx` | `src/pages/index.tsx` |
+
+**Expect:** these patterns match **more** files. Entry points that were wrongly reported as orphans are now found.
+
+### 4. `!` exceptions follow `.gitignore` rules
+
+Two rules changed.
+
+**Order matters.** The last pattern that matches a file wins.
+
+```jsonc
+["*.ts", "!src/a.ts"]   // src/a.ts is NOT matched
+["!src/a.ts", "*.ts"]   // src/a.ts IS matched
+```
+
+**You cannot re-include a file inside an excluded directory.**
+
+```jsonc
+["src/**", "!src/vendor/**"]   // src/vendor/lib.ts stays matched
+```
+
+`src/**` also matches the directory `src/vendor`, so the exception cannot apply. Exclude in a way that does not match the directory:
+
+```jsonc
+["src/*", "!src/vendor"]       // src/vendor/lib.ts is re-included
+```
+
+**Expect:** some `!` rules stop having an effect. Check every `!` pattern that points inside a directory you exclude with `/**`.
 
 ### How to check whether you are affected
 
-1. Search your `rev-dep.config.json(c)` for patterns that contain a single `*` (not `**`) or a `?`.
-2. For each one, decide whether it was meant to match across directories.
-   - If it only ever matches files in one directory level, no change is needed.
-   - If it was meant to match at any depth, replace the leading/spanning `*` with `**` as shown above.
-3. Re-run your checks after upgrading and compare the reported file counts.
-
-### Rule of thumb
-
-- Use `**` to cross directories.
-- Use `*` for a single segment.
-- Use a plain name or a trailing `/` to match a directory and everything inside it.
+1. Search your `rev-dep.config.json(c)` for patterns with a single `*` or `?`, for `**/`, and for `!`.
+2. Re-run your checks and compare the reported file counts with v2.
+3. Update the patterns as shown above.
 
 ---
 
@@ -168,7 +185,7 @@ For such a workspace, patterns now match **fewer** files (foreign-workspace file
 
 ### Where it applies
 
-The same path-matching fields as the separator change above: `entryPoints` (prod/dev/ignore), `ignoreFiles`, `processIgnoredFiles`, `graphExclude`, `moduleBoundaries` `pattern`/`allow`/`deny`, `restrictedImportsDetection` `denyFiles`/`entryPoints`/`graphExclude`, and the file keys of `ignore`. It does **not** affect non-path globs (import-request, export-name, and module-name patterns), which are never workspace-relative.
+The same path-matching fields as the `.gitignore` changes above. It does **not** affect non-path globs (import-request, export-name, and module-name patterns), which are never workspace-relative.
 
 ### How to update
 

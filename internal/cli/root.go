@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"rev-dep-go/internal/perf"
 	"runtime"
 	"slices"
 	"strings"
@@ -1623,6 +1624,7 @@ func init() {
 }
 
 func Execute() error {
+	perf.Init()
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
 		return err
 	}

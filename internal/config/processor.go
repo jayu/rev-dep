@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"rev-dep-go/internal/perf"
 	"slices"
 	"strings"
 	"sync"
@@ -112,15 +113,21 @@ func discoverAllFilesForConfig(
 ) ([]string, []globutil.GlobMatcher, []globutil.GlobMatcher, *fs.DiscoveryExclusions, error) {
 
 	// Create glob matchers for ignore files
+	doneGlobMatchers := perf.Track("discover/glob-matchers")
 	ignoreMatchers := globutil.CreateGlobMatchers(ignoreFiles, cwd)
 	processIgnoredMatchers := globutil.CreateGlobMatchers(processIgnoredFiles, cwd)
+	doneGlobMatchers()
 
 	// Always include gitignore patterns
+	doneGitignore := perf.Track("discover/gitignore")
 	gitignoreMatchers := fs.FindAndProcessGitIgnoreFilesUpToRepoRoot(cwd)
+	doneGitignore()
 	combinedMatchers := append(ignoreMatchers, gitignoreMatchers...)
 
 	// Get all files (and what the walk excluded/pruned) using the shared discovery walk.
+	doneWalk := perf.Track("discover/walk")
 	files, exclusions := fs.GetFilesWithExclusions(cwd, combinedMatchers, processIgnoredMatchers)
+	doneWalk()
 
 	return files, combinedMatchers, processIgnoredMatchers, exclusions, nil
 }
@@ -203,11 +210,16 @@ func buildDependencyTreeForConfig(
 	skipResolveMissing := false
 
 	// Parse imports from all files
+	doneParse := perf.Track("parse-imports")
 	fileImportsArr, _ := parser.ParseImportsFromFiles(allFiles, ignoreTypeImports, parseMode)
+	doneParse()
 
+	doneSort := perf.Track("sort-files")
 	slices.Sort(allFiles)
+	doneSort()
 
 	// Resolve imports using the existing resolver
+	doneResolve := perf.Track("resolve-imports")
 	fileImportsArr, _, resolverManager := resolve.ResolveImports(
 		fileImportsArr,
 		allFiles,
@@ -226,8 +238,12 @@ func buildDependencyTreeForConfig(
 		model.NodeModulesMatchingStrategySelfResolver,
 	)
 
+	doneResolve()
+
 	// Transform to minimal dependency tree
+	doneMinimal := perf.Track("minimal-tree")
 	minimalTree := model.TransformToMinimalDependencyTreeCustomParser(fileImportsArr)
+	doneMinimal()
 
 	return minimalTree, resolverManager, nil
 }
@@ -452,6 +468,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getCircularImportsDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/circular-imports")()
 			defer wg.Done()
 			// For circular dependencies, use the full tree since we need complete graph
 			// Sort rule files as required by FindCircularDependencies
@@ -494,6 +511,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getOrphanFilesDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/orphan-files")()
 			defer wg.Done()
 			orphanSet := map[string]bool{}
 			orphanAutofixSet := map[string]bool{}
@@ -536,6 +554,7 @@ func processRuleChecks(
 	if len(rule.ModuleBoundaries) > 0 {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/module-boundaries")()
 			defer wg.Done()
 			violations := checks.CheckModuleBoundariesFromTree(
 				ruleTree,
@@ -554,6 +573,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getUnusedNodeModulesDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/unused-node-modules")()
 			defer wg.Done()
 			unusedSet := map[string]bool{}
 			unusedModules := make([]node.UnusedNodeModuleIssue, 0)
@@ -606,6 +626,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getMissingNodeModulesDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/missing-node-modules")()
 			defer wg.Done()
 			missingModules := make([]node.MissingNodeModuleResult, 0)
 			outputType := ""
@@ -641,6 +662,7 @@ func processRuleChecks(
 	if len(rule.ImportConventions) > 0 {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/import-conventions")()
 			defer wg.Done()
 
 			violations, shouldWarnAboutImportConventionWithPJsonImports := checks.CheckImportConventionsFromTree(
@@ -663,6 +685,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getUnusedExportsDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/unused-exports")()
 			defer wg.Done()
 			unusedExports := make([]checks.UnusedExport, 0)
 			for _, detection := range rule.getUnusedExportsDetections() {
@@ -698,6 +721,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getUnresolvedImportsDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/dev-deps-usage-on-prod")()
 			defer wg.Done()
 			// entry-package mode: a NotResolvedModule might actually be a node module declared in the
 			// rule path package (e.g. apps/main-app) but not in the just-in-time package (packages/shared).
@@ -751,6 +775,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getDevDepsUsageOnProdDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/unresolved-imports")()
 			defer wg.Done()
 
 			// The dev dependency set checked against a production import follows nodeModulesResolution,
@@ -843,6 +868,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getRestrictedImportsDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/restricted-imports")()
 			defer wg.Done()
 			violations := make([]checks.RestrictedImportViolation, 0)
 			for _, detection := range rule.getRestrictedImportsDetections() {
@@ -865,6 +891,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getRestrictedImportersDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/restricted-importers")()
 			defer wg.Done()
 			// Universe of entry points for the allowlist policy: the rule's prod + dev entry points.
 			ruleEntryPoints := make([]string, 0, len(rule.ProdEntryPoints)+len(rule.DevEntryPoints))
@@ -893,6 +920,7 @@ func processRuleChecks(
 	if anyEnabled(rule.getRestrictedDirectImportersDetections()) {
 		wg.Add(1)
 		go func() {
+			defer perf.Track("rules/checks/restricted-direct-importers")()
 			defer wg.Done()
 			violations := make([]checks.RestrictedDirectImporterViolation, 0)
 			for _, detection := range rule.getRestrictedDirectImportersDetections() {
@@ -926,7 +954,9 @@ func ProcessConfig(
 	forceDetailed bool,
 ) (*ConfigProcessingResult, error) {
 	// Step 1: Discover all files
+	doneDiscover := perf.Track("discover")
 	allFiles, excludePatterns, includePatterns, exclusions, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles, config.ProcessIgnoredFiles)
+	doneDiscover()
 	if err != nil {
 		return nil, err
 	}
@@ -983,6 +1013,7 @@ func ProcessConfig(
 		missingPackageJsonResults[i] = validateRulePathPackageJson(rule.Path, cwd)
 	}
 
+	doneRules := perf.Track("rules")
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
@@ -992,9 +1023,12 @@ func ProcessConfig(
 			defer wg.Done()
 
 			// Step 3a: Filter files for this rule
+			doneFilter := perf.Track("rules/filter-files")
 			ruleFiles, ruleTree := filterFilesForRule(fullTree, currentRule.Path, cwd, currentRule.FollowMonorepoPackages, resolverManager)
+			doneFilter()
 
 			// Step 3b: Execute enabled checks in parallel
+			doneChecks := perf.Track("rules/checks")
 			ruleResult := processRuleChecks(
 				currentRule,
 				ruleFiles,
@@ -1006,6 +1040,7 @@ func ProcessConfig(
 				config.UsesNearestPackage(),
 				config.IncludeDevDepsFromRoot(),
 			)
+			doneChecks()
 			ruleResult.ProcessIgnoredFiles = config.ProcessIgnoredFiles
 
 			// Set the missing package.json flag
@@ -1035,6 +1070,7 @@ func ProcessConfig(
 	}
 
 	wg.Wait()
+	doneRules()
 
 	// Step 4: Apply fixes if requested
 	if fix {

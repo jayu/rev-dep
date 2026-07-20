@@ -65,3 +65,39 @@ func BenchmarkMatchGitignoreShape(b *testing.B) {
 		}
 	}
 }
+
+// Mirrors what the checks phase actually does: a handful of patterns per rule, matched
+// against deep monorepo paths. This is the shape that dominates the ~530k calls in a real
+// run, and it is very different from a large ignore set matched against shallow paths.
+var benchCheckSets = [][]string{
+	{"**/node_modules/**", "src/**/vendor/**", "**/*.generated.ts"},
+	{"index.ts", "src/**/*.stories.tsx", "**/*.test.ts", "**/*.test.tsx", "src/**/*.spec.ts"},
+	{"**/*.d.ts", "dist/**", "**/__mocks__/**"},
+}
+
+var benchDeepPaths []string
+
+func init() {
+	for i := 0; i < 400; i++ {
+		benchDeepPaths = append(benchDeepPaths,
+			fmt.Sprintf("/repo/apps/web/src/feat%d/mod%d/sub%d/deep%d/c%d.ts", i%20, i%5, i%3, i%4, i),
+			fmt.Sprintf("/repo/packages/ui/src/feat%d/mod%d/sub%d/c%d.test.ts", i%20, i%5, i%3, i),
+			fmt.Sprintf("/repo/node_modules/@scope%d/pkg%d/dist/esm/internal/utils/m%d.js", i%7, i, i%9),
+		)
+	}
+}
+
+func BenchmarkMatchCheckShape(b *testing.B) {
+	var sets [][]GlobMatcher
+	for _, s := range benchCheckSets {
+		sets = append(sets, CreateGlobMatchers(s, "/repo/apps/web"))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, p := range benchDeepPaths {
+			for _, m := range sets {
+				MatchesAnyGlobMatcher(p, m, false)
+			}
+		}
+	}
+}

@@ -239,19 +239,6 @@ type pathCandidate struct {
 	isDir bool
 }
 
-// ancestorsAndSelf yields every directory prefix of an internal-form path, shallowest
-// first, followed by the path itself. gitignore tests a pattern against each of these:
-// matching an ancestor directory ignores everything below it.
-func ancestorsAndSelf(fileInternal string) []pathCandidate {
-	out := make([]pathCandidate, 0, strings.Count(fileInternal, "/")+1)
-	for i := 0; i < len(fileInternal); i++ {
-		if fileInternal[i] == '/' && i > 0 {
-			out = append(out, pathCandidate{path: fileInternal[:i], isDir: true})
-		}
-	}
-	return append(out, pathCandidate{path: fileInternal, isDir: false})
-}
-
 // relativize re-expresses an absolute candidate against the matcher's pattern root, and
 // reports false when the candidate lies outside that root. A pattern is interpreted
 // relative to its root - the workspace, or the directory an explicit "../" climbed to -
@@ -272,13 +259,6 @@ func (matcher GlobMatcher) relativize(candidate string) (string, bool) {
 		return "", false
 	}
 	return candidate, true
-}
-
-// matchesCandidate reports whether the matcher matches one concrete path - either the file
-// itself or one of its ancestor directories. isDir says which, so a `dirOnly` pattern
-// (written with a trailing `/`) can refuse to match a plain file.
-func (matcher GlobMatcher) matchesCandidate(rel string, isDir bool, debug bool) bool {
-	return matcher.matchesCandidateSeg(rel, rel[strings.LastIndex(rel, "/")+1:], isDir, debug)
 }
 
 // matchesCandidateSeg is matchesCandidate with the candidate's last path segment already
@@ -308,36 +288,6 @@ func (matcher GlobMatcher) matchesCandidateSeg(rel string, segment string, isDir
 		fmt.Println("  candidate", rel, "subject", subject, "isDir", isDir, "->", matched)
 	}
 	return matched
-}
-
-// matchesOne reports whether a single matcher matches the path, ignoring negation and
-// ordering. Kept for callers that reason about one pattern at a time.
-//
-// The file itself is tested before its ancestor directories: ordering is irrelevant to a
-// plain yes/no answer, and the file is far and away the likelier hit, so the ancestor walk
-// is usually skipped entirely.
-func (matcher GlobMatcher) matchesOne(fileInternal string, debug bool) bool {
-	if rel, ok := matcher.relativize(fileInternal); ok {
-		if matcher.matchesCandidate(rel, false, debug) {
-			return true
-		}
-	}
-	if !matcher.canMatchAncestor {
-		return false
-	}
-	for i := 0; i < len(fileInternal); i++ {
-		if fileInternal[i] != '/' || i == 0 {
-			continue
-		}
-		rel, ok := matcher.relativize(fileInternal[:i])
-		if !ok {
-			continue
-		}
-		if matcher.matchesCandidate(rel, true, debug) {
-			return true
-		}
-	}
-	return false
 }
 
 // compilePattern builds the gobwas matcher for one pattern. A segment matcher is always
@@ -463,38 +413,42 @@ func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) 
 // directories. Used for pattern sets without exceptions, where there is no ordering to
 // resolve and the first hit settles the answer.
 func anyMatches(fileInternal string, matchers []GlobMatcher, debug bool) bool {
-	// relativize depends only on the pattern root, and in practice every matcher in a set
-	// shares one, so the result is cached across matchers rather than recomputed per matcher.
-	// Kept as plain locals - a closure here showed up as ~13% of samples in profiling.
-	cachedRoot, cachedRel := "", ""
-	cachedOK, haveCached := false, false
+	// Pattern roots are almost always identical across a set. When they are, the scoping
+	// test is done ONCE for the file and the walk proceeds over the relative path: every
+	// ancestor of an in-scope file is itself in scope, so re-testing the root prefix per
+	// ancestor per matcher is pure waste (it dominated the profile as memequal).
+	if len(matchers) == 0 {
+		return false
+	}
+	root := matchers[0].patternRoot
+	uniformRoot := true
+	for i := 1; i < len(matchers); i++ {
+		if matchers[i].patternRoot != root {
+			uniformRoot = false
+			break
+		}
+	}
+	if !uniformRoot {
+		return anyMatchesMixedRoots(fileInternal, matchers, debug)
+	}
 
-	// Test the file itself against every matcher first: it is much the likeliest hit, and
-	// the ancestor walk below is then skipped entirely for anything that matches.
-	segment := fileInternal[strings.LastIndex(fileInternal, "/")+1:]
+	rel, inScope := matchers[0].relativize(fileInternal)
+	if !inScope {
+		return false
+	}
+
+	segment := rel[strings.LastIndex(rel, "/")+1:]
 	anyAncestorMatcher := false
 	for i := range matchers {
 		matcher := &matchers[i]
 		anyAncestorMatcher = anyAncestorMatcher || matcher.canMatchAncestor
 		if ls := matcher.literalSegment; ls != "" {
-			// length and first byte reject nearly every mismatch before the full compare;
-			// the scoping guard is only consulted once a name actually matches
 			if len(ls) == len(segment) && ls[0] == segment[0] && ls == segment {
-				if _, inScope := matcher.relativize(fileInternal); inScope {
-					return true
-				}
+				return true
 			}
 			continue
 		}
-		if !haveCached || matcher.patternRoot != cachedRoot {
-			cachedRoot = matcher.patternRoot
-			cachedRel, cachedOK = matcher.relativize(fileInternal)
-			haveCached = true
-		}
-		if !cachedOK {
-			continue
-		}
-		if matcher.matchesCandidateSeg(cachedRel, segment, false, debug) {
+		if matcher.matchesCandidateSeg(rel, segment, false, debug) {
 			return true
 		}
 	}
@@ -502,8 +456,117 @@ func anyMatches(fileInternal string, matchers []GlobMatcher, debug bool) bool {
 		return false
 	}
 
-	// Scan for segment boundaries once here rather than once per matcher, so a path of
-	// depth d costs one pass instead of one per pattern.
+	// Slash positions are the same for every matcher, so they are found once into a stack
+	// array. 24 covers any realistic path depth; deeper paths fall back to the slower form.
+	var slashes [24]int
+	n := 0
+	tooDeep := false
+	// from 1: index 0 would yield an empty ancestor when rel is itself absolute (which
+	// happens when the matcher has no root, e.g. non-path values)
+	for j := 1; j < len(rel); j++ {
+		if rel[j] != '/' {
+			continue
+		}
+		if n == len(slashes) {
+			tooDeep = true
+			break
+		}
+		slashes[n] = j
+		n++
+	}
+	if tooDeep {
+		return anyMatchesDeepPath(rel, matchers, debug)
+	}
+
+	// Matcher-outer, ancestor-inner: the per-matcher fields are hoisted into locals and
+	// canMatchAncestor is tested once per matcher instead of once per matcher per ancestor.
+	for i := range matchers {
+		matcher := &matchers[i]
+		if !matcher.canMatchAncestor {
+			continue
+		}
+		literalSeg, literalSuf := matcher.literalSegment, matcher.literalSuffix
+		segStart := 0
+		for k := 0; k < n; k++ {
+			j := slashes[k]
+			ancestor := rel[:j]
+			segment := ancestor[segStart:]
+			segStart = j + 1
+			// the candidate is a directory, so a dirOnly pattern is not disqualified here
+			if literalSeg != "" {
+				if len(literalSeg) == len(segment) && literalSeg[0] == segment[0] && literalSeg == segment {
+					return true
+				}
+				continue
+			}
+			// inline suffix reject: a directory name rarely ends like a file pattern, so
+			// this skips the call for nearly every ancestor
+			subject := ancestor
+			if matcher.matchesAnySegment {
+				subject = segment
+			}
+			if literalSuf != "" && !strings.HasSuffix(subject, literalSuf) {
+				continue
+			}
+			if matcher.globPattern.Match(subject) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// anyMatchesDeepPath handles paths with more segments than the fixed slash buffer in
+// anyMatches. It walks the ancestors directly instead of precomputing their offsets; the
+// result is identical, only the bookkeeping differs.
+func anyMatchesDeepPath(rel string, matchers []GlobMatcher, debug bool) bool {
+	segStart := 0
+	for j := 1; j < len(rel); j++ {
+		if rel[j] != '/' {
+			continue
+		}
+		ancestor := rel[:j]
+		segment := ancestor[segStart:]
+		segStart = j + 1
+		for i := range matchers {
+			matcher := &matchers[i]
+			if !matcher.canMatchAncestor {
+				continue
+			}
+			if ls := matcher.literalSegment; ls != "" {
+				if len(ls) == len(segment) && ls[0] == segment[0] && ls == segment {
+					return true
+				}
+				continue
+			}
+			if matcher.matchesCandidateSeg(ancestor, segment, true, debug) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// anyMatchesMixedRoots is the general form used when a set combines patterns rooted at
+// different directories (e.g. .gitignore files from several levels). Each matcher resolves
+// the candidate against its own root.
+func anyMatchesMixedRoots(fileInternal string, matchers []GlobMatcher, debug bool) bool {
+	segment := fileInternal[strings.LastIndex(fileInternal, "/")+1:]
+	anyAncestorMatcher := false
+	for i := range matchers {
+		matcher := &matchers[i]
+		anyAncestorMatcher = anyAncestorMatcher || matcher.canMatchAncestor
+		rel, ok := matcher.relativize(fileInternal)
+		if !ok {
+			continue
+		}
+		if matcher.matchesCandidateSeg(rel, segment, false, debug) {
+			return true
+		}
+	}
+	if !anyAncestorMatcher {
+		return false
+	}
 	segStart := 0
 	for j := 1; j < len(fileInternal); j++ {
 		if fileInternal[j] != '/' {
@@ -512,34 +575,16 @@ func anyMatches(fileInternal string, matchers []GlobMatcher, debug bool) bool {
 		ancestor := fileInternal[:j]
 		segment := ancestor[segStart:]
 		segStart = j + 1
-		haveCached = false // candidate changed, the cached relativize no longer applies
 		for i := range matchers {
 			matcher := &matchers[i]
 			if !matcher.canMatchAncestor {
 				continue
 			}
-			// the candidate is a directory, so a dirOnly pattern is not disqualified here.
-			// The segment comparison runs first and the scoping guard only on a hit: a bare
-			// name like `api` rooted at /repo/apps/web must not match
-			// /repo/apps/mobile/api/f.ts, but names collide rarely, so paying for the prefix
-			// test only when they do keeps the common reject at two byte comparisons.
-			if ls := matcher.literalSegment; ls != "" {
-				if len(ls) == len(segment) && ls[0] == segment[0] && ls == segment {
-					if _, inScope := matcher.relativize(ancestor); inScope {
-						return true
-					}
-				}
+			rel, ok := matcher.relativize(ancestor)
+			if !ok {
 				continue
 			}
-			if !haveCached || matcher.patternRoot != cachedRoot {
-				cachedRoot = matcher.patternRoot
-				cachedRel, cachedOK = matcher.relativize(ancestor)
-				haveCached = true
-			}
-			if !cachedOK {
-				continue
-			}
-			if matcher.matchesCandidateSeg(cachedRel, segment, true, debug) {
+			if matcher.matchesCandidateSeg(rel, segment, true, debug) {
 				return true
 			}
 		}
@@ -550,27 +595,32 @@ func anyMatches(fileInternal string, matchers []GlobMatcher, debug bool) bool {
 // anyNegatedMatches reports whether any negated matcher matches the path or a directory
 // above it. Ancestors are included because a negation naming a directory can re-include it.
 func anyNegatedMatches(fileInternal string, matchers []GlobMatcher, debug bool) bool {
-	segment := fileInternal[strings.LastIndex(fileInternal, "/")+1:]
 	for i := range matchers {
 		matcher := &matchers[i]
 		if !matcher.isNegated {
 			continue
 		}
-		if rel, ok := matcher.relativize(fileInternal); ok && matcher.matchesCandidateSeg(rel, segment, false, debug) {
+		// one scoping test per matcher, then the walk proceeds over the relative path -
+		// every ancestor of an in-scope file is itself in scope
+		rel, inScope := matcher.relativize(fileInternal)
+		if !inScope {
+			continue
+		}
+		if matcher.matchesCandidateSeg(rel, rel[strings.LastIndex(rel, "/")+1:], false, debug) {
 			return true
 		}
 		if !matcher.canMatchAncestor {
 			continue
 		}
 		segStart := 0
-		for j := 1; j < len(fileInternal); j++ {
-			if fileInternal[j] != '/' {
+		for j := 1; j < len(rel); j++ {
+			if rel[j] != '/' {
 				continue
 			}
-			ancestor := fileInternal[:j]
-			seg := ancestor[segStart:]
+			ancestor := rel[:j]
+			segment := ancestor[segStart:]
 			segStart = j + 1
-			if rel, ok := matcher.relativize(ancestor); ok && matcher.matchesCandidateSeg(rel, seg, true, debug) {
+			if matcher.matchesCandidateSeg(ancestor, segment, true, debug) {
 				return true
 			}
 		}

@@ -62,7 +62,7 @@ A config still using `rules` fails fast with a dedicated message:
 
 ---
 
-## Glob patterns now follow `.gitignore` rules
+## Glob patterns now strictly follow `.gitignore` rules
 
 :::note
 The v2 behavior described here is considered a bug. v3 fixes it.
@@ -75,13 +75,20 @@ v3 matches glob patterns the same way `git` matches `.gitignore` entries. v2 dif
 The changes affect config fields whose globs are matched against **file paths**:
 
 - Top-level: `ignoreFiles`, `processIgnoredFiles`
-- Per workspace: `entryPoints`
-- `restrictedImportsDetection`: `denyFiles`, `entryPoints`, `graphExclude`, and the file keys of `ignore`
-- `moduleBoundaries`: `pattern`, `allow`, `deny`
-- `orphanFilesDetection` / `unusedExportsDetection`: `graphExclude`, `ignoreFiles`, and the file keys of `ignore`
-- Equivalent CLI options that take path globs (e.g. `--graph-exclude`, `--process-ignored-files`, `--include`, `--exclude`)
+- Per workspace: `prodEntryPoints`, `devEntryPoints`, `ignoreEntryPoints`
+- `moduleBoundaries`: `pattern`, `allow`, `deny`, `denyIgnore`, `mutuallyExclusive`
+- `orphanFilesDetection`: `validEntryPoints`, `graphExclude`
+- `unusedExportsDetection`: `validEntryPoints`, `graphExclude`, `ignoreFiles`, and the file keys of `ignore`
+- `unresolvedImportsDetection`: `ignoreFiles`, and the file keys of `ignore`
+- `devDepsUsageOnProdDetection`: `prodEntryPoints`
+- `restrictedImportsDetection`: `entryPoints`, `graphExclude`, `denyFiles`, `ignoreMatches`
+- `restrictedImportersDetection`: `files`, `allowedEntryPoints`, `graphExclude`, `ignoreMatches`
+- `restrictedDirectImportersDetection`: `files`, `allowImporters`, `denyImporters`, `ignoreMatches`
+- CLI options that take path globs: `--graph-exclude`, `--process-ignored-files`, `--entry-points`, `--ignore-files`, `--include`, `--exclude`, `--result-include`, `--result-exclude`
 
-They do **not** affect globs matched against non-path values, which are unchanged: `ignoreImports` (e.g. `@internal/*`), `ignoreExports` (e.g. `Internal*`), and `restrictedImportsDetection.denyModules` (e.g. `lodash/*`).
+Your `.gitignore` files are read with the same matcher, so their entries are now handled exactly as `git` handles them.
+
+They do **not** affect globs matched against non-path values, which are unchanged: `ignoreImports` (e.g. `@internal/*`), `ignoreExports` (e.g. `Internal*`), and the `denyModules` / `modules` fields of the restricted-imports detectors (e.g. `lodash/*`).
 
 ### 1. `*` and `?` stop at `/`
 
@@ -132,16 +139,30 @@ Two rules changed.
 ["!src/a.ts", "*.ts"]   // src/a.ts IS matched
 ```
 
-**You cannot re-include a file inside an excluded directory.**
+**A `!` has no effect inside a directory that is already matched.**
 
 ```jsonc
-["src/**", "!src/vendor/**"]   // src/vendor/lib.ts stays matched
+["src/**", "!src/vendor/**"]
 ```
 
-`src/**` also matches the directory `src/vendor`, so the exception cannot apply. Exclude in a way that does not match the directory:
+This reads as "everything in `src/`, except `src/vendor/`". It does not work that way. `src/vendor/lib.ts` is still matched.
+
+The reason: `src/**` matches the **directory** `src/vendor`, not only the files in it. `git` stops at a matched directory and never looks inside, so the `!` line is never used.
+
+To make the exception work, the `!` must name the directory, and the first pattern must not reach the file by itself:
 
 ```jsonc
-["src/*", "!src/vendor"]       // src/vendor/lib.ts is re-included
+["src/*", "!src/vendor"]   // src/vendor/lib.ts is NOT matched
+```
+
+- `!src/vendor` names the directory and comes last, so the directory is no longer matched
+- `src/*` stops after one level, so it never matches `src/vendor/lib.ts` on its own
+
+Fixing only one of the two is not enough:
+
+```jsonc
+["src/**", "!src/vendor"]     // still matched - src/** matches lib.ts itself
+["src/*", "!src/vendor/**"]   // still matched - the ! never names the directory
 ```
 
 **Expect:** some `!` rules stop having an effect. Check every `!` pattern that points inside a directory you exclude with `/**`.

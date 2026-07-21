@@ -110,6 +110,7 @@ func discoverAllFilesForConfig(
 	ignoreFiles []string,
 	processIgnoredFiles []string,
 ) ([]string, []globutil.GlobMatcher, []globutil.GlobMatcher, *fs.DiscoveryExclusions, error) {
+
 	// Create glob matchers for ignore files
 	ignoreMatchers := globutil.CreateGlobMatchers(ignoreFiles, cwd)
 	processIgnoredMatchers := globutil.CreateGlobMatchers(processIgnoredFiles, cwd)

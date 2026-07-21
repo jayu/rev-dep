@@ -1,6 +1,10 @@
 package resolve
 
-import "rev-dep-go/internal/monorepo"
+import (
+	"maps"
+
+	"rev-dep-go/internal/monorepo"
+)
 
 func (rm *ResolverManager) MonorepoContext() *monorepo.MonorepoContext {
 	return rm.monorepoContext
@@ -18,8 +22,17 @@ func (rm *ResolverManager) RootParams() RootParams {
 	return rm.rootParams
 }
 
-func (rm *ResolverManager) FilesAndExtensions() *map[string]string {
-	return rm.filesAndExtensions
+// FilesAndExtensions returns a snapshot of the discovered-file index, copied under the
+// manager's lock. It deliberately does not expose the live map: that map is written by the
+// concurrent resolution goroutines, so a caller ranging over the real one would be reading
+// it unsynchronised. See ResolverManager.filesAndExtensionsMu.
+func (rm *ResolverManager) FilesAndExtensions() map[string]string {
+	rm.filesAndExtensionsMu.RLock()
+	defer rm.filesAndExtensionsMu.RUnlock()
+	if rm.filesAndExtensions == nil {
+		return nil
+	}
+	return maps.Clone(*rm.filesAndExtensions)
 }
 
 func (rm *ResolverManager) SubpackageResolvers() []SubpackageResolver {
@@ -89,8 +102,13 @@ func (mr *ModuleResolver) PackageJsonImports() *PackageJsonImports {
 	return mr.packageJsonImports
 }
 
+// AliasesCache returns a snapshot of the alias memo, copied under the resolver's lock. Like
+// FilesAndExtensions it must not expose the live map, which the resolution goroutines write
+// through cacheAlias.
 func (mr *ModuleResolver) AliasesCache() map[string]ResolvedModuleInfo {
-	return mr.aliasesCache
+	mr.aliasesCacheMu.RLock()
+	defer mr.aliasesCacheMu.RUnlock()
+	return maps.Clone(mr.aliasesCache)
 }
 
 func (mr *ModuleResolver) ResolverRoot() string {

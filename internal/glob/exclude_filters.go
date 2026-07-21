@@ -1,7 +1,10 @@
 package globutil
 
 import (
+	"runtime"
+	"slices"
 	"strings"
+	"sync"
 
 	"rev-dep-go/internal/pathutil"
 )
@@ -39,6 +42,69 @@ func IsExcludedByPatterns(path string, excludePatterns []GlobMatcher, includePat
 		return true
 	}
 	return !MatchesAnyGlobMatcher(path, includePatterns, false)
+}
+
+// parallelFilterThreshold is the input size below which RejectExcluded runs inline. Below a
+// few thousand paths the goroutine setup costs more than the matching it saves.
+const parallelFilterThreshold = 2048
+
+// RejectExcluded returns the paths that IsExcludedByPatterns does NOT exclude, preserving
+// input order. The result is always a freshly allocated slice, never the input.
+//
+// Matching is pure — GlobMatcher is read-only once built and gobwas matchers hold no
+// per-match state — so for large inputs the scan is sharded across the available cores.
+// Each shard writes a disjoint range of a preallocated verdict slice, which is what keeps
+// the result deterministic regardless of how the shards interleave.
+func RejectExcluded(paths []string, excludePatterns []GlobMatcher, includePatterns []GlobMatcher) []string {
+	if len(excludePatterns) == 0 {
+		// Without exclude patterns IsExcludedByPatterns excludes nothing, so every path is
+		// kept. Still return a copy: callers treat the result as a slice they own, while the
+		// input is often one the caller is separately appending to (ResolveImports grows
+		// sortedFiles during resolution). Handing back the caller's own backing array would
+		// let a later append on either side write through the other.
+		return slices.Clone(paths)
+	}
+
+	excluded := make([]bool, len(paths))
+
+	if len(paths) < parallelFilterThreshold {
+		for i, path := range paths {
+			excluded[i] = IsExcludedByPatterns(path, excludePatterns, includePatterns)
+		}
+	} else {
+		shards := runtime.GOMAXPROCS(0)
+		if shards > 16 {
+			shards = 16
+		}
+		if shards < 1 {
+			shards = 1
+		}
+		chunk := (len(paths) + shards - 1) / shards
+
+		var wg sync.WaitGroup
+		for start := 0; start < len(paths); start += chunk {
+			end := start + chunk
+			if end > len(paths) {
+				end = len(paths)
+			}
+			wg.Add(1)
+			go func(start, end int) {
+				defer wg.Done()
+				for i := start; i < end; i++ {
+					excluded[i] = IsExcludedByPatterns(paths[i], excludePatterns, includePatterns)
+				}
+			}(start, end)
+		}
+		wg.Wait()
+	}
+
+	kept := make([]string, 0, len(paths))
+	for i, path := range paths {
+		if !excluded[i] {
+			kept = append(kept, path)
+		}
+	}
+	return kept
 }
 
 func BuildIncludePrefixes(matchers []GlobMatcher) []string {

@@ -60,12 +60,32 @@ type ResolvedModuleInfo struct {
 type ModuleResolver struct {
 	tsConfigParsed     *TsConfigParsed
 	packageJsonImports *PackageJsonImports
-	aliasesCache       map[string]ResolvedModuleInfo
-	resolverRoot       string
-	manager            *ResolverManager
-	nodeModules        map[string]bool
-	devNodeModules     map[string]bool
-	packageJsonPath    string
+	// aliasesCache memoises alias resolution and is read/written from the concurrent
+	// resolution goroutines, so it is guarded by aliasesCacheMu. Access it only through
+	// cachedAlias / cacheAlias.
+	aliasesCacheMu  sync.RWMutex
+	aliasesCache    map[string]ResolvedModuleInfo
+	resolverRoot    string
+	manager         *ResolverManager
+	nodeModules     map[string]bool
+	devNodeModules  map[string]bool
+	packageJsonPath string
+}
+
+// cachedAlias returns a previously resolved alias for request, if one was recorded.
+func (f *ModuleResolver) cachedAlias(request string) (ResolvedModuleInfo, bool) {
+	f.aliasesCacheMu.RLock()
+	cached, ok := f.aliasesCache[request]
+	f.aliasesCacheMu.RUnlock()
+	return cached, ok
+}
+
+// cacheAlias records a resolved alias. Two goroutines resolving the same request compute
+// the same answer, so a racing write is harmless — last writer wins.
+func (f *ModuleResolver) cacheAlias(request string, info ResolvedModuleInfo) {
+	f.aliasesCacheMu.Lock()
+	f.aliasesCache[request] = info
+	f.aliasesCacheMu.Unlock()
 }
 
 type ResolutionError int8
@@ -107,7 +127,21 @@ type ResolverManager struct {
 	followMonorepoPackages FollowMonorepoPackagesValue
 	conditionNames         []string
 	rootParams             RootParams
-	filesAndExtensions     *map[string]string
+	// filesAndExtensions is read on nearly every module resolution and written whenever
+	// resolution discovers a file outside the initial set, both from the concurrent
+	// resolution goroutines. Reads vastly outnumber writes, so it is guarded by an RWMutex
+	// rather than the coarse resolution-wide lock this replaced. Every access must go
+	// through lookupFileExtension / AddFilePathToFilesAndExtensions.
+	filesAndExtensionsMu sync.RWMutex
+	filesAndExtensions   *map[string]string
+}
+
+// lookupFileExtension returns the recorded extension for an extension-less module path.
+func (rm *ResolverManager) lookupFileExtension(modulePath string) (string, bool) {
+	rm.filesAndExtensionsMu.RLock()
+	extension, has := (*rm.filesAndExtensions)[modulePath]
+	rm.filesAndExtensionsMu.RUnlock()
+	return extension, has
 }
 
 type RootParams struct {
@@ -697,8 +731,13 @@ func addFilePathToFilesAndExtensions(filePath string, filesAndExtensions *map[st
 	}
 }
 
+// AddFilePathToFilesAndExtensions records a newly discovered file. It is called from the
+// concurrent resolution goroutines, so it takes the write lock; readers use
+// lookupFileExtension.
 func (f *ResolverManager) AddFilePathToFilesAndExtensions(filePath string) {
+	f.filesAndExtensionsMu.Lock()
 	addFilePathToFilesAndExtensions(filePath, f.filesAndExtensions)
+	f.filesAndExtensionsMu.Unlock()
 }
 
 func applyWildcardValue(target string, wildcardValue string) string {
@@ -718,7 +757,7 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 	if match != "" {
 		// Explicit extension import, modulePath contains extension
 		explicitBase := strings.TrimSuffix(modulePath, match)
-		explicitExt, hasExplicitBase := (*f.manager.filesAndExtensions)[explicitBase]
+		explicitExt, hasExplicitBase := f.manager.lookupFileExtension(explicitBase)
 		if hasExplicitBase && explicitExt == match {
 			return modulePath, nil
 		}
@@ -726,7 +765,7 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 		// Explicit extension import, modulePath contains extension, special-case explicit index imports like ".../dir/index.ts".
 		if strings.HasPrefix(match, "/index") {
 			indexBase := explicitBase + "/index"
-			indexExt, hasIndexBase := (*f.manager.filesAndExtensions)[indexBase]
+			indexExt, hasIndexBase := f.manager.lookupFileExtension(indexBase)
 			expectedIndexExt := strings.TrimPrefix(match, "/index")
 			if hasIndexBase && indexExt == expectedIndexExt {
 				return modulePath, nil
@@ -745,7 +784,7 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 	suffixes := f.tsConfigParsed.ModuleSuffixes
 	if len(suffixes) == 0 {
 		// No suffixes configured - direct lookup
-		extension, has := (*f.manager.filesAndExtensions)[modulePath]
+		extension, has := f.manager.lookupFileExtension(modulePath)
 		if has {
 			return modulePath + extension, nil
 		}
@@ -756,7 +795,7 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 	// Try each suffix in order
 	for _, suffix := range suffixes {
 		suffixedPath := modulePath + suffix
-		extension, has := (*f.manager.filesAndExtensions)[suffixedPath]
+		extension, has := f.manager.lookupFileExtension(suffixedPath)
 		if has {
 			return suffixedPath + extension, nil
 		}
@@ -764,7 +803,7 @@ func (f *ModuleResolver) getModulePathWithExtension(modulePath string) (path str
 		// For non-empty suffixes, also try index files: basePath + "/index" + suffix
 		if suffix != "" {
 			indexPath := modulePath + "/index" + suffix
-			extension, has := (*f.manager.filesAndExtensions)[indexPath]
+			extension, has := f.manager.lookupFileExtension(indexPath)
 			if has {
 				return indexPath + extension, nil
 			}
@@ -868,7 +907,7 @@ func (f *ModuleResolver) tryResolvePackageJsonImport(request string, root string
 	actualFilePath, e := f.getModulePathWithExtension(modulePath)
 
 	if e == nil {
-		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
+		f.cacheAlias(request, ResolvedModuleInfo{Path: actualFilePath, Type: UserModule})
 		return true, actualFilePath, UserModule, nil
 	}
 
@@ -895,7 +934,7 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 			return true, modulePath, NotResolvedModule, e
 		}
 
-		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
+		f.cacheAlias(request, ResolvedModuleInfo{Path: actualFilePath, Type: UserModule})
 		return true, actualFilePath, UserModule, nil
 	}
 
@@ -942,7 +981,7 @@ func (f *ModuleResolver) tryResolveTsAlias(request string) (requestMatched bool,
 			return true, modulePath, NotResolvedModule, e
 		}
 
-		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: UserModule}
+		f.cacheAlias(request, ResolvedModuleInfo{Path: actualFilePath, Type: UserModule})
 
 		return true, actualFilePath, UserModule, nil
 	}
@@ -1034,7 +1073,7 @@ func (f *ModuleResolver) tryResolveWorkspacePackageImport(request string, root s
 
 	// Cache and return the result
 	if actualFilePath != "" {
-		f.aliasesCache[request] = ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule}
+		f.cacheAlias(request, ResolvedModuleInfo{Path: actualFilePath, Type: MonorepoModule})
 		return true, actualFilePath, MonorepoModule, nil
 	}
 
@@ -1127,7 +1166,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 		requestWithoutQuery = requestWithoutQuery[:idx]
 	}
 
-	cached, ok := f.aliasesCache[requestWithoutQuery]
+	cached, ok := f.cachedAlias(requestWithoutQuery)
 
 	if ok {
 		return cached.Path, cached.Type, nil
@@ -1135,15 +1174,14 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 
 	root := f.resolverRoot
 
-	var modulePath string
-	relativeFileName, _ := filepath.Rel(root, filePath)
-
-	// Relative path
+	// Relative path. filepath.Rel is only needed here, and it is one of the more expensive
+	// helpers in path/filepath (it cleans both arguments and walks them segment by segment),
+	// so it stays inside this branch rather than running for every bare specifier too.
 	if strings.HasPrefix(requestWithoutQuery, "./") || strings.HasPrefix(requestWithoutQuery, "../") || requestWithoutQuery == "." || requestWithoutQuery == ".." {
-		modulePath = filepath.Join(root, relativeFileName, "../"+requestWithoutQuery)
-
-		cleanedModulePath := filepath.Clean(modulePath)
-		modulePathInternal := pathutil.NormalizePathForInternal(cleanedModulePath)
+		relativeFileName, _ := filepath.Rel(root, filePath)
+		// filepath.Join already cleans its result, so no second Clean is needed.
+		modulePath := filepath.Join(root, relativeFileName, "../"+requestWithoutQuery)
+		modulePathInternal := pathutil.NormalizePathForInternal(modulePath)
 
 		p, e := f.getModulePathWithExtension(modulePathInternal)
 
@@ -1199,6 +1237,7 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 }
 
 func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, explicitPackageDirs []string, customAssetExtensions []string, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
+
 	tsConfigPath := pathutil.JoinWithCwd(cwd, tsconfigJson)
 	pkgJsonPath := pathutil.JoinWithCwd(cwd, packageJson)
 
@@ -1213,8 +1252,10 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	// Let ParseTsConfig read and resolve the tsconfig file. If user provided
 	// an explicit tsconfig path and parsing fails, exit with error to match
 	// previous behaviour. Otherwise continue with empty tsconfig content.
+	merged, err := ParseTsConfig(tsConfigPath)
+
 	tsconfigContent := []byte("")
-	if merged, err := ParseTsConfig(tsConfigPath); err == nil {
+	if err == nil {
 		tsconfigContent = merged
 	} else {
 		diag.Warnf("Error when parsing tsconfig: %v", err)
@@ -1293,18 +1334,27 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 
 	slices.Sort(sortedFiles)
 
-	filteredFiles := make([]string, 0, len(sortedFiles))
+	filteredFiles := globutil.RejectExcluded(sortedFiles, excludeFilePatterns, includeFilePatterns)
 
-	for _, filePath := range sortedFiles {
-		if !globutil.IsExcludedByPatterns(filePath, excludeFilePatterns, includeFilePatterns) {
-			filteredFiles = append(filteredFiles, filePath)
-		}
+	// Same filter over the parsed entries. Their paths are pulled into a slice first so the
+	// scan can be sharded the same way, then used to select the entries to keep.
+	entryPaths := make([]string, len(fileImportsArr))
+	for i, entry := range fileImportsArr {
+		entryPaths[i] = entry.FilePath
 	}
-	filteredFileImportsArr := make([]FileImports, 0, len(fileImportsArr))
+	keptPaths := globutil.RejectExcluded(entryPaths, excludeFilePatterns, includeFilePatterns)
 
-	for _, entry := range fileImportsArr {
-		if !globutil.IsExcludedByPatterns(entry.FilePath, excludeFilePatterns, includeFilePatterns) {
-			filteredFileImportsArr = append(filteredFileImportsArr, entry)
+	filteredFileImportsArr := fileImportsArr
+	if len(keptPaths) != len(fileImportsArr) {
+		keptSet := make(map[string]struct{}, len(keptPaths))
+		for _, path := range keptPaths {
+			keptSet[path] = struct{}{}
+		}
+		filteredFileImportsArr = make([]FileImports, 0, len(keptPaths))
+		for _, entry := range fileImportsArr {
+			if _, keep := keptSet[entry.FilePath]; keep {
+				filteredFileImportsArr = append(filteredFileImportsArr, entry)
+			}
 		}
 	}
 
@@ -1315,6 +1365,16 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()
+	// imports aliases (*fileImportsArr)[idx].Imports - the element copy above is shallow, so
+	// writing through it updates the entry in the array. Every per-import write in this
+	// function goes through this one alias; do not reintroduce a second spelling
+	// (fileImports.Imports[...]), which obscures the ownership argument below.
+	//
+	// INVARIANT (load-bearing, see the unlocked section in the loop): this goroutine has
+	// exclusive ownership of index idx, because each index is pushed to ch_idx exactly once.
+	// That is enforced by the discoveredFiles double-check guarding the only site that
+	// appends a new entry and enqueues its index. Enqueuing any index twice would turn the
+	// unsynchronised writes below into a data race rather than merely duplicated work.
 	imports := fileImports.Imports
 	filePath := fileImports.FilePath
 
@@ -1327,12 +1387,19 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		}
 
 		moduleName := module.GetNodeModuleName(imp.Request)
-		mu.Lock()
+
+		// No lock from here through the end of the classification below. Everything read
+		// in this stretch is either immutable for the whole resolution phase
+		// (builtInModules, nodeModules, monorepoContext.PackageToPath,
+		// followMonorepoPackages) or carries its own fine-grained lock
+		// (filesAndExtensions, aliasesCache, the monorepo package caches). The writes all
+		// target imports[impIdx], and this goroutine owns idx exclusively —
+		// each index is pushed to ch_idx exactly once — so no two goroutines write the
+		// same element. The shared discovery bookkeeping further down still takes mu.
 		_, isBuiltInModule := builtInModules[moduleName]
 		if isBuiltInModule {
-			fileImports.Imports[impIdx].PathOrName = moduleName
-			fileImports.Imports[impIdx].ResolvedType = BuiltInModule
-			mu.Unlock()
+			imports[impIdx].PathOrName = moduleName
+			imports[impIdx].ResolvedType = BuiltInModule
 			continue
 		}
 
@@ -1370,16 +1437,13 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 			}
 
 			if !isFollowedWorkspace {
-				fileImports.Imports[impIdx].PathOrName = moduleName
-				fileImports.Imports[impIdx].ResolvedType = NodeModule
-				mu.Unlock()
+				imports[impIdx].PathOrName = moduleName
+				imports[impIdx].ResolvedType = NodeModule
 
 				continue
 			}
 
 		}
-
-		mu.Unlock()
 
 		if resolutionErr != nil {
 
@@ -1399,17 +1463,13 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 					if missingFilePath != "" {
 						// If file exists on disk but matches exclude patterns, mark it as excluded by user and do not add to discovery lists
 						if globutil.IsExcludedByPatterns(missingFilePath, excludeFilePatterns, includeFilePatterns) {
-							mu.Lock()
 							imports[impIdx].PathOrName = missingFilePath
 							imports[impIdx].ResolvedType = ExcludedByUser
-							mu.Unlock()
 						} else {
 							missingFileContent, err := os.ReadFile(pathutil.DenormalizePathForOS(missingFilePath))
 							if err == nil {
-								mu.Lock()
 								imports[impIdx].PathOrName = missingFilePath
 								imports[impIdx].ResolvedType = resolvedType
-								mu.Unlock()
 
 								missingFileImports := parser.ParseImportsByte(missingFileContent, ignoreTypeImports, parseMode)
 
@@ -1446,10 +1506,8 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 					} else if isAssetPath(modulePath, assetExtensionsSet) {
 						_, err := os.Stat(modulePath)
 						if err == nil {
-							mu.Lock()
 							imports[impIdx].PathOrName = modulePath
 							imports[impIdx].ResolvedType = AssetModule
-							mu.Unlock()
 						} else {
 							mu.Lock()
 							// In case we encounter missing import, we don't know if it was node_module or path to user file
@@ -1479,10 +1537,8 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		} else {
 			// resolved to a path; if it's excluded by user, mark and do not add to discovery
 			if globutil.IsExcludedByPatterns(importPath, excludeFilePatterns, includeFilePatterns) {
-				mu.Lock()
-				fileImports.Imports[impIdx].PathOrName = importPath
+				imports[impIdx].PathOrName = importPath
 				imports[impIdx].ResolvedType = ExcludedByUser
-				mu.Unlock()
 			} else {
 				mu.Lock()
 				_, hasFileInDiscoveredFiles := (*discoveredFiles)[importPath]
@@ -1493,7 +1549,10 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 						missingFileImports := parser.ParseImportsByte(missingFileContent, ignoreTypeImports, parseMode)
 						mu.Lock()
-						// Double-check after acquiring lock in case another goroutine added it
+						// Double-check after acquiring lock in case another goroutine added it.
+						// This is also what upholds the exclusive-index-ownership invariant
+						// documented at the top of this function: it is the only place an
+						// index is enqueued, and it runs at most once per importPath.
 						if _, alreadyAdded := (*discoveredFiles)[importPath]; !alreadyAdded {
 							*fileImportsArr = append(*fileImportsArr, FileImports{
 								FilePath: importPath,
@@ -1521,10 +1580,8 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 				} else {
 					mu.Unlock()
 				}
-				mu.Lock()
-				fileImports.Imports[impIdx].PathOrName = importPath
+				imports[impIdx].PathOrName = importPath
 				imports[impIdx].ResolvedType = resolvedType
-				mu.Unlock()
 			}
 		}
 	}
@@ -1576,7 +1633,7 @@ func DetectModuleSuffixVariants(files []string, resolverManager *ResolverManager
 					continue
 				}
 				candidate := base + otherSuffix
-				if _, exists := (*resolverManager.filesAndExtensions)[candidate]; exists {
+				if _, exists := resolverManager.lookupFileExtension(candidate); exists {
 					variants[file] = true
 					break
 				}

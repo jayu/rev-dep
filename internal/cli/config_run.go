@@ -15,6 +15,7 @@ import (
 	"rev-dep-go/internal/emoji"
 	"rev-dep-go/internal/node"
 	"rev-dep-go/internal/pathutil"
+	"rev-dep-go/internal/perf"
 	"rev-dep-go/internal/telemetry"
 )
 
@@ -94,6 +95,7 @@ var configRunCmd = &cobra.Command{
 
 		executionTime := time.Since(startTime)
 		fmt.Printf("\n%s  Done in %dms.\n", emoji.Done, executionTime.Milliseconds())
+		perf.Report(executionTime)
 
 		if shouldConfigRunExitNonZero(result, runConfigFix) || lintHasErrors {
 			os.Exit(1)

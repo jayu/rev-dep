@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"rev-dep-go/internal/perf"
 	"runtime"
 	"slices"
 	"strings"
@@ -1252,7 +1253,9 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	// Let ParseTsConfig read and resolve the tsconfig file. If user provided
 	// an explicit tsconfig path and parsing fails, exit with error to match
 	// previous behaviour. Otherwise continue with empty tsconfig content.
+	doneTsconfig := perf.Track("resolve-imports/parse-tsconfig")
 	merged, err := ParseTsConfig(tsConfigPath)
+	doneTsconfig()
 
 	tsconfigContent := []byte("")
 	if err == nil {
@@ -1270,6 +1273,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		pkgJsonContent = []byte("")
 	}
 
+	doneRM := perf.Track("resolve-imports/resolver-manager")
 	resolverManager = NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
 		TsConfigContent:     tsconfigContent,
 		PkgJsonContent:      pkgJsonContent,
@@ -1279,6 +1283,8 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 		ExplicitPackageDirs: explicitPackageDirs,
 	}, excludeFilePatterns, includeFilePatterns)
 
+	doneRM()
+	doneResolveFiles := perf.Track("resolve-imports/resolve-files")
 	missingResolutionFailedAttempts := map[string]bool{}
 	discoveredFiles := map[string]bool{}
 
@@ -1330,9 +1336,14 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	}
 
 	wg.Wait()
+	doneResolveFiles()
 	close(ch_idx)
 
+	donePostSort := perf.Track("resolve-imports/post-sort")
 	slices.Sort(sortedFiles)
+	donePostSort()
+	donePostFilter := perf.Track("resolve-imports/post-filter")
+	defer donePostFilter()
 
 	filteredFiles := globutil.RejectExcluded(sortedFiles, excludeFilePatterns, includeFilePatterns)
 

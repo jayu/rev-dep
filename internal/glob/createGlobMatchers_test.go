@@ -250,19 +250,26 @@ func TestGlobSeparatorSemantics(t *testing.T) {
 		{"'foo?bar.ts' does not let '?' match '/'", "foo?bar.ts", "/fs/root/foo/bar.ts", false},
 		{"'foo?bar.ts' matches a single character", "foo?bar.ts", "/fs/root/fooXbar.ts", true},
 
-		// Bare wildcard patterns are segment-anchored; use '**/' for any depth.
-		{"bare '*.ts' does not match a nested file", "*.ts", "/fs/root/src/a/b.ts", false},
+		// A pattern with no '/' applies at any depth: gitignore matches it against every
+		// path segment, so '*.ts' is not root-only. '**/*.ts' is merely a spelling of the
+		// same thing ("**/foo ... the same as pattern foo" - gitignore(5)).
+		{"bare '*.ts' matches a nested file", "*.ts", "/fs/root/src/a/b.ts", true},
 		{"bare '*.ts' matches a root-level file", "*.ts", "/fs/root/index.ts", true},
 		{"'**/*.ts' matches a root-level file", "**/*.ts", "/fs/root/index.ts", true},
 		{"'**/*.ts' matches a nested file", "**/*.ts", "/fs/root/src/a/b.ts", true},
 
 		// Idiomatic ways to express a recursive directory still work.
-		{"'dist*' does not cross '/' into directory contents", "dist*", "/fs/root/dist/bundle.js", false},
+		//
+		// Note '*' not crossing '/' does not mean a pattern cannot reach nested files: it
+		// constrains what a single segment matches, while a pattern matching a *directory*
+		// still ignores that directory's whole subtree. 'dist*' matches the `dist` directory
+		// and 'src/*' matches the `src/a` directory, so files below them are matched too.
+		{"'dist*' matches contents of a directory it matches", "dist*", "/fs/root/dist/bundle.js", true},
 		{"'dist/**' matches directory contents recursively", "dist/**", "/fs/root/dist/bundle.js", true},
 		{"plain 'dist' name matches directory contents", "dist", "/fs/root/dist/bundle.js", true},
 		{"trailing-slash 'dist/' matches directory contents recursively", "dist/", "/fs/root/dist/sub/x.js", true},
 		{"'src/*' matches a direct child", "src/*", "/fs/root/src/a.ts", true},
-		{"'src/*' does not match a nested file", "src/*", "/fs/root/src/a/b.ts", false},
+		{"'src/*' matches a nested file via the directory it matches", "src/*", "/fs/root/src/a/b.ts", true},
 		{"'src/**' matches a nested file", "src/**", "/fs/root/src/a/b.ts", true},
 	}
 
@@ -387,25 +394,34 @@ func TestGlobNegation(t *testing.T) {
 		match    bool
 	}{
 		{"positive matches, no exception", []string{"src/**", "!src/vendor/**"}, "/fs/root/src/app/x.ts", true},
-		{"exception cancels a positive", []string{"src/**", "!src/vendor/**"}, "/fs/root/src/vendor/y.ts", false},
 
-		// gitignore-style directory pattern re-included by an exception
-		{"dir pattern matches", []string{"build/", "!build/keep/**"}, "/fs/root/build/foo.ts", true},
-		{"dir pattern re-included by exception", []string{"build/", "!build/keep/**"}, "/fs/root/build/keep/bar.ts", false},
+		// An exception works only when no *directory* above the file is excluded. `dist/**`
+		// does not match bare `dist`, so `dist` stays traversable and the file is re-included.
+		{"exception re-includes a file", []string{"dist/**", "!dist/manifest.json"}, "/fs/root/dist/manifest.json", false},
+		{"sibling of a re-included file still matches", []string{"dist/**", "!dist/manifest.json"}, "/fs/root/dist/app.js", true},
 
-		// a negation only cancels the target it names, not other positives
+		// gitignore: "It is not possible to re-include a file if a parent directory of that
+		// file is excluded." `src/**` matches the *directory* `src/vendor`, so the exception
+		// below it cannot take effect. All four verified with `git check-ignore` (git 2.39.5).
+		{"exception cannot re-include under an excluded dir", []string{"src/**", "!src/vendor/**"}, "/fs/root/src/vendor/y.ts", true},
+		{"dir pattern excludes the whole subtree", []string{"build/", "!build/keep/**"}, "/fs/root/build/foo.ts", true},
+		{"exception cannot re-include under an excluded dir pattern", []string{"build/", "!build/keep/**"}, "/fs/root/build/keep/bar.ts", true},
+		{"anchored exception cannot re-include under an excluded dir", []string{"/dist/**", "!/dist/public/**"}, "/fs/root/dist/public/app.ts", true},
+
+		// a negation only concerns the subtree it names, but cannot rescue it here either
 		{"negation is scoped to its own subtree", []string{"a/**", "b/**", "!a/skip/**"}, "/fs/root/b/skip/x.ts", true},
-		{"negation cancels its own subtree", []string{"a/**", "b/**", "!a/skip/**"}, "/fs/root/a/skip/x.ts", false},
+		{"negation cannot rescue its own excluded subtree", []string{"a/**", "b/**", "!a/skip/**"}, "/fs/root/a/skip/x.ts", true},
 
-		// anchored negation
+		// anchored positive
 		{"anchored positive matches", []string{"/dist/**", "!/dist/public/**"}, "/fs/root/dist/app.ts", true},
-		{"anchored exception cancels", []string{"/dist/**", "!/dist/public/**"}, "/fs/root/dist/public/app.ts", false},
 
 		// a set with only negations matches nothing (no positive to cancel)
 		{"only negations match nothing", []string{"!src/**"}, "/fs/root/src/app/x.ts", false},
 
-		// order independence: exception declared before the positive still applies
-		{"exception before positive still cancels", []string{"!src/vendor/**", "src/**"}, "/fs/root/src/vendor/y.ts", false},
+		// gitignore is last-match-wins, so pattern order is significant
+		{"later positive overrides an earlier exception", []string{"!src/vendor/**", "src/**"}, "/fs/root/src/vendor/y.ts", true},
+		{"later exception overrides an earlier positive", []string{"*.ts", "!src/a.ts"}, "/fs/root/src/a.ts", false},
+		{"same two patterns reversed", []string{"!src/a.ts", "*.ts"}, "/fs/root/src/a.ts", true},
 
 		// a lone "!" is skipped and does not disable the sibling positive
 		{"lone bang is ignored", []string{"file.ts", "!"}, "/fs/root/file.ts", true},

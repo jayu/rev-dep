@@ -201,9 +201,7 @@ func StringifyResolverManager(rm *ResolverManager) []byte {
 
 	// filesAndExtensions
 	b.WriteString("  filesAndExtensions:\n")
-	if rm.FilesAndExtensions() != nil {
-		// dereference map
-		m := *rm.FilesAndExtensions()
+	if m := rm.FilesAndExtensions(); m != nil {
 		keys := make([]string, 0, len(m))
 		for k := range m {
 			keys = append(keys, k)
@@ -314,16 +312,17 @@ func stringifyModuleResolver(mr *ModuleResolver, indent string) string {
 	b.WriteString(mr.ResolverRoot())
 	b.WriteString("\n")
 
-	// aliasesCache
-	keys := make([]string, 0, len(mr.AliasesCache()))
-	for k := range mr.AliasesCache() {
+	// aliasesCache - snapshot once; the accessor copies on every call.
+	aliasesCache := mr.AliasesCache()
+	keys := make([]string, 0, len(aliasesCache))
+	for k := range aliasesCache {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	b.WriteString(indent)
 	b.WriteString("aliasesCache:\n")
 	for _, k := range keys {
-		val := mr.AliasesCache()[k]
+		val := aliasesCache[k]
 		b.WriteString(indent)
 		b.WriteString("  ")
 		b.WriteString(k)

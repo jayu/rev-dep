@@ -18,6 +18,22 @@ type GlobMatcher struct {
 	isAnchoredToPatternRoot            bool
 	isAdditional                       bool
 	isNegated                          bool
+	// The plain-name comparisons in matchesOne need "/name", "name/" and "/name/". They are
+	// pure functions of inputString, so they are built once here rather than concatenated
+	// afresh on every match — this path runs hundreds of thousands of times per run.
+	slashName      string
+	nameSlash      string
+	slashNameSlash string
+}
+
+// withDerivedFields fills the precomputed comparison strings used by matchesOne.
+func (matcher GlobMatcher) withDerivedFields() GlobMatcher {
+	if matcher.shouldMatchAnyFileOrDirWithPattern {
+		matcher.slashName = "/" + matcher.inputString
+		matcher.nameSlash = matcher.inputString + "/"
+		matcher.slashNameSlash = "/" + matcher.inputString + "/"
+	}
+	return matcher
 }
 
 func rebaseRelativePattern(pattern string, patternRoot string) (string, string, bool, bool) {
@@ -130,7 +146,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 			shouldMatchAnyFileOrDirWithPattern: shouldMatchAnyFileOrDirWithPattern,
 			isAdditional:                       false,
 			isNegated:                          isNegated,
-		}
+		}.withDerivedFields()
 		globMatchers = append(globMatchers, item)
 		// !!! This glob library does not match files in using directory wildcard (**/) if file is in root directory. eg `**/*.log`` will not match against `file.log`, but will match against `dir/file.log`
 		// This is not aligned with TS rev-dep implementation and not aligned with .gitignore behavior
@@ -145,7 +161,7 @@ func CreateGlobMatchers(patterns []string, patternsRoot string) []GlobMatcher {
 				shouldMatchAnyFileOrDirWithPattern: false,
 				isAdditional:                       true,
 				isNegated:                          isNegated,
-			}
+			}.withDerivedFields()
 			globMatchers = append(globMatchers, additionalItem)
 		}
 	}
@@ -162,47 +178,43 @@ func (matcher GlobMatcher) matchesOne(fileInternal string, debug bool) bool {
 	if matcher.globPattern.Match(fileWithoutPrefix) {
 		return true
 	}
-	if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && strings.HasSuffix(fileWithoutPrefix, "/"+matcher.inputString) {
-		// matches file/dir with name exactly as the pattern (unnanchored only - anchored patterns like /boot must only match at root)
-		return true
+	if !matcher.shouldMatchAnyFileOrDirWithPattern {
+		return false
 	}
-	if matcher.shouldMatchAnyFileOrDirWithPattern && matcher.isAnchoredToPatternRoot && strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/") {
+	if matcher.isAnchoredToPatternRoot {
 		// anchored patterns (e.g. /node_modules) should only match at this matcher root
-		return true
+		return strings.HasPrefix(fileWithoutPrefix, matcher.nameSlash)
 	}
-	if matcher.shouldMatchAnyFileOrDirWithPattern && !matcher.isAnchoredToPatternRoot && (strings.Contains(fileWithoutPrefix, "/"+matcher.inputString+"/") || strings.HasPrefix(fileWithoutPrefix, matcher.inputString+"/")) {
-		// matches directory with name exactly as the pattern
-		return true
-	}
-	return false
+	// matches file/dir with name exactly as the pattern, or any directory of that name
+	// (unanchored only - anchored patterns like /boot must only match at root)
+	return strings.HasSuffix(fileWithoutPrefix, matcher.slashName) ||
+		strings.Contains(fileWithoutPrefix, matcher.slashNameSlash) ||
+		strings.HasPrefix(fileWithoutPrefix, matcher.nameSlash)
 }
 
 func MatchesAnyGlobMatcher(filePath string, matchers []GlobMatcher, debug bool) bool {
 	fileInternal := pathutil.NormalizePathForInternal(filePath)
 
+	// Stop at the first positive match: whether the set contains negations is answered by
+	// the second loop below, which skips non-negated matchers on a boolean field without
+	// evaluating any glob. The previous version kept matching every remaining pattern just
+	// to set a hasNegated flag, which is the expensive way to learn a cheap fact.
 	positiveMatched := false
-	hasNegated := false
 	for i := range matchers {
 		if matchers[i].isNegated {
-			hasNegated = true
 			continue
-		}
-		if positiveMatched {
-			continue // keep scanning cheaply to learn whether any negation exists
 		}
 		if matchers[i].matchesOne(fileInternal, debug) {
 			positiveMatched = true
+			break
 		}
 	}
 
 	if !positiveMatched {
 		return false
 	}
-	if !hasNegated {
-		return true
-	}
 
-	// A positive matched and the set has exceptions - a negated match cancels the result.
+	// A positive matched and the set may have exceptions - a negated match cancels the result.
 	for i := range matchers {
 		if matchers[i].isNegated && matchers[i].matchesOne(fileInternal, debug) {
 			if debug {

@@ -298,3 +298,71 @@ _index.ts → fileA.ts → fileC.ts → _index.ts
 Both point at the same tangle. Fix it once and both disappear.
 
 So if you track a cycle count in CI (for example a baseline number you do not want to exceed), lower it after upgrading.
+
+---
+
+## Unused dependencies: binary names match whole words only
+
+:::note
+The v2 behavior described here is considered a bug. v3 fixes it.
+:::
+
+To decide whether a CLI-only dependency is used, rev-dep takes the binary names a package installs (its `bin` field) and looks for them in your `scripts` and in the files you list under `filesWithBinaries`.
+
+In v2 that lookup was a plain substring search, so a name also matched inside a longer word. In v3 it matches only as a whole word.
+
+Two things changed here, in opposite directions:
+
+| Change | Effect on results | Action needed |
+| --- | --- | --- |
+| Binary names match whole words only | more packages reported unused | yes, see below |
+| Scoped packages with a string `bin` are detected correctly | fewer packages reported unused | none |
+
+### What changes
+
+Take a dependency `@acme/pack`, which installs a binary called `pack`. How each script is judged:
+
+| Only script in the project | v2 | v3 |
+| --- | --- | --- |
+| `pack --out dist` | used | used |
+| `npx pack --out dist` | used | used |
+| `./node_modules/.bin/pack` | used | used |
+| `pack --out dist && jest` | used | used |
+| `webpack --mode production` | used | **unused** |
+| `node scripts/pack.js` | used | **unused** |
+
+The two changed rows were both wrong in v2. Nothing in those projects runs `pack` - the name only sits inside the word `webpack`, and inside the filename `pack.js`.
+
+The rule: letters, digits, `_`, `-` and `.` are part of a word. Everything else - space, `/`, `:`, `&`, quotes - separates words, so a real invocation still matches.
+
+Two consequences worth knowing:
+
+- **Hyphenated names are different tools.** A dependency `npm` is no longer marked used by a script running `npm-run-all`.
+- **A filename is not an invocation.** A package whose binary is `ts` is no longer marked used by `node build.ts`, and `biome.json` alone no longer marks `@biomejs/biome` used. If a tool is only ever referenced by a filename, list the file under `filesWithBinaries` or add the package to `excludeModules`.
+
+### Why this might affect you
+
+Stricter matching finds fewer usages, so **more dependencies can be reported as unused**. A check that passed in v2 can fail in v3, without you changing anything - the run passed because of an accidental partial match.
+
+Short binary names are where this bites: `rm`, `ts`, `c8`, `pack` hide inside ordinary words like `format`, `normalize` and `webpack`.
+
+### How to update
+
+1. Run `rev-dep node-modules unused` (or your `config run`) after upgrading and compare with v2.
+2. For each newly reported package, check whether anything actually runs it.
+3. If it is genuinely unused, remove it. If it is used in a way rev-dep cannot see, add the file that uses it to `filesWithBinaries`, or exclude the package.
+
+### The scoped `bin` fix, in detail
+
+npm strips the scope when `bin` is a string: `@biomejs/biome` with `"bin": "./bin/biome"` installs `node_modules/.bin/biome`, not `.bin/@biomejs/biome`.
+
+v2 searched for the scoped name, which never appears in a script:
+
+| | rev-dep looked for | Found in `"lint": "biome check ."` | `@biomejs/biome` reported |
+| --- | --- | --- | --- |
+| v2 | `@biomejs/biome` | no | **unused** - wrong |
+| v3 | `biome` | yes | used |
+
+This hit CLI-only scoped devDependencies, which is most scoped tooling. The object form of `bin` was always correct - its keys are the real binary names, scope or not.
+
+The fix only finds **more** usages, so it can only reduce reported issues. A passing check cannot start failing because of it. Nothing to update.

@@ -23,6 +23,12 @@ func TestParseBinField(t *testing.T) {
 			want:       []string{"eslint"},
 		},
 		{
+			name:       "string form drops the scope",
+			raw:        `"./bin/biome"`,
+			moduleName: "@biomejs/biome",
+			want:       []string{"biome"},
+		},
+		{
 			name:       "object form uses its keys, sorted",
 			raw:        `{"tsc":"./bin/tsc","tsserver":"./bin/tsserver"}`,
 			moduleName: "typescript",
@@ -119,25 +125,23 @@ func TestParseBinFieldIsDeterministic(t *testing.T) {
 	}
 }
 
-// TestParseBinFieldScopedStringForm documents a known-wrong result rather than asserting the
-// correct one, so the suite stays green until the fix lands.
-//
-// npm strips the scope for string-form bin: @scope/foo with "bin": "./cli.js" installs
-// .bin/foo, not .bin/@scope/foo. parseBinField returns the scoped name, so the substring
-// match against scripts like "foo --fix" fails and the dependency is reported unused - a
-// false positive that tells the user to remove a package they depend on.
-//
-// See notes/scoped-package-bin-bug.md. When fixing, flip this to want []string{"foo"}.
-func TestParseBinFieldScopedStringForm(t *testing.T) {
-	got := parseBinField(json.RawMessage(`"./cli.js"`), "@scope/foo")
-
-	currentBuggy := []string{"@scope/foo"}
-	correct := []string{"foo"}
-
-	if slices.Equal(got, correct) {
-		t.Errorf("scoped string-form bin now returns %v - the bug is fixed; update this test to assert the correct behaviour and delete notes/scoped-package-bin-bug.md", got)
+// TestBinaryNameForModule pins the scope-stripping rule on its own, away from JSON parsing.
+func TestBinaryNameForModule(t *testing.T) {
+	cases := map[string]string{
+		"@biomejs/biome": "biome",
+		"@scope/foo":     "foo",
+		"eslint":         "eslint",
+		// Not a scope, so the name stays whole.
+		"foo/bar": "foo/bar",
+		// Malformed, but must not panic or slice out of range.
+		"@":      "@",
+		"@scope": "@scope",
+		"":       "",
 	}
-	if !slices.Equal(got, currentBuggy) {
-		t.Errorf("parseBinField returned %v, expected either the known-buggy %v or the correct %v", got, currentBuggy, correct)
+
+	for moduleName, want := range cases {
+		if got := binaryNameForModule(moduleName); got != want {
+			t.Errorf("binaryNameForModule(%q) = %q, want %q", moduleName, got, want)
+		}
 	}
 }

@@ -89,6 +89,7 @@ func (o *RestrictedDevDependenciesUsageOptions) IsEnabled() bool { return o != n
 
 type Rule struct {
 	Path                                string                                       `json:"path"` // Required
+	TsConfigPath                        string                                       `json:"tsConfigPath,omitempty"`
 	ProdEntryPoints                     []string                                     `json:"prodEntryPoints,omitempty"`
 	DevEntryPoints                      []string                                     `json:"devEntryPoints,omitempty"`
 	IgnoreEntryPoints                   []string                                     `json:"ignoreEntryPoints,omitempty"`
@@ -243,6 +244,7 @@ func marshalOneOrManyObjects[T any](items []*T) interface{} {
 func (r Rule) MarshalJSON() ([]byte, error) {
 	type ruleWire struct {
 		Path                               string                 `json:"path"`
+		TsConfigPath                       string                 `json:"tsConfigPath,omitempty"`
 		ProdEntryPoints                    []string               `json:"prodEntryPoints,omitempty"`
 		DevEntryPoints                     []string               `json:"devEntryPoints,omitempty"`
 		IgnoreEntryPoints                  []string               `json:"ignoreEntryPoints,omitempty"`
@@ -262,6 +264,7 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 
 	wire := ruleWire{
 		Path:                               r.Path,
+		TsConfigPath:                       r.TsConfigPath,
 		ProdEntryPoints:                    r.ProdEntryPoints,
 		DevEntryPoints:                     r.DevEntryPoints,
 		IgnoreEntryPoints:                  r.IgnoreEntryPoints,
@@ -285,6 +288,7 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 func (r *Rule) UnmarshalJSON(data []byte) error {
 	type ruleWire struct {
 		Path                               string          `json:"path"`
+		TsConfigPath                       string          `json:"tsConfigPath,omitempty"`
 		ProdEntryPoints                    []string        `json:"prodEntryPoints,omitempty"`
 		DevEntryPoints                     []string        `json:"devEntryPoints,omitempty"`
 		IgnoreEntryPoints                  []string        `json:"ignoreEntryPoints,omitempty"`
@@ -348,6 +352,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	}
 
 	r.Path = wire.Path
+	r.TsConfigPath = wire.TsConfigPath
 	r.ProdEntryPoints = wire.ProdEntryPoints
 	r.DevEntryPoints = wire.DevEntryPoints
 	r.IgnoreEntryPoints = wire.IgnoreEntryPoints
@@ -733,6 +738,23 @@ func ValidateRulePath(path string) error {
 	return validateRulePath(path)
 }
 
+func validateRuleTsConfigPath(value interface{}) error {
+	pathStr, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("must be a string, got %T", value)
+	}
+	if strings.TrimSpace(pathStr) == "" {
+		return fmt.Errorf("cannot be empty")
+	}
+	if filepath.IsAbs(pathStr) {
+		return fmt.Errorf("'%s' must be relative to the workspace directory, not an absolute path", pathStr)
+	}
+	if strings.Contains(pathStr, "../") {
+		return fmt.Errorf("'%s' contains '../' which is not allowed. It must be within the workspace directory", pathStr)
+	}
+	return nil
+}
+
 // normalizeRulePath normalizes a rule path by removing leading "./"
 func normalizeRulePath(path string) string {
 	// Remove leading "./" prefix
@@ -879,6 +901,7 @@ func validateRawNodeModulesResolution(value interface{}) error {
 func validateRawRule(rule map[string]interface{}, index int) error {
 	allowedRuleFields := map[string]bool{
 		"path":                               true,
+		"tsConfigPath":                       true,
 		"prodEntryPoints":                    true,
 		"devEntryPoints":                     true,
 		"ignoreEntryPoints":                  true,
@@ -919,6 +942,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 	// Validate the path
 	if err := validateRulePath(pathStr); err != nil {
 		return fmt.Errorf("workspaces[%d].path: %v", index, err)
+	}
+
+	if tsConfigPath, exists := rule["tsConfigPath"]; exists {
+		if err := validateRuleTsConfigPath(tsConfigPath); err != nil {
+			return fmt.Errorf("workspaces[%d].tsConfigPath: %v", index, err)
+		}
 	}
 
 	if followMonorepoPackages, exists := rule["followMonorepoPackages"]; exists {

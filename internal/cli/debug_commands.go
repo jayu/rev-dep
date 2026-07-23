@@ -50,7 +50,7 @@ var debugParseFileCmd = &cobra.Command{
 		path := pathutil.JoinWithCwd(cwd, debugFile)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{path}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil, nodeModulesStrategy)
+		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{path}, tsconfigJsonPath, conditionNames, followValue, nil, nodeModulesStrategy)
 
 		fmt.Println(path)
 
@@ -98,7 +98,7 @@ var debugGetTreeCmd = &cobra.Command{
 		cwd := pathutil.ResolveAbsoluteCwd(debugTreeCwd)
 		excludeFiles := []string{}
 
-		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followValue, nil, nodeModulesStrategy)
+		minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, debugTreeIgnoreType, excludeFiles, nil, []string{}, tsconfigJsonPath, conditionNames, followValue, nil, nodeModulesStrategy)
 
 		treeWithLabels := make(map[string][]MinimalDependencyWithLabels)
 		for key, deps := range minimalTree {

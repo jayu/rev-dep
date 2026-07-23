@@ -401,4 +401,18 @@ Delete the flags from any `rev-dep config run` or `rev-dep config lint` call in 
 }
 ```
 
-Other commands (`circular`, `files`, `resolve`, `node-modules`, …) keep all four flags. Only `config run` and `config lint` lose them.
+
+---
+
+## `--package-json` is removed from every command
+
+The `--package-json` flag is gone from all commands
+
+A package's `package.json` always lives at the root of its directory — Node requires it there, so it cannot be relocated. There was nothing for the flag to point at that was not already `<directory>/package.json`, and in a monorepo it was silently ignored.
+
+
+### How to update
+
+Delete `--package-json` from any command line. There is no replacement — the default (`<directory>/package.json`) is the only correct location.
+
+If tool is run from different directory than the package.json, use `--cwd` to point at the package root. 

@@ -72,9 +72,7 @@ func TestMonorepoResolution(t *testing.T) {
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["apps/app-1/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}
@@ -172,9 +170,7 @@ func TestMonorepoResolutionSelectiveFollow(t *testing.T) {
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["apps/app-1/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}
@@ -234,9 +230,7 @@ func TestMonorepoResolutionSelectiveFollowDoesNotUseWildcardMatching(t *testing.
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["apps/app-1/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}
@@ -296,9 +290,7 @@ func TestMonorepoResolutionSelectiveFollow_UsesPackageLocalResolverContext(t *te
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["apps/web/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}
@@ -349,9 +341,7 @@ func TestDependencyValidation(t *testing.T) {
 
 	cwd := filepath.Join(tmpDir, "packages/app")
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["packages/app/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     []string{filepath.Join(cwd, "index.ts")},
 		Cwd:             cwd,
 	}
@@ -414,9 +404,7 @@ func TestMonorepoSubpackageExports(t *testing.T) {
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["apps/app/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}
@@ -500,9 +488,7 @@ func TestMonorepoRelaxedAndAliases(t *testing.T) {
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte(files["packages/app/tsconfig.json"]),
-		PkgJsonContent:  []byte(files["packages/app/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             appDir,
 	}
@@ -582,9 +568,7 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["apps/app/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}
@@ -679,9 +663,7 @@ func TestMonorepoInternalTsconfigAlias(t *testing.T) {
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["apps/app/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}
@@ -829,9 +811,7 @@ func TestWorkspaceDependencyVariations(t *testing.T) {
 		appPath := filepath.Join(tmpDir, "apps", appName)
 
 		// Setup manager for this app
-		rootParams := resolve.RootParams{
-			TsConfigContent: []byte("{}"),
-			PkgJsonContent:  []byte(files["apps/"+appName+"/package.json"]),
+		rootParams := resolve.ResolverManagerInput{
 			SortedFiles: []string{
 				pathutil.NormalizePathForInternal(filepath.Join(appPath, "index.ts")),
 				targetPath,
@@ -905,9 +885,7 @@ func TestMonorepoImportAliasToWorkspacePackage(t *testing.T) {
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["apps/app/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}

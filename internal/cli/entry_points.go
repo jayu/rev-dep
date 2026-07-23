@@ -112,8 +112,7 @@ func analyzePackageEntryPoints(pkgDir string) packageEntryAnalysis {
 		nil,                                 // excludeFiles
 		nil,                                 // includeFiles
 		nil,                                 // upfrontFilesList (empty -> scan the dir)
-		"",                                  // packageJson (auto: pkgDir/package.json)
-		"",                                  // tsconfigJson (auto: pkgDir/tsconfig.json; "" avoids os.Exit on missing)
+		"",                                  // tsconfigJson (auto: pkgDir/tsconfig.json)
 		nil,                                 // conditionNames
 		model.FollowMonorepoPackagesValue{}, // don't traverse into sibling packages
 		nil,                                 // customAssetExtensions

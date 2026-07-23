@@ -127,7 +127,10 @@ type ResolverManager struct {
 	cwdPackagePath         string
 	followMonorepoPackages FollowMonorepoPackagesValue
 	conditionNames         []string
-	rootParams             RootParams
+	input                  ResolverManagerInput
+	tsConfigOverrides      map[string]string // normalized dir -> tsconfig path override
+	// createdDirs tracks dirs a resolver was built for, to warn about overrides that matched none.
+	createdDirs map[string]bool
 	// filesAndExtensions is read on nearly every module resolution and written whenever
 	// resolution discovers a file outside the initial set, both from the concurrent
 	// resolution goroutines. Reads vastly outnumber writes, so it is guarded by an RWMutex
@@ -145,22 +148,29 @@ func (rm *ResolverManager) lookupFileExtension(modulePath string) (string, bool)
 	return extension, has
 }
 
-type RootParams struct {
-	TsConfigContent []byte
-	PkgJsonContent  []byte
-	PkgJsonPath     string
-	SortedFiles     []string
-	Cwd             string
-	// ExplicitPackageDirs are absolute, internal-form package directories that should be
-	// treated as workspace packages even when there is no root package.json "workspaces"
-	// declaration. These come from rev-dep config rule paths (already resolved to absolute
-	// paths by the caller) so that setups with package subdirectories but no workspace-aware
-	// root manifest still resolve per-package node_modules dependencies.
-	ExplicitPackageDirs []string
+type PackageSpec struct {
+	Dir          string // package directory (absolute, internal-form)
+	TsConfigPath string // "" => <Dir>/tsconfig.json ; else a path (absolute, or relative to Dir)
 }
 
-func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, conditionNames []string, rootParams RootParams, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher) *ResolverManager {
-	monorepoCtx := detectMonorepoContext(rootParams.Cwd, followMonorepoPackages, rootParams.ExplicitPackageDirs, excludeFilePatterns, includeFilePatterns)
+type ResolverManagerInput struct {
+	Cwd         string
+	SortedFiles []string
+	Packages    []PackageSpec
+}
+
+func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, conditionNames []string, input ResolverManagerInput, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher) *ResolverManager {
+	explicitPackageDirs := make([]string, 0, len(input.Packages))
+	tsConfigOverrides := make(map[string]string, len(input.Packages))
+	for _, pkg := range input.Packages {
+		dir := pathutil.NormalizePathForInternal(pkg.Dir)
+		explicitPackageDirs = append(explicitPackageDirs, dir)
+		if pkg.TsConfigPath != "" {
+			tsConfigOverrides[dir] = pkg.TsConfigPath
+		}
+	}
+
+	monorepoCtx := detectMonorepoContext(input.Cwd, followMonorepoPackages, explicitPackageDirs, excludeFilePatterns, includeFilePatterns)
 
 	rm := &ResolverManager{
 		monorepoContext:        monorepoCtx,
@@ -170,29 +180,44 @@ func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, cond
 		cwdPackagePath:         "",
 		followMonorepoPackages: followMonorepoPackages,
 		conditionNames:         conditionNames,
-		rootParams:             rootParams,
+		input:                  input,
+		tsConfigOverrides:      tsConfigOverrides,
+		createdDirs:            map[string]bool{},
 		filesAndExtensions:     &map[string]string{},
 	}
 
-	for _, filePath := range rootParams.SortedFiles {
+	for _, filePath := range input.SortedFiles {
 		addFilePathToFilesAndExtensions(pathutil.NormalizePathForInternal(filePath), rm.filesAndExtensions)
 	}
 
 	if monorepoCtx == nil {
-		rm.rootResolver = NewImportsResolver(rootParams.Cwd, rootParams.TsConfigContent, rootParams.PkgJsonContent, rootParams.PkgJsonPath, rm.conditionNames, rm.rootParams.SortedFiles, rm)
+		rm.rootResolver = createResolverForDir(input.Cwd, rm)
 		rm.cwdResolver = rm.rootResolver
+		rm.warnUnmatchedTsConfigOverrides()
 		return rm
 	}
 
 	rm.rootResolver = createResolverForDir(monorepoCtx.WorkspaceRoot, rm)
-	rm.cwdPackagePath = findCwdPackagePath(monorepoCtx, rootParams.Cwd)
+	rm.cwdPackagePath = findCwdPackagePath(monorepoCtx, input.Cwd)
 
 	packagePathsToCreate := collectPackagePathsToCreate(monorepoCtx, followMonorepoPackages, rm.cwdPackagePath)
 	rm.subpackageResolvers = createSubpackageResolvers(monorepoCtx, packagePathsToCreate, rm)
 
 	rm.cwdResolver = findCwdResolver(rm.rootResolver, rm.subpackageResolvers, rm.cwdPackagePath)
 
+	rm.warnUnmatchedTsConfigOverrides()
+
 	return rm
+}
+
+// warnUnmatchedTsConfigOverrides warns (under --verbose) about a tsconfig override whose
+// directory never got a resolver — e.g. the tool was run from a directory the override doesn't name.
+func (rm *ResolverManager) warnUnmatchedTsConfigOverrides() {
+	for dir := range rm.tsConfigOverrides {
+		if !rm.createdDirs[dir] {
+			diag.Warnf("tsconfig override for %q was ignored: no package resolver was created for that directory", pathutil.DenormalizePathForOS(dir))
+		}
+	}
 }
 
 func detectMonorepoContext(cwd string, followMonorepoPackages FollowMonorepoPackagesValue, explicitPackageDirs []string, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher) *monorepo.MonorepoContext {
@@ -298,18 +323,29 @@ func findCwdResolver(rootResolver *ModuleResolver, subpackageResolvers []Subpack
 }
 
 func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
-
-	var pkgContent []byte
+	normDir := pathutil.NormalizePathForInternal(dirPath)
+	rm.createdDirs[normDir] = true
 
 	pkgJsonPath := filepath.Join(dirPath, "package.json")
-	pkgContent, _ = os.ReadFile(pkgJsonPath)
+	pkgContent, _ := os.ReadFile(pkgJsonPath)
 
 	tsConfigPath := filepath.Join(dirPath, "tsconfig.json")
-	tsConfigContent, _ := ParseTsConfig(tsConfigPath)
+	override, hasOverride := rm.tsConfigOverrides[normDir]
+	if hasOverride {
+		tsConfigPath = pathutil.JoinWithCwd(dirPath, override)
+	}
 
-	resolver := NewImportsResolver(dirPath, tsConfigContent, pkgContent, pkgJsonPath, rm.conditionNames, rm.rootParams.SortedFiles, rm)
+	tsConfigContent, err := ParseTsConfig(tsConfigPath)
+	if err != nil {
+		// A missing default tsconfig is normal; a bad explicit override is worth a warning.
+		// Either way continue with empty content so resolution still runs.
+		if hasOverride {
+			diag.Warnf("Error parsing tsconfig override %q: %v", pathutil.DenormalizePathForOS(tsConfigPath), err)
+		}
+		tsConfigContent = nil
+	}
 
-	return resolver
+	return NewImportsResolver(dirPath, tsConfigContent, pkgContent, pkgJsonPath, rm.conditionNames, rm.input.SortedFiles, rm)
 }
 
 func (rm *ResolverManager) GetResolverForFile(filePath string) *ModuleResolver {
@@ -1237,50 +1273,13 @@ func (f *ModuleResolver) ResolveModule(request string, filePath string) (path st
 	return "", NotResolvedModule, &e
 }
 
-func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packageJson string, tsconfigJson string, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, explicitPackageDirs []string, customAssetExtensions []string, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
-
-	tsConfigPath := pathutil.JoinWithCwd(cwd, tsconfigJson)
-	pkgJsonPath := pathutil.JoinWithCwd(cwd, packageJson)
-
-	if tsconfigJson == "" {
-		tsConfigPath = filepath.Join(cwd, "tsconfig.json")
-	}
-
-	if packageJson == "" {
-		pkgJsonPath = pathutil.JoinWithCwd(cwd, "package.json")
-	}
-
-	// Let ParseTsConfig read and resolve the tsconfig file. If user provided
-	// an explicit tsconfig path and parsing fails, exit with error to match
-	// previous behaviour. Otherwise continue with empty tsconfig content.
-	doneTsconfig := perf.Track("resolve-imports/parse-tsconfig")
-	merged, err := ParseTsConfig(tsConfigPath)
-	doneTsconfig()
-
-	tsconfigContent := []byte("")
-	if err == nil {
-		tsconfigContent = merged
-	} else {
-		diag.Warnf("Error when parsing tsconfig: %v", err)
-		if tsconfigJson != "" {
-			os.Exit(1)
-		}
-	}
-
-	pkgJsonContent, err := os.ReadFile(pkgJsonPath)
-
-	if err != nil {
-		pkgJsonContent = []byte("")
-	}
+func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd string, ignoreTypeImports bool, skipResolveMissing bool, packages []PackageSpec, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, conditionNames []string, followMonorepoPackages FollowMonorepoPackagesValue, customAssetExtensions []string, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) (fileImports []FileImports, adjustedSortedFiles []string, resolverManager *ResolverManager) {
 
 	doneRM := perf.Track("resolve-imports/resolver-manager")
-	resolverManager = NewResolverManager(followMonorepoPackages, conditionNames, RootParams{
-		TsConfigContent:     tsconfigContent,
-		PkgJsonContent:      pkgJsonContent,
-		PkgJsonPath:         pkgJsonPath,
-		SortedFiles:         sortedFiles,
-		Cwd:                 cwd,
-		ExplicitPackageDirs: explicitPackageDirs,
+	resolverManager = NewResolverManager(followMonorepoPackages, conditionNames, ResolverManagerInput{
+		Cwd:         cwd,
+		SortedFiles: sortedFiles,
+		Packages:    packages,
 	}, excludeFilePatterns, includeFilePatterns)
 
 	doneRM()

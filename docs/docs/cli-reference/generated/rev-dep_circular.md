@@ -28,7 +28,6 @@ rev-dep circular --ignore-types-imports
       --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
   -h, --help                                                        help for circular
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
-      --package-json string                                         Path to package.json (default: ./package.json)
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                                                     Show warnings and verbose output

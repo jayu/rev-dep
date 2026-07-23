@@ -186,11 +186,11 @@ func StringifyResolverManager(rm *ResolverManager) []byte {
 	// rootParams
 	b.WriteString("  rootParams:\n")
 	b.WriteString("    Cwd: ")
-	b.WriteString(rm.RootParams().Cwd)
+	b.WriteString(rm.Input().Cwd)
 	b.WriteString("\n")
 	// SortedFiles (sort for determinism)
-	files := make([]string, len(rm.RootParams().SortedFiles))
-	copy(files, rm.RootParams().SortedFiles)
+	files := make([]string, len(rm.Input().SortedFiles))
+	copy(files, rm.Input().SortedFiles)
 	sort.Strings(files)
 	b.WriteString("    SortedFiles:\n")
 	for _, f := range files {

@@ -40,6 +40,7 @@ And can additionally define:
 - [`prodEntryPoints`](config-based-checks/entry-points-definition.mdx): Workspace-level production entry point patterns for detector defaults
 - [`devEntryPoints`](config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points): Workspace-level development entry point patterns for detector defaults
 - [`ignoreEntryPoints`](config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points): Workspace-level patterns for leftover entry points to exclude from reporting. Matching files are never reported as orphan files and their unused exports are not reported.
+- `tsConfigPath` - path to this workspace's `tsconfig.json`, relative to `path`. Overrides the default `<path>/tsconfig.json` used for module resolution. Set it when the tsconfig that holds your path aliases lives under a non-default name, e.g. `"tsConfigPath": "tsconfig.build.json"`.
 
 And any detector setup:
 - [`moduleBoundaries`](config-based-checks/checks/module-boundaries.mdx): Array of module boundary rules

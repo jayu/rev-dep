@@ -206,9 +206,7 @@ func TestPnpmResolution(t *testing.T) {
 		}
 	}
 
-	rootParams := resolve.RootParams{
-		TsConfigContent: []byte("{}"),
-		PkgJsonContent:  []byte(files["packages/app/package.json"]),
+	rootParams := resolve.ResolverManagerInput{
 		SortedFiles:     allKeys,
 		Cwd:             cwd,
 	}

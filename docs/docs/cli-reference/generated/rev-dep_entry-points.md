@@ -30,7 +30,6 @@ rev-dep entry-points --print-deps-count
       --graph-exclude strings                                       Exclude files matching these glob patterns from analysis
   -h, --help                                                        help for entry-points
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
-      --package-json string                                         Path to package.json (default: ./package.json)
       --print-deps-count                                            Show the number of dependencies for each entry point
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --result-exclude strings                                      Exclude files matching these glob patterns from results

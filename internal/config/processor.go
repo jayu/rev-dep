@@ -187,6 +187,15 @@ func anyEnabled[T enabledOption](items []T) bool {
 	return false
 }
 
+func workspacePackages(config *RevDepConfig, cwd string) []resolve.PackageSpec {
+	packages := make([]resolve.PackageSpec, 0, len(config.Rules))
+	for _, rule := range config.Rules {
+		dir := pathutil.NormalizePathForInternal(filepath.Clean(pathutil.JoinWithCwd(cwd, rule.Path)))
+		packages = append(packages, resolve.PackageSpec{Dir: dir, TsConfigPath: rule.TsConfigPath})
+	}
+	return packages
+}
+
 // buildDependencyTreeForConfig builds dependency tree for config processing
 func buildDependencyTreeForConfig(
 	allFiles []string,
@@ -196,7 +205,7 @@ func buildDependencyTreeForConfig(
 	cwd string,
 	customAssetExtensions []string,
 	parseMode model.ParseMode,
-	explicitPackageDirs []string,
+	packages []resolve.PackageSpec,
 ) (model.MinimalDependencyTree, *resolve.ResolverManager, error) {
 	// For config processing, we always resolve type imports (we filter later per-check)
 	ignoreTypeImports := false
@@ -225,13 +234,11 @@ func buildDependencyTreeForConfig(
 		cwd,
 		ignoreTypeImports,
 		skipResolveMissing,
-		"",
-		"",
+		packages,
 		excludePatterns,
 		includePatterns,
 		conditionNames,
 		followMonorepoPackages,
-		explicitPackageDirs,
 		customAssetExtensions,
 		parseMode,
 		model.NodeModulesMatchingStrategySelfResolver,
@@ -576,8 +583,7 @@ func processRuleChecks(
 					detection.PkgJsonFieldsWithBinaries,
 					detection.FilesWithBinaries,
 					detection.FilesWithModules,
-					"", // use empty path so it is discovered in fullRulePath
-					"", // use empty path so it is discovered in fullRulePath
+					"", // empty tsconfig path => discovered in fullRulePath
 					detection.IncludeModules,
 					detection.ExcludeModules,
 					entryOwnedFiles,
@@ -931,9 +937,6 @@ func processRuleChecks(
 }
 
 // ProcessConfig processes a rev-dep configuration with parallel rule and check execution.
-//
-// It does not take package.json / tsconfig.json paths: each workspace resolves the ones in
-// its own directory, so there is no global path to pass.
 func ProcessConfig(
 	config *RevDepConfig,
 	cwd string,
@@ -959,14 +962,6 @@ func ProcessConfig(
 	// own package.json as a workspace package even when there is no workspace-aware root
 	// package.json, so per-package node_modules dependencies resolve instead of being
 	// reported as unresolved.
-	rulePackageDirs := make([]string, 0, len(config.Rules))
-	for _, rule := range config.Rules {
-		if rule.Path == "" {
-			continue
-		}
-		rulePackageDirs = append(rulePackageDirs, pathutil.NormalizePathForInternal(filepath.Clean(pathutil.JoinWithCwd(cwd, rule.Path))))
-	}
-
 	fullTree, resolverManager, err := buildDependencyTreeForConfig(
 		allFiles,
 		excludePatterns,
@@ -975,7 +970,7 @@ func ProcessConfig(
 		cwd,
 		config.CustomAssetExtensions,
 		parseMode,
-		rulePackageDirs,
+		workspacePackages(config, cwd),
 	)
 	if err != nil {
 		return nil, err

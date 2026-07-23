@@ -896,14 +896,6 @@ func sortOverlaps(overlaps []OverlapFinding) {
 // expensive step) and derives the module universe from it. Called only when the module
 // rule runs.
 func buildModuleUniverseForConfig(cfg *RevDepConfig, cwd string, allFiles []string, excludePatterns, includePatterns []globutil.GlobMatcher) ([]string, error) {
-	rulePackageDirs := make([]string, 0, len(cfg.Rules))
-	for _, rule := range cfg.Rules {
-		if rule.Path == "" {
-			continue
-		}
-		rulePackageDirs = append(rulePackageDirs, pathutil.NormalizePathForInternal(filepath.Clean(pathutil.JoinWithCwd(cwd, rule.Path))))
-	}
-
 	fullTree, resolverManager, err := buildDependencyTreeForConfig(
 		allFiles,
 		excludePatterns,
@@ -912,7 +904,7 @@ func buildModuleUniverseForConfig(cfg *RevDepConfig, cwd string, allFiles []stri
 		cwd,
 		cfg.CustomAssetExtensions,
 		model.ParseModeBasic,
-		rulePackageDirs,
+		workspacePackages(cfg, cwd),
 	)
 	if err != nil {
 		return nil, err

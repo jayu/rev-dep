@@ -18,8 +18,8 @@ func (rm *ResolverManager) ConditionNames() []string {
 	return rm.conditionNames
 }
 
-func (rm *ResolverManager) RootParams() RootParams {
-	return rm.rootParams
+func (rm *ResolverManager) Input() ResolverManagerInput {
+	return rm.input
 }
 
 // FilesAndExtensions returns a snapshot of the discovered-file index, copied under the

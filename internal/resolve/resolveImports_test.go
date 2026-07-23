@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	globutil "rev-dep-go/internal/glob"
 	"rev-dep-go/internal/model"
 	"rev-dep-go/internal/module"
 	"rev-dep-go/internal/pathutil"
@@ -17,7 +16,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExists(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDir.ts"]
 	_, fileWithIndexExists := minimalTree["__fixtures__/mockProject/src/fileDirTheSameName/index.ts"]
@@ -36,7 +35,7 @@ func TestShouldResolveFileIfDirWithTheSameNameExistsOutOfCwd(t *testing.T) {
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithTheSameNameAsDirOutsideCwd.ts"]
 
@@ -51,7 +50,7 @@ func TestShouldResolveImportToFileWhenNodeModuleWithTheSamePrefixExists(t *testi
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/mockProject/src/importFileWithSamePathAsNodeModule.ts"]
 
@@ -66,7 +65,7 @@ func TestShouldResolveFilesWithAmbiguousImportsByOrderingExtensions(t *testing.T
 	ignoreTypeImports := true
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	imports := minimalTree["__fixtures__/ambiguousImports/test.ts"]
 
@@ -87,12 +86,7 @@ func TestParsingTsConfig(t *testing.T) {
 	t.Run("Should not crash on empty config file", func(t *testing.T) {
 		tsConfig := `{}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     []string{},
-			Cwd:             "/root/",
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, []string{}, tempCwd(t))
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.TsConfigParsed().Aliases)
@@ -111,12 +105,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     []string{},
-			Cwd:             "/root/",
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, []string{}, tempCwd(t))
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.TsConfigParsed().Aliases)
@@ -142,12 +131,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     []string{},
-			Cwd:             "/root/",
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, []string{}, tempCwd(t))
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.TsConfigParsed().Aliases)
@@ -177,12 +161,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     []string{},
-			Cwd:             "/root/",
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, []string{}, tempCwd(t))
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.TsConfigParsed().Aliases)
@@ -209,12 +188,7 @@ func TestParsingTsConfig(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     []string{},
-			Cwd:             "/root/",
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, []string{}, tempCwd(t))
 		resolver := rm.GetResolverForFile("/root/")
 
 		aliasesCount := len(resolver.TsConfigParsed().Aliases)
@@ -246,7 +220,7 @@ func TestParsingTsConfig(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	t.Run("Should resolve aliased import", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/fileA.ts",
 			cwd + "app/index.js",
@@ -259,12 +233,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("@/dir/fileA", cwd+"app/index.js")
@@ -278,7 +247,7 @@ func TestResolve(t *testing.T) {
 		}
 	})
 	t.Run("Should resolve baseUrl import", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/fileA.ts",
 			cwd + "app/index.js",
@@ -289,12 +258,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("app/dir/fileA", cwd+"app/index.js")
@@ -308,7 +272,7 @@ func TestResolve(t *testing.T) {
 		}
 	})
 	t.Run("Should prioritize wildcard path alias over baseUrl wildcard", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "pathsTarget/fileA.ts",
 			cwd + "baseurlTarget/fileA.ts",
@@ -323,12 +287,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("fileA", cwd+"app/index.ts")
@@ -342,7 +301,7 @@ func TestResolve(t *testing.T) {
 	})
 
 	t.Run("Should resolve non-wildcard alias with file extension", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "db/index.ts",
 			cwd + "app/index.js",
@@ -355,12 +314,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("db", cwd+"app/index.js")
@@ -375,7 +329,7 @@ func TestResolve(t *testing.T) {
 	})
 
 	t.Run("Should resolve relative import", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/fileA.ts",
 			cwd + "app/index.js",
@@ -386,12 +340,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA", cwd+"app/index.js")
@@ -406,7 +355,7 @@ func TestResolve(t *testing.T) {
 	})
 
 	t.Run("Should resolve relative import to parent dir", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/fileA.ts",
 			cwd + "app/index.js",
@@ -417,12 +366,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/dir/fileA.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("../index", cwd+"app/dir/fileA.ts")
@@ -437,7 +381,7 @@ func TestResolve(t *testing.T) {
 	})
 
 	t.Run("Should resolve import to file using other ts-supported extension", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/fileA.ts",
 			cwd + "app/index.ts",
@@ -448,12 +392,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA.jsx", cwd+"app/index.ts")
@@ -467,17 +406,12 @@ func TestResolve(t *testing.T) {
 		}
 	})
 	t.Run("Should resolve .mts files", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/fileA.mts",
 			cwd + "app/index.ts",
 		}
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(`{"compilerOptions": {}}`),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(`{"compilerOptions": {}}`), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA", cwd+"app/index.ts")
@@ -491,17 +425,12 @@ func TestResolve(t *testing.T) {
 	})
 
 	t.Run("Should strip query from import request before resolution", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/fileA.ts",
 			cwd + "app/index.ts",
 		}
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(`{"compilerOptions": {}}`),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(`{"compilerOptions": {}}`), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir/fileA.ts?raw", cwd+"app/index.ts")
@@ -515,7 +444,7 @@ func TestResolve(t *testing.T) {
 	})
 
 	t.Run("Should resolve wildcard alias import with explicit extension without duplicating it", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "runtime/helpers/classApplyDescriptorSet.js",
 			cwd + "app/index.ts",
@@ -528,12 +457,7 @@ func TestResolve(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("@runtime/helpers/classApplyDescriptorSet.js", cwd+"app/index.ts")
@@ -562,7 +486,7 @@ func TestGetMinimalDepsTreeForCwd_SupportsMtsFiles(t *testing.T) {
 		t.Fatalf("failed to write dep.mts: %v", err)
 	}
 
-	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, _, _ := GetMinimalDepsTreeForCwd(tmpDir, true, []string{}, nil, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
 
 	indexPath := pathutil.NormalizePathForInternal(filepath.Join(tmpDir, "index.mts"))
 	depPath := pathutil.NormalizePathForInternal(filepath.Join(tmpDir, "dep.mts"))
@@ -582,7 +506,7 @@ func TestGetMinimalDepsTreeForCwd_SupportsMtsFiles(t *testing.T) {
 func TestRelativeImports(t *testing.T) {
 
 	t.Run("Should resolve relative import to parent dir", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/fileA.ts",
 			cwd + "app/index.js",
@@ -593,12 +517,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/dir/fileA.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("../index", cwd+"app/dir/fileA.ts")
@@ -613,7 +532,7 @@ func TestRelativeImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve directory import to index file", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/index.ts",
 			cwd + "app/index.js",
@@ -624,12 +543,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.js")
 
 		resolvedPath, _, err := resolver.ResolveModule("./dir", cwd+"app/index.js")
@@ -644,7 +558,7 @@ func TestRelativeImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve import '.' to current dir index", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/dir/index.ts",
 			cwd + "app/index.js",
@@ -656,12 +570,7 @@ func TestRelativeImports(t *testing.T) {
 		}`
 		pkgConfig := `{}` // Assuming an empty pkgConfig for this test
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte(pkgConfig),
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte(pkgConfig), filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/dir/file.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule(".", cwd+"app/dir/file.ts")
@@ -676,7 +585,7 @@ func TestRelativeImports(t *testing.T) {
 	})
 
 	t.Run("Should resolve import '..' to parent dir index", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/index.ts",
 			cwd + "app/dir/file.ts",
@@ -687,12 +596,7 @@ func TestRelativeImports(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/dir/file.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("..", cwd+"app/dir/file.ts")
@@ -739,7 +643,7 @@ func TestResolveNodeModules(t *testing.T) {
 	ignoreTypeImports := false
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	nodeModulesImports := minimalTree[cwd+"src/nodeModules.ts"]
 
@@ -797,7 +701,7 @@ func TestModuleSuffixes(t *testing.T) {
 	})
 
 	t.Run("Should resolve suffixed file with moduleSuffixes", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/button.ios.tsx",
 			cwd + "app/button.tsx",
@@ -809,12 +713,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
@@ -828,7 +727,7 @@ func TestModuleSuffixes(t *testing.T) {
 	})
 
 	t.Run("Should fallback to unsuffixed file when suffixed file does not exist", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/button.tsx",
 			cwd + "app/index.ts",
@@ -839,12 +738,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
@@ -858,7 +752,7 @@ func TestModuleSuffixes(t *testing.T) {
 	})
 
 	t.Run("Should resolve suffixed index file in directory", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/components/index.ios.tsx",
 			cwd + "app/components/index.tsx",
@@ -870,12 +764,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./components", cwd+"app/index.ts")
@@ -889,7 +778,7 @@ func TestModuleSuffixes(t *testing.T) {
 	})
 
 	t.Run("Should not change behavior when no moduleSuffixes configured", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/button.tsx",
 			cwd + "app/index.ts",
@@ -898,12 +787,7 @@ func TestModuleSuffixes(t *testing.T) {
 			"compilerOptions": {}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
@@ -917,7 +801,7 @@ func TestModuleSuffixes(t *testing.T) {
 	})
 
 	t.Run("Should resolve aliases combined with moduleSuffixes", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "src/button.ios.tsx",
 			cwd + "src/button.tsx",
@@ -932,12 +816,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		resolvedPath, _, err := resolver.ResolveModule("@/button", cwd+"app/index.ts")
@@ -951,7 +830,7 @@ func TestModuleSuffixes(t *testing.T) {
 	})
 
 	t.Run("Should not resolve unsuffixed when empty string not in moduleSuffixes", func(t *testing.T) {
-		cwd := "/root/"
+		cwd := tempCwd(t)
 		filePaths := []string{
 			cwd + "app/button.tsx",
 			cwd + "app/index.ts",
@@ -962,12 +841,7 @@ func TestModuleSuffixes(t *testing.T) {
 			}
 		}`
 
-		rm := NewResolverManager(model.FollowMonorepoPackagesValue{}, []string{}, RootParams{
-			TsConfigContent: []byte(tsConfig),
-			PkgJsonContent:  []byte{},
-			SortedFiles:     filePaths,
-			Cwd:             cwd,
-		}, []globutil.GlobMatcher{}, nil)
+		rm := rmFromContent(t, []string{}, []byte(tsConfig), []byte{}, filePaths, cwd)
 		resolver := rm.GetResolverForFile(cwd + "app/index.ts")
 
 		_, _, err := resolver.ResolveModule("./button", cwd+"app/index.ts")
@@ -1121,11 +995,7 @@ func TestSpecialCharactersInAliases(t *testing.T) {
 	// Test that aliases with special regexp characters like $ are properly escaped
 	// This test verifies the fix for the issue where $base/* would cause regexp compilation errors
 
-	cwd := "__fixtures__/mockProject/"
-	ignoreTypeImports := true
-	excludeFiles := []string{}
-
-	// Create a temporary tsconfig with special characters in alias names
+	// Create a tsconfig with special regexp characters in alias names.
 	tempTsConfig := `{
 		"compilerOptions": {
 			"paths": {
@@ -1136,13 +1006,11 @@ func TestSpecialCharactersInAliases(t *testing.T) {
 		}
 	}`
 
-	// This should not panic or cause regexp compilation errors
-	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, tempTsConfig, "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
-
-	// If we get here without panicking, the test passes
-	// The actual resolution might not find files since these are test aliases,
-	// but the important thing is that regexp compilation doesn't fail
-	if minimalTree == nil {
-		t.Errorf("Expected minimalTree to be created, but got nil")
+	// Parsing these into the resolver must not panic or fail regexp compilation.
+	cwd := tempCwd(t)
+	rm := rmFromContent(t, []string{}, []byte(tempTsConfig), nil, []string{}, cwd)
+	aliases := rm.GetResolverForFile(cwd + "src/main.ts").TsConfigParsed().Aliases
+	if len(aliases) < 3 {
+		t.Errorf("expected the 3 special-character aliases to be parsed, got %d", len(aliases))
 	}
 }

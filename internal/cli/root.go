@@ -127,7 +127,6 @@ func findCommandForDocs(root *cobra.Command, commandPath string) (*cobra.Command
 // ---------------- shared flags ----------------
 
 var (
-	packageJsonPath        string
 	tsconfigJsonPath       string
 	verboseFlag            bool
 	conditionNames         []string
@@ -204,8 +203,7 @@ func silenceUsageAfterArgValidation(command *cobra.Command) {
 }
 
 func addSharedFlags(command *cobra.Command) {
-	command.Flags().StringVar(&packageJsonPath, "package-json", "",
-		"Path to package.json (default: ./package.json)")
+	// No --package-json: Node fixes package.json at <dir>/package.json; only tsconfig relocates.
 	command.Flags().StringVar(&tsconfigJsonPath, "tsconfig-json", "",
 		"Path to tsconfig.json (default: ./tsconfig.json)")
 	command.Flags().BoolVarP(&verboseFlag, "verbose", "v", false,
@@ -307,7 +305,7 @@ var (
 	resolveCompactSummary bool
 )
 
-func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude, processIgnoredFiles []string, ignoreType, resolveAll, resolveCompactSummary bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
+func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude, processIgnoredFiles []string, ignoreType, resolveAll, resolveCompactSummary bool, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
 	hasFile := strings.TrimSpace(filePath) != ""
 	hasModule := strings.TrimSpace(moduleName) != ""
 
@@ -321,7 +319,7 @@ func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude, p
 	}
 
 	absolutePathToEntryPoints, discoveredFiles := resolve.ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude, processIgnoredFiles)
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, discoveredFiles, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, nodeModulesStrategy)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, discoveredFiles, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, nodeModulesStrategy)
 
 	if len(absolutePathToEntryPoints) == 0 {
 		absolutePathToEntryPoints = graph.GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
@@ -509,7 +507,6 @@ Helps understand how different parts of your codebase are connected.`,
 			resolveIgnoreType,
 			resolveAll,
 			resolveCompactSummary,
-			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
@@ -529,8 +526,8 @@ var (
 	entryPointsResultInclude     []string
 )
 
-func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, processIgnoredFiles, resultExclude, resultInclude []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
+func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, processIgnoredFiles, resultExclude, resultInclude []string, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, []string{}, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 
 	notReferencedFiles := graph.GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
 
@@ -610,7 +607,6 @@ Useful for understanding your application's architecture and dependencies.`,
 			entryPointsProcessIgnored,
 			entryPointsResultExclude,
 			entryPointsResultInclude,
-			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
@@ -625,10 +621,10 @@ var (
 	circularProcessIgnored []string
 )
 
-func circularCmdFn(cwd string, ignoreType bool, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) (int, error) {
+func circularCmdFn(cwd string, ignoreType bool, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) (int, error) {
 	excludeFiles := []string{}
 
-	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, circularProcessIgnored, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, circularProcessIgnored, []string{}, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 	cycles := checks.FindCircularDependencies(minimalTree, files, ignoreType)
 
 	formatted := checks.FormatCircularDependencies(cycles, cwd, minimalTree)
@@ -655,7 +651,6 @@ Circular dependencies can cause hard-to-debug issues and should generally be avo
 		count, err := circularCmdFn(
 			pathutil.ResolveAbsoluteCwd(circularCwd),
 			circularIgnoreType,
-			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
@@ -741,7 +736,6 @@ Helps keep track of your project's runtime dependencies.`,
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
-			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
@@ -789,7 +783,6 @@ to identify potentially unused packages.`,
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
-			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
@@ -841,7 +834,6 @@ in your package.json dependencies.`,
 			nodeModulesFilesWithModules,
 			nodeModulesIncludeModules,
 			nodeModulesExcludeModules,
-			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
@@ -1021,11 +1013,11 @@ var (
 	filesProcessIgnored []string
 )
 
-func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, processIgnoredFiles []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
+func filesCmdFn(cwd, entryPoint string, ignoreType, filesCount bool, processIgnoredFiles []string, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
 	absolutePathToEntryPoint := pathutil.JoinWithCwd(cwd, entryPoint)
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, processIgnoredFiles, []string{absolutePathToEntryPoint}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, excludeFiles, processIgnoredFiles, []string{absolutePathToEntryPoint}, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 
 	depsGraph := graph.BuildDepsGraphForMultiple(minimalTree, []string{absolutePathToEntryPoint}, nil, false, false)
 
@@ -1064,7 +1056,6 @@ by the specified entry point.`,
 			filesIgnoreType,
 			filesCount,
 			filesProcessIgnored,
-			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
@@ -1173,10 +1164,10 @@ func linesOfCodeCmdFn(cwd string) error {
 	return nil
 }
 
-func importedByCmdFn(cwd, filePath string, count, listImports bool, processIgnoredFiles []string, packageJsonPath, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
+func importedByCmdFn(cwd, filePath string, count, listImports bool, processIgnoredFiles []string, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, processIgnoredFiles, []string{}, packageJsonPath, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, processIgnoredFiles, []string{}, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 
 	absolutePathToFilePath := pathutil.NormalizePathForInternal(pathutil.JoinWithCwd(cwd, filePath))
 
@@ -1292,7 +1283,6 @@ This is useful for understanding the impact of changes to a particular file.`,
 			importedByCount,
 			importedByListImports,
 			importedByProcessIgnored,
-			packageJsonPath,
 			tsconfigJsonPath,
 			conditionNames,
 			followValue,
@@ -1324,7 +1314,7 @@ var unresolvedCmd = &cobra.Command{
 			return err
 		}
 
-		return unresolvedCmdRun(pathutil.ResolveAbsoluteCwd(unresolvedCwd), packageJsonPath, tsconfigJsonPath, conditionNames, followValue, opts, unresolvedCustomAssetExtensions, unresolvedProcessIgnored)
+		return unresolvedCmdRun(pathutil.ResolveAbsoluteCwd(unresolvedCwd), tsconfigJsonPath, conditionNames, followValue, opts, unresolvedCustomAssetExtensions, unresolvedProcessIgnored)
 	},
 }
 
@@ -1340,8 +1330,8 @@ func stringMapToFileValueIgnoreMap(input map[string]string) globutil.FileValueIg
 }
 
 // unresolvedCmdRun is the functional core for the `unresolved` command. It returns an error on failure.
-func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) error {
-	out, err := getUnresolvedOutput(cwd, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions, processIgnoredFiles)
+func unresolvedCmdRun(cwd, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) error {
+	out, err := getUnresolvedOutput(cwd, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions, processIgnoredFiles)
 	if err != nil {
 		return err
 	}
@@ -1352,7 +1342,7 @@ func unresolvedCmdRun(cwd, packageJson, tsconfigJson string, conditionNames []st
 }
 
 // getUnresolvedOutput returns formatted unresolved imports grouped by file as a string.
-func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) (string, error) {
+func getUnresolvedOutput(cwd, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) (string, error) {
 	if options == nil {
 		options = &config.UnresolvedImportsOptions{}
 	}
@@ -1364,7 +1354,7 @@ func getUnresolvedOutput(cwd, packageJson, tsconfigJson string, conditionNames [
 	// import against the right package.json, so any NotResolvedModule is genuinely unresolved.
 	// Exception: --include-dev-deps-from-root treats the monorepo root devDependencies as available,
 	// so they are not reported as unresolved (mirrors the config option and the missing check).
-	minimalTree, _, resolverManager := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, packageJson, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions, nodeModulesStrategy)
+	minimalTree, _, resolverManager := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions, nodeModulesStrategy)
 
 	ignoredNodeModules := map[string]bool{}
 	if getIncludeDevDepsFromRoot() && resolverManager != nil {

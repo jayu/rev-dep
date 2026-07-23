@@ -155,6 +155,16 @@
             "src"
           ]
         },
+        "tsConfigPath": {
+          "type": "string",
+          "description": "Path to this workspace's tsconfig, relative to the workspace `path`. Overrides the default `<path>/tsconfig.json` for module resolution.",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*\\.{2}[\\\\/]).+",
+          "examples": [
+            "tsconfig.build.json",
+            "config/tsconfig.prod.json"
+          ]
+        },
         "followMonorepoPackages": {
           "oneOf": [
             {

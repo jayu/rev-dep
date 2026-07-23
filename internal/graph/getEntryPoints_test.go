@@ -29,7 +29,7 @@ func TestGetEntryPoints(t *testing.T) {
 	exclude := []string{}
 	include := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, []string{}, nil, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
 
 	entryPoints := GetEntryPoints(minimalTree, exclude, include, cwd)
 
@@ -57,7 +57,7 @@ func TestGetEntryWithExclude(t *testing.T) {
 	exclude := []string{"script.js"}
 	include := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, []string{}, nil, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
 
 	entryPoints := GetEntryPoints(minimalTree, exclude, include, cwd)
 
@@ -84,7 +84,7 @@ func TestGetEntryWithInclude(t *testing.T) {
 	exclude := []string{}
 	include := []string{"script.js"}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, []string{}, nil, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
 
 	entryPoints := GetEntryPoints(minimalTree, exclude, include, cwd)
 
@@ -107,7 +107,7 @@ func TestGetEntryWithIgnoringTypeImports(t *testing.T) {
 	exclude := []string{}
 	include := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, []string{}, nil, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreTypeImports, []string{}, nil, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil, model.NodeModulesMatchingStrategyCwdResolver)
 
 	entryPoints := GetEntryPoints(minimalTree, exclude, include, cwd)
 

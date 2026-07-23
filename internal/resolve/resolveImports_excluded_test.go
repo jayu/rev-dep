@@ -12,7 +12,7 @@ func TestResolveMarksExcludedFilesAsExcludedByUser(t *testing.T) {
 	// exclude the target file that is imported by importNestedFile.ts
 	excludeFiles := []string{"src/nested/deeplynested/file.ts"}
 
-	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
+	minimalTree, _, _ := getMinimalDepsTreeForCwdRel(t, cwd, ignoreTypeImports, excludeFiles, []string{}, "", []string{}, model.FollowMonorepoPackagesValue{}, nil)
 
 	importer := "__fixtures__/mockProject/src/importNestedFile.ts"
 	excluded := "__fixtures__/mockProject/src/nested/deeplynested/file.ts"

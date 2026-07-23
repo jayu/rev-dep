@@ -50,7 +50,7 @@ them by hand.`,
 			return err
 		}
 
-		result, err := config.LintConfig(&cfg, cwd, packageJsonPath, tsconfigJsonPath, selectedRules)
+		result, err := config.LintConfig(&cfg, cwd, selectedRules)
 		if err != nil {
 			return fmt.Errorf("Error linting config: %v", err)
 		}
@@ -336,7 +336,11 @@ func printConfigLintFixSummary(fix *config.FixResult) {
 }
 
 func init() {
-	addSharedFlags(configLintCmd)
+	// config lint does not use addSharedFlags: it reads its resolution inputs (conditionNames,
+	// per-workspace package.json / tsconfig.json) from the config file, so the shared
+	// --condition-names / --follow-monorepo-packages / --package-json / --tsconfig-json flags
+	// had no effect here — same as config run.
+	configLintCmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "Show warnings and verbose output")
 	configLintCmd.Flags().StringVarP(&lintConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configLintCmd.Flags().BoolVar(&lintConfigFix, "fix", false, "Remove dead patterns from the config file (preserves comments and formatting)")
 	configLintCmd.Flags().StringSliceVar(&lintConfigRules, "rules", nil, "Lint rules to run (comma-separated): orphan-file-globs, orphan-module-globs, overlapping-globs, trailing-commas, compact. Default: all. orphan-file-globs/overlapping-globs use file discovery; orphan-module-globs parses the dependency tree; trailing-commas and compact only read the config file.")

@@ -56,7 +56,7 @@ func TestConfigProcessor_RestrictedDirectImporters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	result, err := ProcessConfig(&cfg, tempDir, "package.json", "tsconfig.json", false, false)
+	result, err := ProcessConfig(&cfg, tempDir, false, false)
 	if err != nil {
 		t.Fatalf("process config: %v", err)
 	}

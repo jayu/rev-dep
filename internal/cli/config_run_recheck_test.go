@@ -44,7 +44,7 @@ func TestProcessConfigRun_RecheckRevealsNewOrphans(t *testing.T) {
 		},
 	}
 
-	withoutRecheck, err := processConfigRun(&cfg, tempDir, "", "", true, false, false)
+	withoutRecheck, err := processConfigRun(&cfg, tempDir, true, false, false)
 	if err != nil {
 		t.Fatalf("processConfigRun without recheck failed: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestProcessConfigRun_RecheckRevealsNewOrphans(t *testing.T) {
 		t.Fatalf("Failed to restore orphan-a file: %v", err)
 	}
 
-	withRecheck, err := processConfigRun(&cfg, tempDir, "", "", true, true, false)
+	withRecheck, err := processConfigRun(&cfg, tempDir, true, true, false)
 	if err != nil {
 		t.Fatalf("processConfigRun with recheck failed: %v", err)
 	}

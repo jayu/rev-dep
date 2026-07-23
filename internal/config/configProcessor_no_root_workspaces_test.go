@@ -32,7 +32,7 @@ func TestConfigProcessor_NoRootWorkspaces(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to load config: %v", err)
 		}
-		result, err := ProcessConfig(&config, testCwd, "package.json", "tsconfig.json", false, false)
+		result, err := ProcessConfig(&config, testCwd, false, false)
 		if err != nil {
 			t.Fatalf("ProcessConfig failed: %v", err)
 		}

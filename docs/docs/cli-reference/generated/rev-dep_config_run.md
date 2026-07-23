@@ -16,18 +16,14 @@ rev-dep config run [flags]
 ### Options
 
 ```
-      --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
-  -c, --cwd string                                                  Working directory (default "$PWD")
-      --fix                                                         Automatically fix fixable issues
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
-      --format string                                               Output format (json, issues-list)
-  -h, --help                                                        help for run
-      --lint-config config lint                                     Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use config lint for details and --fix
-      --lint-config-rules strings                                   Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config
-      --list-all-issues                                             List all issues instead of limiting output
-      --package-json string                                         Path to package.json (default: ./package.json)
-      --recheck                                                     Run all checks again after '--fix' to validate the final state
-      --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
-  -v, --verbose                                                     Show warnings and verbose output
-      --workspaces strings                                          Subset of workspaces to run (comma-separated list of workspace paths)
+  -c, --cwd string                  Working directory (default "$PWD")
+      --fix                         Automatically fix fixable issues
+      --format string               Output format (json, issues-list)
+  -h, --help                        help for run
+      --lint-config config lint     Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use config lint for details and --fix
+      --lint-config-rules strings   Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config
+      --list-all-issues             List all issues instead of limiting output
+      --recheck                     Run all checks again after '--fix' to validate the final state
+  -v, --verbose                     Show warnings and verbose output
+      --workspaces strings          Subset of workspaces to run (comma-separated list of workspace paths)
 ```

@@ -194,8 +194,6 @@ func buildDependencyTreeForConfig(
 	includePatterns []globutil.GlobMatcher,
 	conditionNames []string,
 	cwd string,
-	packageJson string,
-	tsconfigJson string,
 	customAssetExtensions []string,
 	parseMode model.ParseMode,
 	explicitPackageDirs []string,
@@ -220,14 +218,15 @@ func buildDependencyTreeForConfig(
 
 	// Resolve imports using the existing resolver
 	doneResolve := perf.Track("resolve-imports")
+
 	fileImportsArr, _, resolverManager := resolve.ResolveImports(
 		fileImportsArr,
 		allFiles,
 		cwd,
 		ignoreTypeImports,
 		skipResolveMissing,
-		packageJson,
-		tsconfigJson,
+		"",
+		"",
 		excludePatterns,
 		includePatterns,
 		conditionNames,
@@ -931,12 +930,13 @@ func processRuleChecks(
 	return ruleResult
 }
 
-// ProcessConfig processes a rev-dep configuration with parallel rule and check execution
+// ProcessConfig processes a rev-dep configuration with parallel rule and check execution.
+//
+// It does not take package.json / tsconfig.json paths: each workspace resolves the ones in
+// its own directory, so there is no global path to pass.
 func ProcessConfig(
 	config *RevDepConfig,
 	cwd string,
-	packageJson string,
-	tsconfigJson string,
 	fix bool,
 	forceDetailed bool,
 ) (*ConfigProcessingResult, error) {
@@ -973,8 +973,6 @@ func ProcessConfig(
 		includePatterns,
 		config.ConditionNames,
 		cwd,
-		packageJson,
-		tsconfigJson,
 		config.CustomAssetExtensions,
 		parseMode,
 		rulePackageDirs,

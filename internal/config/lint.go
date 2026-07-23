@@ -224,15 +224,15 @@ type LintGraph struct {
 // LintConfig analyzes cfg and returns every dead pattern for the selected rules (all
 // rules when `rules` is empty). It builds its own discovery + dependency tree. Callers
 // that already have those artifacts should use LintConfigWithGraph to avoid the cost.
-func LintConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules []LintRuleName) (*LintResult, error) {
-	return LintConfigWithGraph(cfg, cwd, packageJson, tsconfigJson, rules, nil)
+func LintConfig(cfg *RevDepConfig, cwd string, rules []LintRuleName) (*LintResult, error) {
+	return LintConfigWithGraph(cfg, cwd, rules, nil)
 }
 
 // LintConfigWithGraph is LintConfig with an optional prebuilt graph. When graph is
 // non-nil, discovery and the dependency-tree build are skipped and its artifacts are
 // reused; when nil, they are built as needed (the dependency tree only for the module
 // rule; the file rule runs from discovery alone).
-func LintConfigWithGraph(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, rules []LintRuleName, graph *LintGraph) (*LintResult, error) {
+func LintConfigWithGraph(cfg *RevDepConfig, cwd string, rules []LintRuleName, graph *LintGraph) (*LintResult, error) {
 	if len(rules) == 0 {
 		rules = AllLintRules
 	}
@@ -305,7 +305,7 @@ func LintConfigWithGraph(cfg *RevDepConfig, cwd, packageJson, tsconfigJson strin
 			// The module universe requires the parsed dependency tree — build it only when the
 			// module rule runs, so file-only rule selections skip parsing entirely.
 			if runModule {
-				universe, err := buildModuleUniverseForConfig(cfg, cwd, packageJson, tsconfigJson, allFiles, excludePatterns, includePatterns)
+				universe, err := buildModuleUniverseForConfig(cfg, cwd, allFiles, excludePatterns, includePatterns)
 				if err != nil {
 					return nil, err
 				}
@@ -895,7 +895,7 @@ func sortOverlaps(overlaps []OverlapFinding) {
 // buildModuleUniverseForConfig builds the dependency tree (parsing every file, the
 // expensive step) and derives the module universe from it. Called only when the module
 // rule runs.
-func buildModuleUniverseForConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJson string, allFiles []string, excludePatterns, includePatterns []globutil.GlobMatcher) ([]string, error) {
+func buildModuleUniverseForConfig(cfg *RevDepConfig, cwd string, allFiles []string, excludePatterns, includePatterns []globutil.GlobMatcher) ([]string, error) {
 	rulePackageDirs := make([]string, 0, len(cfg.Rules))
 	for _, rule := range cfg.Rules {
 		if rule.Path == "" {
@@ -910,8 +910,6 @@ func buildModuleUniverseForConfig(cfg *RevDepConfig, cwd, packageJson, tsconfigJ
 		includePatterns,
 		cfg.ConditionNames,
 		cwd,
-		packageJson,
-		tsconfigJson,
 		cfg.CustomAssetExtensions,
 		model.ParseModeBasic,
 		rulePackageDirs,

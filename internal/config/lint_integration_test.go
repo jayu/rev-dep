@@ -73,7 +73,7 @@ func TestLintConfig_DetectsDeadPatterns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	result, err := LintConfig(&cfg, dir, "", "", nil)
+	result, err := LintConfig(&cfg, dir, nil)
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestLintConfig_NestedRulePathResolvesRelative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	result, err := LintConfig(&cfg, dir, "", "", nil)
+	result, err := LintConfig(&cfg, dir, nil)
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestLintConfig_RuleSelection(t *testing.T) {
 	}
 
 	// File rule only: no module-kind dead patterns, and the module pattern is not reported.
-	fileOnly, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	fileOnly, err := LintConfig(&cfg, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig(file): %v", err)
 	}
@@ -195,7 +195,7 @@ func TestLintConfig_RuleSelection(t *testing.T) {
 	}
 
 	// Module rule only: only module/mixed dead patterns; no file globs reported.
-	modOnly, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanModuleGlobs})
+	modOnly, err := LintConfig(&cfg, dir, []LintRuleName{RuleOrphanModuleGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig(module): %v", err)
 	}
@@ -248,7 +248,7 @@ func TestLintConfig_FixRemovesMultipleFullyDeadMembers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestLintConfig_FixRemovesMultipleFullyDeadMembers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig (reparse): %v", err)
 	}
-	rerun, err := LintConfig(&cfg2, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	rerun, err := LintConfig(&cfg2, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig (rerun): %v", err)
 	}
@@ -309,7 +309,7 @@ func TestLintConfig_IgnoresInheritedEntryPoints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestLintConfig_IgnoresInheritedEntryPoints(t *testing.T) {
 		t.Fatalf("ApplyLintFix: %v", err)
 	}
 	cfg2, _ := LoadConfig(dir)
-	rerun, err := LintConfig(&cfg2, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	rerun, err := LintConfig(&cfg2, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("re-lint: %v", err)
 	}
@@ -364,7 +364,7 @@ func TestLintConfig_NegationSeverity(t *testing.T) {
 }`)
 
 	cfg, _ := LoadConfig(dir)
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -413,7 +413,7 @@ func TestLintConfig_OverlapDetection(t *testing.T) {
 }`)
 
 	cfg, _ := LoadConfig(dir)
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOverlappingGlobs})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleOverlappingGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -472,7 +472,7 @@ func TestLintConfig_TrailingCommas(t *testing.T) {
 }`)
 
 	cfg, _ := LoadConfig(dir)
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleTrailingCommas})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleTrailingCommas})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -522,7 +522,7 @@ func TestLintConfig_CompactRule(t *testing.T) {
 }`)
 
 	cfg, _ := LoadConfig(dir)
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleCompact})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleCompact})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -575,7 +575,7 @@ func TestLintConfig_FixPipelineDeadGlobThenCompact(t *testing.T) {
 }`)
 
 	cfg, _ := LoadConfig(dir)
-	result, err := LintConfig(&cfg, dir, "", "", nil) // all rules
+	result, err := LintConfig(&cfg, dir, nil) // all rules
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -630,7 +630,7 @@ func TestLintConfig_FixPreservesCommentsAndLivePatterns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	result, err := LintConfig(&cfg, dir, "", "", nil)
+	result, err := LintConfig(&cfg, dir, nil)
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -712,7 +712,7 @@ func TestLintConfig_BigIgnoredDirIsPrunedButLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -763,7 +763,7 @@ func TestLintConfig_GitignoredDirDoesNotSuppressBroadDead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}
@@ -868,7 +868,7 @@ func TestLintConfig_IgnoreFilesNegationLiveness(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	result, err := LintConfig(&cfg, dir, "", "", []LintRuleName{RuleOrphanFileGlobs})
+	result, err := LintConfig(&cfg, dir, []LintRuleName{RuleOrphanFileGlobs})
 	if err != nil {
 		t.Fatalf("LintConfig: %v", err)
 	}

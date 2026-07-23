@@ -366,3 +366,39 @@ v2 searched for the scoped name, which never appears in a script:
 This hit CLI-only scoped devDependencies, which is most scoped tooling. The object form of `bin` was always correct - its keys are the real binary names, scope or not.
 
 The fix only finds **more** usages, so it can only reduce reported issues. A passing check cannot start failing because of it. Nothing to update.
+
+---
+
+## `config run` and `config lint`: four resolution flags are removed
+
+`rev-dep config run` and `rev-dep config lint` no longer accept these flags:
+
+| Removed flag | What to use instead |
+| --- | --- |
+| `--condition-names` | top-level `conditionNames` in the config |
+| `--follow-monorepo-packages` | nothing - these commands always follow monorepo packages |
+| `--package-json` | nothing - each workspace uses the package.json in its own `path` |
+| `--tsconfig-json` | nothing - each workspace uses the tsconfig.json in its own `path` |
+
+They all configure module resolution, which the config file already describes - and describes per workspace, which a single global flag cannot express. Both commands read these settings from the config, so the flags had no effect.
+
+Two of them did not even work as their help text suggested:
+
+- `--condition-names` was ignored. The config's `conditionNames` was used instead.
+- `--follow-monorepo-packages` was ignored. Both commands always follow all monorepo packages when building the graph. To control this per workspace, use `followMonorepoPackages` in the config.
+
+The other two applied one path to every workspace, which is wrong as soon as a config has more than one.
+
+### How to update
+
+Delete the flags from any `rev-dep config run` or `rev-dep config lint` call in CI or scripts. Only `--condition-names` has a replacement:
+
+```jsonc
+{
+  "configVersion": "2.0",
+  "conditionNames": ["node", "imports"],
+  "workspaces": [ /* ... */ ]
+}
+```
+
+Other commands (`circular`, `files`, `resolve`, `node-modules`, …) keep all four flags. Only `config run` and `config lint` lose them.

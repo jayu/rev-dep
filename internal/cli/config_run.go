@@ -57,10 +57,10 @@ var configRunCmd = &cobra.Command{
 		}
 
 		if runConfigFormat == "json" {
-			return runConfigWithJSONOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck)
+			return runConfigWithJSONOutput(cfg, cwd, runConfigFix, runConfigRecheck)
 		}
 		if runConfigFormat == "issues-list" {
-			return runConfigWithIssuesListOutput(cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck)
+			return runConfigWithIssuesListOutput(cfg, cwd, runConfigFix, runConfigRecheck)
 		}
 
 		// When linting after the run and reusing the run's graph, the top-level ignoreFiles
@@ -74,7 +74,7 @@ var configRunCmd = &cobra.Command{
 			return err
 		}
 
-		result, err := processConfigRun(&cfg, cwd, packageJsonPath, tsconfigJsonPath, runConfigFix, runConfigRecheck, false)
+		result, err := processConfigRun(&cfg, cwd, runConfigFix, runConfigRecheck, false)
 		if err != nil {
 			return fmt.Errorf("Error processing config: %v", err)
 		}
@@ -139,7 +139,7 @@ func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, 
 		}
 	}
 
-	lintResult, err := config.LintConfigWithGraph(&lintCfg, cwd, packageJsonPath, tsconfigJsonPath, lintRules, graph)
+	lintResult, err := config.LintConfigWithGraph(&lintCfg, cwd, lintRules, graph)
 	if err != nil {
 		return false, fmt.Errorf("Error linting config: %v", err)
 	}
@@ -202,16 +202,15 @@ func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
 	return totalIssues > fixableIssues
 }
 
+// processConfigRun runs every check in the config.
 func processConfigRun(
 	cfg *config.RevDepConfig,
 	cwd string,
-	packageJsonPath string,
-	tsconfigJsonPath string,
 	fix bool,
 	recheck bool,
 	forceDetailed bool,
 ) (*config.ConfigProcessingResult, error) {
-	result, err := config.ProcessConfig(cfg, cwd, packageJsonPath, tsconfigJsonPath, fix, forceDetailed)
+	result, err := config.ProcessConfig(cfg, cwd, fix, forceDetailed)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +223,7 @@ func processConfigRun(
 		return result, nil
 	}
 
-	recheckedResult, err := config.ProcessConfig(cfg, cwd, packageJsonPath, tsconfigJsonPath, false, forceDetailed)
+	recheckedResult, err := config.ProcessConfig(cfg, cwd, false, forceDetailed)
 	if err != nil {
 		return nil, err
 	}
@@ -835,8 +834,11 @@ func init() {
 	// config command
 	configCmd.Flags().StringVarP(&configCwd, "cwd", "c", currentDir, "Working directory")
 
-	// config run command
-	addSharedFlags(configRunCmd)
+	// config run command. It does not use addSharedFlags: those resolution flags
+	// (--condition-names, --follow-monorepo-packages, --package-json, --tsconfig-json) are
+	// configured per workspace in the config file instead. Passing them is now an unknown-flag
+	// error, which is what we want.
+	configRunCmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "Show warnings and verbose output")
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")

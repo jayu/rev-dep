@@ -26,13 +26,9 @@ rev-dep config lint [flags]
 ### Options
 
 ```
-      --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
-  -c, --cwd string                                                  Working directory (default "$PWD")
-      --fix                                                         Remove dead patterns from the config file (preserves comments and formatting)
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
-  -h, --help                                                        help for lint
-      --package-json string                                         Path to package.json (default: ./package.json)
-      --rules strings                                               Lint rules to run (comma-separated): orphan-file-globs, orphan-module-globs, overlapping-globs, trailing-commas, compact. Default: all. orphan-file-globs/overlapping-globs use file discovery; orphan-module-globs parses the dependency tree; trailing-commas and compact only read the config file.
-      --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
-  -v, --verbose                                                     Show warnings and verbose output
+  -c, --cwd string      Working directory (default "$PWD")
+      --fix             Remove dead patterns from the config file (preserves comments and formatting)
+  -h, --help            help for lint
+      --rules strings   Lint rules to run (comma-separated): orphan-file-globs, orphan-module-globs, overlapping-globs, trailing-commas, compact. Default: all. orphan-file-globs/overlapping-globs use file discovery; orphan-module-globs parses the dependency tree; trailing-commas and compact only read the config file.
+  -v, --verbose         Show warnings and verbose output
 ```

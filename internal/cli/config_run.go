@@ -50,6 +50,10 @@ var configRunCmd = &cobra.Command{
 		startTime := time.Now()
 		cwd := pathutil.ResolveAbsoluteCwd(runConfigCwd)
 
+		if legacy, version, ok := config.IsLegacyV1Config(cwd); ok && legacy {
+			return legacyConfigError(version)
+		}
+
 		// Auto-discover config in current working directory
 		cfg, err := config.LoadConfig(cwd)
 		if err != nil {

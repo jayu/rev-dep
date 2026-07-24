@@ -477,6 +477,26 @@ func ConfigFileNameJSONC() string {
 // `config init` writes into generated configs. Keep it as the last entry of supportedConfigVersions.
 const CurrentConfigVersion = "2.0"
 
+func IsLegacyV1Config(cwd string) (legacy bool, version string, ok bool) {
+	path, err := findConfigFile(cwd)
+	if err != nil {
+		return false, "", false
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false, "", false
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(jsonc.ToJSON(content), &raw); err != nil {
+		return false, "", true
+	}
+	if v, has := raw["configVersion"]; has {
+		_ = json.Unmarshal(v, &version)
+	}
+	_, hasRules := raw["rules"]
+	return hasRules || strings.HasPrefix(version, "1."), version, true
+}
+
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
 var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", CurrentConfigVersion}

@@ -11,6 +11,10 @@ This page tracks the breaking changes that will ship in **rev-dep v3**. It is up
 v3 is not released yet. On v2 your configuration keeps working as-is. Use this page to prepare your config ahead of the upgrade.
 :::
 
+:::tip
+Run `rev-dep config migrate` to apply the safe changes automatically (renames `rules` → `workspaces`, bumps `configVersion`, drops the removed `algorithm` option) and get a list of the glob patterns and behavior changes you still need to review by hand. It edits the file in place — review the change with git.
+:::
+
 ---
 
 ## Config: the `rules` field is renamed to `workspaces`
@@ -181,9 +185,11 @@ Fixing only one of the two is not enough:
 The v2 behavior described here is considered a bug. v3 fixes it.
 :::
 
-A workspace's glob patterns are interpreted **relative to that workspace's `path`**. In v3 they only match files **inside** that workspace. To deliberately match files in another workspace you must say so explicitly with a relative `../` pattern.
+**This only affects a workspace that uses [`followMonorepoPackages`](../other-concepts-and-features/following-monorepo-packages.mdx).** That option pulls another package's source files into *this* workspace's dependency graph. In v2, this workspace's own glob patterns could then match those pulled-in **foreign** files, not just its own. v3 keeps each workspace's patterns matching only files **inside that workspace**; to reach another package on purpose you now use an explicit `../` pattern.
 
-In v2 an unanchored wildcard pattern leaked across workspaces. Because a pattern like `**/api/**` is matched against the full file path, and the leading `**` matches anything, it also matched files in *sibling* workspaces that were pulled into the graph through [`followMonorepoPackages`](../other-concepts-and-features/following-monorepo-packages.mdx). So an `apps/web` workspace using `prodEntryPoints: ["**/api/**"]` could match `apps/mobile/.../api/file.ts` and treat it as one of `apps/web`'s entry points.
+It is **not** about one workspace's config affecting another's — workspaces never share settings, and each is still analyzed in isolation. The bug was narrower: a single workspace's *own* analysis wrongly reached into sibling files that `followMonorepoPackages` had dragged into its graph. **If you do not use `followMonorepoPackages`, nothing here changes for you.**
+
+Concretely: an `apps/web` workspace using `prodEntryPoints: ["**/api/**"]` — where the leading `**` matches any prefix — could match a followed `apps/mobile/.../api/file.ts` and wrongly treat it as one of `apps/web`'s own entry points. v3 no longer does.
 
 ### What changes
 

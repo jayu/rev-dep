@@ -143,6 +143,7 @@ const sidebars: SidebarsConfig = {
             'cli-reference/generated/rev-dep_config_run',
             'cli-reference/generated/rev-dep_config_init',
             'cli-reference/generated/rev-dep_config_lint',
+            'cli-reference/generated/rev-dep_config_migrate',
           ],
         },
         'cli-reference/generated/rev-dep_entry-points',

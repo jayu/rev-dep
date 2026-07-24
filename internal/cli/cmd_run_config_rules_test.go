@@ -24,7 +24,7 @@ func TestConfigRun_RulesFilter(t *testing.T) {
 
 	// Create a config with 2 rules
 	configContent := `{
-		"configVersion": "1.0",
+		"configVersion": "2.0",
 		"workspaces": [
 			{
 				"path": "src/features/auth",

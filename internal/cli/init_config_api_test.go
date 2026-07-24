@@ -10,7 +10,7 @@ import (
 )
 
 // TestInitConfig_NonInteractiveWrapper exercises the exported one-call API end to end: standalone
-// subfolder filtering (curated), per-package entry-point detection, and detector selection — all
+// subfolder filtering (curated), per-package entry-point detection, and detector selection - all
 // without any prompt.
 func TestInitConfig_NonInteractiveWrapper(t *testing.T) {
 	dir, err := os.MkdirTemp("", "rev-dep-initapi")

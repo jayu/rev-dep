@@ -44,7 +44,7 @@ change with git before committing.
 
 It then lists what it could NOT change for you: glob patterns whose match set may have
 shifted under v3's stricter, gitignore-aligned rules, and behavior changes that no config
-edit can address. Review those manually — see the v3 breaking-changes guide.`,
+edit can address. Review those manually - see the v3 breaking-changes guide.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		startTime := time.Now()
 		cwd := pathutil.ResolveAbsoluteCwd(migrateConfigCwd)
@@ -80,7 +80,7 @@ edit can address. Review those manually — see the v3 breaking-changes guide.`,
 				fmt.Printf("    - %s\n", c)
 			}
 		} else {
-			fmt.Printf("\n%s Nothing to change automatically — the config is already on the 2.0 schema.\n", emoji.Success)
+			fmt.Printf("\n%s Nothing to change automatically - the config is already on the 2.0 schema.\n", emoji.Success)
 		}
 
 		printMigrateReviews(res)
@@ -94,9 +94,9 @@ edit can address. Review those manually — see the v3 breaking-changes guide.`,
 
 func printMigrateReviews(res *config.MigrateResult) {
 	if len(res.PatternReviews) > 0 {
-		fmt.Printf("\n%s  Review these glob patterns — v3's glob bug fixes changed how they match files.\n", emoji.Warning)
+		fmt.Printf("\n%s  Review these glob patterns - v3's glob bug fixes changed how they match files.\n", emoji.Warning)
 		fmt.Printf("    legend:\n")
-		fmt.Printf("    - matching: how this glob matches files changed in v3 — its match set may differ\n")
+		fmt.Printf("    - matching: how this glob matches files changed in v3 - its match set may differ\n")
 		fmt.Printf("    - sibling:  may have matched files in sibling workspaces, now it's matching files only in workspace where it is defined\n")
 		printGroupedReviews(res.PatternReviews)
 	}
@@ -173,7 +173,7 @@ func shortenGlob(p string) string {
 	segs := strings.Split(p, "/")
 	head := 1
 	if segs[0] == "*" || segs[0] == "**" {
-		head = 2 // a bare wildcard alone is uninformative — keep the next segment too
+		head = 2 // a bare wildcard alone is uninformative - keep the next segment too
 	}
 	if len(segs) < head+3 { // need >=2 middle segments to be worth collapsing
 		return p
@@ -182,7 +182,7 @@ func shortenGlob(p string) string {
 	return strings.Join(kept, "/")
 }
 
-// printMigrateLintSummary nudges the user to run config lint next. Non-fatal on any error —
+// printMigrateLintSummary nudges the user to run config lint next. Non-fatal on any error -
 // the migration already succeeded.
 func printMigrateLintSummary(cwd string) {
 	cfg, err := config.LoadConfig(cwd)
@@ -194,7 +194,7 @@ func printMigrateLintSummary(cwd string) {
 		return
 	}
 	if errors, warnings := countLintFindings(result, false); errors > 0 || warnings > 0 {
-		fmt.Printf("\n%s  Config lint found %d error(s) and %d warning(s) that could be improved — run `rev-dep config lint` for details (add `--fix` to apply).\n",
+		fmt.Printf("\n%s  Config lint found %d error(s) and %d warning(s) that could be improved - run `rev-dep config lint` for details (add `--fix` to apply).\n",
 			emoji.Warning, errors, warnings)
 	}
 }

@@ -463,7 +463,7 @@
   }
 
   .problemSection {
-    /* Keep flush with the hero — the mobile .marginLarge override above
+    /* Keep flush with the hero - the mobile .marginLarge override above
        must not re-introduce the top margin we removed. */
     margin-top: 0;
     padding-top: 5rem;

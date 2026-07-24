@@ -104,7 +104,7 @@ func findAndProcessGitIgnoreFilesUpToRepoRoot(dirPath string, globMatchers []glo
 	return findAndProcessGitIgnoreFilesUpToRepoRoot(parent, globMatchers)
 }
 
-// DiscoveryExclusions records the paths a discovery walk left out — individual files an
+// DiscoveryExclusions records the paths a discovery walk left out - individual files an
 // exclude pattern matched, and whole directories the walk pruned as fully excluded. Files
 // inside pruned directories are intentionally NOT enumerated (that is the point of
 // pruning); PrunedDirs marks those subtrees so a caller (e.g. the config linter) can reason

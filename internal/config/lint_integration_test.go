@@ -276,7 +276,7 @@ func TestLintConfig_FixRemovesMultipleFullyDeadMembers(t *testing.T) {
 
 // Regression: ParseConfig synthesizes orphan/unusedExports validEntryPoints from the
 // rule's entry points when they are not explicitly set (inheritance). The linter must
-// NOT report those synthesized values — they are not physically in the config file, so
+// NOT report those synthesized values - they are not physically in the config file, so
 // reporting them produced phantom duplicates and count/file disagreement.
 func TestLintConfig_IgnoresInheritedEntryPoints(t *testing.T) {
 	dir := t.TempDir()
@@ -445,7 +445,7 @@ func TestLintConfig_OverlapDetection(t *testing.T) {
 	} else if p.SharedFileCount != 1 {
 		t.Errorf("partial overlap shared count = %d, want 1", p.SharedFileCount)
 	}
-	// b/** is disjoint from the a/* patterns — must not be reported.
+	// b/** is disjoint from the a/* patterns - must not be reported.
 	if find(OverlapContained, "b/**", "a/**") != nil || find(OverlapPartial, "b/**", "a/**") != nil {
 		t.Error("b/** should not overlap a/**")
 	}
@@ -550,7 +550,7 @@ func TestLintConfig_CompactRule(t *testing.T) {
 }
 
 // Regression for the lane pipeline: dead-glob removal empties a detector object, which
-// the compact lane must then fold to a bare boolean — in a single --fix call. Merging
+// the compact lane must then fold to a bare boolean - in a single --fix call. Merging
 // the two lanes' edits would make them overlap and silently drop one.
 func TestLintConfig_FixPipelineDeadGlobThenCompact(t *testing.T) {
 	dir := t.TempDir()
@@ -788,7 +788,7 @@ func TestApplyLintFix_OutOfRangeIndexDoesNotDeleteWholeMember(t *testing.T) {
 		RulesRun:       []LintRuleName{RuleOrphanFileGlobs},
 		DeadPatterns: []DeadPattern{
 			{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles", ElementIndex: 0, Value: "a.ts", Kind: KindFile, Severity: SeverityError, Removable: true},
-			// Out-of-range index (e.g. stale) — must be ignored, not treated as "all dead".
+			// Out-of-range index (e.g. stale) - must be ignored, not treated as "all dead".
 			{RuleIndex: -1, BoundaryIndex: -1, OptionKey: "ignoreFiles", ElementIndex: 5, Value: "ghost", Kind: KindFile, Severity: SeverityError, Removable: true},
 		},
 	}

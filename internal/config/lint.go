@@ -20,7 +20,7 @@ import (
 )
 
 // LintConfig ("config lint") reports glob/path patterns declared in a rev-dep config
-// that match zero discovered files or modules — "dead patterns" that only bloat the
+// that match zero discovered files or modules - "dead patterns" that only bloat the
 // config. It is the counterpart of the metadata already gathered by
 // findUnmatchedEntryPointPatterns, generalized to every pattern-bearing option.
 
@@ -72,7 +72,7 @@ const (
 )
 
 // OverlapFinding reports two patterns in the same option array whose matched-file sets
-// overlap. Findings are always warnings (empirical — the relationship can change as
+// overlap. Findings are always warnings (empirical - the relationship can change as
 // files are added) and are never auto-removed.
 type OverlapFinding struct {
 	RuleIndex     int
@@ -111,10 +111,10 @@ const (
 	// never auto-removed. File discovery only; no dependency-tree parse.
 	RuleOverlappingGlobs LintRuleName = "overlapping-globs"
 	// RuleTrailingCommas reports the count of redundant trailing commas in the config
-	// file (a warning). It operates on the raw file only — no discovery or parse — and its
+	// file (a warning). It operates on the raw file only - no discovery or parse - and its
 	// findings are auto-removed by --fix.
 	RuleTrailingCommas LintRuleName = "trailing-commas"
-	// RuleCompact reports detector declarations that can be written more compactly — a
+	// RuleCompact reports detector declarations that can be written more compactly - a
 	// redundant "enabled": true, or an enabled-only object that could be a bare boolean.
 	// It is a lossless formatter (like gofmt): the fix is deterministic and semantically
 	// identical, so findings are warnings, not errors. Raw file only; no discovery or parse.
@@ -258,7 +258,7 @@ func LintConfigWithGraph(cfg *RevDepConfig, cwd string, rules []LintRuleName, gr
 	// exists in the file before reporting it. This filters out values synthesized by
 	// ParseConfig's rule-level entry-point inheritance (orphan/unusedExports
 	// validEntryPoints and devDeps prodEntryPoints inherit the rule's entry points when
-	// not explicitly set) — those are not in the file and must not be linted.
+	// not explicitly set) - those are not in the file and must not be linted.
 	var doc *JSONDocument
 	if configFilePath != "" {
 		if raw, readErr := os.ReadFile(configFilePath); readErr == nil {
@@ -269,11 +269,11 @@ func LintConfigWithGraph(cfg *RevDepConfig, cwd string, rules []LintRuleName, gr
 	ctx := &lintCtx{cwd: cwd, doc: doc, runFile: runFile, runOverlap: runOverlap, sem: make(chan struct{}, runtime.GOMAXPROCS(0))}
 
 	// Only the file/module/overlap rules need file discovery. When only trailing-commas
-	// or compact is selected, skip discovery entirely — those are pure document scans.
+	// or compact is selected, skip discovery entirely - those are pure document scans.
 	if runFile || runModule || runOverlap {
 		// Discovered files (respecting gitignore + the config's ignoreFiles), needed by the
 		// file/overlap rules and the module rule. The top-level ignoreFiles/processIgnoredFiles
-		// dead-check additionally needs the walk's exclusion byproducts — ignoreScopeFiles (what
+		// dead-check additionally needs the walk's exclusion byproducts - ignoreScopeFiles (what
 		// the walk saw) and ignorePrunedDirs (subtrees skipped whole). These come from the SAME
 		// pruned walk, so no second unpruned traversal of large ignored dirs is required. All are
 		// reused from the prebuilt graph when given.
@@ -302,7 +302,7 @@ func LintConfigWithGraph(cfg *RevDepConfig, cwd string, rules []LintRuleName, gr
 			allFiles = discovered
 			ignoreScopeFiles = ignoreScope(discovered, exclusions)
 			ignorePrunedDirs = configRelevantPrunedDirs(exclusions.PrunedDirs, cfg.IgnoreFiles, cwd)
-			// The module universe requires the parsed dependency tree — build it only when the
+			// The module universe requires the parsed dependency tree - build it only when the
 			// module rule runs, so file-only rule selections skip parsing entirely.
 			if runModule {
 				universe, err := buildModuleUniverseForConfig(cfg, cwd, allFiles, excludePatterns, includePatterns)
@@ -314,7 +314,7 @@ func LintConfigWithGraph(cfg *RevDepConfig, cwd string, rules []LintRuleName, gr
 		}
 
 		// Each per-option check is submitted to the worker pool (ctx.submit), so options
-		// across ALL rules run concurrently — not just rule-by-rule. Findings are collected
+		// across ALL rules run concurrently - not just rule-by-rule. Findings are collected
 		// under ctx.mu; the glob matching (the expensive part) happens outside the lock.
 		for i := range cfg.Rules {
 			rule := cfg.Rules[i]
@@ -424,7 +424,7 @@ func isNegationPattern(pattern string) bool {
 // negation (`!X`) that is its positive target `X`: a negation is alive when the file it
 // re-includes actually exists, so its liveness is decided by whether `X` matches something.
 // (A lone negated matcher never counts as a positive match, so testing the raw `!X` would
-// report every negation — even a live one — as matching nothing.) Non-negations are
+// report every negation - even a live one - as matching nothing.) Non-negations are
 // returned unchanged.
 func positivePatternForm(pattern string) string {
 	if isNegationPattern(pattern) {
@@ -509,7 +509,7 @@ func (ctx *lintCtx) checkFileGlobsAndOverlaps(loc patternLoc, values []string, b
 // checkIgnoreScopeArray runs the file-based rules over the top-level ignoreFiles /
 // processIgnoredFiles arrays. Unlike checkFileArray it is pruned-walk aware: a pattern is
 // reported dead only when it matches none of the files the walk saw (knownFiles) AND cannot
-// reach into any directory the walk pruned whole (prunedDirs) — whose contents were
+// reach into any directory the walk pruned whole (prunedDirs) - whose contents were
 // intentionally not enumerated. That lets the linter avoid a second, unpruned walk of large
 // ignored directories while never falsely flagging a pattern that targets one of them.
 func (ctx *lintCtx) checkIgnoreScopeArray(loc patternLoc, values []string, base string, knownFiles, prunedDirs []string) {
@@ -596,7 +596,7 @@ func (ctx *lintCtx) checkRuleFileGlobs(ruleIndex int, rule Rule, fullRulePath st
 		return patternLoc{RuleIndex: ruleIndex, RulePath: rule.Path, BoundaryIndex: -1, OptionKey: key}
 	}
 
-	// Whole rule matches no files at all — report the rule path (never auto-removed).
+	// Whole rule matches no files at all - report the rule path (never auto-removed).
 	// This is a dead-pattern finding only (there is nothing to overlap).
 	if ctx.runFile && len(ruleFiles) == 0 && strings.TrimSpace(rule.Path) != "" {
 		ctx.add(base("path"), -1, rule.Path, KindDir, false)

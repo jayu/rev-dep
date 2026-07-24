@@ -196,7 +196,7 @@ func initConfigInteractive(cwd string, askStandalone standaloneAsker, askEntryPo
 	specs, meta := planRules(ps, standalone, selection)
 
 	// Entry-point analysis and the fold-threshold question run right after the entry-points
-	// question — before the detectors question — so the prompts read in a natural order. This only
+	// question - before the detectors question - so the prompts read in a natural order. This only
 	// needs the package paths (from planRules), not the detector preset.
 	var foldedEntryPoints map[string]entryPointSets
 	entryPointPackageCount := 0
@@ -238,7 +238,7 @@ type analyzedRule struct {
 // root), asks the user how aggressively to fold near-covered directories (only when some directory
 // folds below 100%), and folds each package's entry points at the chosen threshold. It returns the
 // folded patterns keyed by package path (applied to the rules later) and the number of packages
-// processed. Working from ruleSpecs — not built rules — lets this run before the detectors question.
+// processed. Working from ruleSpecs - not built rules - lets this run before the detectors question.
 func foldPackageEntryPoints(cwd string, specs []ruleSpec, askFoldThreshold foldThresholdAsker) (map[string]entryPointSets, int) {
 	// Phase 1: analyze every package (no folding yet).
 	var analyzed []analyzedRule
@@ -290,7 +290,7 @@ const (
 	ruleSrcRoot                      // the root rule of a plain single-package project
 )
 
-// ruleSpec is a planned rule — its path and kind — before the detector preset is applied.
+// ruleSpec is a planned rule - its path and kind - before the detector preset is applied.
 type ruleSpec struct {
 	path string
 	kind ruleKind
@@ -298,7 +298,7 @@ type ruleSpec struct {
 
 // planRules enumerates the rules to create for the detected structure (paths + kinds) plus the
 // reporting metadata, independent of the detector preset. buildConfigResult attaches detectors to
-// these specs, and entry-point detection analyzes the same package specs — so both operate on
+// these specs, and entry-point detection analyzes the same package specs - so both operate on
 // exactly the same set of package paths. The selection controls which standalone subdirectory
 // packages get their own rules; when there is no base project the standalone packages are all
 // there is, so the selection is at least the curated set (never "none").
@@ -489,8 +489,8 @@ type InitConfigResult struct {
 }
 
 // InitConfig creates a .rev-dep.config.jsonc at cwd non-interactively, applying the given options.
-// It runs the full init pipeline — project detection, standalone-subfolder filtering, entry-point
-// detection, and detector selection — in a single call, with no terminal prompts. It errors if a
+// It runs the full init pipeline - project detection, standalone-subfolder filtering, entry-point
+// detection, and detector selection - in a single call, with no terminal prompts. It errors if a
 // config file already exists at cwd.
 func InitConfig(cwd string, opts InitOptions) (*InitConfigResult, error) {
 	result, err := initConfigInteractive(cwd,
@@ -524,7 +524,7 @@ const maxReportedFilterPatterns = 2
 //   - With a base project: "base only" (default), an optional curated middle option (base + real
 //     packages, when fixture/test-like folders were filtered out), and "base + all".
 //   - Without a base project (only subfolders): "curated" (default) and "all". There is no
-//     base-only option — the subfolders are all there is to configure.
+//     base-only option - the subfolders are all there is to configure.
 //
 // The default is always the first (most conservative) option, and that same default is returned
 // when stdin is not a terminal so scripted runs never block. It is only called when
@@ -535,7 +535,7 @@ func promptIncludeStandalone(ps projectStructure, standalone standalonePackages)
 	curatedLabelSuffix := fmt.Sprintf("%d curated %s in subfolders (excluding %s)", len(standalone.curated), packagesWord(len(standalone.curated)), previewPatterns(standalone.patterns))
 
 	// The "all" option includes the fixture/build-output folders our heuristics flagged, so name
-	// them — this is the only way the user sees, e.g., an "apps/web/.next" that is otherwise filtered.
+	// them - this is the only way the user sees, e.g., an "apps/web/.next" that is otherwise filtered.
 	filteredNote := ""
 	if len(standalone.filteredOut) > 0 {
 		filteredNote = fmt.Sprintf(" (including filtered: %s)", previewPatterns(standalone.patterns))
@@ -547,7 +547,7 @@ func promptIncludeStandalone(ps projectStructure, standalone standalonePackages)
 	if baseDetected {
 		baseLabel := "Root package only"
 		if ps.isMonorepo {
-			baseLabel = fmt.Sprintf("Monorepo only — root + %d workspace %s", len(ps.workspacePackageDirs), packagesWord(len(ps.workspacePackageDirs)))
+			baseLabel = fmt.Sprintf("Monorepo only - root + %d workspace %s", len(ps.workspacePackageDirs), packagesWord(len(ps.workspacePackageDirs)))
 		}
 		options = append(options, baseLabel)
 		selections = append(selections, standaloneNone)
@@ -635,7 +635,7 @@ func previewPatterns(patterns []string) string {
 // ---------------- third question: which detectors to enable? ----------------
 
 // promptDetectorPreset asks which detectors the generated rules should enable. The default is
-// "unresolved + circular imports" — the recommended starting point. When stdin is not a terminal
+// "unresolved + circular imports" - the recommended starting point. When stdin is not a terminal
 // it returns that default.
 func promptDetectorPreset() detectorPreset {
 	presets := []detectorPreset{

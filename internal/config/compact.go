@@ -18,8 +18,8 @@ var detectorFieldNames = map[string]bool{
 }
 
 // CompactConfigText rewrites a rev-dep config document so detector declarations use their most
-// compact equivalent form. It edits only detector values and leaves every other byte — including
-// comments, key order, and whitespace — unchanged, so it is safe to run over a hand-written
+// compact equivalent form. It edits only detector values and leaves every other byte - including
+// comments, key order, and whitespace - unchanged, so it is safe to run over a hand-written
 // `.jsonc` config. All parsing and byte manipulation is delegated to the position-aware jsonedit
 // engine (see jsonedit.go), which is also what makes the offset bookkeeping and comment-safe
 // member removal reliable.
@@ -34,7 +34,7 @@ var detectorFieldNames = map[string]bool{
 // For an array-valued detector: a single-element array is equivalent to the bare value, so it is
 // unwrapped ([{"entryPoints": ...}] → {"entryPoints": ...}, [true] → true) and its element compacted
 // like a single detector. A multi-element array has each element compacted in place, except an
-// element is never collapsed to a bare boolean — booleans are only meaningful for the single form,
+// element is never collapsed to a bare boolean - booleans are only meaningful for the single form,
 // so a pure {"enabled": ...} element inside a multi-element array is left as-is.
 func CompactConfigText(raw []byte) ([]byte, error) {
 	doc, err := ParseJSONC(raw)
@@ -96,7 +96,7 @@ func compactDetectorValue(doc *JSONDocument, value *JSONNode) []Edit {
 }
 
 // unwrapSingleElementArray produces the single edit that replaces a one-element detector array with
-// its element in compact form — dropping the surrounding brackets and any inner whitespace. The
+// its element in compact form - dropping the surrounding brackets and any inner whitespace. The
 // element is compacted with the single-value rules (bool-fold allowed), so an already-compactable
 // element is simplified in the same pass, and its continuation lines are dedented to make up for
 // the array nesting level that is being removed.
@@ -109,7 +109,7 @@ func unwrapSingleElementArray(doc *JSONDocument, array, elem *JSONNode) Edit {
 // reindentUnwrappedElement removes the extra indentation an array element carried from being nested
 // one level inside the array. Once the brackets are dropped the element sits at the key's
 // indentation, so each of its continuation lines (everything after the first) is dedented by the
-// difference between the element's indent and the key line's indent — which is exactly the file's
+// difference between the element's indent and the key line's indent - which is exactly the file's
 // indentation step at this point. Single-line elements are returned unchanged.
 func reindentUnwrappedElement(content []byte, array, elem *JSONNode, elemText string) string {
 	if !strings.Contains(elemText, "\n") {
@@ -154,7 +154,7 @@ func trimLeadingWhitespaceUpTo(line string, limit int) string {
 
 // canUnwrapArray reports whether a one-element array can be safely collapsed to its element. The
 // space between the brackets and the element (on both sides) must hold nothing but whitespace and
-// at most the element's trailing comma — a comment there would be lost by the collapse, so such an
+// at most the element's trailing comma - a comment there would be lost by the collapse, so such an
 // array is left as an array to honor the comment-preservation guarantee.
 func canUnwrapArray(content []byte, array, elem *JSONNode) bool {
 	beforeElem := content[array.Start+1 : elem.Start] // after '['

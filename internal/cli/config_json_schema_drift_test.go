@@ -14,9 +14,9 @@ import (
 // additionalProperties:false, so a struct field whose JSON key is missing from the schema would make
 // real output fail validation, and a schema property with no backing struct field is dead weight.
 //
-// For each output type we marshal a FULLY populated instance (so even omitempty fields — notably the
+// For each output type we marshal a FULLY populated instance (so even omitempty fields - notably the
 // optional startLine/startCol/endLine/endCol location fields, which are emitted only when the locator
-// resolves a position — appear) and assert its key set matches the schema definition's property set
+// resolves a position - appear) and assert its key set matches the schema definition's property set
 // exactly. Location fields stay OPTIONAL in the schema on purpose: the config processor parses in
 // basic mode by default and the locator can return nil even under detailed parsing, so locations are
 // best-effort, not guaranteed. This test pins the key *vocabulary*, not presence.

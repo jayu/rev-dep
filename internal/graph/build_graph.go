@@ -20,7 +20,7 @@ type moduleTargetSpec struct {
 // BuildDepsGraphForMultiple (which adds resolution paths) and BuildEntryPointReachability (which adds
 // per-target reachability) drive it; the only difference is what they compute from the built graph.
 //
-// While building, it records, for each target, a "frontier" — the set of node paths from which the
+// While building, it records, for each target, a "frontier" - the set of node paths from which the
 // target is immediately present: the target file node (file target) or every node importing the
 // target module (module target). firstTargetNode is the first such node in DFS order, preserved for
 // the single-target resolution-path callers.
@@ -234,7 +234,7 @@ type EntryPointReachability struct {
 
 // BuildEntryPointReachability builds the forward graph from entryPoints ONCE and answers, for every
 // target, which entry points transitively reach it. The forward graph is target-independent, so the
-// only per-target work is a reverse BFS from that target's frontier back to the roots — cycle-safe
+// only per-target work is a reverse BFS from that target's frontier back to the roots - cycle-safe
 // and visiting only the target's ancestors. This is the optimal shape for "which of many entry
 // points reach these targets", and unlike resolution paths it stays correct with many entry points.
 func BuildEntryPointReachability(deps MinimalDependencyTree, entryPoints []string, targets []string, ignoreTypeImports bool) EntryPointReachability {

@@ -535,7 +535,7 @@ func (ctx *MonorepoContext) GetPackageConfig(packageRoot string) (*PackageJsonCo
 
 	// Read and parse outside the lock: this does blocking file IO, and holding the write
 	// lock across it would serialise every resolver goroutine behind one disk read. A
-	// concurrent miss on the same package just parses twice, which is harmless — the
+	// concurrent miss on the same package just parses twice, which is harmless - the
 	// re-check below makes sure every caller ends up with the same *PackageJsonConfig.
 	pkgJsonPath := filepath.Join(pathutil.DenormalizePathForOS(packageRoot), "package.json")
 	content, err := os.ReadFile(pkgJsonPath)

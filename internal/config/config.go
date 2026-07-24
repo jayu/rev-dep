@@ -398,8 +398,8 @@ const (
 // NodeModulesResolutionConfig configures how third-party imports are validated for the
 // missing/unused/unresolved node module checks.
 type NodeModulesResolutionConfig struct {
-	// ResolutionType is "entry-package" (default) — validate every import against the rule's
-	// entry package.json — or "nearest-package" — validate each import against the package.json
+	// ResolutionType is "entry-package" (default) - validate every import against the rule's
+	// entry package.json - or "nearest-package" - validate each import against the package.json
 	// that owns the importing file.
 	ResolutionType string `json:"resolutionType"`
 	// IncludeDevDepsFromRoot, when true, unions the monorepo root (cwd) package.json
@@ -473,7 +473,7 @@ func ConfigFileNameJSONC() string {
 	return configFileNameJsonc
 }
 
-// CurrentConfigVersion is the config schema version this CLI release treats as current — the one
+// CurrentConfigVersion is the config schema version this CLI release treats as current - the one
 // `config init` writes into generated configs. Keep it as the last entry of supportedConfigVersions.
 const CurrentConfigVersion = "2.0"
 

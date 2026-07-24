@@ -24,8 +24,8 @@ func promptAutoDetectEntryPoints() bool {
 		return false
 	}
 	options := []string{
-		"Yes — analyze each package and fill in production/development entry points",
-		"No — leave entry points empty",
+		"Yes - analyze each package and fill in production/development entry points",
+		"No - leave entry points empty",
 	}
 	idx, _, err := selectOne(os.Stdin, os.Stdout, "Auto-detect entry points for each package?", options, 0)
 	if err != nil {
@@ -61,7 +61,7 @@ func promptFoldThreshold(options []foldThresholdOption) int {
 	question := "Some directories contain files other than entry points. " +
 		"Fold each into a single \"dir/**\" glob anyway?\n" +
 		"Folding keeps the config short (one glob per directory).\n" +
-		"Not folding lists every entry point individually — more entries, more verbose."
+		"Not folding lists every entry point individually - more entries, more verbose."
 	idx, _, err := selectOne(os.Stdin, os.Stdout, question, labels, 0)
 	if err != nil || idx == 0 {
 		return 100
@@ -83,7 +83,7 @@ func foldThresholdOptionLabel(option foldThresholdOption) string {
 	if len(option.newDirs) > maxDisplayedFoldDirs {
 		more = fmt.Sprintf(", +%d more", len(option.newDirs)-maxDisplayedFoldDirs)
 	}
-	return fmt.Sprintf("Fold directories ≥%d%% covered — %d dir(s): %s%s",
+	return fmt.Sprintf("Fold directories ≥%d%% covered - %d dir(s): %s%s",
 		option.threshold, len(option.newDirs), strings.Join(examples, ", "), more)
 }
 
@@ -92,7 +92,7 @@ func foldThresholdOptionLabel(option foldThresholdOption) string {
 // packageEntryAnalysis is the folding-ready result of analyzing a package: the universe of
 // analyzed files partitioned into production / development / ignored entry-point sets (plus the
 // declaration files handled separately). It is produced once by analyzePackageEntryPoints and then
-// folded into glob patterns at a chosen coverage threshold by foldAnalysis — the split lets config
+// folded into glob patterns at a chosen coverage threshold by foldAnalysis - the split lets config
 // init pick a fold threshold interactively after seeing every package's near-covered directories.
 type packageEntryAnalysis struct {
 	universe  []string
@@ -104,7 +104,7 @@ type packageEntryAnalysis struct {
 
 // analyzePackageEntryPoints analyzes the package rooted at pkgDir (absolute, standardised path),
 // finds its entry points (files with no importers within the package), and classifies each file as
-// production, development, or ignored by path heuristics — without folding into patterns yet.
+// production, development, or ignored by path heuristics - without folding into patterns yet.
 func analyzePackageEntryPoints(pkgDir string) packageEntryAnalysis {
 	tree, _, _ := resolve.GetMinimalDepsTreeForCwd(
 		pkgDir,
@@ -153,8 +153,8 @@ func analyzePackageEntryPoints(pkgDir string) packageEntryAnalysis {
 	}
 
 	// Bucket every remaining file. Files inside a dev/ignore directory (tests, scripts, fixtures,
-	// snapshots, ...) belong to that bucket WHOLESALE — regardless of whether they are entry
-	// points — so the whole directory can fold into one glob even when its files import each other.
+	// snapshots, ...) belong to that bucket WHOLESALE - regardless of whether they are entry
+	// points - so the whole directory can fold into one glob even when its files import each other.
 	// Files outside such directories are only relevant when they are actual entry points (no
 	// importers): production by default, or development by filename marker (e.g. foo.test.ts).
 	for _, rel := range analysis.universe {
@@ -177,7 +177,7 @@ func analyzePackageEntryPoints(pkgDir string) packageEntryAnalysis {
 // foldAnalysis folds an analyzed package into (prod, dev, ignore) glob patterns at the given
 // coverage threshold (percent). At threshold 100 a directory folds to "dir/**" only when every
 // analyzed file under it is an entry point of that set (the strict, always-safe rule); a lower
-// threshold folds directories that are only near-fully covered — e.g. a Next.js pages/ dir where a
+// threshold folds directories that are only near-fully covered - e.g. a Next.js pages/ dir where a
 // few files are imported by siblings and so are not entry points. Each set's fold blocks on the
 // other two sets so a directory mixing, say, prod and dev files never folds one set's glob over the
 // other's files.
@@ -224,7 +224,7 @@ const entryCollapseThreshold = 2
 //
 //   - Literal files sharing a compound suffix (the last two dot-separated filename segments, e.g.
 //     ".test.ts", ".stories.tsx", ".config.js") collapse into one "**/*<suffix>" glob. This is
-//     suffix-general — it is not limited to the classifier's marker list — since these files are
+//     suffix-general - it is not limited to the classifier's marker list - since these files are
 //     already dev/ignore entry points and any shared compound suffix names a family of them.
 //   - Folded "dir/**" globs whose leaf directory is a recognized dev/ignore directory name (mocks,
 //     __tests__, snapshots, ...) collapse into one "**/<leaf>/**" glob, so many scattered
@@ -271,9 +271,9 @@ func collapseEntryPatterns(patterns []string, dirNames map[string]bool, collapse
 	return slices.Compact(out)
 }
 
-// compoundFileSuffix returns the collapse suffix of a file — the last two dot-separated segments
+// compoundFileSuffix returns the collapse suffix of a file - the last two dot-separated segments
 // of its name (e.g. "app/foo/bar.server.test.ts" -> ".test.ts", "x/Card.stories.tsx" ->
-// ".stories.tsx") — reporting false when the name has no compound extension (fewer than two dots,
+// ".stories.tsx") - reporting false when the name has no compound extension (fewer than two dots,
 // e.g. "utils.ts"), since a bare "name.ext" would collapse into an over-broad "**/*.ext".
 func compoundFileSuffix(relPath string) (string, bool) {
 	parts := strings.Split(path.Base(relPath), ".")
@@ -307,7 +307,7 @@ func recognizedDirGlobLeaf(pattern string, dirNames map[string]bool) (string, bo
 var foldThresholdLadder = []int{100, 95, 90, 85, 80}
 
 // foldThresholdOption is one selectable threshold below 100 together with the directories it would
-// newly fold — those not already folded by the next-stricter threshold.
+// newly fold - those not already folded by the next-stricter threshold.
 type foldThresholdOption struct {
 	threshold int
 	newDirs   []coveredDir // display paths, sorted by descending coverage then path
@@ -322,7 +322,7 @@ type analyzedPackage struct {
 // foldThresholdOptions computes, for each threshold below 100, the directories it would newly fold
 // across all analyzed packages (deduplicated against stricter thresholds). A threshold that unlocks
 // no directory beyond the one above it is omitted, so choosing it would change nothing. Returns nil
-// when no directory folds below 100 — i.e. there is nothing to ask the user.
+// when no directory folds below 100 - i.e. there is nothing to ask the user.
 func foldThresholdOptions(pkgs []analyzedPackage) []foldThresholdOption {
 	foldedByThreshold := make(map[int]map[string]int, len(foldThresholdLadder)) // threshold -> display path -> coverage
 	for _, threshold := range foldThresholdLadder {
@@ -392,7 +392,7 @@ type entryClass int
 const (
 	entryProd   entryClass = iota // production entry point (the default)
 	entryDev                      // development entry point (tests, scripts, examples, ...)
-	entryIgnore                   // ignored entry point (fixtures — not real entry points)
+	entryIgnore                   // ignored entry point (fixtures - not real entry points)
 )
 
 // ignoreEntryDirNames are lowercase directory-name segments that mark a file as an *ignored*
@@ -473,7 +473,7 @@ func classifyEntryPoint(relPath string) entryClass {
 
 // ---------------- glob folding ----------------
 
-// coveredDir is a directory that folded to "dir/**" together with its entry-point coverage —
+// coveredDir is a directory that folded to "dir/**" together with its entry-point coverage -
 // the percentage of analyzed files under it that are entry points of the folded set.
 type coveredDir struct {
 	dir      string
@@ -484,10 +484,10 @@ type coveredDir struct {
 // patterns. A directory folds into a single "dir/**" glob when at least `threshold` percent of the
 // analyzed files under it are in entrySet (100 = every file, the strict rule); otherwise its entry
 // files are listed individually and its subdirectories are folded independently. A directory is
-// never folded when its subtree contains a `blocked` file — a file belonging to a different entry
-// set — so one set's glob never claims another set's files. allFiles is the universe of analyzed
+// never folded when its subtree contains a `blocked` file - a file belonging to a different entry
+// set - so one set's glob never claims another set's files. allFiles is the universe of analyzed
 // files (all package-relative), so coverage is decided against real siblings, not the fs. The
-// package root is never folded into a bare "**" — it is always expanded one level.
+// package root is never folded into a bare "**" - it is always expanded one level.
 func foldEntryPatterns(allFiles []string, entrySet, blocked map[string]bool, threshold int) []string {
 	if len(entrySet) == 0 {
 		return nil

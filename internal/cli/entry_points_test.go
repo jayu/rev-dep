@@ -139,7 +139,7 @@ func TestFoldEntryPatterns_CoverageThreshold(t *testing.T) {
 	if got := foldEntryPatterns(allFiles, entries, nil, 90); !slices.Equal(got, []string{"pages/**"}) {
 		t.Errorf("at 90%% coverage expected [pages/**], got %v", got)
 	}
-	// At 95% the directory is not covered enough — every entry file is listed instead.
+	// At 95% the directory is not covered enough - every entry file is listed instead.
 	got95 := foldEntryPatterns(allFiles, entries, nil, 95)
 	if slices.Contains(got95, "pages/**") || len(got95) != 9 {
 		t.Errorf("at 95%% expected 9 individual files, got %v", got95)
@@ -216,7 +216,7 @@ func TestFoldThresholdOptions_DedupAndSkip(t *testing.T) {
 }
 
 func TestFoldThresholdOptions_NoneWhenFullyStrict(t *testing.T) {
-	// A directory that is either fully covered or well below any threshold — nothing to offer.
+	// A directory that is either fully covered or well below any threshold - nothing to offer.
 	analysis := packageEntryAnalysis{
 		universe:  []string{"src/index.ts", "src/a.ts", "src/b.ts", "src/c.ts"},
 		prodSet:   setOf("src/index.ts"), // 1/4 = 25%, far below 80%
@@ -381,7 +381,7 @@ func TestCollapseEntryPatterns(t *testing.T) {
 }
 
 // With file collapse disabled (the ignore set), directory globs still collapse but file suffixes
-// must not — a stray ".test.ts" in a fixtures dir may not broaden into "**/*.test.ts".
+// must not - a stray ".test.ts" in a fixtures dir may not broaden into "**/*.test.ts".
 func TestCollapseEntryPatterns_FilesDisabled(t *testing.T) {
 	in := []string{
 		"src/__snapshots__/**",

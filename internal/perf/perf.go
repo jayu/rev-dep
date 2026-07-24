@@ -283,7 +283,7 @@ func Report(total time.Duration) {
 	fmt.Printf("\n  TIME sums every call, so a phase whose CALLS run concurrently can exceed\n")
 	fmt.Printf("  wall-clock time; compare it against SLOWEST (the longest single call).\n")
 	if level >= levelDeep {
-		fmt.Printf("  REVDEP_PERF=2 instruments hot loops and inflates absolute numbers — read it as a ratio.\n")
+		fmt.Printf("  REVDEP_PERF=2 instruments hot loops and inflates absolute numbers - read it as a ratio.\n")
 	}
 }
 

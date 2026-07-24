@@ -87,7 +87,7 @@ var configRunCmd = &cobra.Command{
 		formatAndPrintConfigResults(result, cwd, runConfigListAll)
 
 		// Optionally lint the config after running. Only the error/warning counts are
-		// printed here — use `rev-dep config lint` for per-finding detail and `--fix`.
+		// printed here - use `rev-dep config lint` for per-finding detail and `--fix`.
 		lintHasErrors := false
 		if lintWanted {
 			failed, err := runConfigLintSummary(cwd, result, reuseGraphForLint)
@@ -151,9 +151,9 @@ func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, 
 	errors, warnings := countLintFindings(lintResult, false)
 	switch {
 	case errors > 0:
-		fmt.Printf("\n%s  Config lint: %d error(s), %d warning(s) — run `rev-dep config lint` for details (or --fix to apply).\n", emoji.Error, errors, warnings)
+		fmt.Printf("\n%s  Config lint: %d error(s), %d warning(s) - run `rev-dep config lint` for details (or --fix to apply).\n", emoji.Error, errors, warnings)
 	case warnings > 0:
-		fmt.Printf("\n%s  Config lint: 0 errors, %d warning(s) — run `rev-dep config lint` for details (or --fix to apply).\n", emoji.Warning, warnings)
+		fmt.Printf("\n%s  Config lint: 0 errors, %d warning(s) - run `rev-dep config lint` for details (or --fix to apply).\n", emoji.Warning, warnings)
 	default:
 		fmt.Printf("\n%s  Config lint: no issues.\n", emoji.Success)
 	}

@@ -12,7 +12,7 @@ import (
 // jsonedit is a self-contained, position-aware JSON/JSONC editor. It parses a JSONC
 // document into a navigable node tree that carries byte offsets into the ORIGINAL
 // file, then lets callers surgically remove array elements / object members or replace
-// individual values — all while leaving every other byte (comments, key order,
+// individual values - all while leaving every other byte (comments, key order,
 // whitespace) untouched.
 //
 // It underpins two consumers in this repo:
@@ -340,7 +340,7 @@ func ReplaceNode(n *JSONNode, text string) Edit {
 	return Edit{Start: n.Start, End: n.End, Text: text}
 }
 
-// findTrailingCommaPositions returns the byte offsets of redundant trailing commas —
+// findTrailingCommaPositions returns the byte offsets of redundant trailing commas -
 // a comma whose next significant token (skipping whitespace and comments) is a closing
 // `}` or `]`. It is string- and comment-aware so commas inside strings or comments are
 // never counted. The offsets index into content and each spans exactly one byte.
@@ -352,7 +352,7 @@ func findTrailingCommaPositions(content []byte) []int {
 		c := content[i]
 		switch {
 		case c == '"':
-			// Skip the string literal (a value) — the preceding comma was a separator.
+			// Skip the string literal (a value) - the preceding comma was a separator.
 			i++
 			for i < n {
 				if content[i] == '\\' {
@@ -560,7 +560,7 @@ func removeSequenceItems(content []byte, items []span, deadIdx []int) []Edit {
 		survivorEnd := items[trailingStart-1].end
 		if isLineStart(content, lineIndentStart(content, items[trailingStart].start)) {
 			// Own-line items: remove ONLY the survivor's trailing comma (preserving any inline
-			// comment that trails it — it belongs to the survivor), then remove each dead item
+			// comment that trails it - it belongs to the survivor), then remove each dead item
 			// as its own line. A single range from survivorEnd would swallow that comment.
 			if commaPos := commaAfter(content, survivorEnd); commaPos >= 0 {
 				edits = append(edits, Edit{Start: survivorEnd, End: commaPos + 1})
@@ -624,7 +624,7 @@ func RemoveObjectMembers(content []byte, obj *JSONNode, keyIdx []int) []Edit {
 }
 
 // RemoveMember removes the whole `"key": value` member from obj, returning the edits that
-// delete it (removing the last member can take two edits — dropping the prior member's
+// delete it (removing the last member can take two edits - dropping the prior member's
 // dangling comma while preserving its inline comment). Returns ok=false if the key is
 // absent. When it is the object's only member, the object body is emptied, leaving the `{}`
 // shape intact.

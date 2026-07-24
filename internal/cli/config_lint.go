@@ -25,15 +25,15 @@ var (
 var configLintCmd = &cobra.Command{
 	Use:   "lint",
 	Short: "Report (and optionally remove) config glob/path patterns that match nothing",
-	Long: `Scan a (.)rev-dep.config.json(c) for "dead" glob and path patterns — ignore
+	Long: `Scan a (.)rev-dep.config.json(c) for "dead" glob and path patterns - ignore
 patterns, entry point patterns, workspace paths, graph excludes, denied files/modules and
-similar — that no longer match any discovered file or module. Over time configs
+similar - that no longer match any discovered file or module. Over time configs
 accumulate patterns for files that were renamed or deleted; this command surfaces them
 so the config stays lean.
 
 With --fix, dead patterns are removed in place, preserving all comments and formatting.
 Some patterns are reported but never auto-removed because deleting them could change a
-check's behavior or make the config invalid — workspace paths, required entry points / files
+check's behavior or make the config invalid - workspace paths, required entry points / files
 / modules, and module-boundary selectors. These are marked "not auto-removed"; resolve
 them by hand.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -108,7 +108,7 @@ func printConfigLintStatus(errors, warnings int, fixed bool) {
 	case errors == 0 && warnings == 0:
 		// "all clean" already printed by the results section
 	case errors == 0:
-		fmt.Printf("\n%s  %d warning(s), no errors — exit 0.\n", emoji.Warning, warnings)
+		fmt.Printf("\n%s  %d warning(s), no errors - exit 0.\n", emoji.Warning, warnings)
 	default:
 		verb := "found"
 		if fixed {
@@ -150,7 +150,7 @@ func printConfigLintResults(result *config.LintResult, cwd string) {
 	}
 
 	if len(errorDeads) == 0 && len(warningDeads) == 0 && len(result.Overlaps) == 0 && result.TrailingCommaCount == 0 && result.CompactableCount == 0 {
-		fmt.Printf("\n%s No issues found — every glob matches something, no patterns overlap, config is compact.\n", emoji.Success)
+		fmt.Printf("\n%s No issues found - every glob matches something, no patterns overlap, config is compact.\n", emoji.Success)
 		return
 	}
 
@@ -186,7 +186,7 @@ func (p *ruleHeaderPrinter) print(ruleIndex int, rulePath string) bool {
 	return true
 }
 
-// printErrorSection lists dead positive patterns — the findings that fail the lint.
+// printErrorSection lists dead positive patterns - the findings that fail the lint.
 func printErrorSection(deads []config.DeadPattern) {
 	fmt.Printf("\n── Errors ──\n")
 	hdr := newRuleHeaderPrinter()
@@ -220,8 +220,8 @@ type warnLine struct {
 	text          string
 }
 
-// printWarningSection lists advisory findings — dead negation patterns, overlapping
-// patterns, redundant trailing commas, and compactable detectors — grouped by rule and
+// printWarningSection lists advisory findings - dead negation patterns, overlapping
+// patterns, redundant trailing commas, and compactable detectors - grouped by rule and
 // option. Trailing commas and compactable detectors are reported as aggregate counts
 // (document-level, not per-rule, findings).
 func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.OverlapFinding, trailingCommas, compactable int) {
@@ -230,10 +230,10 @@ func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.Ov
 	if trailingCommas > 0 || compactable > 0 {
 		fmt.Printf("\n%s File\n", emoji.File)
 		if compactable > 0 {
-			fmt.Printf("    %s  %d detector declaration(s) can be written more compactly — run --fix to simplify\n", emoji.Warning, compactable)
+			fmt.Printf("    %s  %d detector declaration(s) can be written more compactly - run --fix to simplify\n", emoji.Warning, compactable)
 		}
 		if trailingCommas > 0 {
-			fmt.Printf("    %s  %d redundant trailing comma(s) — run --fix to remove\n", emoji.Warning, trailingCommas)
+			fmt.Printf("    %s  %d redundant trailing comma(s) - run --fix to remove\n", emoji.Warning, trailingCommas)
 		}
 	}
 
@@ -257,7 +257,7 @@ func printWarningSection(warningDeads []config.DeadPattern, overlaps []config.Ov
 		case config.OverlapDuplicate:
 			text = fmt.Sprintf("%q and %q match the same files (possible duplicate)", o.PatternA, o.PatternB)
 		case config.OverlapContained:
-			text = fmt.Sprintf("%q is redundant — its files are all covered by %q", o.PatternA, o.PatternB)
+			text = fmt.Sprintf("%q is redundant - its files are all covered by %q", o.PatternA, o.PatternB)
 		case config.OverlapPartial:
 			text = fmt.Sprintf("%q and %q partially overlap (%d shared file(s))", o.PatternA, o.PatternB, o.SharedFileCount)
 		}
@@ -328,7 +328,7 @@ func printConfigLintFixSummary(fix *config.FixResult) {
 		fmt.Printf("%s  Removed %d redundant trailing comma(s).\n", emoji.Fix, fix.TrailingCommasRemoved)
 	}
 	if fix.ReportOnlyKept > 0 {
-		fmt.Printf("%s  %d dead pattern(s) not auto-removed (removing them could change a check's behavior or make the config invalid) — review and remove manually.\n", emoji.Warning, fix.ReportOnlyKept)
+		fmt.Printf("%s  %d dead pattern(s) not auto-removed (removing them could change a check's behavior or make the config invalid) - review and remove manually.\n", emoji.Warning, fix.ReportOnlyKept)
 	}
 	if fix.RemovedCount == 0 && fix.ReportOnlyKept == 0 && fix.TrailingCommasRemoved == 0 && fix.CompactedCount == 0 {
 		fmt.Printf("\n%s Nothing to remove.\n", emoji.Success)
@@ -339,7 +339,7 @@ func init() {
 	// config lint does not use addSharedFlags: it reads its resolution inputs (conditionNames,
 	// per-workspace package.json / tsconfig.json) from the config file, so the shared
 	// --condition-names / --follow-monorepo-packages / --package-json / --tsconfig-json flags
-	// had no effect here — same as config run.
+	// had no effect here - same as config run.
 	configLintCmd.Flags().BoolVarP(&verboseFlag, "verbose", "v", false, "Show warnings and verbose output")
 	configLintCmd.Flags().StringVarP(&lintConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configLintCmd.Flags().BoolVar(&lintConfigFix, "fix", false, "Remove dead patterns from the config file (preserves comments and formatting)")

@@ -25,7 +25,7 @@ func ruleWasRun(result *LintResult, rule LintRuleName) bool {
 // ownerKey identifies the object that directly owns a set of option members (a rule, a
 // detector, a module boundary, or the config root). Grouping removable dead patterns by
 // owner lets us batch all whole-member deletions from one object into a single
-// non-overlapping operation — computing them one-by-one produces overlapping byte
+// non-overlapping operation - computing them one-by-one produces overlapping byte
 // ranges that ApplyEdits would silently drop.
 type ownerKey struct {
 	ruleIndex     int
@@ -105,7 +105,7 @@ func ApplyLintFix(result *LintResult) (*FixResult, error) {
 				continue
 			}
 			// Keep only in-range indices. A stale/out-of-range index must never inflate the
-			// "every element is dead" decision below (which deletes the WHOLE member) — that
+			// "every element is dead" decision below (which deletes the WHOLE member) - that
 			// could drop live elements. Such indices are left in place and reported instead.
 			deadIdx := make([]int, 0, len(deads))
 			for _, dp := range deads {
@@ -122,7 +122,7 @@ func ApplyLintFix(result *LintResult) (*FixResult, error) {
 			// findings can target the same element), so the summary is accurate.
 			removed := uniqueCount(deadIdx)
 			if removed == len(arr.Elems) {
-				// Every element is dead — mark the whole member for batched removal.
+				// Every element is dead - mark the whole member for batched removal.
 				wholeMemberKeys = append(wholeMemberKeys, optKey)
 				wholeMemberCount += removed
 			} else {
@@ -147,7 +147,7 @@ func ApplyLintFix(result *LintResult) (*FixResult, error) {
 	}
 
 	// The lanes are applied as an ORDERED PIPELINE, not merged into one edit set: each
-	// pass re-parses the previous pass's output. This matters because lanes interact —
+	// pass re-parses the previous pass's output. This matters because lanes interact -
 	// e.g. dead-glob removal can empty a detector object ({ "enabled": true, "denyFiles":
 	// ["dead"] } → { "enabled": true }) which the compact lane then folds to `true`.
 	// Merging the edits would make them overlap on the same subtree and ApplyEdits would
@@ -183,7 +183,7 @@ func ApplyLintFix(result *LintResult) (*FixResult, error) {
 		return fix, nil // nothing changed
 	}
 
-	// Safety net: every lane preserves a valid config, so a parse failure here is a bug —
+	// Safety net: every lane preserves a valid config, so a parse failure here is a bug -
 	// never write output that would no longer parse.
 	if _, perr := ParseConfig(current); perr != nil {
 		return fix, fmt.Errorf("fix would produce an invalid config; leaving %s unchanged: %w", result.ConfigFilePath, perr)

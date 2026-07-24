@@ -5,21 +5,35 @@ title: v3 breaking changes
 
 # v3 breaking changes
 
-This page tracks the breaking changes that will ship in **rev-dep v3**. It is updated as changes are collected, before the release. Each entry describes what worked in v2, what changes in v3, and how to update your configuration.
-
-:::info
-v3 is not released yet. On v2 your configuration keeps working as-is. Use this page to prepare your config ahead of the upgrade.
-:::
+This page tracks the breaking changes that are shipped in **rev-dep v3**. Each entry describes what worked in v2, what changes in v3, and how to update your configuration.
 
 :::tip
-Run `rev-dep config migrate` to apply the safe changes automatically (renames `rules` → `workspaces`, bumps `configVersion`, drops the removed `algorithm` option) and get a list of the glob patterns and behavior changes you still need to review by hand. It edits the file in place — review the change with git.
+Run `rev-dep config migrate` to apply the safe changes automatically:
+
+- renames `rules` → `workspaces`
+- bumps `configVersion`
+- drops the removed `algorithm` option form circular imports detection
+
+It then prints a list of the glob patterns and behavior changes you still need to review by hand.
+
+The command edits the file in place - review the change with git.
 :::
+
+## Breaking changes
+
+- [Config: the `rules` field is renamed to `workspaces`](#config-the-rules-field-is-renamed-to-workspaces)
+- [Glob patterns now strictly follow `.gitignore` rules](#glob-patterns-now-strictly-follow-gitignore-rules)
+- [Glob patterns are scoped to their workspace](#glob-patterns-are-scoped-to-their-workspace)
+- [Circular imports: the `algorithm` option is removed](#circular-imports-the-algorithm-option-is-removed)
+- [Unused dependencies: binary names match whole words only](#unused-dependencies-binary-names-match-whole-words-only)
+- [`config run` and `config lint`: four resolution flags are removed](#config-run-and-config-lint-four-resolution-flags-are-removed)
+- [`--package-json` is removed from every command](#--package-json-is-removed-from-every-command)
 
 ---
 
 ## Config: the `rules` field is renamed to `workspaces`
 
-The top-level config array `rules` is renamed to `workspaces`. This is purely a rename — the field works exactly as before. The new name reflects how it is actually used: typically one entry per workspace package.
+The top-level config array `rules` is renamed to `workspaces`. This is purely a rename - the field works exactly as before. The new name reflects how it is actually used: typically one entry per workspace package.
 
 The config version is bumped to `2.0` accordingly.
 
@@ -187,9 +201,9 @@ The v2 behavior described here is considered a bug. v3 fixes it.
 
 **This only affects a workspace that uses [`followMonorepoPackages`](../other-concepts-and-features/following-monorepo-packages.mdx).** That option pulls another package's source files into *this* workspace's dependency graph. In v2, this workspace's own glob patterns could then match those pulled-in **foreign** files, not just its own. v3 keeps each workspace's patterns matching only files **inside that workspace**; to reach another package on purpose you now use an explicit `../` pattern.
 
-It is **not** about one workspace's config affecting another's — workspaces never share settings, and each is still analyzed in isolation. The bug was narrower: a single workspace's *own* analysis wrongly reached into sibling files that `followMonorepoPackages` had dragged into its graph. **If you do not use `followMonorepoPackages`, nothing here changes for you.**
+It is **not** about one workspace's config affecting another's - workspaces never share settings, and each is still analyzed in isolation. The bug was narrower: a single workspace's *own* analysis wrongly reached into sibling files that `followMonorepoPackages` had dragged into its graph. **If you do not use `followMonorepoPackages`, nothing here changes for you.**
 
-Concretely: an `apps/web` workspace using `prodEntryPoints: ["**/api/**"]` — where the leading `**` matches any prefix — could match a followed `apps/mobile/.../api/file.ts` and wrongly treat it as one of `apps/web`'s own entry points. v3 no longer does.
+Concretely: an `apps/web` workspace using `prodEntryPoints: ["**/api/**"]` - where the leading `**` matches any prefix - could match a followed `apps/mobile/.../api/file.ts` and wrongly treat it as one of `apps/web`'s own entry points. v3 no longer does.
 
 ### What changes
 
@@ -414,11 +428,11 @@ Delete the flags from any `rev-dep config run` or `rev-dep config lint` call in 
 
 The `--package-json` flag is gone from all commands
 
-A package's `package.json` always lives at the root of its directory — Node requires it there, so it cannot be relocated. There was nothing for the flag to point at that was not already `<directory>/package.json`, and in a monorepo it was silently ignored.
+A package's `package.json` always lives at the root of its directory - Node requires it there, so it cannot be relocated. There was nothing for the flag to point at that was not already `<directory>/package.json`, and in a monorepo it was silently ignored.
 
 
 ### How to update
 
-Delete `--package-json` from any command line. There is no replacement — the default (`<directory>/package.json`) is the only correct location.
+Delete `--package-json` from any command line. There is no replacement - the default (`<directory>/package.json`) is the only correct location.
 
 If tool is run from different directory than the package.json, use `--cwd` to point at the package root. 

@@ -7,15 +7,15 @@ Report (and optionally remove) config glob/path patterns that match nothing
 
 ### Synopsis
 
-Scan a (.)rev-dep.config.json(c) for "dead" glob and path patterns — ignore
+Scan a (.)rev-dep.config.json(c) for "dead" glob and path patterns - ignore
 patterns, entry point patterns, rule paths, graph excludes, denied files/modules and
-similar — that no longer match any discovered file or module. Over time configs
+similar - that no longer match any discovered file or module. Over time configs
 accumulate patterns for files that were renamed or deleted; this command surfaces them
 so the config stays lean.
 
 With --fix, dead patterns are removed in place, preserving all comments and formatting.
 Some patterns are reported but never auto-removed because deleting them could change a
-check's behavior or make the config invalid — rule paths, required entry points / files
+check's behavior or make the config invalid - rule paths, required entry points / files
 / modules, and module-boundary selectors. These are marked "not auto-removed"; resolve
 them by hand.
 

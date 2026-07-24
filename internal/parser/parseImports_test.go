@@ -3804,7 +3804,7 @@ func TestDynamicImportWithWebpackMagicComment(t *testing.T) {
 
 // TestParseImportsNotBrokenByRegexLiteralsInFunction reproduces a parser bug: a function body
 // containing regex literals whose pattern is a quote character (e.g. /"/g or /'/g) desynced the
-// string scanner — the quote inside the regex opened a string scan that mis-paired quotes across
+// string scanner - the quote inside the regex opened a string scan that mis-paired quotes across
 // the rest of the file, so every import that appeared AFTER the function was silently dropped.
 func TestParseImportsNotBrokenByRegexLiteralsInFunction(t *testing.T) {
 	code := `import { foo } from "pkg-foo";
@@ -3852,7 +3852,7 @@ import { Widget } from "../widgets/widget";
 
 // TestParseImportsRegexVsDivision guards the regex/division disambiguation: division operators
 // must NOT be skipped as regex literals (which could swallow following imports), while genuine
-// regex literals — including ones containing quotes or a [...] char class with quotes — must be
+// regex literals - including ones containing quotes or a [...] char class with quotes - must be
 // skipped so they do not desync the scanner.
 func TestParseImportsRegexVsDivision(t *testing.T) {
 	cases := []struct {

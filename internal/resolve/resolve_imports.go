@@ -82,7 +82,7 @@ func (f *ModuleResolver) cachedAlias(request string) (ResolvedModuleInfo, bool) 
 }
 
 // cacheAlias records a resolved alias. Two goroutines resolving the same request compute
-// the same answer, so a racing write is harmless — last writer wins.
+// the same answer, so a racing write is harmless - last writer wins.
 func (f *ModuleResolver) cacheAlias(request string, info ResolvedModuleInfo) {
 	f.aliasesCacheMu.Lock()
 	f.aliasesCache[request] = info
@@ -211,7 +211,7 @@ func NewResolverManager(followMonorepoPackages FollowMonorepoPackagesValue, cond
 }
 
 // warnUnmatchedTsConfigOverrides warns (under --verbose) about a tsconfig override whose
-// directory never got a resolver — e.g. the tool was run from a directory the override doesn't name.
+// directory never got a resolver - e.g. the tool was run from a directory the override doesn't name.
 func (rm *ResolverManager) warnUnmatchedTsConfigOverrides() {
 	for dir := range rm.tsConfigOverrides {
 		if !rm.createdDirs[dir] {
@@ -1403,8 +1403,8 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 		// (builtInModules, nodeModules, monorepoContext.PackageToPath,
 		// followMonorepoPackages) or carries its own fine-grained lock
 		// (filesAndExtensions, aliasesCache, the monorepo package caches). The writes all
-		// target imports[impIdx], and this goroutine owns idx exclusively —
-		// each index is pushed to ch_idx exactly once — so no two goroutines write the
+		// target imports[impIdx], and this goroutine owns idx exclusively -
+		// each index is pushed to ch_idx exactly once - so no two goroutines write the
 		// same element. The shared discovery bookkeeping further down still takes mu.
 		_, isBuiltInModule := builtInModules[moduleName]
 		if isBuiltInModule {

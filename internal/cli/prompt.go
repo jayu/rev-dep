@@ -129,8 +129,8 @@ func fprintBox(out io.Writer, lines []string) {
 	fmt.Fprintf(out, "╰%s╯\n", border)
 }
 
-// buildPromptLines assembles the boxed prompt content — the (possibly multi-line) question, a
-// blank separator, the numbered options, another blank, and the "Type 1-N" line — with every line
+// buildPromptLines assembles the boxed prompt content - the (possibly multi-line) question, a
+// blank separator, the numbered options, another blank, and the "Type 1-N" line - with every line
 // word-wrapped to contentWidth. Options hang-indent their continuation lines under the label.
 func buildPromptLines(prompt string, options []string, defaultIndex, contentWidth int) []string {
 	hasDefault := defaultIndex >= 0 && defaultIndex < len(options)

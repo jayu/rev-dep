@@ -1,7 +1,7 @@
 // Package emoji centralizes the emoji glyphs used in rev-dep's CLI output so they stay
 // consistent and can be changed in one place.
 //
-// Constants hold the bare glyph only — no surrounding spaces. Spacing is intentionally
+// Constants hold the bare glyph only - no surrounding spaces. Spacing is intentionally
 // inconsistent across call sites (wide glyphs are often followed by two spaces), so keep
 // the spaces in the format strings, not here.
 //

@@ -51,8 +51,8 @@ const parallelFilterThreshold = 2048
 // RejectExcluded returns the paths that IsExcludedByPatterns does NOT exclude, preserving
 // input order. The result is always a freshly allocated slice, never the input.
 //
-// Matching is pure — GlobMatcher is read-only once built and gobwas matchers hold no
-// per-match state — so for large inputs the scan is sharded across the available cores.
+// Matching is pure - GlobMatcher is read-only once built and gobwas matchers hold no
+// per-match state - so for large inputs the scan is sharded across the available cores.
 // Each shard writes a disjoint range of a preallocated verdict slice, which is what keeps
 // the result deterministic regardless of how the shards interleave.
 func RejectExcluded(paths []string, excludePatterns []GlobMatcher, includePatterns []GlobMatcher) []string {
@@ -134,8 +134,8 @@ func BuildIncludePrefixes(matchers []GlobMatcher) []string {
 
 // recursiveCoverRoot reports, for a whole-subtree exclude pattern, the internal-form
 // directory path at (and below) which every descendant path is matched. It recognises the
-// two provable forms — a bare `**` (root = the matcher root) and `<staticPrefix>/**` where
-// the prefix has no glob metacharacters — and returns ok=false for anything else. The
+// two provable forms - a bare `**` (root = the matcher root) and `<staticPrefix>/**` where
+// the prefix has no glob metacharacters - and returns ok=false for anything else. The
 // returned root always carries a trailing slash so prefix tests are boundary-safe.
 func recursiveCoverRoot(matcher GlobMatcher) (string, bool) {
 	pattern := matcher.inputString
@@ -153,7 +153,7 @@ func recursiveCoverRoot(matcher GlobMatcher) (string, bool) {
 // StaticPrefixPath resolves a pattern's leading glob-free segment to an absolute
 // internal-form directory (trailing slash) under root, or returns "" when the pattern
 // begins with a glob metacharacter (so it could match at any depth). It lets callers reason
-// about which subtree a pattern can possibly touch — e.g. whether it could match inside a
+// about which subtree a pattern can possibly touch - e.g. whether it could match inside a
 // directory the walk pruned whole.
 func StaticPrefixPath(pattern, root string) string {
 	pattern = strings.TrimSpace(pattern)
@@ -173,12 +173,12 @@ func StaticPrefixPath(pattern, root string) string {
 // DirFullyExcluded reports whether EVERY possible path under dirPath is excluded, so the
 // walk can prune the directory instead of descending to exclude each file one by one.
 // A plain `<dir>/**` pattern does NOT match the bare directory path (only its contents),
-// so IsExcludedByPatterns alone never prunes such a directory — this recovers that case.
+// so IsExcludedByPatterns alone never prunes such a directory - this recovers that case.
 //
 // It is deliberately conservative and only returns true for provable full coverage: if any
 // negation is present in the set (a re-inclusion could rescue a descendant) it returns
 // false, and it ignores non-recursive patterns. That guarantees pruning never drops a file
-// the file-by-file path would have kept — it is a pure optimisation, not a semantic change.
+// the file-by-file path would have kept - it is a pure optimisation, not a semantic change.
 func DirFullyExcluded(dirPath string, excludePatterns []GlobMatcher) bool {
 	if len(excludePatterns) == 0 {
 		return false

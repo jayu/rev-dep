@@ -26,7 +26,7 @@
 
 > One-time setup: copy `cli-telemetry.env.example` to `cli-telemetry.env` (git-ignored) and
 > fill in the connection string. `scripts/buildProdBinaries.sh` reads it, bakes
-> it into the binaries, and fails the build if it is missing or did not link in — so a release can
+> it into the binaries, and fails the build if it is missing or did not link in - so a release can
 > never ship with telemetry silently disabled.
 
 1. `node scripts/setVersions.js <version>`   (e.g. `2.15.0`)
@@ -35,7 +35,7 @@
 4. `git add . && git commit -m "chore: release <version>"`
 5. `npm login`
 6. `scripts/publish.sh`
-7. `node scripts/release.js`   — tag + GitHub release (notes, binaries, checksums)
+7. `node scripts/release.js`   - tag + GitHub release (notes, binaries, checksums)
 8. `git push origin HEAD`
 
 `scripts/release.js` reads the version from `npm/rev-dep/package.json`, pushes the

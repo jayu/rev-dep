@@ -3,7 +3,7 @@ package checks
 import "testing"
 
 // TestFindDevDependenciesInProduction_PerFileSets verifies that the per-file dev dependency lookup
-// flags violations against each file's own set — mirroring nearest-package (each file's own package
+// flags violations against each file's own set - mirroring nearest-package (each file's own package
 // devDeps) plus includeDevDepsFromRoot (root devDeps available everywhere).
 func TestFindDevDependenciesInProduction_PerFileSets(t *testing.T) {
 	rulePath := "/repo"

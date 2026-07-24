@@ -772,7 +772,7 @@ func parseLocalExportKeyword(code []byte, i int) (keyword KeywordInfo, next int)
 		return KeywordInfo{}, j
 	}
 
-	// `namespace`, `module`, `enum` — runtime values, NOT type-only.
+	// `namespace`, `module`, `enum` - runtime values, NOT type-only.
 	for _, kw := range []string{"namespace", "module", "enum"} {
 		kwLen := len(kw)
 		if bytes.HasPrefix(code[i:], []byte(kw)) && (i+kwLen >= n || !isByteIdentifierChar(code[i+kwLen])) {

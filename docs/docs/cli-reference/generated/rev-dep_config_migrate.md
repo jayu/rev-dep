@@ -16,7 +16,7 @@ change with git before committing.
 
 It then lists what it could NOT change for you: glob patterns whose match set may have
 shifted under v3's stricter, gitignore-aligned rules, and behavior changes that no config
-edit can address. Review those manually — see the v3 breaking-changes guide.
+edit can address. Review those manually - see the v3 breaking-changes guide.
 
 ```
 rev-dep config migrate [flags]

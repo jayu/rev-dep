@@ -25,7 +25,7 @@ type PatternReview struct {
 	Reasons   []string // short codes: "semantics", "sibling"
 }
 
-// Path-glob option keys per detector. Module/import/export patterns are excluded — they are
+// Path-glob option keys per detector. Module/import/export patterns are excluded - they are
 // never workspace-relative and are unaffected by the glob changes.
 var pathGlobDetectorFields = map[string][]string{
 	"orphanFilesDetection":               {"validEntryPoints", "graphExclude"},
@@ -70,7 +70,7 @@ func MigrateConfig(content []byte) (*MigrateResult, error) {
 			res.AppliedChanges = append(res.AppliedChanges, fmt.Sprintf("set configVersion to %q (was %q)", CurrentConfigVersion, cur))
 		}
 	} else {
-		res.ResultNotes = append(res.ResultNotes, `configVersion is missing — add "configVersion": "2.0" manually`)
+		res.ResultNotes = append(res.ResultNotes, `configVersion is missing - add "configVersion": "2.0" manually`)
 	}
 	removed := 0 // A3: drop the discontinued `algorithm` option
 	forEachWorkspace(workspaces, func(ws *JSONNode, _ int) {
@@ -91,8 +91,8 @@ func MigrateConfig(content []byte) (*MigrateResult, error) {
 	res.PatternReviews = collectPatternReviews(doc, workspaces)
 	res.ResultNotes = append(res.ResultNotes, resultNotes(doc, workspaces)...)
 	res.CINotes = []string{
-		"`config run` and `config lint` no longer accept --condition-names, --follow-monorepo-packages, --package-json, or --tsconfig-json — remove them from CI/scripts.",
-		"--package-json was removed from every command — remove it from CI/scripts.",
+		"`config run` and `config lint` no longer accept --condition-names, --follow-monorepo-packages, --package-json, or --tsconfig-json - remove them from CI/scripts.",
+		"--package-json was removed from every command - remove it from CI/scripts.",
 	}
 	return res, nil
 }
@@ -173,10 +173,10 @@ func resultNotes(doc *JSONDocument, workspaces *JSONNode) []string {
 		unused = unused || detectorEnabled(doc, ws.Get("unusedNodeModulesDetection"))
 	})
 	if circular {
-		notes = append(notes, "Circular imports now use the SCC algorithm — expect the same or FEWER reported cycles. Lower any CI cycle-count baseline.")
+		notes = append(notes, "Circular imports now use the SCC algorithm - expect the same or FEWER reported cycles. Lower any CI cycle-count baseline.")
 	}
 	if unused {
-		notes = append(notes, "Unused-dependency binary names now match whole words only — the set of reported unused node modules may change.")
+		notes = append(notes, "Unused-dependency binary names now match whole words only - the set of reported unused node modules may change.")
 	}
 	return notes
 }

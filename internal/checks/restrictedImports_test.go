@@ -102,6 +102,34 @@ func TestFindRestrictedImports_DenyModulesAndIgnore(t *testing.T) {
 	}
 }
 
+// ignoreMatches carves a specific denied file out of a broader denyFiles pattern - the
+// file-path counterpart of TestFindRestrictedImports_DenyModulesAndIgnore.
+func TestFindRestrictedImports_DenyFilesAndIgnore(t *testing.T) {
+	ruleTree := MinimalDependencyTree{
+		"/repo/src/server.ts": {
+			{ID: "/repo/src/secrets/private-keys.ts", Request: "./secrets/private-keys", ResolvedType: UserModule, ImportKind: NotTypeOrMixedImport},
+			{ID: "/repo/src/secrets/public-keys.ts", Request: "./secrets/public-keys", ResolvedType: UserModule, ImportKind: NotTypeOrMixedImport},
+		},
+		"/repo/src/secrets/private-keys.ts": {},
+		"/repo/src/secrets/public-keys.ts":  {},
+	}
+
+	opts := &rules.RestrictedImportsDetectionOptions{
+		Enabled:       true,
+		EntryPoints:   []string{"src/server.ts"},
+		DenyFiles:     []string{"src/secrets/*"},
+		IgnoreMatches: []string{"src/secrets/public-keys.ts"},
+	}
+
+	violations := FindRestrictedImports(ruleTree, opts, "/repo")
+	if len(violations) != 1 {
+		t.Fatalf("expected 1 violation (public-keys carved out), got %d: %+v", len(violations), violations)
+	}
+	if violations[0].DeniedFile != "/repo/src/secrets/private-keys.ts" {
+		t.Fatalf("expected denied file private-keys.ts, got %q", violations[0].DeniedFile)
+	}
+}
+
 func TestFindRestrictedImports_GraphExclude(t *testing.T) {
 	ruleTree := MinimalDependencyTree{
 		"/repo/src/server.ts": {

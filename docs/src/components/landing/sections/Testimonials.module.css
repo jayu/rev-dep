@@ -1,0 +1,39 @@
+.quote {
+  flex-grow: 1;
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--rd-text-strong);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.author {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ifm-font-color-base);
+}
+
+.source {
+  font-size: 0.85rem;
+  color: var(--rd-text-muted);
+}

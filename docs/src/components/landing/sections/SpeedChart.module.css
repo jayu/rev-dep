@@ -1,0 +1,285 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr) 6rem;
+  gap: 1rem;
+  align-items: center;
+}
+
+.rowHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.toolName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rd-text-strong);
+}
+
+/* rev-dep is distinguished by weight, not colour. The accent is reserved for
+   the one number that matters - how many times faster it is. */
+.toolNameOurs {
+  font-weight: 800;
+  color: var(--rd-text-strong);
+}
+
+.toolNote {
+  overflow: hidden;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.72rem;
+  color: var(--rd-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kept shallow on purpose: rev-dep's bar is ~1% of the track, so a taller bar
+   would be narrower than it is tall and the pill radius would render squashed. */
+.track {
+  height: 0.9rem;
+  border-radius: 999px;
+  background: var(--rd-bar-track);
+}
+
+/* Width is driven frame-by-frame from requestAnimationFrame, so there is
+   deliberately no CSS transition here - it would lag behind the clock.
+   min-width matches the height so the shortest bar is still a clean pill. */
+.bar {
+  height: 100%;
+  min-width: 0.9rem;
+  border-radius: 999px;
+}
+
+.barOurs {
+  background: var(--rd-bar-ours);
+}
+
+.barRival {
+  background: var(--rd-bar-rival);
+}
+
+.value {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.85rem;
+  text-align: right;
+  color: var(--rd-text-muted);
+}
+
+.valueOurs {
+  font-weight: 700;
+  color: var(--rd-text-strong);
+}
+
+/* Settles once the tool has "finished", so a still-counting row reads as
+   in-progress rather than as a final result. */
+.valueDone {
+  font-weight: 700;
+  color: var(--rd-text-strong);
+}
+
+.outlier {
+  max-width: var(--rd-prose-maxw);
+  margin: 2.5rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--rd-text-muted);
+}
+
+/* Methodology sits beside the section header - a benchmark without project
+   size and hardware is marketing, not evidence, so it stays visible. */
+.setupCard {
+  gap: 0.75rem;
+}
+
+.setupTitle {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rd-text-muted);
+}
+
+.setup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.setupTerm {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rd-text-muted);
+}
+
+.setupValue {
+  margin: 0.15rem 0 0;
+  line-height: 1.5;
+  color: var(--rd-text-strong);
+}
+
+.footnote {
+  max-width: var(--rd-prose-maxw);
+  margin: 1.25rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--rd-text-muted);
+}
+
+.closing {
+  max-width: var(--rd-prose-maxw);
+  margin: 4rem 0 0;
+  line-height: 1.7;
+  color: var(--rd-text-muted);
+}
+
+/* Each task is its own small chart: the alternative is always the full bar and
+   rev-dep is drawn relative to it, so the shape of the gap reads at a glance
+   without needing a shared axis across tasks. */
+.tasks {
+  margin-top: 5rem;
+}
+
+.tasksTitle {
+  margin: 0 0 2.25rem;
+  font-size: 1.25rem;
+}
+
+/* Two columns give each task chart roughly half the width, so the grid
+   replaces the explicit max-width the single-column version needed. */
+.taskGrid {
+  gap: 3.25rem 4rem;
+}
+
+.task {
+  min-width: 0;
+}
+
+.taskHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.taskName {
+  font-size: 0.98rem;
+  font-weight: 650;
+  color: var(--rd-text-strong);
+}
+
+.taskFactor {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--ifm-color-primary);
+  white-space: nowrap;
+}
+
+.taskBars {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) 5.5rem;
+  gap: 0.7rem 0.75rem;
+  align-items: center;
+}
+
+.taskLabel {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.8rem;
+  color: var(--rd-text-muted);
+}
+
+.taskLabelOurs {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--rd-text-strong);
+}
+
+.taskTrack {
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--rd-bar-track);
+}
+
+.taskBarOurs {
+  height: 100%;
+  min-width: 0.7rem;
+  border-radius: 999px;
+  background: var(--rd-bar-ours);
+}
+
+.taskBarRival {
+  height: 100%;
+  min-width: 0.7rem;
+  border-radius: 999px;
+  background: var(--rd-bar-rival);
+}
+
+.taskValue {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.8rem;
+  text-align: right;
+  color: var(--rd-text-muted);
+}
+
+.taskValueOurs {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: right;
+  color: var(--rd-text-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+}
+
+@media screen and (max-width: 996px) {
+  .row {
+    grid-template-columns: 9rem minmax(0, 1fr) 5rem;
+    gap: 0.6rem;
+  }
+
+  .toolNote {
+    display: none;
+  }
+
+  .value {
+    font-size: 0.78rem;
+  }
+
+  .taskGrid {
+    gap: 2.5rem;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr auto;
+    gap: 0.35rem 0.6rem;
+  }
+
+  .track {
+    grid-column: 1 / -1;
+    height: 0.75rem;
+  }
+
+  .taskBars {
+    grid-template-columns: 4rem minmax(0, 1fr) 4.5rem;
+    gap: 0.35rem 0.5rem;
+  }
+}

@@ -1,0 +1,52 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.points {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rd-gap-sm);
+}
+
+.pointTitle {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.pointBody {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.65;
+  color: var(--rd-text-muted);
+}
+
+.visual {
+  position: sticky;
+  top: 5rem;
+  min-width: 0;
+}
+
+.caption {
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--rd-text-muted);
+}
+
+.inlineCode {
+  font-size: 0.85em;
+  word-break: break-word;
+}
+
+@media screen and (max-width: 996px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .visual {
+    position: static;
+  }
+}

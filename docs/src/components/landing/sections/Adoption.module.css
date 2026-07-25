@@ -1,0 +1,32 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.visual {
+  min-width: 0;
+}
+
+.steps {
+  min-width: 0;
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.stepBody {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--rd-text-muted);
+}
+
+@media screen and (max-width: 996px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

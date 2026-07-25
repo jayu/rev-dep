@@ -1,0 +1,82 @@
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 5.5rem 0;
+  background: var(--rd-hero-bg);
+  background-repeat: no-repeat;
+  color: #ffffff;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 3rem;
+  align-items: center;
+}
+
+.copy {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 2.9rem;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.titleAccent {
+  background: linear-gradient(90deg, #e396f0, #df734f);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.subtitle {
+  margin: 1.5rem 0 0;
+  font-size: 1.12rem;
+  line-height: 1.7;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.install {
+  margin-top: 1.75rem;
+}
+
+.visual {
+  min-width: 0;
+}
+
+@media screen and (max-width: 996px) {
+  .hero {
+    padding: 3.5rem 0;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 2.25rem;
+  }
+
+  .title {
+    font-size: 2.1rem;
+  }
+
+  .subtitle {
+    font-size: 1.02rem;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .title {
+    font-size: 1.75rem;
+  }
+}

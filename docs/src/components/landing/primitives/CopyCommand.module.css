@@ -1,0 +1,58 @@
+.copyCommand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  border: var(--rd-term-border);
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--rd-term-fg);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.copyCommand:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.copyCommand:focus-visible {
+  outline: 2px solid var(--ifm-color-primary-light);
+  outline-offset: 2px;
+}
+
+.prompt {
+  color: var(--rd-term-amber);
+  user-select: none;
+}
+
+.command {
+  overflow: hidden;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  margin-left: 0.35rem;
+  font-family: var(--ifm-font-family-base);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rd-term-dim);
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copyCommand {
+    transition: none;
+  }
+}

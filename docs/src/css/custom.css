@@ -210,3 +210,113 @@
   color: var(--revdep-highlight-accent);
   opacity: 1;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Landing page design tokens
+   ───────────────────────────────────────────────────────────────
+   The landing page CSS modules follow a strict rule: every selector
+   is a single class name. That makes `[data-theme='dark'] .foo`
+   impossible inside a module, so ALL theming happens here, by
+   swapping token values. A module never knows which theme is active
+   - it just reads the token.
+
+   Change a value here and it updates everywhere it is used.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Surfaces - the standard raised card used across every section */
+  --rd-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.92));
+  --rd-card-border: 1px solid rgba(15, 23, 42, 0.08);
+  --rd-card-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  --rd-card-shadow-hover: 0 16px 36px rgba(15, 23, 42, 0.12);
+  --rd-card-radius: 1rem;
+  --rd-card-radius-lg: 1.25rem;
+
+  /* Panel - the inverted dark card (stat highlight, callouts) */
+  --rd-panel-bg:
+    radial-gradient(circle at top right, rgba(147, 51, 234, 0.22), transparent 36%),
+    linear-gradient(180deg, rgb(16, 12, 34), rgb(24, 20, 48));
+  --rd-panel-border: 1px solid rgba(148, 163, 184, 0.18);
+  --rd-panel-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  --rd-panel-fg: #ffffff;
+  --rd-panel-fg-muted: rgba(226, 232, 240, 0.9);
+  --rd-panel-fg-faint: rgba(226, 232, 240, 0.62);
+  --rd-panel-inset-bg: rgba(255, 255, 255, 0.08);
+
+  /* Section backgrounds */
+  --rd-section-tint-bg:
+    radial-gradient(circle at top left, rgba(195, 102, 231, 0.09), transparent 32%),
+    linear-gradient(180deg, rgba(250, 247, 255, 0.9), rgba(255, 255, 255, 1));
+  --rd-hero-bg: radial-gradient(rgb(18, 7, 60), rgb(18, 7, 60) 30%, black);
+
+  /* Text */
+  --rd-text-muted: var(--ifm-color-emphasis-700);
+  --rd-text-strong: var(--ifm-color-emphasis-800);
+  --rd-eyebrow-color: rgb(147, 51, 234);
+  --rd-hairline: 1px solid var(--ifm-color-emphasis-200);
+
+  /* Terminal chrome */
+  --rd-term-bg: #17171b;
+  --rd-term-head-bg: #232329;
+  --rd-term-fg: #e8e8ec;
+  --rd-term-dim: rgba(232, 232, 236, 0.55);
+  --rd-term-green: #7ee787;
+  --rd-term-purple: #d2a8ff;
+  --rd-term-amber: #f2cc60;
+  --rd-term-border: 1px solid rgba(148, 163, 184, 0.2);
+  --rd-term-shadow: 0 20px 44px rgba(15, 23, 42, 0.28);
+
+  /* Benchmark bars */
+  --rd-bar-track: rgba(15, 23, 42, 0.06);
+  --rd-bar-ours: linear-gradient(90deg, #b237e2, #df734f);
+  --rd-bar-rival: rgba(100, 116, 139, 0.4);
+
+  /* Accents */
+  --rd-accent-soft-bg: rgba(195, 102, 231, 0.1);
+  --rd-good: #16a34a;
+  --rd-bad: #dc2626;
+
+  /* Filled button. Deliberately NOT --ifm-color-primary: in dark mode that is
+     lightened to a pale lavender for readable link text, which is far too
+     bright as a button fill behind white label text. */
+  --rd-button-bg: #b237e2;
+  --rd-button-bg-hover: #9a2ac6;
+  --rd-button-fg: #ffffff;
+
+  /* Rhythm */
+  --rd-section-py: 4.5rem;
+  --rd-gap: 1.25rem;
+  --rd-gap-sm: 0.9rem;
+  --rd-prose-maxw: 46rem;
+}
+
+[data-theme='dark'] {
+  --rd-card-bg: linear-gradient(180deg, rgba(23, 28, 43, 0.96), rgba(15, 18, 30, 0.98));
+  --rd-card-border: 1px solid rgba(148, 163, 184, 0.16);
+  --rd-card-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+  --rd-card-shadow-hover: 0 18px 42px rgba(0, 0, 0, 0.38);
+
+  --rd-panel-bg:
+    radial-gradient(circle at top right, rgba(168, 85, 247, 0.2), transparent 36%),
+    linear-gradient(180deg, rgba(28, 22, 52, 0.98), rgba(16, 14, 30, 1));
+  --rd-panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+
+  --rd-section-tint-bg:
+    radial-gradient(circle at top left, rgba(168, 85, 247, 0.14), transparent 26%),
+    linear-gradient(180deg, rgba(15, 18, 30, 0.94), rgba(9, 12, 20, 1));
+
+  --rd-text-muted: rgba(226, 232, 240, 0.84);
+  --rd-text-strong: rgba(241, 245, 249, 0.94);
+  --rd-eyebrow-color: rgba(214, 174, 255, 0.95);
+  --rd-hairline: 1px solid rgba(148, 163, 184, 0.18);
+
+  --rd-bar-track: rgba(148, 163, 184, 0.14);
+  --rd-bar-rival: rgba(148, 163, 184, 0.32);
+
+  --rd-accent-soft-bg: rgba(168, 85, 247, 0.16);
+  --rd-good: #4ade80;
+  --rd-bad: #f87171;
+
+  /* Deeper on dark so it reads as a solid surface rather than a glowing chip. */
+  --rd-button-bg: #8b32b8;
+  --rd-button-bg-hover: #7a2ba3;
+}

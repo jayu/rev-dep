@@ -1,0 +1,97 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.8rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  background: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tab:hover {
+  background: var(--rd-accent-soft-bg);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+.tabActive {
+  border: var(--rd-card-border);
+  background: var(--rd-card-bg);
+  box-shadow: var(--rd-card-shadow);
+}
+
+.tabCommand {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+}
+
+.tabQuestion {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--rd-text-muted);
+}
+
+.panel {
+  min-width: 0;
+}
+
+.explanation {
+  max-width: 46rem;
+  margin: 1.25rem 0 0;
+  line-height: 1.7;
+  color: var(--rd-text-muted);
+}
+
+.panelLink {
+  display: inline-block;
+  margin-top: 0.75rem;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.85rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
+}
+
+@media screen and (max-width: 996px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 0.4rem;
+  }
+
+  .tabQuestion {
+    display: none;
+  }
+
+  .tab {
+    white-space: nowrap;
+  }
+}

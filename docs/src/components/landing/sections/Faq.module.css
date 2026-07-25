@@ -1,0 +1,71 @@
+.list {
+  max-width: 52rem;
+  border-top: var(--rd-hairline);
+}
+
+.item {
+  border-bottom: var(--rd-hairline);
+}
+
+.question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 0.25rem;
+  cursor: pointer;
+  /* Both are needed to drop the native disclosure triangle. */
+  list-style: none;
+}
+
+.question:hover {
+  color: var(--ifm-color-primary);
+}
+
+.question:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+.question::-webkit-details-marker {
+  display: none;
+}
+
+.questionText {
+  font-size: 1.02rem;
+  font-weight: 650;
+  color: inherit;
+}
+
+/* Phosphor caret from custom.css, drawn as a mask so it inherits a colour
+   rather than shipping a second copy of the icon. */
+.chevron {
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+  background: var(--rd-text-muted);
+  -webkit-mask: var(--revdep-caret) center / 1.15rem 1.15rem no-repeat;
+  mask: var(--revdep-caret) center / 1.15rem 1.15rem no-repeat;
+  transform: rotate(-90deg);
+  transition: transform 0.18s ease;
+}
+
+.chevronOpen {
+  transform: rotate(0deg);
+}
+
+.answer {
+  padding: 0 0.25rem 1.25rem;
+}
+
+.paragraph {
+  margin: 0 0 0.9rem;
+  line-height: 1.75;
+  color: var(--rd-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}

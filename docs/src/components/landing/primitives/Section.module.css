@@ -1,0 +1,85 @@
+/* Every selector here is a single class name - see the token block in
+   custom.css for why theming lives there instead. */
+
+.section {
+  padding-top: var(--rd-section-py);
+  padding-bottom: var(--rd-section-py);
+}
+
+.sectionTinted {
+  background: var(--rd-section-tint-bg);
+}
+
+.sectionDivided {
+  border-top: var(--rd-hairline);
+}
+
+.headerRow {
+  margin-bottom: 2.5rem;
+}
+
+/* With an aside, the header gives up its prose cap and shares the row. */
+.headerRowSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+/* No max-width: capping the header forced titles to wrap at awkward points.
+   When an aside is present the grid column already constrains it. */
+.header {
+  min-width: 0;
+}
+
+.aside {
+  min-width: 0;
+}
+
+.headerCenter {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rd-eyebrow-color);
+}
+
+.title {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.intro {
+  margin: 1rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--rd-text-muted);
+}
+
+@media screen and (max-width: 996px) {
+  .section {
+    padding-top: 3.25rem;
+    padding-bottom: 3.25rem;
+  }
+
+  .headerRow {
+    margin-bottom: 2rem;
+  }
+
+  .headerRowSplit {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .title {
+    font-size: 1.6rem;
+  }
+}

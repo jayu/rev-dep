@@ -1,0 +1,55 @@
+.cta {
+  padding: 5rem 0;
+  background: var(--rd-hero-bg);
+  background-repeat: no-repeat;
+  color: #ffffff;
+}
+
+.inner {
+  max-width: 42rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 2.1rem;
+  line-height: 1.2;
+  color: #ffffff;
+}
+
+.body {
+  margin: 1rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.inlineCode {
+  font-size: 0.85em;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.install {
+  margin-top: 1.75rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.75rem;
+}
+
+@media screen and (max-width: 996px) {
+  .cta {
+    padding: 3.5rem 0;
+  }
+
+  .title {
+    font-size: 1.6rem;
+  }
+}

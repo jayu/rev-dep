@@ -1,0 +1,65 @@
+.kind {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rd-text-muted);
+}
+
+.region {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.headline {
+  margin: 0;
+  font-size: 2.4rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--rd-text-strong);
+}
+
+.headlineLabel {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: var(--rd-text-muted);
+}
+
+.facts {
+  flex-grow: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--rd-hairline);
+}
+
+.fact {
+  padding: 0.5rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--rd-text-muted);
+}
+
+.ceilings {
+  margin-top: 2.5rem;
+  padding-top: 2rem;
+  border-top: var(--rd-hairline);
+}
+
+.ceilingsTitle {
+  margin: 0 0 1rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rd-text-muted);
+}
+
+@media screen and (max-width: 640px) {
+  .headline {
+    font-size: 2rem;
+  }
+}

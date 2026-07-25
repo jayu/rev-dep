@@ -1,0 +1,114 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.toolList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--rd-hairline);
+}
+
+.toolItem {
+  border-bottom: var(--rd-hairline);
+}
+
+.toolLink {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  color: inherit;
+  transition: background 0.15s ease;
+}
+
+.toolLink:hover {
+  background: var(--rd-accent-soft-bg);
+  text-decoration: none;
+}
+
+.toolName {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+}
+
+.toolCovers {
+  font-size: 0.92rem;
+  color: var(--rd-text-muted);
+}
+
+.toolMark {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rd-good);
+  white-space: nowrap;
+}
+
+.honestCard {
+  position: sticky;
+  top: 5rem;
+}
+
+.honestTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--rd-panel-fg);
+}
+
+.honestList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.honestItem {
+  margin-top: 0.85rem;
+  padding-left: 1.1rem;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: var(--rd-panel-fg-muted);
+  border-left: 2px solid rgba(148, 163, 184, 0.35);
+}
+
+.honestFooter {
+  margin: 1.25rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--rd-panel-fg-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolLink {
+    transition: none;
+  }
+}
+
+@media screen and (max-width: 996px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .honestCard {
+    position: static;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .toolLink {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.2rem 0.75rem;
+  }
+
+  .toolCovers {
+    grid-column: 1 / -1;
+    font-size: 0.85rem;
+  }
+}

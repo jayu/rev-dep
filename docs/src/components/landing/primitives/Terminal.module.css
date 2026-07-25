@@ -1,0 +1,110 @@
+.terminal {
+  overflow: hidden;
+  border: var(--rd-term-border);
+  border-radius: var(--rd-card-radius);
+  background: var(--rd-term-bg);
+  box-shadow: var(--rd-term-shadow);
+}
+
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--rd-term-head-bg);
+}
+
+.dotRed {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #ff5f57;
+  flex-shrink: 0;
+}
+
+.dotAmber {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #febc2e;
+  flex-shrink: 0;
+}
+
+.dotGreen {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #28c840;
+  flex-shrink: 0;
+}
+
+.chromeTitle {
+  margin-left: 0.5rem;
+  overflow: hidden;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.78rem;
+  color: var(--rd-term-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Wide output scrolls inside the window rather than the page. */
+.body {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 1.1rem 1.25rem;
+  overflow-x: auto;
+  font-size: 0.84rem;
+  line-height: 1.65;
+  background: transparent;
+  border-radius: 0;
+}
+
+.line {
+  white-space: pre;
+  color: var(--rd-term-fg);
+}
+
+.lineDefault {
+  color: var(--rd-term-fg);
+}
+
+.lineDim {
+  color: var(--rd-term-dim);
+}
+
+.lineOk {
+  color: var(--rd-term-green);
+}
+
+.lineBad {
+  color: #ff7b72;
+}
+
+.lineAccent {
+  color: var(--rd-term-purple);
+}
+
+.linePrompt {
+  color: var(--rd-term-amber);
+}
+
+.indent0 {
+  padding-left: 0;
+}
+
+.indent1 {
+  padding-left: 1.25rem;
+}
+
+.indent2 {
+  padding-left: 2.5rem;
+}
+
+@media screen and (max-width: 640px) {
+  .body {
+    padding: 0.9rem 1rem;
+    font-size: 0.75rem;
+  }
+}

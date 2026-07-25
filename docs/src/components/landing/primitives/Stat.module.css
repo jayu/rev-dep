@@ -1,0 +1,41 @@
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.25rem;
+  border: var(--rd-panel-border);
+  border-radius: 0.75rem;
+  background: var(--rd-panel-inset-bg);
+}
+
+.statPlain {
+  border: var(--rd-card-border);
+  background: var(--rd-card-bg);
+}
+
+.value {
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--rd-panel-fg);
+}
+
+.valuePlain {
+  color: var(--ifm-color-primary);
+}
+
+.label {
+  line-height: 1.5;
+  font-size: 0.92rem;
+  color: var(--rd-panel-fg-muted);
+}
+
+.labelPlain {
+  color: var(--rd-text-muted);
+}
+
+@media screen and (max-width: 640px) {
+  .value {
+    font-size: 1.7rem;
+  }
+}

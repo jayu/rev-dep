@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-<img src="./demo.png" alt="Rev-dep config execution CLI output" width="490">
+<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output" width="490">
 </p>
 
 ---

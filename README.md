@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-<img src="https://github.com/jayu/rev-dep/raw/master/demo.png" alt="Rev-dep config execution CLI output" width="400">
+<img src="./demo.png" alt="Rev-dep config execution CLI output" width="490">
 </p>
 
 ---
@@ -32,7 +32,7 @@ As codebases scale, maintaining a mental map of dependencies becomes impossible.
 
 <p align="center"><b>Think of Rev-dep as a high-speed linter for your dependency graph.</b></p>
 
-**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks - including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 150ms**.
+**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks - including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 150ms**. [See the performance comparison](#performance-comparison-)
 
 ### **Automated Codebase Governance**
 
@@ -691,16 +691,16 @@ Here is a performance comparison of specific tasks between rev-dep and alternati
 
 | Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep |
 |------|--------------------:|-------------|----------------------:|--------------------:|
-| Find circular dependencies | 151.4 ± 1.9 | knip | 3 039.9 ± 36.3 | 20x |
-| Find unused exports | 186.4 ± 2.9 | knip | 3 176.1 ± 24.2 | 17x |
-| Find unused files | 168.2 ± 1.8 | knip | 3 005.9 ± 34.0 | 18x |
-| Find unused node modules | 170.0 ± 3.0 | knip | 3 068.9 ± 17.1 | 18x |
-| Find missing node modules | 159.5 ± 3.0 | knip | 3 076.1 ± 29.8 | 19x |
-| List all files imported by an entry point | 81.2 ± 1.9 | madge | 6 591.4 ± 129.2 | 81x |
-| Discover entry points | 148.9 ± 3.8 | madge | 13 632.0 ± 137.1 | 92x |
-| Resolve dependency path between files | 220.8 ± 3.6 | please suggest |
-| Count lines of code | 251.4 ± 31.2 | please suggest |
-| Analyze node_modules directory sizes | 560.7 ± 54.5 | please suggest |
+| Find circular dependencies | 151 | knip | 3 040 | 20x |
+| Find unused exports | 186 | knip | 3 176 | 17x |
+| Find unused files | 168 | knip | 3 006 | 18x |
+| Find unused node modules | 170 | knip | 3 069 | 18x |
+| Find missing node modules | 160 | knip | 3 076 | 19x |
+| List all files imported by an entry point | 81 | madge | 6 591 | 81x |
+| Discover entry points | 149 | madge | 13 632 | 92x |
+| Resolve dependency path between files | 221 | please suggest |
+| Count lines of code | 251 | please suggest |
+| Analyze node_modules directory sizes | 561 | please suggest |
 
 > Platform: WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU
 >
@@ -714,16 +714,16 @@ Table below presents performance comparison between different tools performing c
 
 `rev-dep` circular check is **~20 times** faster than the fastest alternative.
 
-| Tool | Version | Command to Run Circular Check | Time |
-|------|---------|-------------------------------|-----:|
-| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 3.0.0 | `rev-dep circular` | **153.6 ms** ± 2.3 |
-| 🥈 [knip](https://github.com/webpro-nl/knip) * | 6.29.0 | `knip --cycles` | 3 039.9 ms ± 36.3 |
-| 🥉 [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 3.0.1 | `ds . -i <ignore globs>` | 3 354.5 ms ± 32.6 |
-| [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-warning --no-progress --tsconfig tsconfig.json` + list of directories with source code | 6 069.7 ms ± 315.7 |
-| [dpdm](https://github.com/acrazing/dpdm) | 4.2.0 | `dpdm --no-tree --no-warning --no-progress --tsconfig tsconfig.json --exclude 'node_modules\|generated/prisma'` + list of directories with source code | 6 667.4 ms ± 44.4 |
-| [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | 18.1.0 | `depcruise --config <config> --output-type err` + list of directories with source code | 8 257.7 ms ± 118.9 |
-| [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions ts,tsx,js --ts-config tsconfig.json` + list of directories with source code | 13 568.8 ms ± 63.7 |
-| [skott](https://github.com/antoine-coulon/skott) | 0.35.11 | node script using skott `findCircularDependencies` function | 61 612.7 ms ± 132.6 |
+| Tool | Version | Time [ms] |
+|------|---------|----------:|
+| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 3.0.0 | **154** |
+| 🥈 [knip](https://github.com/webpro-nl/knip) * | 6.29.0 | 3 040 |
+| 🥉 [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 3.0.1 | 3 355 |
+| [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | 6 070 |
+| [dpdm](https://github.com/acrazing/dpdm) | 4.2.0 | 6 667 |
+| [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | 18.1.0 | 8 258 |
+| [madge](https://github.com/pahen/madge) | 8.0.0 | 13 569 |
+| [skott](https://github.com/antoine-coulon/skott) | 0.35.11 | 61 613 |
 
 
 \* knip always ignores type-only import edges and offers no flag to include them. Every cycle in
@@ -736,6 +736,8 @@ exactly (0 cycles) in 143.3 ms ± 10.3.
 > Measurements: `hyperfine -w 4 -r 8` (4 warm-up + 8 measured runs)
 > 
 > Project: 580k lines of code, 6024 source code files next.js app
+
+See detailed measurements with mean time and commands used in [PERFORMANCE.md](./PERFORMANCE.md).
 
 ## CLI reference 📖
 

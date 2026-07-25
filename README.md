@@ -1,7 +1,7 @@
 # Rev-dep
 
 <p align="center">
-<img src="https://github.com/jayu/rev-dep/raw/master/logo.png" width="400" alt="Rev-dep logo">
+<img src="https://github.com/jayu/rev-dep/raw/master/logo.png" width="490" alt="Rev-dep logo">
 </p>
 
 <p align="center">

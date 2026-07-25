@@ -39,6 +39,12 @@ export const compatibilityItems: CompatibilityItem[] = [
     docs: '/docs/other-concepts-and-features/glob-patterns',
   },
   {
+    title: 'Different rules per package',
+    body: 'Checks are configured per workspace, so a package that is not ready yet keeps them off while the rest of the monorepo is enforced. Adoption does not have to be all-or-nothing.',
+    key: 'workspaces',
+    docs: '/docs/config-based-checks/config-file-structure',
+  },
+  {
     title: 'More than .ts and .js',
     body: 'TypeScript and JavaScript in every extension, plus the script blocks of .vue and .svelte components. Asset imports resolve instead of showing up as errors, and you can add your own extensions.',
     key: 'customAssetExtensions',

@@ -1,8 +1,10 @@
+/* Centred, not top-aligned: the two columns are different heights, so anchoring
+   them at the top leaves an obvious ragged gap at the bottom of the short one. */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 2rem;
-  align-items: start;
+  gap: 2.5rem;
+  align-items: center;
 }
 
 .points {
@@ -24,8 +26,6 @@
 }
 
 .visual {
-  position: sticky;
-  top: 5rem;
   min-width: 0;
 }
 
@@ -44,9 +44,5 @@
 @media screen and (max-width: 996px) {
   .layout {
     grid-template-columns: 1fr;
-  }
-
-  .visual {
-    position: static;
   }
 }

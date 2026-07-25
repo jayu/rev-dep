@@ -12,7 +12,7 @@ export default function Checks() {
     <Section
       id="checks"
       eyebrow="What it catches"
-      title="Twelve checks, one config, one pass"
+      title="More than ten checks, unlimited workspaces, one extremely fast pass"
       intro="Grouped by the problem they solve. Turn on what you need - each check is opt-in per workspace."
     >
       {checkGroups.map((group) => (
@@ -24,9 +24,9 @@ export default function Checks() {
             <p className={styles.groupBlurb}>{group.blurb}</p>
           </div>
 
-          <Grid cols={3} gap="tight">
+          <Grid cols="auto" gap="tight">
             {group.checks.map((check) => (
-              <Card key={check.key} hover>
+              <Card key={check.key} hover className={check.featured ? styles.checkFeatured : undefined}>
                 <div className={styles.checkHead}>
                   <Heading as="h4" className={styles.checkTitle}>
                     {check.title}
@@ -35,9 +35,12 @@ export default function Checks() {
                 </div>
                 <code className={styles.checkKey}>{check.key}</code>
                 <p className={styles.checkBody}>{check.description}</p>
-                <Link className={styles.checkLink} to={check.docs}>
-                  Read the docs
-                </Link>
+                <div className={styles.checkFoot}>
+                  {check.featured && <span className={styles.featuredTag}>Start here</span>}
+                  <Link className={styles.checkLink} to={check.docs}>
+                    Docs
+                  </Link>
+                </div>
               </Card>
             ))}
           </Grid>

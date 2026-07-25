@@ -31,19 +31,18 @@ export default function Compatibility() {
           </Card>
         ))}
 
-        <Card tone="panel">
-          <Heading as="h3" className={styles.limitsTitle}>
-            Known limits
-          </Heading>
-          <ul className={styles.limits}>
-            {resolutionLimits.map((limit) => (
-              <li className={styles.limit} key={limit}>
-                {limit}
-              </li>
-            ))}
-          </ul>
-        </Card>
       </Grid>
+
+      <div className={styles.limitsRow}>
+        <p className={styles.limitsTitle}>Known limits</p>
+        <ul className={styles.limits}>
+          {resolutionLimits.map((limit) => (
+            <li className={styles.limit} key={limit}>
+              {limit}
+            </li>
+          ))}
+        </ul>
+      </div>
     </Section>
   );
 }

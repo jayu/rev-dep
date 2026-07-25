@@ -27,7 +27,7 @@ export default function ReplacesStack() {
           ))}
         </ul>
 
-        <Card tone="panel" size="large" className={styles.honestCard}>
+        <Card size="large" fit className={styles.honestCard}>
           <Heading as="h3" className={styles.honestTitle}>
             And what it does not do
           </Heading>

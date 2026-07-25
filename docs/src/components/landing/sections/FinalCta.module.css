@@ -1,55 +1,74 @@
 .cta {
-  padding: 5rem 0;
+  padding: 7rem 0;
   background: var(--rd-hero-bg);
   background-repeat: no-repeat;
   color: #ffffff;
 }
 
 .inner {
-  max-width: 42rem;
+  max-width: 44rem;
   margin: 0 auto;
   text-align: center;
 }
 
+.eyebrow {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.6);
+}
+
 .title {
   margin: 0;
-  font-size: 2.1rem;
-  line-height: 1.2;
+  font-size: 2.6rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: #ffffff;
 }
 
 .body {
-  margin: 1rem 0 0;
-  font-size: 1.05rem;
+  max-width: 34rem;
+  margin: 1.25rem auto 0;
+  font-size: 1.08rem;
   line-height: 1.7;
-  color: rgba(226, 232, 240, 0.88);
+  color: rgba(226, 232, 240, 0.85);
 }
 
-.inlineCode {
-  font-size: 0.85em;
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
+/* The install command is the primary action here, so it gets its own row and
+   more breathing room than the buttons below it. */
 .install {
-  margin-top: 1.75rem;
+  margin-top: 2.5rem;
+  font-size: 1rem;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 1rem;
-  margin-top: 1.75rem;
+  gap: 0.9rem;
+  margin-top: 1.5rem;
+}
+
+.meta {
+  margin: 2.5rem 0 0;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.14);
+  font-size: 0.88rem;
+  color: rgba(226, 232, 240, 0.6);
 }
 
 @media screen and (max-width: 996px) {
   .cta {
-    padding: 3.5rem 0;
+    padding: 4.5rem 0;
   }
 
   .title {
-    font-size: 1.6rem;
+    font-size: 1.9rem;
+  }
+
+  .body {
+    font-size: 1rem;
   }
 }

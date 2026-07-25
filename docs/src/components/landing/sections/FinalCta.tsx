@@ -9,12 +9,13 @@ export default function FinalCta() {
     <section className={styles.cta}>
       <div className="container">
         <div className={styles.inner}>
+          <p className={styles.eyebrow}>Get started</p>
           <Heading as="h2" className={styles.title}>
             Point it at your repo and see what it finds
           </Heading>
           <p className={styles.body}>
-            Install it, run <code className={styles.inlineCode}>rev-dep config init</code>, and the
-            first check runs in under a second. MIT licensed, no account, no dependency tree.
+            The first run takes about a second, and tells you exactly what has been accumulating
+            while nothing was checking.
           </p>
 
           <CopyCommand command="npm install -D rev-dep" className={styles.install} />
@@ -25,6 +26,10 @@ export default function FinalCta() {
               Single package guide
             </Button>
           </div>
+
+          <p className={styles.meta}>
+            MIT licensed · no account · no 3rd party dependencies
+          </p>
         </div>
       </div>
     </section>

@@ -10,6 +10,13 @@
   box-shadow: var(--rd-card-shadow);
 }
 
+/* Declared after .card so it wins on source order regardless of which module
+   is imported first. */
+.cardFit {
+  height: auto;
+  align-self: start;
+}
+
 .cardLarge {
   padding: 1.75rem;
   border-radius: var(--rd-card-radius-lg);

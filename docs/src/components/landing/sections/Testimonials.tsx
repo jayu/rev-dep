@@ -21,7 +21,7 @@ export default function Testimonials() {
     >
       <Grid cols={3}>
         {testimonials.map((testimonial) => (
-          <Card key={`${testimonial.author.login}-${testimonial.source.issueNumber}`}>
+          <Card key={`${testimonial.author.login}-${testimonial.source.issueNumber}`} hover>
             <p className={styles.quote}>“{testimonial.quote}”</p>
             <div className={styles.footer}>
               <img

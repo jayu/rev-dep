@@ -66,6 +66,47 @@
   color: var(--rd-term-fg);
 }
 
+/* Output streams in once the command has finished typing - the order a real
+   terminal produces it. Plays on scroll-into-view, never on hover. */
+@keyframes revealLine {
+  from {
+    opacity: 0;
+    transform: translateY(-0.2rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.linePending {
+  opacity: 0;
+}
+
+.lineIn {
+  animation: revealLine 0.22s ease both;
+}
+
+@keyframes blinkCursor {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 0.1em;
+  vertical-align: text-bottom;
+  background: var(--rd-term-amber);
+  animation: blinkCursor 0.9s step-end infinite;
+}
+
 .lineDefault {
   color: var(--rd-term-fg);
 }
@@ -90,6 +131,11 @@
   color: var(--rd-term-amber);
 }
 
+/* Colour alone is quiet inside a block of monospace; weight does the rest. */
+.strong {
+  font-weight: 700;
+}
+
 .indent0 {
   padding-left: 0;
 }
@@ -100,6 +146,20 @@
 
 .indent2 {
   padding-left: 2.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lineIn {
+    animation: none;
+  }
+
+  .linePending {
+    opacity: 1;
+  }
+
+  .cursor {
+    animation: none;
+  }
 }
 
 @media screen and (max-width: 640px) {

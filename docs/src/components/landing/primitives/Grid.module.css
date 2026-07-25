@@ -23,6 +23,12 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+/* auto-fit collapses unused tracks, so 3, 4 or 5 items each fill the row
+   evenly instead of leaving a gap at the end. */
+.colsAuto {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
 /* 4-up drops to 2-up before it drops to 1-up, so the cards never get
    uncomfortably narrow at tablet width. */
 @media screen and (max-width: 1200px) {
@@ -52,6 +58,10 @@
 }
 
 @media screen and (max-width: 640px) {
+  .colsAuto {
+    grid-template-columns: 1fr;
+  }
+
   .cols3 {
     grid-template-columns: 1fr;
   }

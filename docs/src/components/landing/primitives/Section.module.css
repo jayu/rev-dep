@@ -1,9 +1,12 @@
 /* Every selector here is a single class name - see the token block in
    custom.css for why theming lives there instead. */
 
+/* scroll-margin keeps #speed, #checks etc. clear of the sticky navbar when
+   linked to directly. */
 .section {
   padding-top: var(--rd-section-py);
   padding-bottom: var(--rd-section-py);
+  scroll-margin-top: 4.5rem;
 }
 
 .sectionTinted {

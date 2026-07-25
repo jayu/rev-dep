@@ -35,23 +35,50 @@
   white-space: nowrap;
 }
 
+/* Deliberately quiet: a hairline row under the grid, not a highlighted card.
+   Limits belong on the page for credibility, but they should not be the
+   loudest element in a section about what the tool DOES support. */
+.limitsRow {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: var(--rd-hairline);
+}
+
 .limitsTitle {
   margin: 0;
-  font-size: 1.05rem;
-  color: var(--rd-panel-fg);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rd-text-muted);
 }
 
 .limits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .limit {
-  margin-top: 0.8rem;
-  padding-left: 1rem;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--rd-panel-fg-muted);
-  border-left: 2px solid rgba(148, 163, 184, 0.35);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--rd-text-muted);
+}
+
+@media screen and (max-width: 996px) {
+  .limitsRow {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+
+  .limits {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
 }

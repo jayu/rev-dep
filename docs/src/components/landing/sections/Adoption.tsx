@@ -76,7 +76,7 @@ export default function Adoption() {
 
         <Grid cols={2} gap="tight" className={styles.steps}>
           {steps.map((step) => (
-            <Card key={step.title}>
+            <Card key={step.title} hover>
               <Heading as="h3" className={styles.stepTitle}>
                 {step.title}
               </Heading>

@@ -4,8 +4,12 @@ import clsx from 'clsx';
 import styles from './Grid.module.css';
 
 type GridProps = {
-  /** Desktop column count. All variants collapse to 1 column on small screens. */
-  cols: 2 | 3 | 4 | 5;
+  /**
+   * Desktop column count, or 'auto' to fit as many equal tracks as the items
+   * need. 'auto' is right when sibling groups have different item counts:
+   * a fixed count leaves a visible hole in the last row.
+   */
+  cols: 2 | 3 | 4 | 5 | 'auto';
   /** `tight` for dense lists of small cards. */
   gap?: 'default' | 'tight';
   className?: string;
@@ -22,6 +26,7 @@ export default function Grid({ cols, gap = 'default', className, children }: Gri
         cols === 3 && styles.cols3,
         cols === 4 && styles.cols4,
         cols === 5 && styles.cols5,
+        cols === 'auto' && styles.colsAuto,
         gap === 'tight' && styles.gapTight,
         className,
       )}

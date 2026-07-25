@@ -1,6 +1,11 @@
 /**
- * The 12 config checks, grouped by the problem they solve rather than by
- * check name. All three groups carry equal weight - they are different jobs,
+ * The config checks worth showing on the landing page, grouped by the problem
+ * they solve rather than by check name.
+ *
+ * `restrictedDirectImportersDetection` exists but is deliberately not listed:
+ * it reads as a near-duplicate of `restrictedImportersDetection` at a glance,
+ * and the distinction (direct vs transitive) needs more room than a card gives.
+ * It is covered in the docs. All three groups carry equal weight - they are different jobs,
  * and different visitors arrive needing different ones.
  */
 
@@ -11,6 +16,12 @@ export type Check = {
   description: string;
   /** True when `rev-dep config run --fix` can repair it. */
   autofix?: boolean;
+  /**
+   * Visually promotes one check per group. This is an editorial choice about
+   * what to lead with - NOT a usage statistic. Do not label it with anything
+   * derived from telemetry: the sample is too small to publish from.
+   */
+  featured?: boolean;
   docs: string;
 };
 
@@ -87,6 +98,7 @@ export const checkGroups: CheckGroup[] = [
     checks: [
       {
         key: 'moduleBoundaries',
+        featured: true,
         title: 'Module boundaries',
         description: 'Declare which parts of the codebase may import which. UI cannot reach the database layer; features stay independent.',
         docs: '/docs/config-based-checks/checks/module-boundaries',
@@ -102,12 +114,6 @@ export const checkGroups: CheckGroup[] = [
         title: 'Restricted importers',
         description: 'The allow-list form: only these entry points may transitively reach this code.',
         docs: '/docs/config-based-checks/checks/restricted-importers',
-      },
-      {
-        key: 'restrictedDirectImportersDetection',
-        title: 'Restricted direct importers',
-        description: 'Constrain which files may import a module directly, without following the graph.',
-        docs: '/docs/config-based-checks/checks/restricted-direct-importers',
       },
       {
         key: 'importConventions',

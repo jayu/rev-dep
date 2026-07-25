@@ -65,7 +65,7 @@ export default function AgentGuardrails() {
       <div className={styles.layout}>
         <div className={styles.points}>
           {points.map((point) => (
-            <Card key={point.title}>
+            <Card key={point.title} hover>
               <Heading as="h3" className={styles.pointTitle}>
                 {point.title}
               </Heading>

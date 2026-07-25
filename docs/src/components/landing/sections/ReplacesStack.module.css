@@ -52,15 +52,22 @@
   white-space: nowrap;
 }
 
+/* align-self keeps the card at its content height: as a grid item it would
+   otherwise stretch to match the tall tool list and render a large empty box
+   below its text. Not sticky - it scrolled out of sync with its own content. */
 .honestCard {
-  position: sticky;
-  top: 5rem;
+  align-self: start;
 }
 
+/* Plain card, not the inverted panel: this is an honesty note, and it should
+   not out-shout the list of things the tool actually replaces. */
 .honestTitle {
   margin: 0;
-  font-size: 1.15rem;
-  color: var(--rd-panel-fg);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rd-text-muted);
 }
 
 .honestList {
@@ -72,17 +79,18 @@
 .honestItem {
   margin-top: 0.85rem;
   padding-left: 1.1rem;
-  font-size: 0.94rem;
+  font-size: 0.92rem;
   line-height: 1.6;
-  color: var(--rd-panel-fg-muted);
-  border-left: 2px solid rgba(148, 163, 184, 0.35);
+  color: var(--rd-text-muted);
+  border-left: 2px solid var(--ifm-color-emphasis-300);
 }
 
 .honestFooter {
   margin: 1.25rem 0 0;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   line-height: 1.6;
-  color: var(--rd-panel-fg-faint);
+  color: var(--rd-text-muted);
+  opacity: 0.8;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -96,9 +104,6 @@
     grid-template-columns: 1fr;
   }
 
-  .honestCard {
-    position: static;
-  }
 }
 
 @media screen and (max-width: 640px) {

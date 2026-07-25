@@ -17,7 +17,7 @@ const heroOutput: TerminalLine[] = [
   {
     parts: [
       { text: '📁 Rule: .  (' },
-      { text: '7015 files', tone: 'accent' },
+      { text: '7015 files', tone: 'accent', strong: true },
       { text: ')' },
     ],
   },
@@ -43,7 +43,7 @@ const heroOutput: TerminalLine[] = [
   {
     parts: [
       { text: '✨ Done in ' },
-      { text: '175ms', tone: 'accent' },
+      { text: '175ms', tone: 'accent', strong: true },
       { text: '.' },
     ],
   },

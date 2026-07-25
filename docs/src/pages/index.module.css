@@ -166,6 +166,13 @@
   color: rgba(226, 232, 240, 0.9);
 }
 
+.problemHighlightFootnote {
+  margin: 1rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.6);
+}
+
 .problemStatsRow {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

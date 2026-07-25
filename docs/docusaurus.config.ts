@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const siteTitle = 'Rev-dep - High-Speed Dependency Graph Analysis for JS/TS Monorepos';
 const siteDescription =
-  'Enforce module boundaries, find circular imports, dead files, unused exports, and dependency issues in one fast CLI. Audit 500k+ LoC in around 500ms.';
+  'Enforce module boundaries, find circular imports, dead files, unused exports, and dependency issues in one fast CLI. Audit 500k+ LoC in around 150ms.';
 
 const config: Config = {
   title: siteTitle,

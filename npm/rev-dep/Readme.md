@@ -32,7 +32,7 @@ As codebases scale, maintaining a mental map of dependencies becomes impossible.
 
 <p align="center"><b>Think of Rev-dep as a high-speed linter for your dependency graph.</b></p>
 
-**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks - including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 500ms**.
+**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks - including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 150ms**.
 
 ### **Automated Codebase Governance**
 
@@ -59,7 +59,7 @@ CLI toolkit that helps debug issues with dependencies between files. Understand 
 ### ⚡ **Built for Speed and CI Efficiency**
 Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **10x-200x faster execution** than alternatives, significantly **reducing CI costs** and developer wait-states.
 
-> **Rev-dep can audit a 500k+ LoC project in around 500ms.**
+> **Rev-dep can audit a 500k+ LoC project in around 150ms.**
 > [See the performance comparison](#performance-comparison-)
 
 ## Capabilities 🚀
@@ -652,7 +652,7 @@ Example package.json with exports:
 This makes rev-dep particularly effective for large-scale monorepo projects where understanding cross-package dependencies is crucial for maintaining code quality and architecture.
 ## Performance comparison ⚡
 
-Rev-dep can perform multiple checks on 500k+ LoC monorepo with several sub-packages in around 500ms.
+Rev-dep can perform multiple checks on 500k+ LoC monorepo with several sub-packages in around 150ms.
 
 It outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools.
 

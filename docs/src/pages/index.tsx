@@ -73,12 +73,15 @@ function CodebaseScalingProblemSection() {
                 <span className={styles.problemStatLabel}>lines of code audited</span>
               </div>
               <div className={styles.problemStat}>
-                <span className={styles.problemStatValue}>~500ms</span>
+                <span className={styles.problemStatValue}>~150ms</span>
                 <span className={styles.problemStatLabel}>approximate runtime</span>
               </div>
             </div>
             <p className={styles.problemHighlightBody}>
               Implemented in <strong className="font-weight-bold">Go</strong> to bypass the performance bottlenecks of Node-based analysis, with CI-friendly speed that reduces developer wait states.
+            </p>
+            <p className={styles.problemHighlightFootnote}>
+              Measured on an Intel i9-14900KF processor on a 7000 files project.
             </p>
           </div>
         </div>
@@ -141,7 +144,7 @@ const WhyRevDepFeatureList: WhyRevDepFeature[] = [
   {
     emoji: '⚡',
     title: 'Unmatched Speed',
-    description: 'Audit a 500k+ LoC project in approximately 500ms. 10x-200x faster execution than alternatives.',
+    description: 'Audit a 500k+ LoC project in approximately 150ms. 10x-200x faster execution than alternatives.',
   },
 ];
 
@@ -265,7 +268,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       // title="Rev-dep | High-Speed Dependency Graph Analysis for JS/TS Monorepos"
-      // description="Enforce module boundaries, find circular imports, dead files, unused exports, and dependency issues in one fast CLI. Audit 500k+ LoC in around 500ms."
+      // description="Enforce module boundaries, find circular imports, dead files, unused exports, and dependency issues in one fast CLI. Audit 500k+ LoC in around 150ms."
       >
       <HomepageHeader />
       <main>

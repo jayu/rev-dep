@@ -32,7 +32,7 @@ As codebases scale, maintaining a mental map of dependencies becomes impossible.
 
 <p align="center"><b>Think of Rev-dep as a high-speed linter for your dependency graph.</b></p>
 
-**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks - including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 500ms**.
+**Consolidate fragmented, sequential checks from multiple slow tools into a single, high-performance engine.** Rev-dep executes a full suite of governance checks - including circularity, orphans, module boundaries and more, in one parallelized pass. Implemented in **Go** to bypass the performance bottlenecks of Node-based analysis, it can audit a **500k+ LoC project in approximately 150ms**.
 
 ### **Automated Codebase Governance**
 
@@ -59,7 +59,7 @@ CLI toolkit that helps debug issues with dependencies between files. Understand 
 ### ⚡ **Built for Speed and CI Efficiency**
 Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **10x-200x faster execution** than alternatives, significantly **reducing CI costs** and developer wait-states.
 
-> **Rev-dep can audit a 500k+ LoC project in around 500ms.**
+> **Rev-dep can audit a 500k+ LoC project in around 150ms.**
 > [See the performance comparison](#performance-comparison-)
 
 ## Capabilities 🚀
@@ -572,6 +572,36 @@ rev-dep node-modules missing
 ```
 rev-dep node-modules dirs-size
 ```
+
+### **How to detect dev dependencies used in production code**
+
+```
+rev-dep config run
+```
+
+When `devDepsUsageOnProdDetection` is enabled in your config, rev-dep will:
+
+1. Trace dependency graphs from your specified production entry points
+2. Identify all files reachable from those entry points
+3. Check if any imported modules are listed in `devDependencies` in package.json
+4. Report violations showing which dev dependencies are used where
+
+**Example Output:**
+```
+❌ Restricted Dev Dependencies Usage Issues (2):
+  lodash (dev dependency)
+     - src/components/Button.tsx (from entry point: src/pages/index.tsx)
+     - src/utils/helpers.ts (from entry point: src/pages/index.tsx)
+  eslint (dev dependency)
+     - src/config/eslint-config.js (from entry point: src/server.ts)
+```
+
+**Important Notes:**
+- Type-only imports (e.g., `import type { ReactNode } from 'react'`) are ignored when `ignoreTypeImports` is enabled
+- Only dependencies from `devDependencies` in package.json are flagged
+- Production dependencies from `dependencies` are allowed
+- Helps prevent runtime failures in production builds
+
 ## Working with Monorepo 🏗️
 
 Rev-dep provides first-class support for monorepo projects, enabling accurate dependency analysis across workspace packages.
@@ -639,7 +669,7 @@ Example package.json with exports:
 }
 ```
 
-### How It Works
+### How Monorepo Resolution Works
 
 1. **Monorepo Detection**: When `followMonorepoPackages` is enabled, rev-dep scans for workspace configuration (pnpm-workspace.yaml, package.json workspaces, etc.)
 
@@ -650,79 +680,62 @@ Example package.json with exports:
 4. **Path Resolution**: All paths are resolved relative to their respective package roots, ensuring accurate dependency tracking across the entire monorepo
 
 This makes rev-dep particularly effective for large-scale monorepo projects where understanding cross-package dependencies is crucial for maintaining code quality and architecture.
+
 ## Performance comparison ⚡
 
-Rev-dep can perform multiple checks on 500k+ LoC monorepo with several sub-packages in around 500ms.
+Rev-dep can perform multiple checks on 500k+ LoC monorepo with several sub-packages in around 150ms.
 
 It outperforms Madge, dpdm, dependency-cruiser, skott, knip, depcheck and other similar tools.
 
 Here is a performance comparison of specific tasks between rev-dep and alternatives:
 
-| Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep | 
-|------|-------|--------------|------|----|
-| Find circular dependencies | 289 | dpdm-fast | 7061|  24x|
-| Find unused exports | 303 | knip| 6606 | 22x |
-| Find unused files | 277 | knip | 6596 | 23x |
-| Find unused node modules | 287 | knip | 6572 | 22x |
-| Find missing node modules | 270 | knip| 6568 | 24x |
-| List all files imported by an entry point | 229 | madge | 4467 | 20x | 
-| Discover entry points | 323 | madge | 67000 | 207x
-| Resolve dependency path between files | 228 | please suggest | 
-| Count lines of code | 342 | please suggest | 
-| Check node_modules disk usage | 1619 | please suggest | 
-| Analyze node_modules directory sizes | 521 | please suggest | 
+| Task | Execution Time [ms] | Alternative | Alternative Time [ms] | Slower Than Rev-dep |
+|------|--------------------:|-------------|----------------------:|--------------------:|
+| Find circular dependencies | 151.4 ± 1.9 | knip | 3 039.9 ± 36.3 | 20x |
+| Find unused exports | 186.4 ± 2.9 | knip | 3 176.1 ± 24.2 | 17x |
+| Find unused files | 168.2 ± 1.8 | knip | 3 005.9 ± 34.0 | 18x |
+| Find unused node modules | 170.0 ± 3.0 | knip | 3 068.9 ± 17.1 | 18x |
+| Find missing node modules | 159.5 ± 3.0 | knip | 3 076.1 ± 29.8 | 19x |
+| List all files imported by an entry point | 81.2 ± 1.9 | madge | 6 591.4 ± 129.2 | 81x |
+| Discover entry points | 148.9 ± 3.8 | madge | 13 632.0 ± 137.1 | 92x |
+| Resolve dependency path between files | 220.8 ± 3.6 | please suggest |
+| Count lines of code | 251.4 ± 31.2 | please suggest |
+| Analyze node_modules directory sizes | 560.7 ± 54.5 | please suggest |
 
->Benchmark run on WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU @ 2.80GHz
+> Platform: WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU
+>
+> Measurements: `hyperfine -w 4 -r 8` (4 warm-up + 8 measured runs)
+> 
+> Project: 580k lines of code, 6024 source code files next.js app
 
 ### Circular check performance comparison
 
-Benchmark performed on TypeScript codebase with `6034` source code files and `518862` lines of code.
+Table below presents performance comparison between different tools performing circular imports detection.
 
-Benchmark performed on MacBook Pro with Apple M1 chip, 16GB of RAM and 256GB of Storage. Power save mode off.
-
-Benchmark performed with `hyperfine` using 8 runs per test and 4 warm up runs, taking mean time values as a result. If single run was taking more than 10s, only 1 run was performed.
-
-`rev-dep` circular check is **12 times** faster than the fastest alternative❗
+`rev-dep` circular check is **~20 times** faster than the fastest alternative.
 
 | Tool | Version | Command to Run Circular Check | Time |
-|------|---------|-------------------------------|------|
-| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 2.0.0 | `rev-dep circular` | 397 ms |
-| 🥈 [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-progress  --no-warning` + list of directories with source code  | 4960 ms |
-| 🥉 [dpdm](https://github.com/acrazing/dpdm) | 3.14.0 | `dpdm  --no-warning` + list of directories with source code | 5030 ms |
-| [skott](https://github.com/antoine-coulon/skott) | 0.35.6 | node script using skott `findCircularDependencies` function  | 29575 ms |
-| [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions js,ts,jsx,tsx .` | 69328 ms |
-| [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 2.3.0 | `ds` - out of memory error | n/a |
+|------|---------|-------------------------------|-----:|
+| 🥇 [rev-dep](https://github.com/jayu/rev-dep) | 3.0.0 | `rev-dep circular` | **153.6 ms** ± 2.3 |
+| 🥈 [knip](https://github.com/webpro-nl/knip) * | 6.29.0 | `knip --cycles` | 3 039.9 ms ± 36.3 |
+| 🥉 [circular-dependency-scanner](https://github.com/emosheeep/circular-dependency-scanner) | 3.0.1 | `ds . -i <ignore globs>` | 3 354.5 ms ± 32.6 |
+| [dpdm-fast](https://github.com/SunSince90/dpdm-fast) | 1.0.14 | `dpdm --no-tree --no-warning --no-progress --tsconfig tsconfig.json` + list of directories with source code | 6 069.7 ms ± 315.7 |
+| [dpdm](https://github.com/acrazing/dpdm) | 4.2.0 | `dpdm --no-tree --no-warning --no-progress --tsconfig tsconfig.json --exclude 'node_modules\|generated/prisma'` + list of directories with source code | 6 667.4 ms ± 44.4 |
+| [dependency-cruiser](https://github.com/sverweij/dependency-cruiser) | 18.1.0 | `depcruise --config <config> --output-type err` + list of directories with source code | 8 257.7 ms ± 118.9 |
+| [madge](https://github.com/pahen/madge) | 8.0.0 | `madge --circular --extensions ts,tsx,js --ts-config tsconfig.json` + list of directories with source code | 13 568.8 ms ± 63.7 |
+| [skott](https://github.com/antoine-coulon/skott) | 0.35.11 | node script using skott `findCircularDependencies` function | 61 612.7 ms ± 132.6 |
 
 
+\* knip always ignores type-only import edges and offers no flag to include them. Every cycle in
+this codebase contains at least one, so knip reports 0 cycles — its 3 040 ms is a real full
+analysis, just of a smaller graph. `rev-dep circular -t`, which applies the same rule, agrees
+exactly (0 cycles) in 143.3 ms ± 10.3.
 
-### **How to detect dev dependencies used in production code**
-
-```
-rev-dep config run
-```
-
-When `devDepsUsageOnProdDetection` is enabled in your config, rev-dep will:
-
-1. Trace dependency graphs from your specified production entry points
-2. Identify all files reachable from those entry points
-3. Check if any imported modules are listed in `devDependencies` in package.json
-4. Report violations showing which dev dependencies are used where
-
-**Example Output:**
-```
-❌ Restricted Dev Dependencies Usage Issues (2):
-  lodash (dev dependency)
-     - src/components/Button.tsx (from entry point: src/pages/index.tsx)
-     - src/utils/helpers.ts (from entry point: src/pages/index.tsx)
-  eslint (dev dependency)
-     - src/config/eslint-config.js (from entry point: src/server.ts)
-```
-
-**Important Notes:**
-- Type-only imports (e.g., `import type { ReactNode } from 'react'`) are ignored when `ignoreTypeImports` is enabled
-- Only dependencies from `devDependencies` in package.json are flagged
-- Production dependencies from `dependencies` are allowed
-- Helps prevent runtime failures in production builds
+> Platform: WSL Linux Debian Intel(R) Core(TM) i9-14900KF CPU
+>
+> Measurements: `hyperfine -w 4 -r 8` (4 warm-up + 8 measured runs)
+> 
+> Project: 580k lines of code, 6024 source code files next.js app
 
 ## CLI reference 📖
 

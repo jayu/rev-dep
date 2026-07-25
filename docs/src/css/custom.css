@@ -43,40 +43,170 @@
 }
 
 :root {
-  --doc-sidebar-width: 340px;
+  --doc-sidebar-width: 450px;
+  /* Sidebar tuning */
+  --revdep-sidebar-radius: 8px;
+  --revdep-sidebar-item-color: var(--ifm-color-emphasis-700);
+  /* Gentle, unified hover for every row (same as Infima's collapsible hover) */
+  --revdep-sidebar-hover-bg: var(--ifm-hover-overlay);
+  /* Active row is a touch stronger than hover so it reads as "current" */
+  --revdep-sidebar-active-bg: var(--ifm-color-emphasis-200);
+  --revdep-group-color: var(--ifm-color-emphasis-800);
+  /* "Recommended" highlight (warm amber, deliberately not the brand purple
+     so it never clashes with the active/focus link color) */
+  --revdep-highlight-accent: #b45309;
+  --revdep-highlight-bg: rgba(217, 119, 6, 0.1);
+  --revdep-highlight-bg-hover: rgba(217, 119, 6, 0.18);
+  /* Thin Phosphor caret-down, used as a mask for collapsible carets */
+  --revdep-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+  --revdep-caret-color: var(--ifm-color-emphasis-600);
 }
 
-/* Highlighted sidebar item (e.g. the Monorepo integration guide) */
-.sidebar-item--highlight > .menu__link {
-  font-weight: 700;
+[data-theme='dark'] {
+  --revdep-sidebar-item-color: var(--ifm-color-emphasis-600);
+  --revdep-sidebar-hover-bg: var(--ifm-hover-overlay);
+  --revdep-sidebar-active-bg: var(--ifm-color-emphasis-200);
+  --revdep-group-color: var(--ifm-color-emphasis-600);
+  --revdep-highlight-accent: #fbbf24;
+  --revdep-highlight-bg: rgba(251, 191, 36, 0.12);
+  --revdep-highlight-bg-hover: rgba(251, 191, 36, 0.2);
+  /* Lighter caret in dark mode so it stands out against the dark sidebar */
+  --revdep-caret-color: var(--ifm-color-emphasis-700);
 }
 
-/* Sidebar hierarchy: top-level sections darker so groups stand out */
-.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link,
-.theme-doc-sidebar-item-link-level-1 > .menu__link {
+/* ── Sidebar: base menu ─────────────────────────────────────────── */
+.theme-doc-sidebar-menu {
+  padding: 0.5rem 0.75rem 2rem;
+  font-size: 0.9rem;
+}
+
+/* Every clickable row is a flex line: [icon] [label] */
+.menu__link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: var(--revdep-sidebar-radius);
+  padding: 0.4rem 0.6rem;
+  font-weight: 450;
+  line-height: 1.3;
+  color: var(--revdep-sidebar-item-color);
+}
+
+.menu__link:hover {
+  background: var(--revdep-sidebar-hover-bg);
   color: var(--ifm-color-emphasis-900);
 }
 
-/* ...but keep the accent color on the active/hovered top-level item */
-.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link--active,
-.theme-doc-sidebar-item-link-level-1 > .menu__link--active,
-.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link:hover,
-.theme-doc-sidebar-item-link-level-1 > .menu__link:hover {
-  color: var(--ifm-menu-color-active);
+.menu__link--active:not(.menu__link--sublist) {
+  background: var(--revdep-sidebar-active-bg);
+  color: var(--ifm-color-primary);
+  font-weight: 600;
 }
 
-/* Accent the top-level section header that contains the active page,
-   so it's obvious which section you're in */
-.theme-doc-sidebar-item-category-level-1:has(.menu__link--active) > .menu__list-item-collapsible > .menu__link {
-  color: var(--ifm-menu-color-active);
+/* The leftmost icon on each row */
+.sidebar-item-icon {
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+  opacity: 0.85;
 }
 
-/* Sidebar hierarchy: nested items slightly smaller so they recede under the headers */
-.theme-doc-sidebar-item-category-level-2 > .menu__list-item-collapsible > .menu__link,
-.theme-doc-sidebar-item-link-level-2 > .menu__link,
-.theme-doc-sidebar-item-category-level-3 > .menu__list-item-collapsible > .menu__link,
-.theme-doc-sidebar-item-link-level-3 > .menu__link,
-.theme-doc-sidebar-item-category-level-4 > .menu__list-item-collapsible > .menu__link,
-.theme-doc-sidebar-item-link-level-4 > .menu__link {
-  font-size: 0.85rem;
+.menu__link--active .sidebar-item-icon {
+  opacity: 1;
+}
+
+/* ── Group headers (non-collapsible section labels) ─────────────── */
+.sidebar-group {
+  margin-top: 1.5rem;
+}
+
+.sidebar-group:first-child {
+  margin-top: 0.25rem;
+}
+
+.sidebar-group>.menu__list-item-collapsible>.menu__link,
+.sidebar-group>.menu__list-item-collapsible>.menu__link:hover {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--revdep-group-color);
+  background: transparent;
+  cursor: default;
+  padding: 0.3rem 0.6rem;
+}
+
+/* Group headers are labels, not links: no hover background on the wrapper
+   (Infima adds one by default, which makes them look clickable) */
+.sidebar-group>.menu__list-item-collapsible:hover {
+  background: transparent;
+}
+
+.sidebar-group>.menu__list-item-collapsible>.menu__link .sidebar-item-icon {
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.9;
+}
+
+/* The group's children align flush; no extra nested indentation */
+.sidebar-group>.menu__list {
+  padding-left: 0;
+}
+
+/* ── Nested (collapsible) categories & their children ───────────── */
+/* Category label rows keep the row treatment but a touch bolder */
+.menu__list-item-collapsible .menu__link--sublist {
+  font-weight: 550;
+  color: var(--ifm-color-emphasis-800);
+}
+
+/* Indent only real nested levels (inside a collapsible category),
+   with a subtle guide line */
+.sidebar-group .menu__list .menu__list {
+  margin-left: 1.15rem;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Caret alignment */
+.menu__caret {
+  border-radius: var(--revdep-sidebar-radius);
+}
+
+/* Replace Infima's heavy chevron with a thin Phosphor caret.
+   Uses a mask filled with an explicit caret color (not the muted label
+   color) so it stays clearly visible in both light and dark themes. */
+.menu__link--sublist-caret::after,
+.menu__caret::before {
+  background: var(--revdep-caret-color);
+  -webkit-mask: var(--revdep-caret) center / 1rem 1rem no-repeat;
+  mask: var(--revdep-caret) center / 1rem 1rem no-repeat;
+  width: 1.35rem;
+  height: 1.35rem;
+  opacity: 1;
+  /* Docusaurus applies an invert() filter to recolor its default caret icon
+     in dark mode; that would invert our explicit caret color, so disable it. */
+  filter: none;
+  transition: transform 0.15s ease;
+  transform: rotate(0deg);
+  /* expanded: caret points down */
+}
+
+/* collapsed: caret points right */
+.menu__list-item--collapsed .menu__link--sublist-caret::after,
+.menu__list-item--collapsed .menu__caret::before {
+  transform: rotate(-90deg);
+}
+
+/* Gentle "recommended" nudge for the Monorepo integration guide.
+   Deliberately quiet: no background, no accent bar — just a lightly
+   tinted icon and a slightly heavier label, so it's noticed only when
+   the eye scans the sidebar, not the moment the page loads. */
+.sidebar-item--highlight>.menu__link {
+  font-weight: 800;
+}
+
+.sidebar-item--highlight>.menu__link .sidebar-item-icon {
+  color: var(--revdep-highlight-accent);
+  opacity: 1;
 }

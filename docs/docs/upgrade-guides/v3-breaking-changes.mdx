@@ -7,6 +7,8 @@ title: v3 breaking changes
 
 This page tracks the breaking changes that are shipped in **rev-dep v3**. Each entry describes what worked in v2, what changes in v3, and how to update your configuration.
 
+There is a couple of breaking changes but for most of the projects everything should just work after migrating with `rev-dep config migrate`.
+
 :::tip
 Run `rev-dep config migrate` to apply the safe changes automatically:
 
@@ -39,7 +41,7 @@ The config version is bumped to `2.0` accordingly.
 
 ### What changes
 
-```jsonc
+```json
 // v2
 {
   "configVersion": "1.8",
@@ -49,7 +51,7 @@ The config version is bumped to `2.0` accordingly.
 }
 ```
 
-```jsonc
+```json
 // v3
 {
   "configVersion": "2.0",
@@ -152,14 +154,14 @@ Two rules changed.
 
 **Order matters.** The last pattern that matches a file wins.
 
-```jsonc
+```json
 ["*.ts", "!src/a.ts"]   // src/a.ts is NOT matched
 ["!src/a.ts", "*.ts"]   // src/a.ts IS matched
 ```
 
 **A `!` has no effect inside a directory that is already matched.**
 
-```jsonc
+```json
 ["src/**", "!src/vendor/**"]
 ```
 
@@ -169,7 +171,7 @@ The reason: `src/**` matches the **directory** `src/vendor`, not only the files 
 
 To make the exception work, the `!` must name the directory, and the first pattern must not reach the file by itself:
 
-```jsonc
+```json
 ["src/*", "!src/vendor"]   // src/vendor/lib.ts is NOT matched
 ```
 
@@ -178,7 +180,7 @@ To make the exception work, the `!` must name the directory, and the first patte
 
 Fixing only one of the two is not enough:
 
-```jsonc
+```json
 ["src/**", "!src/vendor"]     // still matched - src/** matches lib.ts itself
 ["src/*", "!src/vendor/**"]   // still matched - the ! never names the directory
 ```
@@ -259,7 +261,7 @@ There is no need to keep `DFS` algo, it's not faster and it produces worse resul
 
 The `algorithm` field is removed from `circularImportsDetection`:
 
-```jsonc
+```json
 // v2
 {
   "circularImportsDetection": {
@@ -269,7 +271,7 @@ The `algorithm` field is removed from `circularImportsDetection`:
 }
 ```
 
-```jsonc
+```json
 // v3
 {
   "circularImportsDetection": {
@@ -413,7 +415,7 @@ The other two applied one path to every workspace, which is wrong as soon as a c
 
 Delete the flags from any `rev-dep config run` or `rev-dep config lint` call in CI or scripts. Only `--condition-names` has a replacement:
 
-```jsonc
+```json
 {
   "configVersion": "2.0",
   "conditionNames": ["node", "imports"],

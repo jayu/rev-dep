@@ -1,5 +1,5 @@
 
-📁 Rule: . (10 files)
+📁 Workspace: . (root) (10 files)
   ❌ Unused Exports Issues (5):
     src/api/client.ts
      - fetchData

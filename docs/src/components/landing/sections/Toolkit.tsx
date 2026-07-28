@@ -15,8 +15,9 @@ export default function Toolkit() {
     <Section
       id="toolkit"
       tone="tinted"
+      corner="top-right"
       eyebrow="Exploratory toolkit"
-      title="Ask questions about your graph"
+      title="Ask questions about your dependency graph"
       intro="Checks tell you something is wrong. These commands tell you why. Useful when a check fails, and before any refactor you are nervous about."
     >
       <div className={styles.layout}>

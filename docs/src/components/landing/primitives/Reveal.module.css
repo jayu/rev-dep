@@ -1,0 +1,34 @@
+/* The wrapper must not introduce a layout of its own - it only carries the
+   animation, so anything relying on margins or grid inside keeps working. */
+.reveal {
+  display: block;
+}
+
+@keyframes revealBlock {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pending {
+  opacity: 0;
+}
+
+.in {
+  animation: revealBlock 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pending {
+    opacity: 1;
+  }
+
+  .in {
+    animation: none;
+  }
+}

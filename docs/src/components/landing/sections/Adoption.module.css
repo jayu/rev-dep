@@ -1,11 +1,15 @@
+/* Centred, not top-aligned: the terminal and the card grid are different
+   heights, so anchoring both at the top leaves a ragged gap under the shorter
+   one. */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-  gap: 2rem;
-  align-items: start;
+  gap: 2.5rem;
+  align-items: center;
 }
 
 .visual {
+  position: relative;
   min-width: 0;
 }
 

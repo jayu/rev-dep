@@ -1,11 +1,11 @@
 ---
-description: "Migrate from skott to rev-dep: replace circular-dependency, unused-file and unused-dependency detection with a fast, config-driven check suite."
+description: "Migrate from skott to rev-dep, measured up to 400x faster: replace circular-dependency, unused-file and unused-dependency detection with a config-driven check suite."
 title: Migrating from skott
 sidebar_label: skott
 ---
 
 <head>
-  <title>skott alternative - migrate to Rev-dep, up to 74x faster</title>
+  <title>skott alternative - migrate to Rev-dep, up to 400x faster</title>
 </head>
 
 # Migrating from skott
@@ -14,7 +14,7 @@ sidebar_label: skott
 
 ## Why migrate
 
-- **Speed.** rev-dep is written in Go and runs every check in a single parallel pass - **up to 74x faster** on large codebases.
+- **Speed.** rev-dep is written in Go and runs every check in a single parallel pass - **up to 400x faster** than skott on a 580k-LoC project ([benchmark](/#speed)).
 - **One config for the whole suite.** On top of skott's checks, rev-dep adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [missing dependencies](../config-based-checks/checks/missing-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), and [import conventions](../config-based-checks/checks/import-conventions.mdx).
 
 ## What carries over, what changes

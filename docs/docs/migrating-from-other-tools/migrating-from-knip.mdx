@@ -1,5 +1,5 @@
 ---
-description: "Migrate from knip to rev-dep: map unused files, exports, dependencies and unlisted/unresolved imports onto rev-dep checks, with config translation."
+description: "Migrate from knip to rev-dep, measured up to 20x faster: map unused files, exports, dependencies and unlisted/unresolved imports onto rev-dep checks, with config translation."
 title: Migrating from knip
 sidebar_label: knip
 ---
@@ -14,7 +14,7 @@ sidebar_label: knip
 
 ## Why migrate
 
-- **Speed.** knip runs on Node; rev-dep is written in Go and runs every check in one parallel pass - **up to 20x faster** on large codebases, which keeps it cheap to run on every PR.
+- **Speed.** knip runs on Node; rev-dep is written in Go and runs every check in one parallel pass - **up to 20x faster** on a 580k-LoC project ([benchmark](/#speed)), which keeps it cheap to run on every PR.
 - **More than unused code.** knip focuses on unused files/exports/dependencies. rev-dep does that *and* enforces architecture - [circular imports](../config-based-checks/checks/circular-imports.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [import conventions](../config-based-checks/checks/import-conventions.mdx), and [dev-dependencies in production](../config-based-checks/checks/dev-deps-on-prod.mdx) - so it can replace several tools at once.
 - **Built for monorepos.** A single config runs per-workspace rules in parallel and resolves cross-package imports, with whole-repo context when you need it.
 

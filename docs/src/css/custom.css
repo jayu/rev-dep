@@ -1,3 +1,92 @@
+/* ═══════════════════════════════════════════════════════════════
+   Typefaces
+   ───────────────────────────────────────────────────────────────
+   Geist and Geist Mono, self-hosted as variable fonts: two files
+   cover every weight (~140kB total), and nothing is fetched from a
+   third party. Licence in src/css/fonts/LICENSE.txt (OFL).
+   Served from static/ with a stable path so they can be preloaded from
+   docusaurus.config.ts - a hashed bundler URL cannot be referenced in a
+   <link rel="preload">.
+
+   `font-display: swap` renders system fonts first and swaps when
+   the webfont lands, so first paint is never blocked.
+   ═══════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/Geist-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Font hold + hero entrance.
+   ---------------------------------------------------------------
+   `data-rd-boot` is set on <html> by an inline head script before the first
+   paint, and removed by src/fontsReady.ts once Geist has actually loaded. It
+   is an attribute rather than a class because Docusaurus rewrites <html class>
+   through Helmet and would wipe it.
+
+   Scope: the hero only, not the document. Geist is ~10% narrower than the
+   fallback, so the headline lays out on a different number of lines until the
+   font lands - holding just that text is enough to hide the re-break, and the
+   rest of the page paints immediately.
+
+   Plain class names, not CSS modules, so the head script can reference them
+   before hydration. */
+
+/* Hero copy: held, then simply fades in. No movement - the headline is the
+   thing being protected from shifting, so moving it would be self-defeating. */
+.rd-hold {
+  transition: opacity 0.35s ease-out;
+}
+
+[data-rd-boot] .rd-hold {
+  opacity: 0;
+}
+
+/* The terminal is the one element that gets a real entrance. */
+.rd-enter {
+  transition: opacity 0.7s ease-out, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-rd-boot] .rd-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-hold,
+  .rd-enter {
+    transition: none;
+  }
+
+  [data-rd-boot] .rd-enter {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Metric-matched fallback. Geist is ~10% narrower than system-ui, so while the
+   webfont loads the headline lays out wider and re-breaks onto fewer lines
+   when it swaps in. Arial is within 2.2% of Geist, so scaling it up by that
+   much makes the fallback occupy the same space and the swap invisible.
+   Liberation Sans and Helvetica are metric-compatible with Arial. */
+@font-face {
+  font-family: 'Geist Fallback';
+  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
+  size-adjust: 102.4%;
+  font-weight: 100 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /**
  * Any CSS included here will be global. The classic template
  * bundles Infima by default. Infima is a CSS framework designed to
@@ -6,6 +95,10 @@
 
 /* You can override the default Infima variables here. */
 :root {
+  --ifm-font-family-base: 'Geist', 'Geist Fallback', system-ui, -apple-system, sans-serif;
+  --ifm-font-family-monospace: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ifm-heading-font-family: 'Geist', 'Geist Fallback', system-ui, -apple-system, sans-serif;
+
   --ifm-color-primary: #c366e7;
   --ifm-color-primary-dark: #a34ec4;
   --ifm-color-primary-darker: #8336a0;
@@ -29,11 +122,44 @@
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
+/* Continues the closing CTA band above it. The default neutral grey read as a
+   separate slab sitting under a dark purple section. */
 .footer {
-  background: #242526;
-  padding-top: 5rem;
-  padding-bottom: 5rem;
+  background: #08070d;
+  padding-top: 4.5rem;
+  padding-bottom: 4rem;
 }
+
+.footer__title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.55);
+}
+
+.footer__link-item {
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.footer__link-item:hover {
+  color: #ffffff;
+}
+
+.footer__copyright {
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.45);
+}
+
+/* Breathing room between the link columns and the copyright line - they were
+   close enough to read as one block. */
+.footer__bottom {
+  margin-top: 3.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.08);
+}
+
+
 
 @media screen and (max-width: 996px) {
   .footer {
@@ -60,6 +186,16 @@
   /* Thin Phosphor caret-down, used as a mask for collapsible carets */
   --revdep-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
   --revdep-caret-color: var(--ifm-color-emphasis-600);
+
+  /* Phosphor magnifying glass (react-icons/pi PiMagnifyingGlass), used as a
+     mask so it takes currentColor - the search plugin ships its own blue SVG
+     which cannot be recoloured. */
+  --revdep-search-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z'/%3E%3C/svg%3E");
+
+  /* Painted width of every glyph on the right of the navbar. GitHub, npm and
+     the colour-mode toggle are all normalised to it, so they read as one set
+     rather than three icons at three sizes. */
+  --rd-navbar-glyph: 24px;
 }
 
 [data-theme='dark'] {
@@ -246,17 +382,41 @@
   --rd-section-tint-bg:
     radial-gradient(circle at top left, rgba(195, 102, 231, 0.09), transparent 32%),
     linear-gradient(180deg, rgba(250, 247, 255, 0.9), rgba(255, 255, 255, 1));
-  --rd-hero-bg: radial-gradient(rgb(18, 7, 60), rgb(18, 7, 60) 30%, black);
+  /* Softened ~20%: the purple sits closer to black, so the band reads as a
+     dark surface with a hint of colour rather than a saturated wash. Shared by
+     the hero and the closing CTA. */
+  --rd-hero-bg: radial-gradient(rgb(14, 6, 48), rgb(14, 6, 48) 30%, black);
 
   /* Text */
   --rd-text-muted: var(--ifm-color-emphasis-700);
   --rd-text-strong: var(--ifm-color-emphasis-800);
   --rd-eyebrow-color: rgb(147, 51, 234);
   --rd-hairline: 1px solid var(--ifm-color-emphasis-200);
+  /* Bare colour, for gradient separator lines that fade at their ends. */
+  --rd-grid-line: rgba(15, 23, 42, 0.13);
+
+  /* A 1px lighter line along the top edge, as if lit from above. It only
+     works where there is contrast to show it: on a near-white card a white
+     line is invisible, so light mode gets a faint dark top edge instead and
+     dark surfaces get the real highlight. */
+  --rd-card-highlight: inset 0 1px 0 rgba(15, 23, 42, 0.04);
+  --rd-panel-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+
+  /* Dependency graph, not the grid mesh every dev-tool page uses. Nodes and
+     edges generated once with a seeded layout and inlined as SVG, so it costs
+     no request and never moves. Kept faint - it is texture, not content.
+     Film grain hides the banding large gradients show on 8-bit displays. */
+  --rd-graph: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNDQwIDgwMCcgd2lkdGg9JzE0NDAnIGhlaWdodD0nODAwJz48ZyBzdHJva2U9JyNmZmZmZmYnIHN0cm9rZS13aWR0aD0nMS4yNScgb3BhY2l0eT0nMC42Mic+PGxpbmUgeDE9JzM5NycgeTE9JzIwNycgeDI9JzQxNicgeTI9JzU3Jy8+PGxpbmUgeDE9JzM5NycgeTE9JzIwNycgeDI9JzMzNScgeTI9JzM1NicvPjxsaW5lIHgxPSczOTcnIHkxPScyMDcnIHgyPSc1OTMnIHkyPScyMDMnLz48bGluZSB4MT0nMTEwOCcgeTE9JzE2JyB4Mj0nMTA4MScgeTI9JzEyMicvPjxsaW5lIHgxPScxMTA4JyB5MT0nMTYnIHgyPScxMjk4JyB5Mj0nMTYnLz48bGluZSB4MT0nMTEwOCcgeTE9JzE2JyB4Mj0nOTExJyB5Mj0nMTYnLz48bGluZSB4MT0nMTQyNCcgeTE9Jzc4NCcgeDI9JzEzNDQnIHkyPSc2MjYnLz48bGluZSB4MT0nMTQyNCcgeTE9Jzc4NCcgeDI9JzEyMjQnIHkyPSc3ODQnLz48bGluZSB4MT0nMTQyNCcgeTE9Jzc4NCcgeDI9JzE0MjQnIHkyPSc1MzAnLz48bGluZSB4MT0nMTM1JyB5MT0nNzg0JyB4Mj0nMTYnIHkyPSc3NzYnLz48bGluZSB4MT0nMTM1JyB5MT0nNzg0JyB4Mj0nMjc1JyB5Mj0nNzg0Jy8+PGxpbmUgeDE9JzEzNScgeTE9Jzc4NCcgeDI9JzE1OCcgeTI9JzYyMicvPjxsaW5lIHgxPScxMzQ0JyB5MT0nNjI2JyB4Mj0nMTQyNCcgeTI9JzUzMCcvPjxsaW5lIHgxPScxMzQ0JyB5MT0nNjI2JyB4Mj0nMTIwMycgeTI9JzQ4OScvPjxsaW5lIHgxPSc1MjgnIHkxPSc1NjknIHgyPSczOTMnIHkyPSc1MjQnLz48bGluZSB4MT0nNTI4JyB5MT0nNTY5JyB4Mj0nNjI1JyB5Mj0nNjgwJy8+PGxpbmUgeDE9JzUyOCcgeTE9JzU2OScgeDI9JzUxOCcgeTI9JzM3MCcvPjxsaW5lIHgxPSc3OTcnIHkxPSc3ODQnIHgyPSc4NzEnIHkyPSc2MzgnLz48bGluZSB4MT0nNzk3JyB5MT0nNzg0JyB4Mj0nNjAyJyB5Mj0nNzg0Jy8+PGxpbmUgeDE9Jzc5NycgeTE9Jzc4NCcgeDI9JzYyNScgeTI9JzY4MCcvPjxsaW5lIHgxPScxNicgeTE9JzU3MicgeDI9JzE1OCcgeTI9JzYyMicvPjxsaW5lIHgxPScxNicgeTE9JzU3MicgeDI9JzE2JyB5Mj0nMzc1Jy8+PGxpbmUgeDE9JzE2JyB5MT0nNTcyJyB4Mj0nMTYnIHkyPSc3NzYnLz48bGluZSB4MT0nMTYnIHkxPSczNzUnIHgyPScxNicgeTI9JzE5MCcvPjxsaW5lIHgxPScxNicgeTE9JzM3NScgeDI9JzIwNycgeTI9JzQzMCcvPjxsaW5lIHgxPScxNicgeTE9JzE5MCcgeDI9JzIyJyB5Mj0nMTYnLz48bGluZSB4MT0nMTYnIHkxPScxOTAnIHgyPScxOTUnIHkyPScyMTMnLz48bGluZSB4MT0nMTIyNCcgeTE9Jzc4NCcgeDI9JzExNTInIHkyPSc2NzgnLz48bGluZSB4MT0nMTIyNCcgeTE9Jzc4NCcgeDI9JzEzNDQnIHkyPSc2MjYnLz48bGluZSB4MT0nOTExJyB5MT0nMTYnIHgyPSc3NzMnIHkyPScxMTcnLz48bGluZSB4MT0nOTExJyB5MT0nMTYnIHgyPSc5NjInIHkyPScxODYnLz48bGluZSB4MT0nMTQyNCcgeTE9JzE2JyB4Mj0nMTI5OCcgeTI9JzE2Jy8+PGxpbmUgeDE9JzE0MjQnIHkxPScxNicgeDI9JzE0MjQnIHkyPScxODInLz48bGluZSB4MT0nMTQyNCcgeTE9JzE2JyB4Mj0nMTIzNycgeTI9JzE3MicvPjxsaW5lIHgxPSc3MjcnIHkxPSc1OTInIHgyPSc2MjUnIHkyPSc2ODAnLz48bGluZSB4MT0nNzI3JyB5MT0nNTkyJyB4Mj0nODcxJyB5Mj0nNjM4Jy8+PGxpbmUgeDE9JzcyNycgeTE9JzU5MicgeDI9JzgwNScgeTI9JzQ1MicvPjxsaW5lIHgxPScxNicgeTE9Jzc3NicgeDI9JzE1OCcgeTI9JzYyMicvPjxsaW5lIHgxPSc5MjknIHkxPSczNTAnIHgyPScxMDAwJyB5Mj0nNDgzJy8+PGxpbmUgeDE9JzkyOScgeTE9JzM1MCcgeDI9JzgwNScgeTI9JzQ1MicvPjxsaW5lIHgxPSc5MjknIHkxPSczNTAnIHgyPSc5NjInIHkyPScxODYnLz48bGluZSB4MT0nNTM5JyB5MT0nMTYnIHgyPSc0MTYnIHkyPSc1NycvPjxsaW5lIHgxPSc1MzknIHkxPScxNicgeDI9JzcxMCcgeTI9JzE2Jy8+PGxpbmUgeDE9JzUzOScgeTE9JzE2JyB4Mj0nNTkzJyB5Mj0nMjAzJy8+PGxpbmUgeDE9JzEzMDgnIHkxPSczNDcnIHgyPScxNDI0JyB5Mj0nMzcwJy8+PGxpbmUgeDE9JzEzMDgnIHkxPSczNDcnIHgyPScxMjAzJyB5Mj0nNDg5Jy8+PGxpbmUgeDE9JzEzMDgnIHkxPSczNDcnIHgyPScxMjM3JyB5Mj0nMTcyJy8+PGxpbmUgeDE9JzEwMzInIHkxPSc1ODcnIHgyPScxMDAwJyB5Mj0nNDgzJy8+PGxpbmUgeDE9JzEwMzInIHkxPSc1ODcnIHgyPScxMTUyJyB5Mj0nNjc4Jy8+PGxpbmUgeDE9JzEwMzInIHkxPSc1ODcnIHgyPSc4NzEnIHkyPSc2MzgnLz48bGluZSB4MT0nNTE4JyB5MT0nMzcwJyB4Mj0nNjQ5JyB5Mj0nNDA0Jy8+PGxpbmUgeDE9JzUxOCcgeTE9JzM3MCcgeDI9JzMzNScgeTI9JzM1NicvPjxsaW5lIHgxPSc1MTgnIHkxPSczNzAnIHgyPSc1OTMnIHkyPScyMDMnLz48bGluZSB4MT0nMTAwMCcgeTE9JzQ4MycgeDI9JzgwNScgeTI9JzQ1MicvPjxsaW5lIHgxPScyMjInIHkxPScxNicgeDI9JzQxNicgeTI9JzU3Jy8+PGxpbmUgeDE9JzIyMicgeTE9JzE2JyB4Mj0nMTk1JyB5Mj0nMjEzJy8+PGxpbmUgeDE9JzIyMicgeTE9JzE2JyB4Mj0nMjInIHkyPScxNicvPjxsaW5lIHgxPSczMzUnIHkxPSczNTYnIHgyPScyMDcnIHkyPSc0MzAnLz48bGluZSB4MT0nMzM1JyB5MT0nMzU2JyB4Mj0nMzkzJyB5Mj0nNTI0Jy8+PGxpbmUgeDE9Jzk2MicgeTE9JzE4NicgeDI9JzEwODEnIHkyPScxMjInLz48bGluZSB4MT0nMTQyNCcgeTE9JzE4MicgeDI9JzEyMzcnIHkyPScxNzInLz48bGluZSB4MT0nMTQyNCcgeTE9JzE4MicgeDI9JzE0MjQnIHkyPSczNzAnLz48bGluZSB4MT0nMTExMicgeTE9JzMxNicgeDI9JzkyOScgeTI9JzM1MCcvPjxsaW5lIHgxPScxMTEyJyB5MT0nMzE2JyB4Mj0nMTIzNycgeTI9JzE3MicvPjxsaW5lIHgxPScxMTEyJyB5MT0nMzE2JyB4Mj0nMTIwMycgeTI9JzQ4OScvPjxsaW5lIHgxPSc1OTMnIHkxPScyMDMnIHgyPSc3NzUnIHkyPScyNTUnLz48bGluZSB4MT0nMjA3JyB5MT0nNDMwJyB4Mj0nMTU4JyB5Mj0nNjIyJy8+PGxpbmUgeDE9JzgwNScgeTE9JzQ1MicgeDI9JzY0OScgeTI9JzQwNCcvPjxsaW5lIHgxPScxNTgnIHkxPSc2MjInIHgyPSczMzQnIHkyPSc2MjUnLz48bGluZSB4MT0nMTAwMCcgeTE9Jzc4NCcgeDI9JzExNTInIHkyPSc2NzgnLz48bGluZSB4MT0nMTAwMCcgeTE9Jzc4NCcgeDI9Jzg3MScgeTI9JzYzOCcvPjxsaW5lIHgxPScxMDAwJyB5MT0nNzg0JyB4Mj0nMTAzMicgeTI9JzU4NycvPjxsaW5lIHgxPScyNzUnIHkxPSc3ODQnIHgyPSczMzQnIHkyPSc2MjUnLz48bGluZSB4MT0nMjc1JyB5MT0nNzg0JyB4Mj0nNDU2JyB5Mj0nNzg0Jy8+PGxpbmUgeDE9JzY0OScgeTE9JzQwNCcgeDI9Jzc3NScgeTI9JzI1NScvPjxsaW5lIHgxPSc0NTYnIHkxPSc3ODQnIHgyPSc2MDInIHkyPSc3ODQnLz48bGluZSB4MT0nNDU2JyB5MT0nNzg0JyB4Mj0nNjI1JyB5Mj0nNjgwJy8+PGxpbmUgeDE9JzE0MjQnIHkxPSczNzAnIHgyPScxNDI0JyB5Mj0nNTMwJy8+PGxpbmUgeDE9JzEyMzcnIHkxPScxNzInIHgyPScxMDgxJyB5Mj0nMTIyJy8+PGxpbmUgeDE9JzEyMzcnIHkxPScxNzInIHgyPScxMjk4JyB5Mj0nMTYnLz48bGluZSB4MT0nNzEwJyB5MT0nMTYnIHgyPSc3NzMnIHkyPScxMTcnLz48bGluZSB4MT0nNzEwJyB5MT0nMTYnIHgyPSc5MTEnIHkyPScxNicvPjxsaW5lIHgxPSc3NzUnIHkxPScyNTUnIHgyPSc3NzMnIHkyPScxMTcnLz48bGluZSB4MT0nNzc1JyB5MT0nMjU1JyB4Mj0nOTI5JyB5Mj0nMzUwJy8+PGxpbmUgeDE9JzE5NScgeTE9JzIxMycgeDI9JzMzNScgeTI9JzM1NicvPjxsaW5lIHgxPScyMicgeTE9JzE2JyB4Mj0nMTk1JyB5Mj0nMjEzJy8+PGxpbmUgeDE9JzYyNScgeTE9JzY4MCcgeDI9JzYwMicgeTI9Jzc4NCcvPjxsaW5lIHgxPSczOTMnIHkxPSc1MjQnIHgyPSczMzQnIHkyPSc2MjUnLz48bGluZSB4MT0nMTQyNCcgeTE9JzUzMCcgeDI9JzEzMDgnIHkyPSczNDcnLz48bGluZSB4MT0nMTIwMycgeTE9JzQ4OScgeDI9JzExNTInIHkyPSc2NzgnLz48L2c+PGcgZmlsbD0nI2ZmZmZmZicgb3BhY2l0eT0nMC45NSc+PGNpcmNsZSBjeD0nMzk3JyBjeT0nMjA3JyByPSc0Jy8+PGNpcmNsZSBjeD0nMTEwOCcgY3k9JzE2JyByPSc0Jy8+PGNpcmNsZSBjeD0nMTQyNCcgY3k9Jzc4NCcgcj0nNCcvPjxjaXJjbGUgY3g9JzEzNScgY3k9Jzc4NCcgcj0nNCcvPjxjaXJjbGUgY3g9JzEzNDQnIGN5PSc2MjYnIHI9JzQnLz48Y2lyY2xlIGN4PSc1MjgnIGN5PSc1NjknIHI9JzQnLz48Y2lyY2xlIGN4PSc3OTcnIGN5PSc3ODQnIHI9JzQnLz48Y2lyY2xlIGN4PScxNicgY3k9JzU3Micgcj0nNCcvPjxjaXJjbGUgY3g9JzE2JyBjeT0nMzc1JyByPSc0Jy8+PGNpcmNsZSBjeD0nMTYnIGN5PScxOTAnIHI9JzQnLz48Y2lyY2xlIGN4PScxMjI0JyBjeT0nNzg0JyByPSc0Jy8+PGNpcmNsZSBjeD0nOTExJyBjeT0nMTYnIHI9JzQnLz48Y2lyY2xlIGN4PScxNDI0JyBjeT0nMTYnIHI9JzQnLz48Y2lyY2xlIGN4PSc3MjcnIGN5PSc1OTInIHI9JzQnLz48Y2lyY2xlIGN4PScxNicgY3k9Jzc3Nicgcj0nNCcvPjxjaXJjbGUgY3g9JzkyOScgY3k9JzM1MCcgcj0nNCcvPjxjaXJjbGUgY3g9JzUzOScgY3k9JzE2JyByPSc0Jy8+PGNpcmNsZSBjeD0nMTMwOCcgY3k9JzM0Nycgcj0nNCcvPjxjaXJjbGUgY3g9JzEwMzInIGN5PSc1ODcnIHI9JzQnLz48Y2lyY2xlIGN4PSc1MTgnIGN5PSczNzAnIHI9JzQnLz48Y2lyY2xlIGN4PScxMDAwJyBjeT0nNDgzJyByPSc0Jy8+PGNpcmNsZSBjeD0nMjIyJyBjeT0nMTYnIHI9JzQnLz48Y2lyY2xlIGN4PSczMzUnIGN5PSczNTYnIHI9JzQnLz48Y2lyY2xlIGN4PSc5NjInIGN5PScxODYnIHI9JzQnLz48Y2lyY2xlIGN4PScxNDI0JyBjeT0nMTgyJyByPSc0Jy8+PGNpcmNsZSBjeD0nMTExMicgY3k9JzMxNicgcj0nNCcvPjxjaXJjbGUgY3g9JzU5MycgY3k9JzIwMycgcj0nNCcvPjxjaXJjbGUgY3g9JzIwNycgY3k9JzQzMCcgcj0nNCcvPjxjaXJjbGUgY3g9JzQxNicgY3k9JzU3JyByPSc0Jy8+PGNpcmNsZSBjeD0nODA1JyBjeT0nNDUyJyByPSc0Jy8+PGNpcmNsZSBjeD0nMTU4JyBjeT0nNjIyJyByPSc0Jy8+PGNpcmNsZSBjeD0nMTAwMCcgY3k9Jzc4NCcgcj0nNCcvPjxjaXJjbGUgY3g9Jzg3MScgY3k9JzYzOCcgcj0nNCcvPjxjaXJjbGUgY3g9JzI3NScgY3k9Jzc4NCcgcj0nNCcvPjxjaXJjbGUgY3g9JzY0OScgY3k9JzQwNCcgcj0nNCcvPjxjaXJjbGUgY3g9JzExNTInIGN5PSc2NzgnIHI9JzQnLz48Y2lyY2xlIGN4PSc0NTYnIGN5PSc3ODQnIHI9JzQnLz48Y2lyY2xlIGN4PScxNDI0JyBjeT0nMzcwJyByPSc0Jy8+PGNpcmNsZSBjeD0nMTIzNycgY3k9JzE3Micgcj0nNCcvPjxjaXJjbGUgY3g9JzEwODEnIGN5PScxMjInIHI9JzQnLz48Y2lyY2xlIGN4PSc3MTAnIGN5PScxNicgcj0nNCcvPjxjaXJjbGUgY3g9JzEyOTgnIGN5PScxNicgcj0nNCcvPjxjaXJjbGUgY3g9Jzc3NScgY3k9JzI1NScgcj0nNCcvPjxjaXJjbGUgY3g9JzE5NScgY3k9JzIxMycgcj0nNCcvPjxjaXJjbGUgY3g9JzIyJyBjeT0nMTYnIHI9JzQnLz48Y2lyY2xlIGN4PSc2MjUnIGN5PSc2ODAnIHI9JzQnLz48Y2lyY2xlIGN4PSczOTMnIGN5PSc1MjQnIHI9JzQnLz48Y2lyY2xlIGN4PSczMzQnIGN5PSc2MjUnIHI9JzQnLz48Y2lyY2xlIGN4PSc3NzMnIGN5PScxMTcnIHI9JzQnLz48Y2lyY2xlIGN4PSc2MDInIGN5PSc3ODQnIHI9JzQnLz48Y2lyY2xlIGN4PScxNDI0JyBjeT0nNTMwJyByPSc0Jy8+PGNpcmNsZSBjeD0nMTIwMycgY3k9JzQ4OScgcj0nNCcvPjwvZz48L3N2Zz4=");
+  --rd-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
 
   /* Terminal chrome */
-  --rd-term-bg: #17171b;
-  --rd-term-head-bg: #232329;
+  /* Solid, not frosted. Translucency looked right on the dark hero but a
+     terminal is a dark object by definition, and letting a light section show
+     through turned it grey and washed out. These are the exact colours the
+     translucent version composited to on the hero, sampled from the rendered
+     page - so the hero is unchanged and every other section now matches it. */
+  --rd-term-bg: rgb(17, 16, 22);
+  --rd-term-head-bg: rgb(33, 33, 41);
   --rd-term-fg: #e8e8ec;
   --rd-term-dim: rgba(232, 232, 236, 0.55);
   --rd-term-green: #7ee787;
@@ -264,6 +424,13 @@
   --rd-term-amber: #f2cc60;
   --rd-term-border: 1px solid rgba(148, 163, 184, 0.2);
   --rd-term-shadow: 0 20px 44px rgba(15, 23, 42, 0.28);
+  --rd-term-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  /* Ambient corner light for sections that contain a terminal, in the same
+     idiom as --rd-section-tint-bg: a large, soft radial anchored to a corner,
+     low enough that you do not register it as a shape. The terminal sits over
+     it, so the window catches its edge and the rest bleeds into the section. */
+  --rd-corner-wash: rgba(178, 55, 226, 0.13);
+  --rd-corner-wash-warm: rgba(223, 115, 79, 0.09);
 
   /* Benchmark bars */
   --rd-bar-track: rgba(15, 23, 42, 0.06);
@@ -308,6 +475,7 @@
   --rd-text-strong: rgba(241, 245, 249, 0.94);
   --rd-eyebrow-color: rgba(214, 174, 255, 0.95);
   --rd-hairline: 1px solid rgba(148, 163, 184, 0.18);
+  --rd-grid-line: rgba(148, 163, 184, 0.28);
 
   --rd-bar-track: rgba(148, 163, 184, 0.14);
   --rd-bar-rival: rgba(148, 163, 184, 0.32);
@@ -316,7 +484,159 @@
   --rd-good: #4ade80;
   --rd-bad: #f87171;
 
+  --rd-card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+
   /* Deeper on dark so it reads as a solid surface rather than a glowing chip. */
   --rd-button-bg: #8b32b8;
   --rd-button-bg-hover: #7a2ba3;
+}
+/* ═══════════════════════════════════════════════════════════════
+   Navbar: search field and icon links
+   ───────────────────────────────────────────────────────────────
+   The search button ships with the autocomplete library's own look
+   (blue submit icon, its own border and radius). Its stylesheet loads after
+   this file, so these rules are scoped under .navbar to win on specificity
+   rather than with !important. The icon links
+   replaced a third-party GitHub star <iframe> and a full-colour npm
+   mark. All three are normalised here so the right-hand side of the
+   navbar reads as one set.
+   ═══════════════════════════════════════════════════════════════ */
+/* Even spacing across the whole right-hand group.
+   ---------------------------------------------------------------
+   Setting equal margins is not enough, because what the eye measures is the
+   distance between the *ink* of two neighbours, and each item surrounds its
+   ink with a different amount of padding. Measured on the page, the gaps were
+   24 / 16 / 8 / 11 px even though every box sat flush against the next.
+
+   So: give every item the same 4px of padding around its ink, then one `gap`
+   controls all four distances at once. Ink gap = 4 + gap + 4.
+
+   The glyphs also have to be equal for this to hold - see --rd-navbar-glyph
+   below. If you change that, the padding here has to change with it. */
+.navbar__items--right {
+  gap: 16px;
+}
+
+.navbar__items--right > .navbar__item {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* Docusaurus hashes this class, so match on the stable prefix. */
+.navbar__items--right > [class*='navbarSearchContainer'] {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* Shaped like the colour-mode toggle: a square button sized to the glyph plus
+   the shared 4px, full-strength colour, and a background tint on hover rather
+   than a colour change. */
+.navbar__item:has(> .navbar__icon-link) {
+  display: flex;
+  align-items: center;
+  /* The 4px lives on the link so it forms the hover target, not on the item. */
+  padding: 0;
+}
+
+.navbar__icon-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--rd-navbar-glyph) + 8px);
+  height: calc(var(--rd-navbar-glyph) + 8px);
+  border-radius: 0.4rem;
+  color: var(--ifm-navbar-link-color);
+  transition: background 0.15s ease;
+}
+
+/* The colour-mode toggle's glyphs are drawn inset in their 24px viewBox, so at
+   a nominal 24px they paint less ink than GitHub's octocat, which fills its box
+   edge to edge. That is why the toggle read as the smaller icon.
+
+   Docusaurus ships three of them and they are not inset by the same amount -
+   measured with getBBox against the live SVGs:
+
+     sun (light)     ink 22 of 24  ->  scale 24/22
+     moon (dark)     ink 18 of 24  ->  scale 24/18
+     screen (system) ink 18 of 24  ->  scale 24/18
+
+   Sizing each so its *ink* lands on --rd-navbar-glyph is what makes all three
+   states match the icons either side. One blanket rule cannot: it would leave
+   the sun a third larger than the moon. */
+.navbar__items--right > [class*='colorModeToggle'] {
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.navbar__items--right [class*='toggleButton'] {
+  width: calc(var(--rd-navbar-glyph) + 8px);
+  height: calc(var(--rd-navbar-glyph) + 8px);
+  border-radius: 0.4rem;
+}
+
+.navbar__items--right [class*='lightToggleIcon'] {
+  width: calc(var(--rd-navbar-glyph) * 24 / 22);
+  height: calc(var(--rd-navbar-glyph) * 24 / 22);
+}
+
+.navbar__items--right [class*='darkToggleIcon'] {
+  width: calc(var(--rd-navbar-glyph) * 24 / 18);
+  height: calc(var(--rd-navbar-glyph) * 24 / 18);
+}
+
+.navbar__items--right [class*='systemToggleIcon'] {
+  width: calc(var(--rd-navbar-glyph) * 24 / 18);
+  height: calc(var(--rd-navbar-glyph) * 24 / 18);
+}
+
+.navbar__icon-link:hover {
+  background: var(--ifm-color-emphasis-200);
+  color: var(--ifm-navbar-link-color);
+  text-decoration: none;
+}
+
+.navbar .aa-DetachedSearchButton {
+  height: 34px;
+  padding: 0 0.7rem;
+  gap: 0.45rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 0.5rem;
+  background: var(--ifm-color-emphasis-100);
+  font-family: var(--ifm-font-family-base);
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-600);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.navbar .aa-DetachedSearchButton:hover {
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-background-color);
+}
+
+.navbar .aa-DetachedSearchButton:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+/* Swap the library's blue submit icon for the Phosphor magnifying glass,
+   drawn as a mask so it inherits the button's colour. */
+.navbar .aa-DetachedSearchButtonIcon {
+  width: 1.05rem;
+  height: 1.05rem;
+  color: inherit;
+}
+
+.navbar .aa-DetachedSearchButtonIcon .aa-SubmitIcon {
+  width: 100%;
+  height: 100%;
+  fill: transparent;
+  background: currentColor;
+  -webkit-mask: var(--revdep-search-icon) center / contain no-repeat;
+  mask: var(--revdep-search-icon) center / contain no-repeat;
+}
+
+.navbar .aa-DetachedSearchButtonPlaceholder {
+  font-family: var(--ifm-font-family-base);
+  color: var(--ifm-color-emphasis-600);
 }

@@ -7,7 +7,7 @@
   border: var(--rd-card-border);
   border-radius: var(--rd-card-radius);
   background: var(--rd-card-bg);
-  box-shadow: var(--rd-card-shadow);
+  box-shadow: var(--rd-card-shadow), var(--rd-card-highlight);
 }
 
 /* Declared after .card so it wins on source order regardless of which module
@@ -26,7 +26,7 @@
   border: var(--rd-panel-border);
   border-radius: var(--rd-card-radius-lg);
   background: var(--rd-panel-bg);
-  box-shadow: var(--rd-panel-shadow);
+  box-shadow: var(--rd-panel-shadow), var(--rd-panel-highlight);
   color: var(--rd-panel-fg);
 }
 
@@ -36,7 +36,7 @@
 
 .cardHover:hover {
   transform: translateY(-5px);
-  box-shadow: var(--rd-card-shadow-hover);
+  box-shadow: var(--rd-card-shadow-hover), var(--rd-card-highlight);
 }
 
 @media (prefers-reduced-motion: reduce) {

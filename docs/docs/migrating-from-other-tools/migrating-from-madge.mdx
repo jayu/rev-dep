@@ -1,11 +1,11 @@
 ---
-description: "Migrate from madge to rev-dep: replace circular-dependency and orphan detection with a fast, config-driven suite (note: rev-dep is text-based, not a graph visualizer)."
+description: "Migrate from madge to rev-dep, measured up to 92x faster: replace circular-dependency and orphan detection with a config-driven suite (note: rev-dep is not a graph visualizer)."
 title: Migrating from madge
 sidebar_label: madge
 ---
 
 <head>
-  <title>madge alternative - migrate to Rev-dep, up to 207x faster</title>
+  <title>madge alternative - migrate to Rev-dep, up to 92x faster</title>
 </head>
 
 # Migrating from madge
@@ -14,7 +14,7 @@ sidebar_label: madge
 
 ## Why migrate
 
-- **Speed.** rev-dep is written in Go and runs in one parallel pass - **up to 207x faster** than madge on large codebases.
+- **Speed.** rev-dep is written in Go and runs in one parallel pass - **up to 92x faster** than madge on a 580k-LoC project ([benchmark](/#speed)).
 - **Enforceable, not just informational.** madge prints info; rev-dep turns the same findings into CI checks that fail the build, and adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), and more.
 
 ## What carries over, what changes

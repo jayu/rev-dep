@@ -162,6 +162,13 @@ func runConfigLintSummary(cwd string, runResult *config.ConfigProcessingResult, 
 
 const maxIssuesToList = 5
 
+func workspaceLabel(path string) string {
+	if path == "." {
+		return ". (root)"
+	}
+	return path
+}
+
 func shouldConfigRunExitNonZero(result *config.ConfigProcessingResult, fix bool) bool {
 	if !fix {
 		return result.HasFailures
@@ -262,7 +269,7 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 		shouldWarnAboutImportConventionWithPJsonImports = shouldWarnAboutImportConventionWithPJsonImports || ruleResult.ShouldWarnAboutImportConventionWithPJsonImports
 
 		if ruleResult.RulePath != "" {
-			fmt.Printf("\n%s Rule: %s (%d files)\n", emoji.Rule, ruleResult.RulePath, ruleResult.FileCount)
+			fmt.Printf("\n%s Workspace: %s (%d files)\n", emoji.Rule, workspaceLabel(ruleResult.RulePath), ruleResult.FileCount)
 		}
 
 		// Show enabled checks and their status with indentation
@@ -786,15 +793,13 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 			}
 		}
 
-		// Show warning if no files found for this rule
 		if ruleResult.FileCount == 0 {
-			fmt.Printf("  %s  No files found for this rule - check if the path is correct\n", emoji.Warning)
+			fmt.Printf("  %s  No files found for this workspace - check if the path is correct\n", emoji.Warning)
 		}
 
-		// Show warning if package.json is missing in the rule path directory
 		if ruleResult.MissingPackageJson {
 			packageJsonPath := filepath.Join(cwd, ruleResult.RulePath, "package.json")
-			fmt.Printf("  %s  Warning: Rule path missing package.json - some features may not work (missing: %s)\n", emoji.Warning, packageJsonPath)
+			fmt.Printf("  %s  Warning: Workspace path missing package.json - some features may not work (missing: %s)\n", emoji.Warning, packageJsonPath)
 		}
 	}
 

@@ -1,11 +1,11 @@
 ---
-description: "Migrate from dpdm to rev-dep: replace circular-dependency and unused-file detection with a fast, config-driven suite of checks."
+description: "Migrate from dpdm to rev-dep, measured up to 43x faster: replace circular-dependency and unused-file detection with a config-driven suite of checks."
 title: Migrating from dpdm
 sidebar_label: dpdm
 ---
 
 <head>
-  <title>dpdm alternative - migrate to Rev-dep, up to 13x faster</title>
+  <title>dpdm alternative - migrate to Rev-dep, up to 43x faster</title>
 </head>
 
 # Migrating from dpdm
@@ -14,7 +14,7 @@ sidebar_label: dpdm
 
 ## Why migrate
 
-- **Speed and a single pass.** rev-dep is Go-based and parallel - **up to 13x faster** on large repos.
+- **Speed and a single pass.** rev-dep is Go-based and parallel - **up to 43x faster** on a 580k-LoC project ([benchmark](/#speed)).
 - **More checks, one config.** dpdm focuses on cycles and unused files. rev-dep adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), and more.
 
 ## What carries over, what changes

@@ -1,13 +1,52 @@
+/* Column flex rather than block so the content sits in the vertical middle once
+   min-height exceeds it - on a tall screen the hero should feel deliberately
+   sized, not top-aligned with a gap underneath. The ::before/::after layers are
+   absolutely positioned, so they never become flex items. */
 .hero {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   overflow: hidden;
+  min-height: 70vh;
   padding: 5.5rem 0;
   background: var(--rd-hero-bg);
   background-repeat: no-repeat;
   color: #ffffff;
 }
 
+/* A dependency graph rather than the grid mesh on every other dev-tool page -
+   it is the thing this product actually analyses. Faded at the edges with a
+   mask so it never reads as a hard-edged texture rectangle. */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--rd-graph);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.22;
+  -webkit-mask-image: radial-gradient(ellipse 85% 70% at 50% 40%, #000 15%, transparent 78%);
+  mask-image: radial-gradient(ellipse 85% 70% at 50% 40%, #000 15%, transparent 78%);
+  pointer-events: none;
+}
+
+/* Film grain. Large smooth gradients band badly on 8-bit displays; a few
+   percent of noise hides it and adds a little texture. */
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--rd-noise);
+  opacity: 0.28;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
 .layout {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
   gap: 3rem;
@@ -38,22 +77,74 @@
   font-size: 1.12rem;
   line-height: 1.7;
   color: rgba(226, 232, 240, 0.88);
+  max-width: 40rem;
 }
 
+/* The buttons and the install command centre within the copy column while the
+   headline and body stay left-aligned. Centring the prose too would cost
+   readability on three lines of ragged text; centring just the actions gives
+   them their own block and stops them hanging off the left edge under a
+   headline that is much wider than they are. */
 .actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 1rem;
-  margin-top: 2rem;
+  margin-top: 4rem;
 }
 
+/* inline-flex sizes the pill to its content, so it needs a block wrapper to
+   centre inside - hence text-align on the parent rather than margin auto. */
 .install {
   margin-top: 1.75rem;
+  text-align: center;
 }
 
+/* The same button, centred under both columns. Hidden by default and swapped in
+   by the min-height query below; see the note in Hero.tsx for why it is
+   rendered twice rather than moved. */
+/* 7rem, not the 3.5rem the in-column button uses: down here it is separating
+   the CTA from two full columns rather than from one paragraph, and it only
+   ever appears on screens tall enough to spend the space. */
+.actionsBelow {
+  display: none;
+  position: relative;
+  z-index: 1;
+  justify-content: center;
+  margin-top: 7rem;
+}
+
+/* No glow behind the terminal: the window is frosted, so the hero's own
+   background reads through it. One coloured layer instead of two. */
 .visual {
+  position: relative;
+  z-index: 1;
   min-width: 0;
+}
+
+/* Tall screens only: lift the call to action out of the copy column and centre
+   it under both.
+
+   The threshold is not "does it fit" - it is "does it still leave the page
+   looking like there is something below it". Adding the button row makes the
+   hero 928px tall, which merely fitting satisfies at ~1000px of viewport, but
+   at that size the hero eats ~90% of the screen and reads as a full-page
+   splash. 1240px keeps it at three quarters or less.
+
+   That deliberately excludes a 16" MacBook (~1030px of viewport) - the size
+   this was first mis-tuned for - and a 4K panel at 2x scaling, which reports
+   ~1000px. The width condition only keeps this off the stacked mobile layout,
+   where "under both columns" would put the button an entire terminal away from
+   the headline it belongs to. */
+@media screen and (min-height: 1240px) and (min-width: 1280px) {
+  .actions {
+    display: none;
+  }
+
+  .actionsBelow {
+    display: flex;
+  }
 }
 
 @media screen and (max-width: 996px) {

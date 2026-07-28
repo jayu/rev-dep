@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
+import { Children, type ReactNode } from 'react';
 import clsx from 'clsx';
 import Heading from '@theme/Heading';
+
+import Reveal from './Reveal';
 
 import styles from './Section.module.css';
 
@@ -19,6 +21,11 @@ type SectionProps = {
   divided?: boolean;
   /** Optional panel rendered beside the header - e.g. methodology, key facts. */
   aside?: ReactNode;
+  /**
+   * Ambient corner light on the section background. Use the corner a terminal
+   * sits in, so the window overlaps its edge.
+   */
+  corner?: 'top-right' | 'bottom-left';
   children: ReactNode;
 };
 
@@ -35,6 +42,7 @@ export default function Section({
   align = 'left',
   divided = false,
   aside,
+  corner,
   children,
 }: SectionProps) {
   const hasHeader = Boolean(eyebrow || title || intro);
@@ -46,11 +54,13 @@ export default function Section({
         styles.section,
         tone === 'tinted' && styles.sectionTinted,
         divided && styles.sectionDivided,
+        corner === 'top-right' && styles.cornerTopRight,
+        corner === 'bottom-left' && styles.cornerBottomLeft,
       )}
     >
       <div className="container">
         {(hasHeader || aside) && (
-          <div className={clsx(styles.headerRow, aside && styles.headerRowSplit)}>
+          <Reveal className={clsx(styles.headerRow, aside && styles.headerRowSplit)}>
             {hasHeader && (
               <header className={clsx(styles.header, align === 'center' && styles.headerCenter)}>
                 {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
@@ -63,9 +73,13 @@ export default function Section({
               </header>
             )}
             {aside && <div className={styles.aside}>{aside}</div>}
-          </div>
+          </Reveal>
         )}
-        {children}
+        {/* Each top-level child animates on its own, so a long section reveals
+            in pieces as you scroll rather than all at once. */}
+        {Children.map(children, (child) =>
+          child == null || typeof child === 'boolean' ? child : <Reveal>{child}</Reveal>,
+        )}
       </div>
     </section>
   );

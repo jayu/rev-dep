@@ -13,6 +13,44 @@
   background: var(--rd-section-tint-bg);
 }
 
+/* Ambient light in one corner, layered over whatever background the section
+   already has. A plain radial with a wide falloff - no blur, no fixed size,
+   nothing with a discernible edge. It reads as the section being lit from
+   that side, and the terminal placed there overlaps it. */
+.cornerTopRight {
+  position: relative;
+}
+
+.cornerTopRight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      ellipse 46% 62% at 88% 6%,
+      var(--rd-corner-wash),
+      transparent 62%
+    ),
+    radial-gradient(ellipse 34% 44% at 99% 34%, var(--rd-corner-wash-warm), transparent 66%);
+  pointer-events: none;
+}
+
+.cornerBottomLeft {
+  position: relative;
+}
+
+.cornerBottomLeft::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      ellipse 46% 62% at 10% 96%,
+      var(--rd-corner-wash),
+      transparent 62%
+    ),
+    radial-gradient(ellipse 34% 44% at 1% 66%, var(--rd-corner-wash-warm), transparent 66%);
+  pointer-events: none;
+}
+
 .sectionDivided {
   border-top: var(--rd-hairline);
 }

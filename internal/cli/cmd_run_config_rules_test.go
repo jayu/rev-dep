@@ -72,10 +72,10 @@ func TestConfigRun_RulesFilter(t *testing.T) {
 	buf.ReadFrom(r)
 	output := buf.String()
 
-	if !strings.Contains(output, "Rule: src/features/auth") {
+	if !strings.Contains(output, "Workspace: src/features/auth") {
 		t.Errorf("Expected output to contain rule src/features/auth, but got: %s", output)
 	}
-	if strings.Contains(output, "Rule: src/features/users") {
+	if strings.Contains(output, "Workspace: src/features/users") {
 		t.Errorf("Expected output NOT to contain rule src/features/users, but got: %s", output)
 	}
 
@@ -97,10 +97,10 @@ func TestConfigRun_RulesFilter(t *testing.T) {
 	buf.ReadFrom(r)
 	output = buf.String()
 
-	if !strings.Contains(output, "Rule: src/features/auth") {
+	if !strings.Contains(output, "Workspace: src/features/auth") {
 		t.Errorf("Expected output to contain rule src/features/auth, but got: %s", output)
 	}
-	if !strings.Contains(output, "Rule: src/features/users") {
+	if !strings.Contains(output, "Workspace: src/features/users") {
 		t.Errorf("Expected output to contain rule src/features/users, but got: %s", output)
 	}
 

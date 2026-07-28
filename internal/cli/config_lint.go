@@ -162,7 +162,9 @@ func printConfigLintResults(result *config.LintResult, cwd string) {
 	}
 }
 
-// ruleHeader prints a "📁 Rule:" / "📄 Top-level" header when the rule changes.
+// ruleHeader prints a "📁 Workspace:" / "📄 Top-level" header when the entry
+// changes. The internal names still say "rule"; only the printed label follows
+// the config, which calls these `workspaces`.
 type ruleHeaderPrinter struct {
 	ruleIndex int
 	rulePath  string
@@ -180,7 +182,7 @@ func (p *ruleHeaderPrinter) print(ruleIndex int, rulePath string) bool {
 	if ruleIndex < 0 {
 		fmt.Printf("\n%s Top-level\n", emoji.File)
 	} else {
-		fmt.Printf("\n%s Rule: %s\n", emoji.Rule, rulePath)
+		fmt.Printf("\n%s Workspace: %s\n", emoji.Rule, workspaceLabel(rulePath))
 	}
 	p.ruleIndex, p.rulePath, p.first = ruleIndex, rulePath, false
 	return true

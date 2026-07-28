@@ -783,7 +783,7 @@ func printInitConfigResults(result *initConfigResult) {
 		fmt.Printf("%s  Created config for monorepo sub-package. This file targets the current package only.\n", emoji.Warning)
 	case result.isMonorepo:
 		if len(result.workspacePackagePaths) > 0 {
-			fmt.Printf("%s Monorepo detected: discovered %d workspace %s and created a rule for each:\n", emoji.Package, len(result.workspacePackagePaths), packagesWord(len(result.workspacePackagePaths)))
+			fmt.Printf("%s Monorepo detected: discovered %d workspace %s and created settings for each workspace:\n", emoji.Package, len(result.workspacePackagePaths), packagesWord(len(result.workspacePackagePaths)))
 			for _, relPath := range result.workspacePackagePaths {
 				fmt.Printf("   - %s\n", relPath)
 			}
@@ -791,17 +791,17 @@ func printInitConfigResults(result *initConfigResult) {
 			fmt.Printf("%s Monorepo detected: no workspace packages found.\n", emoji.Package)
 		}
 	case result.rootHasPackageJson:
-		fmt.Printf("%s Created a rule for the root package.\n", emoji.Rule)
+		fmt.Printf("%s Created settings for the root workspace.\n", emoji.Rule)
 	case len(result.standalonePackagePaths) == 0:
-		fmt.Printf("%s No package.json found; created a single rule for the root directory.\n", emoji.Rule)
+		fmt.Printf("%s No package.json found; created settings for a single workspace at the root directory.\n", emoji.Rule)
 	default:
-		fmt.Printf("%s No root package.json found; created rules for standalone packages only.\n", emoji.Rule)
+		fmt.Printf("%s No root package.json found; created settings for standalone workspaces only.\n", emoji.Rule)
 	}
 
 	// Separate section for standalone packages discovered in subdirectories.
 	if len(result.standalonePackagePaths) > 0 {
 		fmt.Println()
-		fmt.Printf("%s Discovered %d standalone %s in subdirectories (not part of a monorepo) and created a rule for each:\n", emoji.Standalone, len(result.standalonePackagePaths), packagesWord(len(result.standalonePackagePaths)))
+		fmt.Printf("%s Discovered %d standalone %s in subdirectories (not part of a monorepo) and created settings for each workspace:\n", emoji.Standalone, len(result.standalonePackagePaths), packagesWord(len(result.standalonePackagePaths)))
 		for _, relPath := range result.standalonePackagePaths {
 			fmt.Printf("   - %s\n", relPath)
 		}
@@ -813,7 +813,7 @@ func printInitConfigResults(result *initConfigResult) {
 	}
 
 	fmt.Println()
-	fmt.Println("Adjust rules to make them relevant to your project setup.")
+	fmt.Println("Adjust the settings to make them relevant to your project setup.")
 
 	integrationGuide := "https://rev-dep.com/init/single-workspace"
 	if result.isMonorepo {

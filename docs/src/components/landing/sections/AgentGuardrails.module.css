@@ -26,6 +26,7 @@
 }
 
 .visual {
+  position: relative;
   min-width: 0;
 }
 

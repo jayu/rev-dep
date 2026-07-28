@@ -16,6 +16,13 @@ export type TerminalLine = {
   tone?: LineTone;
   /** Indent level; 1 unit ≈ one nesting step in the CLI's own output. */
   indent?: 0 | 1 | 2;
+  /**
+   * Renders a blank line at a fraction of its height. The CLI separates blocks
+   * with a real newline, but at these font sizes a full empty line reads as a
+   * bigger gap on screen than it does in a terminal - so separators can be
+   * tightened without dropping them.
+   */
+  gap?: boolean;
 };
 
 type TerminalProps = {
@@ -118,6 +125,7 @@ export default function Terminal({ title, lines, className }: TerminalProps) {
                 styles.line,
                 toneClass[line.tone ?? 'default'],
                 indentClass[line.indent ?? 0],
+                line.gap && styles.lineGap,
                 // Output holds until the command has finished typing.
                 !isTyped && (playing ? styles.lineIn : styles.linePending),
               )}

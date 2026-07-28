@@ -16,7 +16,9 @@
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
     "typecheck": "tsc",
-    "check:css": "node scripts/check-css-modules.mjs"
+    "check:css": "node scripts/check-css-modules.mjs",
+    "build:demo": "node scripts/build-demo.mjs",
+    "build:logos": "node scripts/build-logos.mjs"
   },
   "dependencies": {
     "@cmfcmf/docusaurus-search-local": "^2.0.1",

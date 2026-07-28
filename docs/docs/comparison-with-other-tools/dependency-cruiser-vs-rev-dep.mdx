@@ -1,11 +1,11 @@
 ---
-description: "dependency-cruiser vs rev-dep: compare dependency rules, circular and orphan detection, visualization and performance. rev-dep is a faster, config-driven alternative."
+description: "dependency-cruiser vs rev-dep: compare dependency rules, circular and orphan detection, visualization. rev-dep is a config-driven alternative, measured up to 65x faster."
 title: dependency-cruiser vs Rev-dep
 sidebar_label: dependency-cruiser
 ---
 
 <head>
-  <title>dependency-cruiser vs Rev-dep: features compared</title>
+  <title>dependency-cruiser vs Rev-dep: features compared, up to 65x faster</title>
 </head>
 
 # dependency-cruiser vs Rev-dep
@@ -17,7 +17,7 @@ sidebar_label: dependency-cruiser
 | | dependency-cruiser | Rev-dep |
 | --- | --- | --- |
 | Primary focus | dependency rules + visualization | dependency hygiene + architecture |
-| Runtime | Node | Go - single parallel pass (**faster**) |
+| Runtime | Node | Go - single parallel pass (**up to 65x faster**) |
 | Circular / orphan detection | yes | yes |
 | Path-to-path forbidden rules | yes (generic `from`/`to`) | yes (module boundaries) |
 | Reachability rules - deny + whitelist | deny native; whitelist via negated `from` (`pathNot`) | dedicated checks both ways (restricted imports + restricted importers) |
@@ -30,7 +30,7 @@ sidebar_label: dependency-cruiser
 
 - **Named checks instead of hand-written rules.** Boundaries, [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [restricted importers](../config-based-checks/checks/restricted-importers.mdx) (the reverse - whitelist which entry points may reach a file or banned package), [circular](../config-based-checks/checks/circular-imports.mdx), and [orphan files](../config-based-checks/checks/orphan-files.mdx) are dedicated detectors rather than generic `from`/`to` rules. The whitelist direction in particular is awkward in dependency-cruiser (a negated `pathNot` reachability rule) and a first-class check in rev-dep.
 - **Broader hygiene** - it also detects [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx) and [unused exports](../config-based-checks/checks/unused-exports.mdx).
-- **Speed** across large monorepos.
+- **Speed** across large monorepos. On a 580k-LoC project ([benchmark](/#speed)) rev-dep is **50x faster** on module boundaries (164 ms vs 8.1 s), **65x** on restricted imports (170 ms vs 11.0 s) and **52x** on restricted importers (179 ms vs 9.2 s).
 
 ## Where dependency-cruiser may still fit
 

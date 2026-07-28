@@ -1,6 +1,9 @@
+/* Baseline, not centre. The command is mixed-case mono with descenders and the
+   label is smaller all-caps sans; centring their boxes leaves the caps sitting
+   visibly high, because an all-caps string has no descender to balance it. */
 .copyCommand {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.6rem;
   max-width: 100%;
   padding: 0.7rem 0.9rem;
@@ -40,15 +43,32 @@
   white-space: nowrap;
 }
 
+/* Fixed width so the box does not resize as the label changes - a button that
+   reflows under the cursor at the moment you click it reads as a glitch. Wide
+   enough for the longest of Copy / Copied / Select it. */
 .status {
+  flex-shrink: 0;
+  min-width: 4.2rem;
   margin-left: 0.35rem;
   font-family: var(--ifm-font-family-base);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
+  text-align: right;
   text-transform: uppercase;
   color: var(--rd-term-dim);
   user-select: none;
+  transition: color 0.15s ease;
+}
+
+/* Colour carries the confirmation - the word alone is too quiet at this size
+   to register as a response to the click. */
+.statusCopied {
+  color: var(--rd-term-green);
+}
+
+.statusFailed {
+  color: var(--rd-term-amber);
 }
 
 @media (prefers-reduced-motion: reduce) {

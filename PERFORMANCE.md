@@ -15,6 +15,9 @@ Here is a performance comparison of specific tasks between rev-dep and alternati
 | Find missing node modules | 159.5 ± 3.0 | knip | 3 076.1 ± 29.8 | 19x |
 | List all files imported by an entry point | 81.2 ± 1.9 | madge | 6 591.4 ± 129.2 | 81x |
 | Discover entry points | 148.9 ± 3.8 | madge | 13 632.0 ± 137.1 | 92x |
+| Enforce module boundaries | 164.1 ± 2.3 | dependency-cruiser | 8 139.6 ± 113.0 | 50x |
+| Find restricted imports | 170.2 ± 3.9 | dependency-cruiser | 10 995.2 ± 130.7 | 65x |
+| Find restricted importers | 179.0 ± 4.0 | dependency-cruiser | 9 233.6 ± 86.1 | 52x |
 | Resolve dependency path between files | 220.8 ± 3.6 | please suggest |
 | Count lines of code | 251.4 ± 31.2 | please suggest |
 | Analyze node_modules directory sizes | 560.7 ± 54.5 | please suggest |

@@ -57,7 +57,7 @@ Move beyond passive scanning. Use the configuration engine to enforce **Module B
 CLI toolkit that helps debug issues with dependencies between files. Understand transitive relation between files and fix issues.
 
 ### ⚡ **Built for Speed and CI Efficiency**
-Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **10x-200x faster execution** than alternatives, significantly **reducing CI costs** and developer wait-states.
+Implemented in **Go** to eliminate the performance tax of Node-based analysis. By processing files in parallel, Rev-dep offers **17x-90x faster execution** than alternatives, significantly **reducing CI costs** and developer wait-states.
 
 > **Rev-dep can audit a 500k+ LoC project in around 150ms.**
 > [See the performance comparison](#performance-comparison-)
@@ -139,7 +139,7 @@ pnpm global add rev-dep
 Follow the guide that matches your project to get from zero to a working setup:
 
 - [Monorepo integration guide](https://rev-dep.com/docs/monorepo-integration-guide) - for `pnpm`/`yarn`/`npm` workspaces.
-- [Single-workspace integration guide](https://rev-dep.com/docs/single-workspace-integration-guide) - for single-package projects.
+- [Single workspace integration guide](https://rev-dep.com/docs/single-workspace-integration-guide) - for single-package projects.
 
 ## **Quick Examples 💡**
 
@@ -698,6 +698,9 @@ Here is a performance comparison of specific tasks between rev-dep and alternati
 | Find missing node modules | 160 | knip | 3 076 | 19x |
 | List all files imported by an entry point | 81 | madge | 6 591 | 81x |
 | Discover entry points | 149 | madge | 13 632 | 92x |
+| Enforce module boundaries | 164 | dependency-cruiser | 8 140 | 50x |
+| Find restricted imports | 170 | dependency-cruiser | 10 995  | 65x |
+| Find restricted importers | 179 | dependency-cruiser | 9 234 | 52x |
 | Resolve dependency path between files | 221 | please suggest |
 | Count lines of code | 251 | please suggest |
 | Analyze node_modules directory sizes | 561 | please suggest |

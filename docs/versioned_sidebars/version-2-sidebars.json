@@ -5,18 +5,41 @@
       "label": "Get Started",
       "collapsible": false,
       "className": "sidebar-group",
-      "customProps": {"icon": "overview"},
+      "customProps": {
+        "icon": "overview"
+      },
       "items": [
-        {"type": "doc", "id": "intro", "label": "Overview", "customProps": {"icon": "overview"}},
-        {"type": "doc", "id": "installation", "customProps": {"icon": "install"}},
+        {
+          "type": "doc",
+          "id": "intro",
+          "label": "Overview",
+          "customProps": {
+            "icon": "overview"
+          }
+        },
+        {
+          "type": "doc",
+          "id": "installation",
+          "customProps": {
+            "icon": "install"
+          }
+        },
         {
           "type": "doc",
           "id": "monorepo-integration-guide",
           "label": "Monorepo integration guide",
           "className": "sidebar-item--highlight",
-          "customProps": {"icon": "monorepo"}
+          "customProps": {
+            "icon": "monorepo"
+          }
         },
-        {"type": "doc", "id": "single-workspace-integration-guide", "customProps": {"icon": "workspace"}}
+        {
+          "type": "doc",
+          "id": "single-workspace-integration-guide",
+          "customProps": {
+            "icon": "workspace"
+          }
+        }
       ]
     },
     {
@@ -24,13 +47,17 @@
       "label": "Core Features",
       "collapsible": false,
       "className": "sidebar-group",
-      "customProps": {"icon": "shield"},
+      "customProps": {
+        "icon": "shield"
+      },
       "items": [
         {
           "type": "category",
           "label": "Config-Based Checks",
           "collapsed": false,
-          "customProps": {"icon": "checks"},
+          "customProps": {
+            "icon": "checks"
+          },
           "items": [
             "config-based-checks/overview",
             "config-based-checks/config-file-structure",
@@ -38,7 +65,9 @@
             {
               "type": "category",
               "label": "Checks",
-              "customProps": {"icon": "sliders"},
+              "customProps": {
+                "icon": "sliders"
+              },
               "items": [
                 "config-based-checks/checks/module-boundaries",
                 "config-based-checks/checks/restricted-imports",
@@ -60,8 +89,13 @@
             {
               "type": "category",
               "label": "Troubleshooting",
-              "link": {"type": "doc", "id": "troubleshooting/index"},
-              "customProps": {"icon": "troubleshooting"},
+              "link": {
+                "type": "doc",
+                "id": "troubleshooting/index"
+              },
+              "customProps": {
+                "icon": "troubleshooting"
+              },
               "items": [
                 "troubleshooting/unresolved-imports-troubleshooting",
                 "troubleshooting/missing-or-unused-dependency-false-positives",
@@ -74,7 +108,9 @@
           "type": "category",
           "label": "Exploratory Toolkit",
           "collapsed": false,
-          "customProps": {"icon": "explore"},
+          "customProps": {
+            "icon": "explore"
+          },
           "items": [
             "exploratory-toolkit/overview",
             "exploratory-toolkit/entry-points",
@@ -91,7 +127,9 @@
         {
           "type": "category",
           "label": "Other Concepts & Features",
-          "customProps": {"icon": "concepts"},
+          "customProps": {
+            "icon": "concepts"
+          },
           "items": [
             "other-concepts-and-features/following-monorepo-packages",
             "other-concepts-and-features/node-modules-resolution",
@@ -110,12 +148,16 @@
       "label": "Migration & Comparison",
       "collapsible": false,
       "className": "sidebar-group",
-      "customProps": {"icon": "migrate"},
+      "customProps": {
+        "icon": "migrate"
+      },
       "items": [
         {
           "type": "category",
           "label": "Migrating from other tools",
-          "customProps": {"icon": "migrate"},
+          "customProps": {
+            "icon": "migrate"
+          },
           "items": [
             "migrating-from-other-tools/overview",
             "migrating-from-other-tools/migrating-from-knip",
@@ -136,7 +178,9 @@
         {
           "type": "category",
           "label": "Comparison with other tools",
-          "customProps": {"icon": "compare"},
+          "customProps": {
+            "icon": "compare"
+          },
           "items": [
             "comparison-with-other-tools/overview",
             "comparison-with-other-tools/knip-vs-rev-dep",
@@ -161,12 +205,16 @@
       "label": "Reference",
       "collapsible": false,
       "className": "sidebar-group",
-      "customProps": {"icon": "gear"},
+      "customProps": {
+        "icon": "gear"
+      },
       "items": [
         {
           "type": "category",
           "label": "CLI Reference",
-          "customProps": {"icon": "cli"},
+          "customProps": {
+            "icon": "cli"
+          },
           "items": [
             "cli-reference/overview",
             "cli-reference/generated/rev-dep_circular",
@@ -202,8 +250,20 @@
             "cli-reference/generated/rev-dep_resolve"
           ]
         },
-        {"type": "doc", "id": "glossary", "customProps": {"icon": "glossary"}},
-        {"type": "doc", "id": "telemetry", "customProps": {"icon": "telemetry"}}
+        {
+          "type": "doc",
+          "id": "glossary",
+          "customProps": {
+            "icon": "glossary"
+          }
+        },
+        {
+          "type": "doc",
+          "id": "telemetry",
+          "customProps": {
+            "icon": "telemetry"
+          }
+        }
       ]
     }
   ]

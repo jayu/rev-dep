@@ -1,12 +1,18 @@
+/* This is the last thing on the page and the only thing in its band, so it can
+   afford to breathe. Every step below is a deliberate beat: heading, promise,
+   command, choice, small print - each needs to read as a separate move rather
+   than one dense block. */
 .cta {
-  padding: 7rem 0;
+  padding: 9.5rem 0;
   background: var(--rd-hero-bg);
   background-repeat: no-repeat;
   color: #ffffff;
 }
 
+/* Wide enough for the headline to sit on one line. The body copy keeps its own
+   narrower cap below, so reading width is unaffected. */
 .inner {
-  max-width: 44rem;
+  max-width: 58rem;
   margin: 0 auto;
   text-align: center;
 }
@@ -26,11 +32,14 @@
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: #ffffff;
+  /* When it has to wrap on smaller screens, break it into even lines rather
+     than leaving one word stranded. */
+  text-wrap: balance;
 }
 
 .body {
   max-width: 34rem;
-  margin: 1.25rem auto 0;
+  margin: 1.5rem auto 0;
   font-size: 1.08rem;
   line-height: 1.7;
   color: rgba(226, 232, 240, 0.85);
@@ -39,29 +48,34 @@
 /* The install command is the primary action here, so it gets its own row and
    more breathing room than the buttons below it. */
 .install {
-  margin-top: 2.5rem;
+  margin-top: 3.5rem;
   font-size: 1rem;
 }
 
+/* The gap has to clear the outline button's border, which reads as an edge in
+   a way the filled button's does not - at 0.9rem the two looked joined. */
 .actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.9rem;
-  margin-top: 1.5rem;
+  gap: 1.5rem;
+  margin-top: 3rem;
 }
 
 .meta {
-  margin: 2.5rem 0 0;
-  padding-top: 2rem;
+  margin: 4.5rem 0 0;
+  padding-top: 2.5rem;
   border-top: 1px solid rgba(226, 232, 240, 0.14);
   font-size: 0.88rem;
   color: rgba(226, 232, 240, 0.6);
 }
 
+/* Pulled back on small screens: the same rhythm that reads as generous on a
+   desktop turns into a lot of scrolling past empty space on a phone, where the
+   buttons also stack instead of sitting side by side. */
 @media screen and (max-width: 996px) {
   .cta {
-    padding: 4.5rem 0;
+    padding: 5.5rem 0;
   }
 
   .title {
@@ -70,5 +84,19 @@
 
   .body {
     font-size: 1rem;
+  }
+
+  .install {
+    margin-top: 2.5rem;
+  }
+
+  .actions {
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+
+  .meta {
+    margin-top: 3rem;
+    padding-top: 2rem;
   }
 }

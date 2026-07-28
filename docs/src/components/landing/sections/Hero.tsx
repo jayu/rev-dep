@@ -1,53 +1,23 @@
+import clsx from 'clsx';
 import Heading from '@theme/Heading';
 
-import Terminal, { type TerminalLine } from '../primitives/Terminal';
+import Terminal from '../primitives/Terminal';
 import CopyCommand from '../primitives/CopyCommand';
 import Button from '../primitives/Button';
+import { demoOutput, demoTitle } from '../data/demoOutput';
 import styles from './Hero.module.css';
 
 /**
- * Real output from `rev-dep config run` on a 7 015-file monorepo. The terminal
- * is the proof - it shows scale, breadth of checks and the runtime at once.
+ * The single call to action. Rendered in two places and toggled by CSS: inside
+ * the copy column, and as a centred row under both columns.
+ *
+ * CSS cannot move an element between parents, and the two positions are not
+ * siblings - one is nested inside the left column, the other follows the grid.
+ * Rendering it twice and hiding one with `display: none` keeps it to CSS, and
+ * `display: none` also drops the hidden copy out of the accessibility tree, so
+ * only ever one button is exposed.
  */
-const heroOutput: TerminalLine[] = [
-  { text: '$ rev-dep config run', tone: 'prompt' },
-  { text: '' },
-  // Only two things are highlighted: how much code was analysed, and how long
-  // it took. Everything else stays plain so those two actually stand out.
-  {
-    parts: [
-      { text: '📁 Rule: .  (' },
-      { text: '7015 files', tone: 'accent', strong: true },
-      { text: ')' },
-    ],
-  },
-  // The ✅ carries the "passed" signal on its own - colouring the check name
-  // green too makes the block read as one solid wall of green.
-  { text: '✅ Orphan Files', indent: 1 },
-  { text: '✅ Module Boundaries', indent: 1 },
-  { text: '✅ Unused Exports', indent: 1 },
-  { text: '' },
-  { text: '📁 Rule: apps/web  (6096 files)' },
-  { text: '✅ Circular Dependencies', indent: 1 },
-  { text: '✅ Unused Node Modules', indent: 1 },
-  { text: '✅ Missing Node Modules', indent: 1 },
-  { text: '✅ Dev Deps Usage On Prod', indent: 1 },
-  { text: '✅ Restricted Imports', indent: 1 },
-  { text: '✅ Import Conventions', indent: 1 },
-  { text: '' },
-  { text: '📁 Rule: apps/mobile  (742 files)' },
-  { text: '✅ Circular Dependencies', indent: 1 },
-  { text: '✅ Orphan Files', indent: 1 },
-  { text: '' },
-  { text: '✅ All checks passed!' },
-  {
-    parts: [
-      { text: '✨ Done in ' },
-      { text: '175ms', tone: 'accent', strong: true },
-      { text: '.' },
-    ],
-  },
-];
+const cta = <Button to="/docs/installation">Get Started</Button>;
 
 export default function Hero() {
   return (
@@ -55,31 +25,31 @@ export default function Hero() {
       <div className="container">
         <div className={styles.layout}>
           <div className={styles.copy}>
-            <Heading as="h1" className={styles.title}>
+            <Heading as="h1" className={clsx(styles.title, 'rd-hold')}>
               Dead code, cycles and architecture violations.
               <span className={styles.titleAccent}> Found before you finish reading this.</span>
             </Heading>
 
-            <p className={styles.subtitle}>
-              Rev-dep consolidates fragmented, sequential checks from multiple slow tools into a
-              single high-performance engine. Twelve checks, one config, one binary - across your
-              whole JS/TS monorepo.
+            <p className={clsx(styles.subtitle, 'rd-hold')}>
+              Rev-dep consolidates fragmented, sequential checks<br/> from multiple slow tools into a
+              single high-performance engine. <br/><span style={{marginTop:10, display:'block'}}>Evaluate your entire JS/TS monorepo without breaking a sweat.</span>
             </p>
 
-            <div className={styles.actions}>
-              <Button to="/docs/installation">Get Started 🚀</Button>
-              <Button to="https://github.com/jayu/rev-dep" variant="outline">
-                View on GitHub
-              </Button>
-            </div>
+            <div className={clsx(styles.actions, 'rd-hold')}>{cta}</div>
 
-            <CopyCommand command="npm install -D rev-dep" className={styles.install} />
+            {/* Wrapper, because CopyCommand is inline-flex and sizes to its
+                content - it has nothing to centre itself against. */}
+            {/* <div className={clsx(styles.install, 'rd-hold')}>
+              <CopyCommand command="npm install -D rev-dep" />
+            </div> */}
           </div>
 
-          <div className={styles.visual}>
-            <Terminal lines={heroOutput} title="rev-dep config run" />
+          <div className={clsx(styles.visual, 'rd-enter')}>
+            <Terminal lines={demoOutput} title={demoTitle} />
           </div>
         </div>
+
+        <div className={clsx(styles.actionsBelow, 'rd-hold')}>{cta}</div>
       </div>
     </header>
   );

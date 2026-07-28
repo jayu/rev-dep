@@ -32,11 +32,13 @@ export default function Checks() {
                     {check.title}
                   </Heading>
                   {check.autofix && <span className={styles.fixBadge}>--fix</span>}
-                </div>
-                <code className={styles.checkKey}>{check.key}</code>
-                <p className={styles.checkBody}>{check.description}</p>
-                <div className={styles.checkFoot}>
                   {check.featured && <span className={styles.featuredTag}>Start here</span>}
+                </div>
+                <p className={styles.checkBody}>{check.description}</p>
+                {/* Config key and docs link sit together in the footer, the
+                    same shape as the cards in the Resolution section. */}
+                <div className={styles.checkFoot}>
+                  <code className={styles.checkKey}>{check.key}</code>
                   <Link className={styles.checkLink} to={check.docs}>
                     Docs
                   </Link>

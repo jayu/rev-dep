@@ -8,6 +8,8 @@ export type FaqEntry = {
   question: string;
   /** Paragraphs. Kept as an array so long answers stay readable in source. */
   answer: string[];
+  /** Optional call to action under the answer, when the honest reply is "tell us". */
+  link?: { label: string; to: string };
 };
 
 export const faqEntries: FaqEntry[] = [
@@ -15,9 +17,20 @@ export const faqEntries: FaqEntry[] = [
     question: 'Why is it so much faster? What is the catch?',
     answer: [
       'It is a native binary, so there is no Node startup and no JIT warm-up. It uses a purpose-built parser that extracts only imports and exports - it never builds a full AST, never walks function bodies and never runs a type-checker, so most of every file is skipped because most of it is irrelevant to a dependency graph.',
-      'Everything runs in parallel: file discovery, parsing, module resolution and check evaluation. And the graph is built once and shared by every enabled check, so twelve checks cost roughly what one costs.',
-      'The catch, stated plainly: this is resolution and graph analysis, not type-aware analysis. That is exactly why it is fast.',
+      'Everything runs in parallel: file discovery, parsing, module resolution and check evaluation. And the graph is built once and shared by every enabled check, so several checks within multiple workspaces cost roughly what one costs.',
     ],
+  },
+  {
+    question: 'What are the performance limitations?',
+    answer: [
+      'In practice there is no size at which it stops being fast. A large monorepo evaluates in subsecond time on modest hardware.',
+      'The one thing that might slow it down is being pointed at files that were never meant to be read: committed build output. A single minified bundle can be longer than the rest of the source put together, and the parser has no way to know it is looking at generated code.',
+      'Gitignored files are skipped automatically, so this only bites when dist or build folders are committed to the repository. Add them to ignoreFiles and the analysis goes back to full speed.',
+    ],
+    link: {
+      label: 'How ignoring files works →',
+      to: '/docs/other-concepts-and-features/ignoring-files',
+    },
   },
   {
     question: 'What about false positives?',
@@ -29,9 +42,11 @@ export const faqEntries: FaqEntry[] = [
   {
     question: 'Will it understand my setup?',
     answer: [
-      'tsconfig path aliases, package.json exports and imports maps, condition names, cross-package resolution in pnpm/yarn/npm workspaces, .vue and .svelte script blocks, and custom asset extensions.',
-      'The supported surface is documented in full rather than implied - if something is not covered, the docs say so.',
+      'Almost certainly. Resolution follows the ESM module resolution algorithm and industry standard aliasing mechanisms: tsconfig path aliases, package.json exports and imports maps including condition names, and cross-package resolution across pnpm, yarn and npm workspaces - all without extra configuration.',
+      'It parses every JavaScript and TypeScript extension in common use - .ts, .tsx, .mts, .d.ts, .js, .jsx, .cjs, .mjs - plus the script blocks of .vue and .svelte components. Imports of images, fonts, styles, JSON and YAML resolve out of the box, and any other extension your project uses takes one line of config.',
+      'If something behaves differently than your project expects, or you need something that is not listed here, open an issue. That is the fastest way to get it covered, and it is the kind of report that makes the resolver better for everyone.',
     ],
+    link: { label: 'Report it on GitHub →', to: 'https://github.com/jayu/rev-dep/issues/new' },
   },
   {
     question: 'Do I have to rip out ESLint and knip?',
@@ -50,7 +65,7 @@ export const faqEntries: FaqEntry[] = [
   {
     question: 'What does it not do?',
     answer: [
-      'It does not draw dependency graphs - it reports, it does not visualise. It analyses at file, export and dependency granularity, so it will not find an unused class member or enum member. And it has no plugin ecosystem; the framework and resolution setups it understands are the ones listed in the docs.',
+      'It does not draw dependency graphs - it reports, it does not visualise. It analyses at file, export and dependency granularity, so it will not find an unused class member or enum member. And it has no plugin ecosystem - instead it supports different resolution strategies so it\'s a matter of proper configuration to make it work in your project. Each project is different and plugins usually only works partially. If something is genuinely missing, please open a github issue.',
     ],
   },
 ];

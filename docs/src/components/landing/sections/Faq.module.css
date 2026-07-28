@@ -40,33 +40,17 @@
   font-weight: 600;
 }
 
+/* A plain divided list. The previous version turned each open item into a
+   card, which meant the surface changed under the cursor as you clicked and
+   the hover state read differently depending on whether the item was open.
+   Now the only thing that changes on expand is the answer appearing. */
 .list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
   min-width: 0;
+  border-top: var(--rd-hairline);
 }
 
 .item {
-  border: 1px solid transparent;
-  border-radius: var(--rd-card-radius);
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.item:hover {
-  background: var(--rd-accent-soft-bg);
-}
-
-/* The open item reads as a card; the closed ones stay as quiet rows, so the
-   list does not look like a wall of boxes. */
-.itemOpen {
-  border: var(--rd-card-border);
-  background: var(--rd-card-bg);
-  box-shadow: var(--rd-card-shadow);
-}
-
-.itemOpen:hover {
-  background: var(--rd-card-bg);
+  border-bottom: var(--rd-hairline);
 }
 
 .question {
@@ -74,25 +58,34 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.15rem 1.25rem;
+  padding: 1.25rem 0.25rem;
   cursor: pointer;
   list-style: none;
+  /* Hover is set here and inherited by the label and caret, so no descendant
+     selector is needed and both respond together. */
+  color: var(--rd-text-strong);
+  transition: color 0.15s ease;
 }
 
-.question:focus-visible {
-  outline: 2px solid var(--ifm-color-primary);
-  outline-offset: -2px;
-  border-radius: var(--rd-card-radius);
+.question:hover {
+  color: var(--ifm-color-primary);
 }
 
 .question::-webkit-details-marker {
   display: none;
 }
 
+.question:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: -2px;
+}
+
+/* Inherits the summary's colour, so it highlights on hover identically whether
+   the item is open or closed. */
 .questionText {
   font-size: 1.02rem;
   font-weight: 650;
-  color: var(--rd-text-strong);
+  color: inherit;
 }
 
 /* Phosphor caret from custom.css, drawn as a mask so it inherits a colour
@@ -101,20 +94,23 @@
   flex-shrink: 0;
   width: 1.15rem;
   height: 1.15rem;
-  background: var(--rd-text-muted);
+  /* currentColor makes the masked caret follow the inherited hover colour. */
+  background: currentColor;
+  opacity: 0.5;
   -webkit-mask: var(--revdep-caret) center / 1.15rem 1.15rem no-repeat;
   mask: var(--revdep-caret) center / 1.15rem 1.15rem no-repeat;
   transform: rotate(-90deg);
-  transition: transform 0.18s ease;
+  transition: transform 0.2s ease, opacity 0.15s ease;
 }
 
 .chevronOpen {
-  background: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  opacity: 1;
   transform: rotate(0deg);
 }
 
 .answer {
-  padding: 0 1.25rem 1.35rem;
+  padding: 0 2.5rem 1.5rem 0.25rem;
 }
 
 .paragraph {
@@ -123,8 +119,17 @@
   color: var(--rd-text-muted);
 }
 
+/* Sits below the last paragraph, matching the sidebar's "Ask something else"
+   link so the two read as the same affordance. */
+.answerLink {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .item {
+  .question {
     transition: none;
   }
 

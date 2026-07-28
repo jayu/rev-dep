@@ -1,9 +1,10 @@
 .terminal {
+  position: relative;
   overflow: hidden;
   border: var(--rd-term-border);
   border-radius: var(--rd-card-radius);
   background: var(--rd-term-bg);
-  box-shadow: var(--rd-term-shadow);
+  box-shadow: var(--rd-term-shadow), var(--rd-term-highlight);
 }
 
 .chrome {
@@ -48,7 +49,12 @@
   white-space: nowrap;
 }
 
-/* Wide output scrolls inside the window rather than the page. */
+/* Wide output scrolls inside the window rather than the page.
+
+   The 1.45 line-height is deliberately tighter than body copy: this is a
+   transcript, not prose, and real terminals sit around 1.2-1.4. It buys about
+   four lines of output over the 1.65 it used to be, which is what lets the
+   hero show every check without growing. */
 .body {
   display: flex;
   flex-direction: column;
@@ -56,7 +62,7 @@
   padding: 1.1rem 1.25rem;
   overflow-x: auto;
   font-size: 0.84rem;
-  line-height: 1.65;
+  line-height: 1.45;
   background: transparent;
   border-radius: 0;
 }
@@ -64,6 +70,13 @@
 .line {
   white-space: pre;
   color: var(--rd-term-fg);
+}
+
+/* A separator between output blocks, at half the height of a real blank line.
+   Enough to group the checks under their workspace, without the block-sized
+   hole a full empty line leaves at this font size. */
+.lineGap {
+  height: 0.5em;
 }
 
 /* Output streams in once the command has finished typing - the order a real

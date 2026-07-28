@@ -56,6 +56,11 @@ export default function Faq() {
                     {paragraph}
                   </p>
                 ))}
+                {entry.link && (
+                  <Link className={styles.answerLink} to={entry.link.to}>
+                    {entry.link.label}
+                  </Link>
+                )}
               </div>
             </details>
           ))}

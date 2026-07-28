@@ -1,11 +1,11 @@
 ---
-description: "Migrate from dependency-cruiser to rev-dep: map forbidden-dependency rules, circular and orphan detection onto rev-dep's config-driven checks."
+description: "Migrate from dependency-cruiser to rev-dep, measured up to 65x faster: map forbidden-dependency rules, circular and orphan detection onto rev-dep's config-driven checks."
 title: Migrating from dependency-cruiser
 sidebar_label: dependency-cruiser
 ---
 
 <head>
-  <title>dependency-cruiser alternative - migrate to Rev-dep</title>
+  <title>dependency-cruiser alternative - migrate to Rev-dep, up to 65x faster</title>
 </head>
 
 # Migrating from dependency-cruiser
@@ -14,7 +14,7 @@ sidebar_label: dependency-cruiser
 
 ## Why migrate
 
-- **Speed.** rev-dep is written in Go and runs every check in parallel - **faster** on large codebases.
+- **Speed.** rev-dep is written in Go and runs every check in parallel - **up to 65x faster** on a 580k-LoC project ([benchmark](/#speed)). Module boundaries: 164 ms vs 8.1 s. Restricted imports: 170 ms vs 11.0 s. Restricted importers: 179 ms vs 9.2 s.
 - **Purpose-built checks.** Instead of hand-writing `from`/`to` rules for everything, rev-dep gives you named detectors - [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [restricted importers](../config-based-checks/checks/restricted-importers.mdx), [circular imports](../config-based-checks/checks/circular-imports.mdx), [orphan files](../config-based-checks/checks/orphan-files.mdx) - and adds unused/missing dependency and unused-export detection dependency-cruiser doesn't do.
 
 ## What carries over, what changes

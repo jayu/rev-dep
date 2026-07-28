@@ -12,7 +12,7 @@ export default function ReplacesStack() {
       id="replaces"
       eyebrow="One tool instead of several"
       title="What rev-dep replaces"
-      intro="Each of these tools starts its own Node process, discovers your files again, and builds its own graph. Run four of them and you pay for that four times."
+      intro="rev-dep covers every one of these. Each one starts its own Node process, discovers your files again and builds its own graph - run four and you pay for that four times. Follow any row for an honest side-by-side."
     >
       <div className={styles.layout}>
         <ul className={styles.toolList}>
@@ -21,7 +21,7 @@ export default function ReplacesStack() {
               <Link className={styles.toolLink} to={tool.href}>
                 <span className={styles.toolName}>{tool.name}</span>
                 <span className={styles.toolCovers}>{tool.covers}</span>
-                <span className={styles.toolMark}>covered</span>
+                <span className={styles.toolChevron} aria-hidden="true" />
               </Link>
             </li>
           ))}

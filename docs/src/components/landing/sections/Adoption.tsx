@@ -33,7 +33,7 @@ const initOutput: TerminalLine[] = [
   { text: '' },
   { text: '✅ Created .rev-dep.config.jsonc' },
   { text: '' },
-  { text: '📦 Monorepo detected: discovered 5 workspace packages' },
+  { text: '📦 Monorepo detected: discovered 3 workspace packages' },
   { text: '   and created a rule for each:' },
   { text: '- packages/app', indent: 1, tone: 'dim' },
   { text: '- packages/shared', indent: 1, tone: 'dim' },
@@ -65,6 +65,7 @@ export default function Adoption() {
   return (
     <Section
       id="adoption"
+      corner="bottom-left"
       eyebrow="Getting started"
       title="You will get a lot of findings on day one. That is the point."
       intro="Every tool like this shows a backlog on the first run - it is the work that piled up while nothing was checking. What matters is that it is a one-time cleanup, and that you can take it in pieces instead of all at once. After that, a normal pull request surfaces a handful of issues at most."

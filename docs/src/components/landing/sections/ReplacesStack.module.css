@@ -22,12 +22,15 @@
   gap: 1rem;
   align-items: center;
   padding: 0.75rem 0.5rem;
-  color: inherit;
-  transition: background 0.15s ease;
+  /* The caret reads this via currentColor, so hover lights both without a
+     descendant selector. */
+  color: var(--rd-text-muted);
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .toolLink:hover {
   background: var(--rd-accent-soft-bg);
+  color: var(--ifm-color-primary);
   text-decoration: none;
 }
 
@@ -43,20 +46,30 @@
   color: var(--rd-text-muted);
 }
 
-.toolMark {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--rd-good);
-  white-space: nowrap;
+/* A caret instead of a repeated "covered" label. Thirteen identical green
+   badges said nothing - every row is covered, that is the premise, and it is
+   now stated once in the section intro. The caret signals that the row opens
+   the comparison page. */
+.toolChevron {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  background: currentColor;
+  opacity: 0.35;
+  -webkit-mask: var(--revdep-caret) center / 1rem 1rem no-repeat;
+  mask: var(--revdep-caret) center / 1rem 1rem no-repeat;
+  transform: rotate(-90deg);
+  transition: opacity 0.15s ease;
 }
 
 /* align-self keeps the card at its content height: as a grid item it would
    otherwise stretch to match the tall tool list and render a large empty box
-   below its text. Not sticky - it scrolled out of sync with its own content. */
+   below its text. Sticky so it stays alongside the list while it scrolls,
+   the same treatment as the FAQ sidebar. */
 .honestCard {
   align-self: start;
+  position: sticky;
+  top: 6rem;
 }
 
 /* Plain card, not the inverted panel: this is an honesty note, and it should
@@ -102,6 +115,10 @@
 @media screen and (max-width: 996px) {
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .honestCard {
+    position: static;
   }
 
 }

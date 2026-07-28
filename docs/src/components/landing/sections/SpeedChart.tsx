@@ -95,7 +95,7 @@ export default function SpeedChart() {
       tone="tinted"
       eyebrow="Performance"
       title="Other tools take seconds. Rev-dep takes milliseconds."
-      intro="Circular import detection is the one check every tool here also has, so it is the only fair head-to-head - the rest of rev-dep's checks have no direct equivalent to measure against. The bars below run at real speed: each one takes exactly as long to fill as that tool takes. rev-dep is done in 154 milliseconds. madge keeps going for another thirteen seconds."
+      intro="Circular import detection is the one check every tool below implements, so it is the only place all seven can be lined up at once. The bars run at real speed: each one takes exactly as long to fill as that tool takes. rev-dep is done in 154 milliseconds. madge keeps going for another thirteen seconds."
       aside={
         <Card className={styles.setupCard}>
           <p className={styles.setupTitle}>Benchmark setup</p>
@@ -126,7 +126,14 @@ export default function SpeedChart() {
 
               <div className={styles.track}>
                 <div
-                  className={clsx(styles.bar, row.ours ? styles.barOurs : styles.barRival)}
+                  className={clsx(
+                    styles.bar,
+                    row.ours ? styles.barOurs : styles.barRival,
+                    // min-width gives the shortest bar a clean pill shape, but
+                    // it must not apply before the run starts or every bar
+                    // shows a stub instead of being empty.
+                    shown === 0 && styles.barEmpty,
+                  )}
                   style={{ width: main.started ? `${(shown / maxMs) * 100}%` : '0%' }}
                 />
               </div>
@@ -151,16 +158,33 @@ export default function SpeedChart() {
 
       <div className={styles.tasks} ref={tasks.ref}>
         <h3 className={styles.tasksTitle}>The same gap on every other check</h3>
+        <p className={styles.tasksIntro}>
+          Eight more tasks, each against the fastest tool that does the same job. Same project, same
+          machine, same method.
+        </p>
 
         <Grid cols={2} className={styles.taskGrid}>
-          {taskComparison.map((row) => {
+          {taskComparison.map((row, i) => {
+            // The vertical run is drawn once on the grid container. Each
+            // horizontal run is drawn by the left-column tile of a row and
+            // spans both columns, so the two cross rather than stopping short.
+            const isLeftColumn = i % 2 === 0;
+            const isLast = i === taskComparison.length - 1;
+            const isDesktopLastRow = i >= taskComparison.length - 2;
             // Each task is scaled to its own alternative, so the shape of the
             // gap reads without a shared axis across tasks.
             const ours = Math.min(tasks.elapsed, row.oursMs);
             const rival = Math.min(tasks.elapsed, row.rivalMs);
 
             return (
-              <div className={styles.task} key={row.task}>
+              <div
+                className={clsx(
+                  styles.task,
+                  isLeftColumn && !isDesktopLastRow && styles.taskLineBottom,
+                  !isLeftColumn && !isLast && styles.taskLineBottomMobile,
+                )}
+                key={row.task}
+              >
                 <div className={styles.taskHead}>
                   <span className={styles.taskName}>{row.task}</span>
                   <span className={styles.taskFactor}>{row.factor} faster</span>
@@ -170,7 +194,7 @@ export default function SpeedChart() {
                   <span className={styles.taskLabelOurs}>rev-dep</span>
                   <div className={styles.taskTrack}>
                     <div
-                      className={styles.taskBarOurs}
+                      className={clsx(styles.taskBarOurs, ours === 0 && styles.barEmpty)}
                       style={{
                         width: tasks.started ? `${(ours / row.rivalMs) * 100}%` : '0%',
                       }}
@@ -181,7 +205,7 @@ export default function SpeedChart() {
                   <span className={styles.taskLabel}>{row.rivalName}</span>
                   <div className={styles.taskTrack}>
                     <div
-                      className={styles.taskBarRival}
+                      className={clsx(styles.taskBarRival, rival === 0 && styles.barEmpty)}
                       style={{
                         width: tasks.started ? `${(rival / row.rivalMs) * 100}%` : '0%',
                       }}
@@ -198,7 +222,7 @@ export default function SpeedChart() {
       <p className={styles.closing}>
         Every number above is a <strong>single check</strong>, measured on its own. In practice the
         gap gets wider: running all twelve checks costs rev-dep almost nothing extra, because the
-        graph is built once and shared between them. Four separate tools build it four times.
+        graph is built once and shared between them. Three separate tools build it three times.
       </p>
     </Section>
   );

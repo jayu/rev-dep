@@ -42,11 +42,10 @@
 }
 
 .checkKey {
-  align-self: flex-start;
-  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   padding: 0.1rem 0.4rem;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--rd-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -72,6 +71,7 @@
 }
 
 .checkLink {
+  flex-shrink: 0;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--rd-text-muted);

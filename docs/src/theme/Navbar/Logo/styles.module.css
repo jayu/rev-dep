@@ -1,0 +1,32 @@
+.brand {
+  display: flex;
+  align-items: center;
+  /* Matches the whitespace between the title and the first navbar link, which
+     is 1rem of brand margin plus that link's own 12px padding. Tunable only
+     because the mark and title are separate links. */
+  gap: 1.75rem;
+  margin-right: 1rem;
+}
+
+.markLink {
+  display: flex;
+  align-items: center;
+}
+
+.mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+}
+
+.titleLink {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ifm-navbar-link-color);
+}
+
+.titleLink:hover {
+  color: var(--ifm-navbar-link-hover-color);
+  text-decoration: none;
+}

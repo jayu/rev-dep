@@ -49,13 +49,24 @@ export type TaskRow = {
   factor: string;
 };
 
-/** The remaining measured tasks, each drawn as a rev-dep vs alternative pair. */
+/**
+ * The remaining measured tasks, each drawn as a rev-dep vs alternative pair.
+ *
+ * Ordered by factor, smallest first: the gap widens as you read down the grid.
+ *
+ * Kept to an EVEN count so the two-column grid never leaves a half-empty last
+ * row. "Find restricted importers" (179 ms vs dependency-cruiser 9 234 ms, 52x)
+ * is measured in PERFORMANCE.md but left out here - it is the closest sibling
+ * of restricted imports, so dropping it costs the least information.
+ */
 export const taskComparison: TaskRow[] = [
   { task: 'Find unused exports', oursMs: 186.4, rivalMs: 3176.1, rivalName: 'knip', factor: '17×' },
   { task: 'Find unused files', oursMs: 168.2, rivalMs: 3005.9, rivalName: 'knip', factor: '18×' },
   { task: 'Find unused dependencies', oursMs: 170.0, rivalMs: 3068.9, rivalName: 'knip', factor: '18×' },
   { task: 'Find missing dependencies', oursMs: 159.5, rivalMs: 3076.1, rivalName: 'knip', factor: '19×' },
-  { task: 'List files from an entry point', oursMs: 81.2, rivalMs: 6591.4, rivalName: 'madge', factor: '81×' },
+  { task: 'Enforce module boundaries', oursMs: 164.1, rivalMs: 8139.6, rivalName: 'dependency-cruiser', factor: '50×' },
+  { task: 'Find restricted imports', oursMs: 170.2, rivalMs: 10995.2, rivalName: 'dependency-cruiser', factor: '65×' },
+  { task: 'List files reachable from an entry point', oursMs: 81.2, rivalMs: 6591.4, rivalName: 'madge', factor: '81×' },
   { task: 'Discover entry points', oursMs: 148.9, rivalMs: 13632.0, rivalName: 'madge', factor: '92×' },
 ];
 

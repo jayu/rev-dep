@@ -1,8 +1,9 @@
 import Link from '@docusaurus/Link';
-import Heading from '@theme/Heading';
 
 import Section from '../primitives/Section';
+import Split from '../primitives/Split';
 import Card from '../primitives/Card';
+import MicroLabel from '../primitives/MicroLabel';
 import { replacedTools, limitations } from '../data/tools';
 import styles from './ReplacesStack.module.css';
 
@@ -14,7 +15,7 @@ export default function ReplacesStack() {
       title="What rev-dep replaces"
       intro="rev-dep covers every one of these. Each one starts its own Node process, discovers your files again and builds its own graph - run four and you pay for that four times. Follow any row for an honest side-by-side."
     >
-      <div className={styles.layout}>
+      <Split left="1.35fr" right="1fr" gap="2rem">
         <ul className={styles.toolList}>
           {replacedTools.map((tool) => (
             <li className={styles.toolItem} key={tool.name}>
@@ -27,10 +28,10 @@ export default function ReplacesStack() {
           ))}
         </ul>
 
+        {/* Plain card, not a highlighted one: this is an honesty note, and it
+            should not out-shout the list of things the tool actually replaces. */}
         <Card size="large" fit className={styles.honestCard}>
-          <Heading as="h3" className={styles.honestTitle}>
-            And what it does not do
-          </Heading>
+          <MicroLabel as="h3">And what it does not do</MicroLabel>
           <ul className={styles.honestList}>
             {limitations.map((item) => (
               <li className={styles.honestItem} key={item}>
@@ -43,7 +44,7 @@ export default function ReplacesStack() {
             where each one still wins.
           </p>
         </Card>
-      </div>
+      </Split>
     </Section>
   );
 }

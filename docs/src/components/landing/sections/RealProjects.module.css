@@ -49,13 +49,9 @@
   border-top: var(--rd-hairline);
 }
 
+/* Spacing only - the label's own typography comes from MicroLabel. */
 .ceilingsTitle {
-  margin: 0 0 1rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--rd-text-muted);
+  margin-bottom: 1rem;
 }
 
 @media screen and (max-width: 640px) {

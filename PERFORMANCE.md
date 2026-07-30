@@ -28,6 +28,7 @@ Here is a performance comparison of specific tasks between rev-dep and alternati
 > 
 > Project: 580k lines of code, 6024 source code files next.js app
 
+
 ### Circular check performance comparison
 
 Table below presents performance comparison between different tools performing circular imports detection.

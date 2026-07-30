@@ -1,32 +1,12 @@
-/* Centred, not top-aligned: the two columns are different heights, so anchoring
-   them at the top leaves an obvious ragged gap at the bottom of the short one. */
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 2.5rem;
-  align-items: center;
-}
-
 .points {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--rd-gap-sm);
 }
 
-.pointTitle {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.pointBody {
-  margin: 0;
-  font-size: 0.94rem;
-  line-height: 1.65;
-  color: var(--rd-text-muted);
-}
-
+/* min-width so a long JSON line scrolls inside the terminal instead of
+   stretching the grid column. */
 .visual {
-  position: relative;
   min-width: 0;
 }
 
@@ -40,10 +20,4 @@
 .inlineCode {
   font-size: 0.85em;
   word-break: break-word;
-}
-
-@media screen and (max-width: 996px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
 }

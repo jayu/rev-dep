@@ -35,8 +35,6 @@ export const circularBenchmark: BenchmarkRow[] = [
 
 /** Measured, but off the scale of the chart above. */
 export const outlier = {
-  tool: 'skott',
-  label: '61.6 s',
   note: 'Also measured: skott takes 61.6 s on the same project - 400x rev-dep, and too far off the scale to plot.',
 };
 

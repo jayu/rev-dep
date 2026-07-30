@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 
+import useInView from './useInView';
+import { prefersReducedMotion, useIsomorphicLayoutEffect } from './motion';
 import styles from './Terminal.module.css';
 
 /** Colour role for a single output line. */
@@ -47,6 +49,16 @@ const TYPE_MS = 13;
 const LINE_STAGGER_MS = 28;
 
 /**
+ * `shown` is the finished transcript with no animation - what the server
+ * renders, and where the component stays if JavaScript never runs or motion is
+ * turned down. A terminal that is invisible until a client-side observer fires
+ * would leave the hero's main piece of evidence out of the static HTML.
+ *
+ * Only after mount does it rewind to `pending` and wait to be scrolled to.
+ */
+type Phase = 'shown' | 'pending' | 'playing';
+
+/**
  * A terminal window rendered as text rather than an image, so it stays crisp,
  * selectable and searchable, and costs no image weight.
  *
@@ -57,53 +69,40 @@ const LINE_STAGGER_MS = 28;
  * reading is more distracting than it is charming.
  */
 export default function Terminal({ title, lines, className }: TerminalProps) {
-  const ref = useRef<HTMLDivElement>(null);
   // Only a leading `$ …` line is typed; everything after it is output.
   const typedLine = lines[0]?.tone === 'prompt' ? lines[0].text ?? '' : null;
+  const [phase, setPhase] = useState<Phase>('shown');
   const [typedChars, setTypedChars] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  const { ref, inView } = useInView<HTMLDivElement>({ enabled: phase === 'pending' });
+
+  // Before the browser paints, so the finished transcript never flashes up and
+  // then rewinds.
+  useIsomorphicLayoutEffect(() => {
+    if (prefersReducedMotion()) return;
+    setPhase('pending');
+    setTypedChars(0);
+  }, []);
 
   useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
+    if (phase !== 'pending' || !inView) return;
 
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduced || typeof IntersectionObserver === 'undefined') {
-      setTypedChars(typedLine ? typedLine.length : 0);
-      setPlaying(true);
+    if (!typedLine) {
+      setPhase('playing');
       return;
     }
 
-    let timer: ReturnType<typeof setInterval> | undefined;
+    let i = 0;
+    const timer = setInterval(() => {
+      i += 1;
+      setTypedChars(i);
+      if (i >= typedLine.length) {
+        clearInterval(timer);
+        setPhase('playing');
+      }
+    }, TYPE_MS);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        observer.disconnect();
-
-        if (!typedLine) {
-          setPlaying(true);
-          return;
-        }
-        let i = 0;
-        timer = setInterval(() => {
-          i += 1;
-          setTypedChars(i);
-          if (i >= typedLine.length) {
-            clearInterval(timer);
-            setPlaying(true);
-          }
-        }, TYPE_MS);
-      },
-      { threshold: 0.05 },
-    );
-
-    observer.observe(node);
-    return () => {
-      observer.disconnect();
-      if (timer) clearInterval(timer);
-    };
-  }, [typedLine]);
+    return () => clearInterval(timer);
+  }, [phase, inView, typedLine]);
 
   return (
     <div className={clsx(styles.terminal, className)} ref={ref}>
@@ -116,7 +115,8 @@ export default function Terminal({ title, lines, className }: TerminalProps) {
       <pre className={styles.body}>
         {lines.map((line, i) => {
           const isTyped = typedLine !== null && i === 0;
-          const stillTyping = isTyped && typedChars < typedLine.length;
+          const shownChars = phase === 'shown' ? typedLine?.length ?? 0 : typedChars;
+          const stillTyping = isTyped && shownChars < typedLine.length;
 
           return (
             <span
@@ -127,15 +127,18 @@ export default function Terminal({ title, lines, className }: TerminalProps) {
                 indentClass[line.indent ?? 0],
                 line.gap && styles.lineGap,
                 // Output holds until the command has finished typing.
-                !isTyped && (playing ? styles.lineIn : styles.linePending),
+                !isTyped && phase === 'pending' && styles.linePending,
+                !isTyped && phase === 'playing' && styles.lineIn,
               )}
               style={
-                !isTyped && playing ? { animationDelay: `${i * LINE_STAGGER_MS}ms` } : undefined
+                !isTyped && phase === 'playing'
+                  ? { animationDelay: `${i * LINE_STAGGER_MS}ms` }
+                  : undefined
               }
             >
               {isTyped ? (
                 <>
-                  {typedLine.slice(0, typedChars)}
+                  {typedLine.slice(0, shownChars)}
                   {stillTyping && <span className={styles.cursor} />}
                 </>
               ) : line.parts ? (

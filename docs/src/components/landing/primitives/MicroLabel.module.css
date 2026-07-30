@@ -1,0 +1,11 @@
+/* The small uppercase caption that titles a subordinate block - benchmark
+   setup, known limits, largest recorded, what it does not do. Four sections
+   had their own copy of these five declarations. */
+.microLabel {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rd-text-muted);
+}

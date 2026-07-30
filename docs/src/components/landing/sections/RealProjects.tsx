@@ -2,6 +2,7 @@ import Section from '../primitives/Section';
 import Card from '../primitives/Card';
 import Grid from '../primitives/Grid';
 import Stat from '../primitives/Stat';
+import MicroLabel from '../primitives/MicroLabel';
 import { projectProfiles, scaleCeilings } from '../data/projects';
 import styles from './RealProjects.module.css';
 
@@ -33,7 +34,7 @@ export default function RealProjects() {
       </Grid>
 
       <div className={styles.ceilings}>
-        <p className={styles.ceilingsTitle}>Largest recorded so far</p>
+        <MicroLabel className={styles.ceilingsTitle}>Largest recorded so far</MicroLabel>
         <Grid cols={4} gap="tight">
           {scaleCeilings.map((ceiling) => (
             <Stat key={ceiling.label} tone="plain" value={ceiling.value} label={ceiling.label} />

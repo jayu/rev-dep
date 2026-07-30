@@ -1,0 +1,31 @@
+/* Title row is a flex line so optional badges sit opposite the heading. With no
+   badges it is a single-child flex box, which lays out identically to a bare
+   heading - so there is no separate "plain" variant to keep in step. */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+/* Grows so that cards in the same row line their footers up, whatever the
+   length of the copy above. */
+.body {
+  flex-grow: 1;
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.65;
+  color: var(--rd-text-muted);
+}
+
+/* Promotes one card per group. Declared here rather than in Card.module.css so
+   it wins on source order: FeatureCard imports Card, so Card's stylesheet is
+   emitted first. */
+.cardFeatured {
+  border-color: var(--ifm-color-primary);
+}

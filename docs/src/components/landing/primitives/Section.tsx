@@ -1,8 +1,8 @@
 import { Children, type ReactNode } from 'react';
 import clsx from 'clsx';
-import Heading from '@theme/Heading';
 
 import Reveal from './Reveal';
+import SectionHeader from './SectionHeader';
 
 import styles from './Section.module.css';
 
@@ -16,9 +16,6 @@ type SectionProps = {
   intro?: ReactNode;
   /** `tinted` paints the section background; use it to alternate bands. */
   tone?: 'plain' | 'tinted';
-  align?: 'left' | 'center';
-  /** Adds a top hairline; used when two plain sections sit next to each other. */
-  divided?: boolean;
   /** Optional panel rendered beside the header - e.g. methodology, key facts. */
   aside?: ReactNode;
   /**
@@ -39,8 +36,6 @@ export default function Section({
   title,
   intro,
   tone = 'plain',
-  align = 'left',
-  divided = false,
   aside,
   corner,
   children,
@@ -53,7 +48,6 @@ export default function Section({
       className={clsx(
         styles.section,
         tone === 'tinted' && styles.sectionTinted,
-        divided && styles.sectionDivided,
         corner === 'top-right' && styles.cornerTopRight,
         corner === 'bottom-left' && styles.cornerBottomLeft,
       )}
@@ -61,17 +55,7 @@ export default function Section({
       <div className="container">
         {(hasHeader || aside) && (
           <Reveal className={clsx(styles.headerRow, aside && styles.headerRowSplit)}>
-            {hasHeader && (
-              <header className={clsx(styles.header, align === 'center' && styles.headerCenter)}>
-                {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
-                {title && (
-                  <Heading as="h2" className={styles.title}>
-                    {title}
-                  </Heading>
-                )}
-                {intro && <p className={styles.intro}>{intro}</p>}
-              </header>
-            )}
+            {hasHeader && <SectionHeader eyebrow={eyebrow} title={title} intro={intro} />}
             {aside && <div className={styles.aside}>{aside}</div>}
           </Reveal>
         )}

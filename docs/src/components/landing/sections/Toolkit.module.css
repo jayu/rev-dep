@@ -1,10 +1,3 @@
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
-  gap: 2rem;
-  align-items: start;
-}
-
 .tabs {
   display: flex;
   flex-direction: column;
@@ -53,7 +46,6 @@
 }
 
 .panel {
-  position: relative;
   min-width: 0;
 }
 
@@ -78,10 +70,6 @@
 }
 
 @media screen and (max-width: 996px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
   .tabs {
     flex-direction: row;
     overflow-x: auto;

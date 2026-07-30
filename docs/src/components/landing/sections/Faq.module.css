@@ -1,36 +1,8 @@
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr);
-  gap: 3.5rem;
-  align-items: start;
-}
-
 /* Sticks while the answers scroll, so the section keeps a fixed anchor instead
    of leaving the right half of the page empty. */
 .intro {
   position: sticky;
   top: 6rem;
-}
-
-.eyebrow {
-  margin: 0 0 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--rd-eyebrow-color);
-}
-
-.title {
-  margin: 0;
-  font-size: 2rem;
-  line-height: 1.2;
-}
-
-.introBody {
-  margin: 1rem 0 0;
-  line-height: 1.7;
-  color: var(--rd-text-muted);
 }
 
 .introLink {
@@ -139,16 +111,7 @@
 }
 
 @media screen and (max-width: 996px) {
-  .layout {
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }
-
   .intro {
     position: static;
-  }
-
-  .title {
-    font-size: 1.6rem;
   }
 }

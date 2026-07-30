@@ -1,9 +1,9 @@
-import Link from '@docusaurus/Link';
 import Heading from '@theme/Heading';
 
 import Section from '../primitives/Section';
-import Card from '../primitives/Card';
 import Grid from '../primitives/Grid';
+import FeatureCard from '../primitives/FeatureCard';
+import CardFooter from '../primitives/CardFooter';
 import { checkGroups } from '../data/checks';
 import styles from './Checks.module.css';
 
@@ -12,7 +12,7 @@ export default function Checks() {
     <Section
       id="checks"
       eyebrow="What it catches"
-      title="More than ten checks, unlimited workspaces, one extremely fast pass"
+      title="Multiple checks, unlimited workspaces, one extremely fast pass"
       intro="Grouped by the problem they solve. Turn on what you need - each check is opt-in per workspace."
     >
       {checkGroups.map((group) => (
@@ -26,24 +26,20 @@ export default function Checks() {
 
           <Grid cols="auto" gap="tight">
             {group.checks.map((check) => (
-              <Card key={check.key} hover className={check.featured ? styles.checkFeatured : undefined}>
-                <div className={styles.checkHead}>
-                  <Heading as="h4" className={styles.checkTitle}>
-                    {check.title}
-                  </Heading>
-                  {check.autofix && <span className={styles.fixBadge}>--fix</span>}
-                  {check.featured && <span className={styles.featuredTag}>Start here</span>}
-                </div>
-                <p className={styles.checkBody}>{check.description}</p>
-                {/* Config key and docs link sit together in the footer, the
-                    same shape as the cards in the Resolution section. */}
-                <div className={styles.checkFoot}>
-                  <code className={styles.checkKey}>{check.key}</code>
-                  <Link className={styles.checkLink} to={check.docs}>
-                    Docs
-                  </Link>
-                </div>
-              </Card>
+              <FeatureCard
+                key={check.key}
+                as="h4"
+                title={check.title}
+                body={check.description}
+                featured={check.featured}
+                badges={
+                  <>
+                    {check.autofix && <span className={styles.fixBadge}>--fix</span>}
+                    {check.featured && <span className={styles.featuredTag}>Start here</span>}
+                  </>
+                }
+                footer={<CardFooter code={check.key} link={{ to: check.docs, label: 'Docs' }} />}
+              />
             ))}
           </Grid>
         </div>

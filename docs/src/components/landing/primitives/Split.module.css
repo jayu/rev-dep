@@ -1,0 +1,26 @@
+/* The two-column section body: copy beside a terminal, list beside a card,
+   header beside answers. Five sections had their own copy of this grid, each
+   with its own collapse query. The ratio and gap arrive as custom properties
+   because they are the only things that ever differed. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, var(--rd-split-a, 1fr)) minmax(0, var(--rd-split-b, 1fr));
+  gap: var(--rd-split-gap, 2.5rem);
+  align-items: start;
+}
+
+/* Centred, not top-aligned: where the two columns are different heights,
+   anchoring both at the top leaves an obvious ragged gap under the shorter
+   one. Wrong for a sticky column, which needs `start` to stick at all. */
+.splitCenter {
+  align-items: center;
+}
+
+@media screen and (max-width: 996px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+    /* Stacked, the gap is vertical space between two full-width blocks rather
+       than a gutter, and the wide desktop values read as a hole. */
+    gap: min(var(--rd-split-gap, 2.5rem), 2rem);
+  }
+}

@@ -22,14 +22,6 @@
   border-radius: var(--rd-card-radius-lg);
 }
 
-.cardPanel {
-  border: var(--rd-panel-border);
-  border-radius: var(--rd-card-radius-lg);
-  background: var(--rd-panel-bg);
-  box-shadow: var(--rd-panel-shadow), var(--rd-panel-highlight);
-  color: var(--rd-panel-fg);
-}
-
 .cardHover {
   transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }

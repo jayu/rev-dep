@@ -1,40 +1,3 @@
-.title {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.body {
-  flex-grow: 1;
-  margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.65;
-  color: var(--rd-text-muted);
-}
-
-.footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding-top: 0.9rem;
-  border-top: var(--rd-hairline);
-}
-
-.key {
-  overflow: hidden;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.72rem;
-  color: var(--rd-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.link {
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 /* Deliberately quiet: a hairline row under the grid, not a highlighted card.
    Limits belong on the page for credibility, but they should not be the
    loudest element in a section about what the tool DOES support. */
@@ -45,15 +8,6 @@
   margin-top: 2.5rem;
   padding-top: 1.5rem;
   border-top: var(--rd-hairline);
-}
-
-.limitsTitle {
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--rd-text-muted);
 }
 
 .limits {
@@ -73,12 +27,12 @@
 
 @media screen and (max-width: 996px) {
   .limitsRow {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.9rem;
   }
 
   .limits {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.6rem;
   }
 }

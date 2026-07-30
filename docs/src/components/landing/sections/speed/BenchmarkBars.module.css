@@ -1,0 +1,120 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr) 6rem;
+  gap: 1rem;
+  align-items: center;
+}
+
+.rowHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.toolName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rd-text-strong);
+}
+
+/* rev-dep is distinguished by weight, not colour. The accent is reserved for
+   the one number that matters - how many times faster it is. */
+.toolNameOurs {
+  font-weight: 800;
+  color: var(--rd-text-strong);
+}
+
+.toolNote {
+  overflow: hidden;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.72rem;
+  color: var(--rd-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kept shallow on purpose: rev-dep's bar is ~1% of the track, so a taller bar
+   would be narrower than it is tall and the pill radius would render squashed. */
+.track {
+  height: 0.9rem;
+  border-radius: 999px;
+  background: var(--rd-bar-track);
+}
+
+/* Width is written frame-by-frame from requestAnimationFrame, so there is
+   deliberately no CSS transition here - it would lag behind the clock.
+   min-width matches the height so the shortest bar is still a clean pill. */
+.bar {
+  height: 100%;
+  min-width: 0.9rem;
+  border-radius: 999px;
+}
+
+.barOurs {
+  background: var(--rd-bar-ours);
+}
+
+.barRival {
+  background: var(--rd-bar-rival);
+}
+
+.value {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.85rem;
+  text-align: right;
+  color: var(--rd-text-muted);
+}
+
+.valueOurs {
+  font-weight: 700;
+  color: var(--rd-text-strong);
+}
+
+/* Settles once the tool has "finished", so a still-counting row reads as
+   in-progress rather than as a final result. */
+.valueDone {
+  font-weight: 700;
+  color: var(--rd-text-strong);
+}
+
+/* Before the clock starts there is nothing to show: without this the min-width
+   on the bar renders a stub in every empty track.
+   MUST stay below every .bar* rule - these are all single classes, so the later
+   declaration wins and an earlier .barEmpty would be ignored. */
+.barEmpty {
+  min-width: 0;
+}
+
+@media screen and (max-width: 996px) {
+  .row {
+    grid-template-columns: 9rem minmax(0, 1fr) 5rem;
+    gap: 0.6rem;
+  }
+
+  .toolNote {
+    display: none;
+  }
+
+  .value {
+    font-size: 0.78rem;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 0.6rem;
+  }
+
+  .track {
+    grid-column: 1 / -1;
+    height: 0.75rem;
+  }
+}

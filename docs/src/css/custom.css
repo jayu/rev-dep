@@ -367,15 +367,10 @@
   --rd-card-radius: 1rem;
   --rd-card-radius-lg: 1.25rem;
 
-  /* Panel - the inverted dark card (stat highlight, callouts) */
-  --rd-panel-bg:
-    radial-gradient(circle at top right, rgba(147, 51, 234, 0.22), transparent 36%),
-    linear-gradient(180deg, rgb(16, 12, 34), rgb(24, 20, 48));
+  /* Panel - the inset surface a Stat tile sits on */
   --rd-panel-border: 1px solid rgba(148, 163, 184, 0.18);
-  --rd-panel-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
   --rd-panel-fg: #ffffff;
   --rd-panel-fg-muted: rgba(226, 232, 240, 0.9);
-  --rd-panel-fg-faint: rgba(226, 232, 240, 0.62);
   --rd-panel-inset-bg: rgba(255, 255, 255, 0.08);
 
   /* Section backgrounds */
@@ -439,8 +434,6 @@
 
   /* Accents */
   --rd-accent-soft-bg: rgba(195, 102, 231, 0.1);
-  --rd-good: #16a34a;
-  --rd-bad: #dc2626;
 
   /* Filled button. Deliberately NOT --ifm-color-primary: in dark mode that is
      lightened to a pale lavender for readable link text, which is far too
@@ -462,11 +455,6 @@
   --rd-card-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
   --rd-card-shadow-hover: 0 18px 42px rgba(0, 0, 0, 0.38);
 
-  --rd-panel-bg:
-    radial-gradient(circle at top right, rgba(168, 85, 247, 0.2), transparent 36%),
-    linear-gradient(180deg, rgba(28, 22, 52, 0.98), rgba(16, 14, 30, 1));
-  --rd-panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
-
   --rd-section-tint-bg:
     radial-gradient(circle at top left, rgba(168, 85, 247, 0.14), transparent 26%),
     linear-gradient(180deg, rgba(15, 18, 30, 0.94), rgba(9, 12, 20, 1));
@@ -481,8 +469,6 @@
   --rd-bar-rival: rgba(148, 163, 184, 0.32);
 
   --rd-accent-soft-bg: rgba(168, 85, 247, 0.16);
-  --rd-good: #4ade80;
-  --rd-bad: #f87171;
 
   --rd-card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.09);
 

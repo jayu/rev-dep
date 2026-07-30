@@ -1,0 +1,33 @@
+/* No max-width: capping the header forced titles to wrap at awkward points.
+   Where the header shares a row, the grid column already constrains it. */
+.header {
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rd-eyebrow-color);
+}
+
+.title {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.intro {
+  margin: 1rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--rd-text-muted);
+}
+
+@media screen and (max-width: 996px) {
+  .title {
+    font-size: 1.6rem;
+  }
+}

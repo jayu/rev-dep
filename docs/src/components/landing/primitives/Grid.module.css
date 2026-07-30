@@ -43,6 +43,10 @@
   }
 }
 
+/* Every single-column rule below is minmax(0, 1fr), never a bare `1fr`: the
+   automatic minimum of `1fr` is min-content, so one unbreakable string - a
+   config key set in nowrap monospace, say - widens the track past the
+   container and pushes the whole document sideways. */
 @media screen and (max-width: 996px) {
   .cols3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -53,24 +57,24 @@
   }
 
   .cols2 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media screen and (max-width: 640px) {
   .colsAuto {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .cols3 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .cols4 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .cols5 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }

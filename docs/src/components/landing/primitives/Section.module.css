@@ -16,15 +16,24 @@
 /* Ambient light in one corner, layered over whatever background the section
    already has. A plain radial with a wide falloff - no blur, no fixed size,
    nothing with a discernible edge. It reads as the section being lit from
-   that side, and the terminal placed there overlaps it. */
+   that side, and the terminal placed there overlaps it.
+
+   `isolation` plus a negative z-index is what puts the wash *behind* the
+   section's content and *in front of* the section's own background. Without
+   it an absolutely positioned pseudo-element paints above every in-flow block,
+   and only content that happened to be positioned itself came out on top -
+   which is why three sections used to give their terminal column a
+   `position: relative` with no stated reason. */
 .cornerTopRight {
   position: relative;
+  isolation: isolate;
 }
 
 .cornerTopRight::before {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: -1;
   background: radial-gradient(
       ellipse 46% 62% at 88% 6%,
       var(--rd-corner-wash),
@@ -36,12 +45,14 @@
 
 .cornerBottomLeft {
   position: relative;
+  isolation: isolate;
 }
 
 .cornerBottomLeft::before {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: -1;
   background: radial-gradient(
       ellipse 46% 62% at 10% 96%,
       var(--rd-corner-wash),
@@ -49,10 +60,6 @@
     ),
     radial-gradient(ellipse 34% 44% at 1% 66%, var(--rd-corner-wash-warm), transparent 66%);
   pointer-events: none;
-}
-
-.sectionDivided {
-  border-top: var(--rd-hairline);
 }
 
 .headerRow {
@@ -67,42 +74,8 @@
   align-items: start;
 }
 
-/* No max-width: capping the header forced titles to wrap at awkward points.
-   When an aside is present the grid column already constrains it. */
-.header {
-  min-width: 0;
-}
-
 .aside {
   min-width: 0;
-}
-
-.headerCenter {
-  margin-left: auto;
-  margin-right: auto;
-  text-align: center;
-}
-
-.eyebrow {
-  margin: 0 0 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--rd-eyebrow-color);
-}
-
-.title {
-  margin: 0;
-  font-size: 2rem;
-  line-height: 1.2;
-}
-
-.intro {
-  margin: 1rem 0 0;
-  font-size: 1.05rem;
-  line-height: 1.7;
-  color: var(--rd-text-muted);
 }
 
 @media screen and (max-width: 996px) {
@@ -116,11 +89,7 @@
   }
 
   .headerRowSplit {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.5rem;
-  }
-
-  .title {
-    font-size: 1.6rem;
   }
 }

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
-import Heading from '@theme/Heading';
 
 import Section from '../primitives/Section';
+import SectionHeader from '../primitives/SectionHeader';
+import Split from '../primitives/Split';
 import { faqEntries } from '../data/faq';
 import styles from './Faq.module.css';
 
@@ -16,19 +17,19 @@ export default function Faq() {
 
   return (
     <Section id="faq">
-      <div className={styles.layout}>
-        <div className={styles.intro}>
-          <p className={styles.eyebrow}>Questions</p>
-          <Heading as="h2" className={styles.title}>
-            The things people ask before installing
-          </Heading>
-          <p className={styles.introBody}>
-            The objections that actually come up - answered with the mechanism, not a slogan.
-          </p>
+      <Split left="1fr" right="1.7fr" gap="3.5rem">
+        {/* The header sits beside the answers rather than above them, so it
+            uses SectionHeader directly instead of Section's own header slot. */}
+        <SectionHeader
+          className={styles.intro}
+          eyebrow="Questions"
+          title="The things people ask before installing"
+          intro="The objections that actually come up - answered with the mechanism, not a slogan."
+        >
           <Link className={styles.introLink} to="https://github.com/jayu/rev-dep/issues">
             Ask something else on GitHub →
           </Link>
-        </div>
+        </SectionHeader>
 
         <div className={styles.list}>
           {faqEntries.map((entry) => (
@@ -51,8 +52,8 @@ export default function Faq() {
                 />
               </summary>
               <div className={styles.answer}>
-                {entry.answer.map((paragraph) => (
-                  <p className={styles.paragraph} key={paragraph.slice(0, 40)}>
+                {entry.answer.map((paragraph, i) => (
+                  <p className={styles.paragraph} key={i}>
                     {paragraph}
                   </p>
                 ))}
@@ -65,7 +66,7 @@ export default function Faq() {
             </details>
           ))}
         </div>
-      </div>
+      </Split>
     </Section>
   );
 }

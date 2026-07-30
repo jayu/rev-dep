@@ -1,0 +1,36 @@
+/* Config key on the left, docs link on the right, separated from the card body
+   by a hairline. Checks and Compatibility each had their own copy, which had
+   already drifted apart on padding, font size and link colour. */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.85rem;
+  border-top: var(--rd-hairline);
+}
+
+.code {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
+  color: var(--rd-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Muted rather than accent-coloured: a dozen identical links in the brand
+   colour turned the Checks grid into noise, and the accent should mark what
+   matters. It lights up on hover, which is when it matters. */
+.link {
+  flex-shrink: 0;
+  font-size: 0.83rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--rd-text-muted);
+}
+
+.link:hover {
+  color: var(--ifm-color-primary);
+}

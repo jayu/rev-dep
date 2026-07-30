@@ -41,7 +41,8 @@
 `scripts/release.js` reads the version from `npm/rev-dep/package.json`, pushes the
 `<version>` tag, and creates a GitHub release with categorized notes (Features /
 Bug Fixes / Documentation / Other Changes, built from the commits since the
-previous tag - see `scripts/releaseNotes.js`), the three platform binaries, and a
+previous tag - see `scripts/releaseNotes.js`), the five platform binaries
+(darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-x64), and a
 `checksums.txt` (sha256). Requires `gh` authenticated. Pre-release versions
 (`X.Y.Z-...`) are marked as pre-releases automatically.
 

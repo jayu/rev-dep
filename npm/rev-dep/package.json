@@ -18,6 +18,8 @@
   },
   "optionalDependencies": {
     "@rev-dep/darwin-arm64": "3.0.0",
+    "@rev-dep/darwin-x64": "3.0.0",
+    "@rev-dep/linux-arm64": "3.0.0",
     "@rev-dep/linux-x64": "3.0.0",
     "@rev-dep/win32-x64": "3.0.0"
   },

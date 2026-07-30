@@ -1,0 +1,24 @@
+{
+  "name": "@rev-dep/darwin-x64",
+  "version": "3.0.0",
+  "description": "The MacOS 64-bit intel binary for rev-dep",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jayu/rev-dep.git"
+  },
+  "homepage": "https://rev-dep.com",
+  "license": "MIT",
+  "files": [
+    "bin/rev-dep"
+  ],
+  "private": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ]
+}

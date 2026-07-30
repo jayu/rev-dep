@@ -30,15 +30,25 @@ CONN="$REVDEP_TELEMETRY_CONNECTION_STRING"
 LDFLAGS="-s -w -X rev-dep-go/internal/telemetry.connectionString=${CONN}"
 
 GOOS=darwin GOARCH=arm64 go build -o ./npm/@rev-dep/darwin-arm64/bin/rev-dep -ldflags="$LDFLAGS" ./cmd/cli
+GOOS=darwin GOARCH=amd64 go build -o ./npm/@rev-dep/darwin-x64/bin/rev-dep -ldflags="$LDFLAGS" ./cmd/cli
+GOOS=linux GOARCH=arm64 go build -o ./npm/@rev-dep/linux-arm64/bin/rev-dep -ldflags="$LDFLAGS" ./cmd/cli
 GOOS=linux GOARCH=amd64 go build -o ./npm/@rev-dep/linux-x64/bin/rev-dep -ldflags="$LDFLAGS" ./cmd/cli
 GOOS=windows GOARCH=amd64 go build -o ./npm/@rev-dep/win32-x64/bin/rev-dep.exe -ldflags="$LDFLAGS" ./cmd/cli
 
 # Post-build verification: prove the connection string actually landed in the binary. The same
-# LDFLAGS apply to all three builds, so verifying the binary that runs natively on this host is
+# LDFLAGS apply to every build, so verifying the binary that runs natively on this host is
 # enough.
-HOST_BIN="./npm/@rev-dep/darwin-arm64/bin/rev-dep"
+HOST_ARCH="$(uname -m)"
 if [ "$(uname -s)" = "Linux" ]; then
-  HOST_BIN="./npm/@rev-dep/linux-x64/bin/rev-dep"
+  if [ "$HOST_ARCH" = "aarch64" ] || [ "$HOST_ARCH" = "arm64" ]; then
+    HOST_BIN="./npm/@rev-dep/linux-arm64/bin/rev-dep"
+  else
+    HOST_BIN="./npm/@rev-dep/linux-x64/bin/rev-dep"
+  fi
+elif [ "$HOST_ARCH" = "x86_64" ]; then
+  HOST_BIN="./npm/@rev-dep/darwin-x64/bin/rev-dep"
+else
+  HOST_BIN="./npm/@rev-dep/darwin-arm64/bin/rev-dep"
 fi
 
 if ! "$HOST_BIN" __telemetry --check; then

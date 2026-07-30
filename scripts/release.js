@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Create a GitHub release for the current version: pushes the tag, attaches the
-// three platform binaries and a sha256 checksums.txt, and auto-generates notes
+// platform binaries and a sha256 checksums.txt, and auto-generates notes
 // from the commits since the previous release.
 //
 // Run AFTER scripts/buildProdBinaries.sh and the "chore: release X.Y.Z" commit.
@@ -36,6 +36,8 @@ console.log(`Preparing GitHub release ${version}`)
 // Built binary -> stable, platform-identifiable asset name.
 const binaries = [
   { src: 'npm/@rev-dep/darwin-arm64/bin/rev-dep', asset: 'rev-dep-darwin-arm64' },
+  { src: 'npm/@rev-dep/darwin-x64/bin/rev-dep', asset: 'rev-dep-darwin-x64' },
+  { src: 'npm/@rev-dep/linux-arm64/bin/rev-dep', asset: 'rev-dep-linux-arm64' },
   { src: 'npm/@rev-dep/linux-x64/bin/rev-dep', asset: 'rev-dep-linux-x64' },
   { src: 'npm/@rev-dep/win32-x64/bin/rev-dep.exe', asset: 'rev-dep-win32-x64.exe' },
 ]

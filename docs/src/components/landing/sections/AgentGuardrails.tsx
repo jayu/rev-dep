@@ -13,7 +13,7 @@ export default function AgentGuardrails() {
       corner="top-right"
       eyebrow="AI-generated code"
       title="Agents write fast. Something has to check the structure."
-      intro="Coding agents produce a lot of code quickly. They also leave abandoned files, duplicate helpers, import cycles they cannot see, and boundary violations - because they never read your architecture decisions. And that debris makes the next agent run worse: reasoning budget gets spent on code nothing runs."
+      intro="Coding agents can produce code at remarkable speed. They can also leave behind abandoned files, duplicate utilities, hidden import cycles, and architectural boundary violations-because they don't understand the reasoning behind your system design. Left unchecked, task after task, they gradually turn a well-structured codebase into a dumping ground."
     >
       <Split align="center">
         <div className={styles.points}>

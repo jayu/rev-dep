@@ -72,7 +72,7 @@ export const toolkitTabs: ToolkitTab[] = [
     label: 'files',
     question: 'What does this entry point actually pull in?',
     explanation:
-      'Lists every file reachable from the chosen entry point, including the entry point itself. Use it to understand bundle scope, or to work out why a file is being pulled in at all.',
+      'Lists every file reachable from the chosen entry point, including the entry point itself. Use it to understand bundle scope, or to find out if a file is being pulled in at all.',
     command: 'rev-dep files --entry-point src/index.ts',
     docs: '/docs/exploratory-toolkit/files',
     lines: [

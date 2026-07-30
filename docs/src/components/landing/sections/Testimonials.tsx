@@ -15,9 +15,9 @@ const testimonials = [
 export default function Testimonials() {
   return (
     <Section
-      eyebrow="From the issue tracker"
+      eyebrow="Feedback"
       title="What early users say"
-      intro="Comments from public GitHub threads, while teams were evaluating rev-dep on their own codebases."
+      intro="Unprompted comments from public GitHub threads, posted while teams were evaluating rev-dep on their own codebases. Every one links back to the issue it came from."
     >
       <Grid cols={3}>
         {testimonials.map((testimonial) => (

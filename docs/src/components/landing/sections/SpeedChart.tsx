@@ -5,7 +5,6 @@ import {
   circularBenchmark,
   taskComparison,
   benchmarkContext,
-  knipFootnote,
   outlier,
 } from '../data/benchmarks';
 import BenchmarkBars from './speed/BenchmarkBars';
@@ -52,8 +51,6 @@ export default function SpeedChart() {
       />
 
       <p className={styles.outlier}>{outlier.note}</p>
-
-      <p className={styles.footnote}>{knipFootnote}</p>
 
       <TaskComparison rows={taskComparison} containerRef={tasks.ref} register={tasks.register} />
 

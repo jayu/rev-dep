@@ -78,12 +78,3 @@ export const benchmarkContext = {
   method: 'hyperfine -w 4 -r 8 (4 warm-up + 8 measured runs)',
 };
 
-/**
- * knip skips type-only import edges and offers no flag to include them, so on
- * this codebase it reports 0 cycles. Its 3 040 ms is a real full analysis, just
- * of a smaller graph - and `rev-dep circular -t` applies the same rule and
- * agrees exactly, in 143 ms. Disclosing this up front is the point.
- */
-export const knipFootnote =
-  'knip always ignores type-only import edges, so on this codebase it analyses a slightly smaller graph. ' +
-  'Running rev-dep with the same rule (rev-dep circular -t) agrees with it exactly, in 143 ms.';

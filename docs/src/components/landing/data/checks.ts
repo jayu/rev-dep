@@ -36,7 +36,7 @@ export const checkGroups: CheckGroup[] = [
   {
     id: 'dead-weight',
     title: 'Dead weight',
-    blurb: 'Code and dependencies nothing reaches any more. Three of these can delete themselves.',
+    blurb: 'Code and dependencies nothing reaches any more.',
     checks: [
       {
         key: 'orphanFilesDetection',
@@ -80,7 +80,7 @@ export const checkGroups: CheckGroup[] = [
       {
         key: 'missingNodeModulesDetection',
         title: 'Missing dependencies',
-        description: 'Packages the code imports but never declares. They work locally and break in CI.',
+        description: 'Packages the code imports but never declares. They work locally and break in production.',
         docs: '/docs/config-based-checks/checks/missing-node-modules',
       },
       {

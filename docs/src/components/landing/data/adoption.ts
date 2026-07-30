@@ -34,9 +34,9 @@ export const initOutput: TerminalLine[] = [
   { text: '' },
   { text: '📦 Monorepo detected: discovered 3 workspace packages' },
   { text: '   and created a rule for each:' },
-  { text: '- packages/app', indent: 1, tone: 'dim' },
+  { text: '- apps/web', indent: 1, tone: 'dim' },
+  { text: '- apps/mobile', indent: 1, tone: 'dim' },
   { text: '- packages/shared', indent: 1, tone: 'dim' },
-  { text: '- packages/ui', indent: 1, tone: 'dim' },
   { text: '' },
   { text: 'Adjust rules to make them relevant to your project setup.', tone: 'dim' },
 ];
@@ -62,6 +62,6 @@ export const adoptionSteps: AdoptionStep[] = [
   },
   {
     title: 'Scope rules per workspace',
-    body: 'A monorepo package that is not ready yet keeps its checks off. Nothing is all-or-nothing.',
+    body: 'A monorepo package that is not ready keeps its checks off. The rest of the repo starts failing on regressions straight away, instead of waiting for the worst package to be cleaned up first.',
   },
 ];

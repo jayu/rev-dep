@@ -55,7 +55,15 @@ export default function Toolkit() {
       corner="top-right"
       eyebrow="Exploratory toolkit"
       title="Ask questions about your dependency graph"
-      intro="Checks tell you something is wrong. These commands tell you why. Useful when a check fails, and before any refactor you are nervous about."
+      intro={
+        <>
+          Checks tell you something is wrong. These commands tell you why. Useful when a check
+          fails, and before any refactor you are nervous about.
+          <br />
+          Teach your agent to reach for them and it can do the research itself - reading the real
+          graph instead of guessing at it from the files it happens to have open.
+        </>
+      }
     >
       <Split left="20rem" right="1fr" gap="2rem">
         <div className={styles.tabs} role="tablist" aria-label="Exploratory commands">

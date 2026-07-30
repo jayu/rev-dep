@@ -55,6 +55,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .rd-hold,
   .rd-enter {
     transition: none;
@@ -335,7 +336,7 @@
 }
 
 /* Gentle "recommended" nudge for the Monorepo integration guide.
-   Deliberately quiet: no background, no accent bar — just a lightly
+   Deliberately quiet: no background, no accent bar - just a lightly
    tinted icon and a slightly heavier label, so it's noticed only when
    the eye scans the sidebar, not the moment the page loads. */
 .sidebar-item--highlight>.menu__link {
@@ -446,7 +447,7 @@
   --rd-section-py: 4.5rem;
   --rd-gap: 1.25rem;
   --rd-gap-sm: 0.9rem;
-  --rd-prose-maxw: 46rem;
+  --rd-prose-maxw: 48rem;
 }
 
 [data-theme='dark'] {
@@ -476,6 +477,7 @@
   --rd-button-bg: #8b32b8;
   --rd-button-bg-hover: #7a2ba3;
 }
+
 /* ═══════════════════════════════════════════════════════════════
    Navbar: search field and icon links
    ───────────────────────────────────────────────────────────────
@@ -503,13 +505,13 @@
   gap: 16px;
 }
 
-.navbar__items--right > .navbar__item {
+.navbar__items--right>.navbar__item {
   padding-left: 4px;
   padding-right: 4px;
 }
 
 /* Docusaurus hashes this class, so match on the stable prefix. */
-.navbar__items--right > [class*='navbarSearchContainer'] {
+.navbar__items--right>[class*='navbarSearchContainer'] {
   padding-left: 4px;
   padding-right: 4px;
 }
@@ -549,7 +551,7 @@
    Sizing each so its *ink* lands on --rd-navbar-glyph is what makes all three
    states match the icons either side. One blanket rule cannot: it would leave
    the sun a third larger than the moon. */
-.navbar__items--right > [class*='colorModeToggle'] {
+.navbar__items--right>[class*='colorModeToggle'] {
   display: flex;
   align-items: center;
   padding: 0;

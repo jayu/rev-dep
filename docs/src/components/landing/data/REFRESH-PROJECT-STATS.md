@@ -159,12 +159,12 @@ them.
 | Query column | Goes to |
 | --- | --- |
 | `label` | `kind` |
-| `value` — the number part | `headline` |
-| `value` — the words part | `headlineLabel` |
-| `detail` — split on `·` | `facts[]` |
+| `value` - the number part | `headline` |
+| `value` - the words part | `headlineLabel` |
+| `detail` - split on `·` | `facts[]` |
 | `region` | `region` (optional; omit if blank) |
 
-Example — a `profile` row of
+Example - a `profile` row of
 `Large monorepo | 174 workspaces | 8339 source files · 28 checks configured · runs on every CI build | Poland`
 becomes:
 
@@ -178,7 +178,7 @@ becomes:
 }
 ```
 
-Add thousands separators by hand — the query returns raw integers.
+Add thousands separators by hand - the query returns raw integers.
 
 The section title hard-codes both ends of the range - "From 400-file packages
 to 197-workspace monorepos" - in `RealProjects.tsx`. Update it if the median
@@ -189,7 +189,7 @@ file count or the workspace ceiling moves.
 ## Two things to keep honest
 
 **Never publish the project count**, or any percentage derived from it. The
-sample is small, and "X% of projects" invites "out of how many?" — the one
+sample is small, and "X% of projects" invites "out of how many?" - the one
 question with a weak answer. These per-project facts are strong precisely
 because each is a real, specific codebase.
 
@@ -207,7 +207,7 @@ short-lived environment produces a new one**:
 
 - Codespaces, Gitpod, devcontainers
 - AI agent sandboxes
-- CI that `isCI` detection missed — self-hosted runners often set none of the
+- CI that `isCI` detection missed - self-hosted runners often set none of the
   standard environment variables
 
 The tell is **runs per machine**. Real developers run a check many times on the
@@ -215,13 +215,13 @@ same laptop over 90 days. Ephemeral environments run it once or twice and
 disappear.
 
 A previous pull returned *282 machines, 920 local runs* on a **1,623-file**
-project — 3.3 runs per machine. Three hundred engineers do not share a
+project - 3.3 runs per machine. Three hundred engineers do not share a
 1,600-file codebase, and they would not each run the tool three times and stop.
 That was containers, and the number never went on the site.
 
 **Rule of thumb:** below ~5 runs per machine, treat the count as environments
 rather than people, and leave the team card out. Above ~10, it is probably real
-— sanity-check it against the project's file count before publishing.
+- sanity-check it against the project's file count before publishing.
 
 ### Outcome of the last refresh
 
@@ -234,11 +234,11 @@ All three candidates were rejected, so **there is no team card on the page**:
 | #3 | 16 machines · 3.4 runs each · **6 files** | Junk |
 
 **#2 is the one worth revisiting.** 47 developers on an 8,339-file monorepo is
-about 177 files each, and that project runs mostly in CI — which fits a team
+about 177 files each, and that project runs mostly in CI - which fits a team
 whose local runs are occasional. It is off the page only because nobody has
 confirmed it, not because the number looks wrong.
 
-Adding it means a fifth profile card, and the grid is four wide — so either drop
+Adding it means a fifth profile card, and the grid is four wide - so either drop
 a card or move that row to five columns.
 
 **#3 also exposes a gap in the ratio test:** a six-file project is never a
@@ -335,12 +335,12 @@ teams
 
 ### Reading the result
 
-Take the **first row whose verdict is `LIKELY REAL`** — that is the card.
+Take the **first row whose verdict is `LIKELY REAL`** - that is the card.
 
 | Column | Meaning |
 | --- | --- |
 | `developers` | Machines seen on 2+ separate days. **Publish this, not `totalMachines`.** |
-| `regulars` | Machines seen on 5+ days — the people who actually live in it |
+| `regulars` | Machines seen on 5+ days - the people who actually live in it |
 | `totalMachines` | Raw count, including every throwaway environment |
 | `retentionPct` | `developers / totalMachines`. Near 100 = laptops. Near 0 = containers. |
 

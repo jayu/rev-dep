@@ -730,7 +730,7 @@ Table below presents performance comparison between different tools performing c
 
 
 \* knip always ignores type-only import edges and offers no flag to include them. Every cycle in
-this codebase contains at least one, so knip reports 0 cycles — its 3 040 ms is a real full
+this codebase contains at least one, so knip reports 0 cycles - its 3 040 ms is a real full
 analysis, just of a smaller graph. `rev-dep circular -t`, which applies the same rule, agrees
 exactly (0 cycles) in 143.3 ms ± 10.3.
 

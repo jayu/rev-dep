@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 
+import { trackClick, type ClickEvent } from '../analytics';
 import styles from './CopyCommand.module.css';
 
 type CopyCommandProps = {
   command: string;
   className?: string;
+  /** The command is the target, and the type is always the copy button. */
+  event: Omit<ClickEvent, 'target' | 'type'>;
 };
 
 type State = 'idle' | 'copied' | 'failed';
@@ -56,7 +59,7 @@ function legacyCopy(text: string): boolean {
 }
 
 /** Install command with click-to-copy. */
-export default function CopyCommand({ command, className }: CopyCommandProps) {
+export default function CopyCommand({ command, className, event }: CopyCommandProps) {
   const [state, setState] = useState<State>('idle');
   const commandRef = useRef<HTMLElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,7 +77,15 @@ export default function CopyCommand({ command, className }: CopyCommandProps) {
     timer.current = setTimeout(() => setState('idle'), 2000);
   }, []);
 
+  // Destructured so the deps below stay primitives - `event` is a fresh object
+  // literal on every render and would rebuild the callback each time.
+  const { id, section } = event;
+
   const copy = useCallback(async () => {
+    // Reported on intent rather than outcome: clicking this means the visitor
+    // wants the install command, whether or not the clipboard cooperated.
+    trackClick({ id, section, type: 'copy_command', target: command });
+
     let ok = false;
 
     // writeText can also reject on a permission denial, so the fallback has to
@@ -104,7 +115,7 @@ export default function CopyCommand({ command, className }: CopyCommandProps) {
     }
 
     settle(ok ? 'copied' : 'failed');
-  }, [command, settle]);
+  }, [command, settle, id, section]);
 
   return (
     <button

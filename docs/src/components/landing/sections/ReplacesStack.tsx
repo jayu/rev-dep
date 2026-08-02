@@ -1,6 +1,5 @@
-import Link from '@docusaurus/Link';
-
 import Section from '../primitives/Section';
+import TrackedLink from '../primitives/TrackedLink';
 import { replacedTools } from '../data/tools';
 import styles from './ReplacesStack.module.css';
 
@@ -15,11 +14,19 @@ export default function ReplacesStack() {
       <ul className={styles.toolList}>
         {replacedTools.map((tool) => (
           <li className={styles.toolItem} key={tool.name}>
-            <Link className={styles.toolLink} to={tool.href}>
+            <TrackedLink
+              className={styles.toolLink}
+              to={tool.href}
+              event={{
+                id: `comparison_${tool.name}`,
+                section: 'replaces',
+                type: 'comparison_link',
+              }}
+            >
               <span className={styles.toolName}>{tool.name}</span>
               <span className={styles.toolCovers}>{tool.covers}</span>
               <span className={styles.toolChevron} aria-hidden="true" />
-            </Link>
+            </TrackedLink>
           </li>
         ))}
       </ul>

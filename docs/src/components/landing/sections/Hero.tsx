@@ -16,8 +16,16 @@ import styles from './Hero.module.css';
  * Rendering it twice and hiding one with `display: none` keeps it to CSS, and
  * `display: none` also drops the hidden copy out of the accessibility tree, so
  * only ever one button is exposed.
+ *
+ * Each position passes its own analytics id: only one is ever clickable, but
+ * which one it is depends on the viewport, and that is worth being able to see
+ * in the numbers rather than having to infer.
  */
-const cta = <Button to="/docs/installation">Get Started</Button>;
+const cta = (id: string) => (
+  <Button to="/docs/installation" event={{ id, section: 'hero' }}>
+    Get Started
+  </Button>
+);
 
 export default function Hero() {
   return (
@@ -35,12 +43,15 @@ export default function Hero() {
               single high-performance engine. <br/><span style={{marginTop:10, display:'block'}}>Evaluate your entire JS/TS monorepo without breaking a sweat.</span>
             </p>
 
-            <div className={clsx(styles.actions, 'rd-hold')}>{cta}</div>
+            <div className={clsx(styles.actions, 'rd-hold')}>{cta('hero_get_started')}</div>
 
             {/* Wrapper, because CopyCommand is inline-flex and sizes to its
                 content - it has nothing to centre itself against. */}
             {/* <div className={clsx(styles.install, 'rd-hold')}>
-              <CopyCommand command="npm install -D rev-dep" />
+              <CopyCommand
+                command="npm install -D rev-dep"
+                event={{ id: 'hero_copy_install', section: 'hero' }}
+              />
             </div> */}
           </div>
 
@@ -49,7 +60,9 @@ export default function Hero() {
           </div>
         </div>
 
-        <div className={clsx(styles.actionsBelow, 'rd-hold')}>{cta}</div>
+        <div className={clsx(styles.actionsBelow, 'rd-hold')}>
+          {cta('hero_get_started_below')}
+        </div>
       </div>
     </header>
   );

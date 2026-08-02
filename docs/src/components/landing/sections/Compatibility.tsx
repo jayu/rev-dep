@@ -18,7 +18,19 @@ export default function Compatibility() {
             key={item.title}
             title={item.title}
             body={item.body}
-            footer={<CardFooter code={item.key} link={{ to: item.docs, label: 'Docs' }} />}
+            footer={
+              <CardFooter
+                code={item.key}
+                link={{ to: item.docs, label: 'Docs' }}
+                // `key` is optional on these items, so the docs path is the
+                // fallback identity - it is stable even when the copy is not.
+                event={{
+                  id: `compat_docs_${item.key ?? item.docs}`,
+                  section: 'compatibility',
+                  type: 'docs_link',
+                }}
+              />
+            }
           />
         ))}
       </Grid>

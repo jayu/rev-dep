@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import Link from '@docusaurus/Link';
 
 import Section from '../primitives/Section';
 import SectionHeader from '../primitives/SectionHeader';
 import Split from '../primitives/Split';
+import TrackedLink from '../primitives/TrackedLink';
+import { trackClick } from '../analytics';
 import { faqEntries } from '../data/faq';
 import styles from './Faq.module.css';
 
@@ -26,9 +27,13 @@ export default function Faq() {
           title="The things people ask before installing"
           intro="The objections that actually come up - answered with the mechanism, not a slogan."
         >
-          <Link className={styles.introLink} to="https://github.com/jayu/rev-dep/issues">
+          <TrackedLink
+            className={styles.introLink}
+            to="https://github.com/jayu/rev-dep/issues"
+            event={{ id: 'faq_ask_on_github', section: 'faq', type: 'external_link' }}
+          >
             Ask something else on GitHub →
-          </Link>
+          </TrackedLink>
         </SectionHeader>
 
         <div className={styles.list}>
@@ -42,6 +47,17 @@ export default function Faq() {
                 // during render - by then `event.currentTarget` is null.
                 const isOpen = event.currentTarget.open;
                 setOpen((state) => ({ ...state, [entry.question]: isOpen }));
+
+                // Openings only. A close is the same reader finishing with the
+                // same answer, and counting it would double every question.
+                if (isOpen) {
+                  trackClick({
+                    id: `faq_open_${entry.id}`,
+                    section: 'faq',
+                    type: 'faq_toggle',
+                    target: entry.question,
+                  });
+                }
               }}
             >
               <summary className={styles.question}>
@@ -58,9 +74,19 @@ export default function Faq() {
                   </p>
                 ))}
                 {entry.link && (
-                  <Link className={styles.answerLink} to={entry.link.to}>
+                  <TrackedLink
+                    className={styles.answerLink}
+                    to={entry.link.to}
+                    event={{
+                      id: `faq_link_${entry.id}`,
+                      section: 'faq',
+                      // These answers link to docs and to GitHub in equal
+                      // measure, so the type follows the destination.
+                      type: entry.link.to.startsWith('http') ? 'external_link' : 'docs_link',
+                    }}
+                  >
                     {entry.link.label}
-                  </Link>
+                  </TrackedLink>
                 )}
               </div>
             </details>

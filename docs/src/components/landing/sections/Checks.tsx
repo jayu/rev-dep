@@ -38,7 +38,15 @@ export default function Checks() {
                     {check.featured && <span className={styles.featuredTag}>Start here</span>}
                   </>
                 }
-                footer={<CardFooter code={check.key} link={{ to: check.docs, label: 'Docs' }} />}
+                footer={
+                  <CardFooter
+                    code={check.key}
+                    link={{ to: check.docs, label: 'Docs' }}
+                    // The config key is the stable identity here - the card
+                    // titles are copy and get reworded.
+                    event={{ id: `check_docs_${check.key}`, section: 'checks', type: 'docs_link' }}
+                  />
+                }
               />
             ))}
           </Grid>

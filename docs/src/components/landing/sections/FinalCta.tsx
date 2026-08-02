@@ -23,11 +23,24 @@ export default function FinalCta() {
             Install rev-dep, generate initial config <br/>and follow integration guides to set it up.
           </p>
 
-          <CopyCommand command="npm install -D rev-dep" className={styles.install} />
+          <CopyCommand
+            command="npm install -D rev-dep"
+            className={styles.install}
+            event={{ id: 'final_cta_copy_install', section: 'final_cta' }}
+          />
 
           <div className={styles.actions}>
-            <Button to="/docs/monorepo-integration-guide">Monorepo guide</Button>
-            <Button to="/docs/single-workspace-integration-guide" variant="outline">
+            <Button
+              to="/docs/monorepo-integration-guide"
+              event={{ id: 'final_cta_monorepo_guide', section: 'final_cta' }}
+            >
+              Monorepo guide
+            </Button>
+            <Button
+              to="/docs/single-workspace-integration-guide"
+              variant="outline"
+              event={{ id: 'final_cta_single_workspace_guide', section: 'final_cta' }}
+            >
               Single workspace guide
             </Button>
           </div>

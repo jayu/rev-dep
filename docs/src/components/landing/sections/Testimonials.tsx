@@ -1,8 +1,7 @@
-import Link from '@docusaurus/Link';
-
 import Section from '../primitives/Section';
 import Card from '../primitives/Card';
 import Grid from '../primitives/Grid';
+import TrackedLink from '../primitives/TrackedLink';
 import testimonialCandidates from '../../../data/testimonialCandidates.json';
 import styles from './Testimonials.module.css';
 
@@ -33,15 +32,28 @@ export default function Testimonials() {
                 height={40}
               />
               <div className={styles.meta}>
-                <Link className={styles.author} href={testimonial.author.profileUrl}>
+                <TrackedLink
+                  className={styles.author}
+                  href={testimonial.author.profileUrl}
+                  event={{
+                    id: `testimonial_author_${testimonial.author.login}`,
+                    section: 'testimonials',
+                    type: 'external_link',
+                  }}
+                >
                   {testimonial.author.name}
-                </Link>
-                <Link
+                </TrackedLink>
+                <TrackedLink
                   className={styles.source}
                   href={testimonial.source.commentUrl ?? testimonial.source.issueUrl}
+                  event={{
+                    id: `testimonial_issue_${testimonial.source.issueNumber}`,
+                    section: 'testimonials',
+                    type: 'external_link',
+                  }}
                 >
                   Issue #{testimonial.source.issueNumber}
-                </Link>
+                </TrackedLink>
               </div>
             </div>
           </Card>

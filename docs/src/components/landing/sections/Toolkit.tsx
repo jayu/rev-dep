@@ -1,10 +1,11 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
-import Link from '@docusaurus/Link';
 import clsx from 'clsx';
 
 import Section from '../primitives/Section';
 import Split from '../primitives/Split';
 import Terminal from '../primitives/Terminal';
+import TrackedLink from '../primitives/TrackedLink';
+import { trackClick } from '../analytics';
 import { toolkitTabs } from '../data/toolkit';
 import styles from './Toolkit.module.css';
 
@@ -37,6 +38,21 @@ export default function Toolkit() {
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const active = toolkitTabs[activeIndex];
 
+  /**
+   * Both ways of choosing a tab report it - the arrow keys select as well as
+   * move, so a keyboard visitor who arrows past three panels has looked at
+   * three panels, the same as clicking them.
+   */
+  const selectTab = (index: number) => {
+    setActiveIndex(index);
+    trackClick({
+      id: `toolkit_tab_${toolkitTabs[index].id}`,
+      section: 'toolkit',
+      type: 'toolkit_tab',
+      target: toolkitTabs[index].command,
+    });
+  };
+
   // Arrow keys move focus and selection together, which is the expected
   // behaviour for a tab list whose panels are already rendered.
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -44,7 +60,7 @@ export default function Toolkit() {
     if (next < 0) return;
 
     event.preventDefault();
-    setActiveIndex(next);
+    selectTab(next);
     tabRefs.current[next]?.focus();
   };
 
@@ -82,7 +98,7 @@ export default function Toolkit() {
                 tabRefs.current[index] = node;
               }}
               className={clsx(styles.tab, index === activeIndex && styles.tabActive)}
-              onClick={() => setActiveIndex(index)}
+              onClick={() => selectTab(index)}
               onKeyDown={(event) => onKeyDown(event, index)}
             >
               <span className={styles.tabCommand}>{tab.label}</span>
@@ -99,9 +115,17 @@ export default function Toolkit() {
         >
           <Terminal key={active.id} lines={active.lines} title={active.command} />
           <p className={styles.explanation}>{active.explanation}</p>
-          <Link className={styles.panelLink} to={active.docs}>
+          <TrackedLink
+            className={styles.panelLink}
+            to={active.docs}
+            event={{
+              id: `toolkit_docs_${active.id}`,
+              section: 'toolkit',
+              type: 'docs_link',
+            }}
+          >
             rev-dep {active.label} reference
-          </Link>
+          </TrackedLink>
         </div>
       </Split>
     </Section>

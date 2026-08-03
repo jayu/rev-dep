@@ -269,7 +269,6 @@ func buildDependencyTreeForConfig(
 
 	// Resolve imports using the existing resolver
 	doneResolve := perf.Track("resolve-imports")
-
 	fileImportsArr, _, resolverManager := resolve.ResolveImports(
 		fileImportsArr,
 		allFiles,

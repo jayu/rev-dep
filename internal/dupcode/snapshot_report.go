@@ -24,7 +24,7 @@ func PrintDelta(w io.Writer, delta *Delta, stats Stats, blinding Blinding, snaps
 	defer bw.Flush()
 
 	if delta.CanonicalFormChanged {
-		fmt.Fprintf(bw, "%s The canonical form changed since this snapshot was written (v%d -> v%d).\n",
+		fmt.Fprintf(bw, "%s The canonical form changed since this snapshot was written (v%s -> v%s).\n",
 			"!", delta.SnapshotFormVersion, CanonicalFormVersion)
 		fmt.Fprintf(bw, "  Code that did not change may still appear below; re-check before re-baselining.\n\n")
 	}

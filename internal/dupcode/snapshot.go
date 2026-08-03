@@ -24,10 +24,10 @@ import (
 // not invalidate the file. Hashing them in would turn every knob turn into a full re-baseline.
 type Snapshot struct {
 	// SchemaVersion guards the shape of this file.
-	SchemaVersion int `json:"schemaVersion"`
+	SchemaVersion string `json:"schemaVersion"`
 	// CanonicalFormVersion is advisory: a normaliser fix usually moves a handful of hashes rather
 	// than all of them, so a mismatch adds context to the delta instead of rejecting the file.
-	CanonicalFormVersion int                `json:"canonicalFormVersion"`
+	CanonicalFormVersion string             `json:"canonicalFormVersion"`
 	Parameters           SnapshotParameters `json:"parameters"`
 	// Sorted by hash so the file diffs cleanly in review.
 	Entries []SnapshotEntry `json:"duplications"`
@@ -247,15 +247,18 @@ type SnapshotEntry struct {
 }
 
 const (
+	// Both versions are major.minor strings, like the config and the JSON output: a bare counter
+	// only ever grows, and says nothing about whether a change was breaking.
+	//
 	// SnapshotSchemaVersion is bumped when the file layout changes. A file at any other
 	// version is rejected rather than half-trusted: the settings recorded here are applied to
 	// the run, so a file that does not carry all of them cannot be the authority it is being
 	// treated as. Re-baselining takes one command.
-	SnapshotSchemaVersion = 1
+	SnapshotSchemaVersion = "1.0"
 	// CanonicalFormVersion is bumped whenever the normaliser's output changes for code that did
 	// not change. That breaks every committed snapshot: see canonical_form_golden_test.go, which
 	// exists so it never happens by accident.
-	CanonicalFormVersion = 1
+	CanonicalFormVersion = "1.0"
 
 	labelMaxLen = 72
 )
@@ -419,7 +422,7 @@ func LoadSnapshot(path string) (*Snapshot, error) {
 	}
 	if snap.SchemaVersion != SnapshotSchemaVersion {
 		return nil, fmt.Errorf(
-			"duplicated code snapshot %s was written with schema version %d, this build expects %d",
+			"duplicated code snapshot %s was written with schema version %s, this build expects %s",
 			path, snap.SchemaVersion, SnapshotSchemaVersion)
 	}
 	return &snap, nil
@@ -473,7 +476,7 @@ type Delta struct {
 	ParameterChanges []string
 	// CanonicalFormChanged means part of the delta may be re-canonicalisation rather than change.
 	CanonicalFormChanged bool
-	SnapshotFormVersion  int
+	SnapshotFormVersion  string
 	// MinDuplicates lets a report name the number the reader configured.
 	MinDuplicates int
 }

@@ -43,6 +43,8 @@ Until the baseline exists the check still reports the duplication it finds, and 
 
 `snapshotPath` is resolved against the **workspace** the detection sits on, and two detections resolving to the same file is a config error.
 
+The snapshot is versioned by its `schemaVersion` field and has a published [JSON schema](https://github.com/jayu/rev-dep/blob/master/output-schema/duplicated-code-snapshot-1.0.schema.json). A file written at any other schema version is rejected rather than half-trusted, since the settings it records are applied to the run - re-create it with `--update-snapshot`.
+
 ## Where to put it in a monorepo
 
 On the **root workspace**, which is what `rev-dep config init` generates. Duplication is a property of the repository: a block pasted from one package into another is one finding, not one per package, and the root workspace already scans every package below it.

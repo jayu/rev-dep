@@ -149,7 +149,7 @@ func TestLoadSnapshotRejectsCorruptAndWrongSchema(t *testing.T) {
 	}
 
 	future := filepath.Join(dir, "future.json")
-	os.WriteFile(future, []byte(`{"schemaVersion": 999, "duplications": []}`), 0o644)
+	os.WriteFile(future, []byte(`{"schemaVersion": "99.0", "duplications": []}`), 0o644)
 	_, err := LoadSnapshot(future)
 	if err == nil || !strings.Contains(err.Error(), "schema version") {
 		t.Errorf("a future schema should be rejected clearly, got %v", err)
@@ -464,7 +464,7 @@ func TestDeltaFlagsCanonicalFormChange(t *testing.T) {
 	opts := snapshotOpts(dir)
 	dups, _, _ := Detect(opts)
 	snap := BuildSnapshot(dups, opts)
-	snap.CanonicalFormVersion = CanonicalFormVersion - 1
+	snap.CanonicalFormVersion = "0.9"
 
 	delta := CompareToSnapshot(dups, nil, snap, opts)
 	if !delta.CanonicalFormChanged {
@@ -724,7 +724,7 @@ func TestPrintDeltaContextLines(t *testing.T) {
 	out := renderDelta(&Delta{
 		Unchanged:            2,
 		CanonicalFormChanged: true,
-		SnapshotFormVersion:  CanonicalFormVersion - 1,
+		SnapshotFormVersion:  "0.9",
 		ParameterChanges:     []string{"minTokens 150 -> 250"},
 	})
 	if !strings.Contains(out, "canonical form changed") && !strings.Contains(out, "canonical form") {

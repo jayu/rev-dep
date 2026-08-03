@@ -63,6 +63,8 @@ rev-dep duplicated-code --snapshot duplicated-code.json
 
 The snapshot records the settings it was taken under and applies them, so the second command needs no flags. A flag that contradicts the snapshot is an error rather than a silent re-baseline.
 
+The file is versioned by its `schemaVersion` field and has a published [JSON schema](https://github.com/jayu/rev-dep/blob/master/output-schema/duplicated-code-snapshot-1.0.schema.json). A snapshot written at any other schema version is rejected rather than half-trusted, since its settings are applied to the run.
+
 ## Output
 
 Each finding prints how many copies exist, where they are, and the source of one of them:

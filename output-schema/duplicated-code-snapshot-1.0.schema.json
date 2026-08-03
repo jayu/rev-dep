@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jayu/rev-dep/blob/master/output-schema/duplicated-code-snapshot-1.0.schema.json",
+  "title": "Rev-Dep Duplicated Code Snapshot",
+  "description": "The committed baseline written by `rev-dep duplicated-code --update-snapshot` and `rev-dep config run --update-snapshot`, and read back on later runs so they report what CHANGED rather than everything that exists. This is NOT the report printed by `--format json` - that document is described by duplicated-code-1.0.schema.json and shares no keys with this one. Every object sets additionalProperties:false, so a key the tool writes but this file does not declare makes a real snapshot fail validation - which is what keeps the two from drifting apart.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "canonicalFormVersion",
+    "parameters",
+    "duplications"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Shape of this file, as major.minor. A file at any other version is rejected rather than half-trusted: the settings below are applied to the run, so a file that does not carry all of them cannot be the authority it is being treated as. Re-baselining takes one command."
+    },
+    "canonicalFormVersion": {
+      "type": "string",
+      "description": "Which revision of the canonical form the hashes below were produced with, as major.minor. Advisory rather than enforced: a normaliser fix usually moves a handful of hashes rather than all of them, so a mismatch adds context to the delta instead of rejecting the file."
+    },
+    "parameters": {
+      "$ref": "#/definitions/parameters"
+    },
+    "duplications": {
+      "type": "array",
+      "description": "The acknowledged duplications, sorted by hash so the file diffs cleanly in review.",
+      "items": {
+        "$ref": "#/definitions/entry"
+      }
+    }
+  },
+  "definitions": {
+    "parameters": {
+      "type": "object",
+      "description": "The settings this baseline was taken under. They are applied to any run that compares against it, because a baseline built with a different threshold is not measuring the same thing. They take no part in the identity of an entry: tightening a threshold must not invalidate the file.",
+      "required": [
+        "blinding",
+        "blindIdentifiers",
+        "blindStrings",
+        "blindNumbers",
+        "minTokens",
+        "minLines",
+        "minDepth",
+        "minStatements",
+        "minDuplicates",
+        "skipObjects"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "blinding": {
+          "type": "string",
+          "description": "Derived label for the three flags below: \"exact\", \"identifiers\", \"identifiers+strings\" and so on. The flags are what is read back."
+        },
+        "blindIdentifiers": {
+          "type": "boolean",
+          "description": "Names were wildcards, so renamed copies still matched"
+        },
+        "blindStrings": {
+          "type": "boolean",
+          "description": "String and template contents were wildcards"
+        },
+        "blindNumbers": {
+          "type": "boolean",
+          "description": "Numeric literals were wildcards"
+        },
+        "minTokens": {
+          "type": "integer",
+          "description": "Smallest acknowledged duplication, in tokens"
+        },
+        "minLines": {
+          "type": "integer",
+          "description": "Smallest acknowledged duplication, in lines"
+        },
+        "minDepth": {
+          "type": "integer",
+          "description": "Smallest acknowledged duplication, in nesting levels counting the block itself"
+        },
+        "minStatements": {
+          "type": "integer",
+          "description": "Smallest acknowledged statement block, in statements. Does not apply to object literals or JSX."
+        },
+        "minDuplicates": {
+          "type": "integer",
+          "description": "How many copies a chunk needed before it was acknowledged"
+        },
+        "skipObjects": {
+          "type": "boolean",
+          "description": "Duplications that are only object literals were dropped"
+        },
+        "ignoreFiles": {
+          "type": "array",
+          "description": "Glob patterns excluded from the analysis, relative to the directory this snapshot is saved in",
+          "items": {
+            "type": "string"
+          }
+        },
+        "processIgnoredFiles": {
+          "type": "array",
+          "description": "Glob patterns analysed despite gitignore, relative to the directory this snapshot is saved in",
+          "items": {
+            "type": "string"
+          }
+        },
+        "configLevelSettings": {
+          "$ref": "#/definitions/configLevelSettings",
+          "description": "Present only when a config file applied its own file selection on top of the above"
+        }
+      }
+    },
+    "configLevelSettings": {
+      "type": "object",
+      "description": "A config file's top-level file selection. It shapes which files existed for the run at all, so it is as much a part of this baseline as any threshold. Its patterns resolve against the config rather than against this snapshot, which is why they are recorded separately instead of merged into the lists above - the same string means different files read from the two places.",
+      "required": [
+        "configPath"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "configPath": {
+          "type": "string",
+          "description": "The config file, located from the directory this snapshot is saved in. The patterns below resolve against its directory."
+        },
+        "ignoreFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "processIgnoredFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "description": "One acknowledged duplication. It records hashes, never code.",
+      "required": [
+        "hash",
+        "occurrences",
+        "files"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "hash": {
+          "type": "string",
+          "description": "Digest of the canonical form: the identity that survives reformatting, plus whatever else the recorded blinding ignores. Comparable only against runs using the same parameters."
+        },
+        "occurrences": {
+          "type": "integer",
+          "description": "How many copies were acknowledged. Equals the sum of files."
+        },
+        "files": {
+          "type": "object",
+          "description": "Each path mapped to how many copies live in it. Counts rather than a bare path list, so a second copy appearing in a file already listed is visible instead of being folded into the total. Line numbers are deliberately absent: they move whenever anything above them is edited, which would invalidate this file on nearly every commit while saying nothing about duplication.",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "label": {
+          "type": "string",
+          "description": "First line of one occurrence, for a human reading a diff. Takes no part in comparison."
+        }
+      }
+    }
+  }
+}

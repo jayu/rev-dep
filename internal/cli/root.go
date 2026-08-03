@@ -1553,6 +1553,9 @@ func init() {
 	linesOfCodeCmd.Flags().StringVarP(&locCwd, "cwd", "c", currentDir,
 		"Directory to analyze")
 
+	// duplicated-code flags
+	addDuplicatedCodeFlags(currentDir)
+
 	// imported-by flags
 	addSharedFlags(importedByCmd)
 	importedByCmd.Flags().StringVarP(&importedByCwd, "cwd", "c", currentDir,
@@ -1584,7 +1587,7 @@ func init() {
 	addNodeModulesResolutionFlag(unresolvedCmd)
 
 	// add commands
-	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, unresolvedCmd, docsCmd, configCmd)
+	rootCmd.AddCommand(resolveCmd, entryPointsCmd, circularCmd, nodeModulesCmd, listCwdFilesCmd, filesCmd, linesOfCodeCmd, importedByCmd, unresolvedCmd, duplicatedCodeCmd, docsCmd, configCmd)
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		diag.SetVerbose(verboseFlag)
 	}

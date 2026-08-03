@@ -108,7 +108,7 @@ func printConfigLintStatus(errors, warnings int, fixed bool) {
 	case errors == 0 && warnings == 0:
 		// "all clean" already printed by the results section
 	case errors == 0:
-		fmt.Printf("\n%s  %d warning(s), no errors - exit 0.\n", emoji.Warning, warnings)
+		fmt.Printf("\n%s %d warning(s), no errors - exit 0.\n", emoji.Warning, warnings)
 	default:
 		verb := "found"
 		if fixed {
@@ -321,16 +321,16 @@ func kindSuffix(kind config.PatternKind) string {
 
 func printConfigLintFixSummary(fix *config.FixResult) {
 	if fix.RemovedCount > 0 {
-		fmt.Printf("\n%s  Removed %d dead pattern(s).\n", emoji.Fix, fix.RemovedCount)
+		fmt.Printf("\n%s Removed %d dead pattern(s).\n", emoji.Fix, fix.RemovedCount)
 	}
 	if fix.CompactedCount > 0 {
-		fmt.Printf("%s  Simplified %d detector declaration(s) to compact form.\n", emoji.Fix, fix.CompactedCount)
+		fmt.Printf("%s Simplified %d detector declaration(s) to compact form.\n", emoji.Fix, fix.CompactedCount)
 	}
 	if fix.TrailingCommasRemoved > 0 {
-		fmt.Printf("%s  Removed %d redundant trailing comma(s).\n", emoji.Fix, fix.TrailingCommasRemoved)
+		fmt.Printf("%s Removed %d redundant trailing comma(s).\n", emoji.Fix, fix.TrailingCommasRemoved)
 	}
 	if fix.ReportOnlyKept > 0 {
-		fmt.Printf("%s  %d dead pattern(s) not auto-removed (removing them could change a check's behavior or make the config invalid) - review and remove manually.\n", emoji.Warning, fix.ReportOnlyKept)
+		fmt.Printf("%s %d dead pattern(s) not auto-removed (removing them could change a check's behavior or make the config invalid) - review and remove manually.\n", emoji.Warning, fix.ReportOnlyKept)
 	}
 	if fix.RemovedCount == 0 && fix.ReportOnlyKept == 0 && fix.TrailingCommasRemoved == 0 && fix.CompactedCount == 0 {
 		fmt.Printf("\n%s Nothing to remove.\n", emoji.Success)

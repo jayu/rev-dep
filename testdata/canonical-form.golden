@@ -1,0 +1,12 @@
+src/components/Card.tsx	exact	dc451e5195280f2d504e7875a78461e7
+src/components/Card.tsx	identifiers	62780ef42ceb182b52a70a6d332e77af
+src/components/Panel.tsx	exact	51614a4e7959ea7e0bb83238499f1463
+src/components/Panel.tsx	identifiers	62780ef42ceb182b52a70a6d332e77af
+src/services/adminApi.ts	exact	f68987b4b44db7811dd7a2bfbf7bd924
+src/services/adminApi.ts	identifiers	1c96e4d2adf12dc9be208b51f9410e9f
+src/services/teamApi.ts	exact	b704918c36fe25adc58390ad2fa5d7ef
+src/services/teamApi.ts	identifiers	4a10969928724fee8661036e682d03bf
+src/services/userApi.ts	exact	72c250cb2d452f023cd688d23313ed74
+src/services/userApi.ts	identifiers	4a10969928724fee8661036e682d03bf
+src/utils/http.ts	exact	65ea8f1073bfadbcc8c410a0d3001edf
+src/utils/http.ts	identifiers	6c8b4cb2c03305de16435169e9769fd4

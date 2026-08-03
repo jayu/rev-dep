@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/dupcode"
 )
 
 // ---------------- JSON output types ----------------
@@ -37,11 +38,76 @@ type jsonChecks struct {
 	RestrictedImports              *jsonCheckResult `json:"restrictedImports,omitempty"`
 	RestrictedImporters            *jsonCheckResult `json:"restrictedImporters,omitempty"`
 	RestrictedDirectImporters      *jsonCheckResult `json:"restrictedDirectImporters,omitempty"`
+
+	// DuplicatedCode is an array because a workspace may configure several detections,
+	// each with its own blinding and its own snapshot. It does not use jsonCheckResult:
+	// see jsonDuplicatedCodeResult for why it reports counts rather than issues.
+	DuplicatedCode []jsonDuplicatedCodeResult `json:"duplicatedCode,omitempty"`
 }
 
 type jsonCheckResult struct {
 	Status string        `json:"status"`
 	Issues []interface{} `json:"issues"`
+}
+
+// jsonDuplicatedCodeResult is one duplicated-code detection.
+//
+// Unlike every other check it carries counts rather than an issues array, which is the same
+// choice the console output makes and for the same reason: a real project has thousands of
+// duplicated blocks, listing them would dwarf the rest of the report, and the number is what
+// the rule actually acts on. Command reproduces the detection, so a consumer that does want
+// the places has an exact way to get them - with `--format json` for the full detail.
+type jsonDuplicatedCodeResult struct {
+	Status string `json:"status"`
+	// Blinding names what the comparison ignored, so the counts are interpretable and two
+	// detections on the same workspace can be told apart.
+	Blinding string `json:"blinding"`
+	// Snippets is the number of distinct duplicated patterns; Occurrences is how many
+	// places they appear in; Files is how many files hold at least one.
+	Snippets    int `json:"snippets"`
+	Occurrences int `json:"occurrences"`
+	Files       int `json:"files"`
+	// Scanned and Ignored describe the file set the counts came from, so a disagreement
+	// with a direct `rev-dep duplicated-code` run can be traced to the scope.
+	Scanned int `json:"scanned"`
+	Ignored int `json:"ignored"`
+	// ConfigIndex ties this outcome to the settings that produced it. The settings themselves are
+	// not copied here: the consumer already has the config, and a second copy could only drift.
+	ConfigIndex int `json:"configIndex"`
+	// Command is NOT published: a shell string is no use to a consumer that wants to act, and no
+	// other check here carries one. It stays on the struct because the issues list renders from
+	// these values.
+	Command string `json:"-"`
+	// Error separates "nothing found" from "the check never ran" - both otherwise show a count of
+	// zero beside status "fail".
+	Error string `json:"error,omitempty"`
+	// Snapshot is present only when the detection is baselined. With a baseline the totals
+	// above are still reported, but the status is decided by the change.
+	Snapshot *jsonDuplicatedCodeSnapshot `json:"snapshot,omitempty"`
+}
+
+// jsonDuplicatedCodeSnapshot is the baseline comparison, counted the same way: how many
+// patterns changed in each direction, not which ones.
+type jsonDuplicatedCodeSnapshot struct {
+	Path string `json:"path"`
+	// Written reports that this run rewrote the baseline instead of checking against it,
+	// which is why nothing failed.
+	Written bool `json:"written"`
+	// Missing reports a configured baseline that does not exist - a broken setup rather
+	// than a clean one, and the reason a status can be "fail" with no changes listed.
+	Missing bool `json:"missing"`
+
+	// Embedded rather than restated, so they cannot fall behind dupcode. Restating them is how a
+	// category went missing: five of six were listed.
+	dupcode.DeltaCounts
+
+	// ParameterChanges names settings that differ from the ones the baseline was taken
+	// under. They do not affect the comparison, but they explain a surprising delta.
+	ParameterChanges []string `json:"parameterChanges,omitempty"`
+	// CanonicalFormChanged reports that the baseline's hashes came from a different
+	// normaliser revision, so part of the delta may be re-canonicalisation rather than
+	// real change.
+	CanonicalFormChanged bool `json:"canonicalFormChanged"`
 }
 
 type jsonLocationFields struct {
@@ -446,8 +512,55 @@ func buildJSONRuleResult(ruleResult config.RuleResult, cwd string, locator *file
 				cr.Status = "pass"
 			}
 			jr.Checks.RestrictedDirectImporters = cr
+
+		case "duplicated-code":
+			for _, d := range ruleResult.DuplicatedCode {
+				jr.Checks.DuplicatedCode = append(jr.Checks.DuplicatedCode,
+					buildJSONDuplicatedCodeResult(d))
+			}
 		}
 	}
 
 	return jr
+}
+
+// buildJSONDuplicatedCodeResult converts one detection. The status is taken from the same
+// predicate the console and the exit code use, so the three can never disagree about
+// whether a workspace passed.
+func buildJSONDuplicatedCodeResult(d config.DuplicatedCodeRuleResult) jsonDuplicatedCodeResult {
+	dup := d.Result
+
+	out := jsonDuplicatedCodeResult{
+		Status:      "pass",
+		Blinding:    dup.Blinding,
+		Snippets:    dup.Snippets,
+		Occurrences: dup.Occurrences,
+		Files:       dup.Files,
+		Scanned:     dup.Scanned,
+		Ignored:     dup.Ignored,
+		ConfigIndex: d.ConfigIndex,
+		Command:     d.Command,
+	}
+	if d.Failed() {
+		out.Status = "fail"
+	}
+	if d.Err != nil {
+		out.Error = d.Err.Error()
+	}
+
+	if dup.SnapshotPath != "" {
+		snap := &jsonDuplicatedCodeSnapshot{
+			Path:        dup.SnapshotPath,
+			Written:     dup.SnapshotWritten,
+			Missing:     dup.SnapshotMissing,
+			DeltaCounts: dupcode.CountsOf(dup.Delta),
+		}
+		if delta := dup.Delta; delta != nil {
+			snap.ParameterChanges = delta.ParameterChanges
+			snap.CanonicalFormChanged = delta.CanonicalFormChanged
+		}
+		out.Snapshot = snap
+	}
+
+	return out
 }

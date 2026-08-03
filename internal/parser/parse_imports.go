@@ -105,6 +105,13 @@ func parseStringLiteral(code []byte, i int) (string, int, int, int) {
 
 func parseExpression(code []byte, i int) (string, int, int, int) {
 	i = skipSpaces(code, i)
+	// A file can end on the keyword: `const x = require   ` with nothing after it is what a
+	// half-saved edit looks like, and the callers reach here having only checked that
+	// whitespace follows. Returning i rather than i+1 leaves the cursor at the end so the
+	// scan loop stops instead of stepping past it.
+	if i >= len(code) {
+		return "", i, 0, 0
+	}
 	if code[i] != '(' {
 		return "", i + 1, 0, 0
 	}
@@ -267,6 +274,16 @@ func regexLiteralAllowedBefore(code []byte, slash int) bool {
 		return false // end of a grouping/call/index/expression -> division
 	case c == '"' || c == '\'' || c == '`':
 		return false // end of a string/template literal -> division
+	case c == '<':
+		// `</` closes a JSX element, and a closing tag is far and away the most common thing
+		// a '/' after '<' can be. Reading it as a regex sends the scan off to the next '/' on
+		// the line - which is usually the '/' of the NEXT closing tag - swallowing whatever
+		// sits between them, including any import or require call.
+		//
+		// The alternative reading, `a < /re/.test(b)`, is legal JavaScript and is what this
+		// rule gives up. Nobody writes it: a regex literal as the right operand of a
+		// less-than, with no parentheses. Weighed against `</div>`, the trade is not close.
+		return false
 	default:
 		// Operators and punctuation ('(', ',', '=', ':', '[', '!', '&', '|', '?', ';', '{',
 		// arithmetic, etc.) leave us in expression position where a regex literal is allowed.
@@ -827,6 +844,48 @@ func (s *parseState) isExportKeywordStart(i int) bool {
 	return s.hasStandaloneWordAt(i, "export")
 }
 
+// parseDynamicImportAt handles `import(...)` at a position where a static import cannot
+// appear - inside braces. It is the nested-scope counterpart of parseImportStatement and
+// deliberately refuses everything else, so a static `import` seen at depth is left alone
+// exactly as the original nested scan left it.
+func (s *parseState) parseDynamicImportAt(i int) (int, bool) {
+	if !s.isImportKeywordStart(i) {
+		return i, false
+	}
+	j := i + 6
+	j = skipSpaces(s.code, j)
+	if j >= s.n || s.code[j] != '(' {
+		return i, false
+	}
+	module, next, start, end := parseExpression(s.code, j)
+	if module != "" {
+		s.imports = append(s.imports, Import{
+			Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule,
+			RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true,
+		})
+	}
+	return next, true
+}
+
+// parseRequireCallAt handles `require(...)` inside braces, mirroring parseDynamicImportAt.
+func (s *parseState) parseRequireCallAt(i int) (int, bool) {
+	if !s.isRequireKeywordStart(i) {
+		return i, false
+	}
+	j := i + 7
+	if j >= s.n || !(s.code[j] == '(' || skipSpaces(s.code, j) > j) {
+		return i, false
+	}
+	module, next, start, end := parseExpression(s.code, j)
+	if module != "" {
+		s.imports = append(s.imports, Import{
+			Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule,
+			RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true,
+		})
+	}
+	return next, true
+}
+
 func (s *parseState) skipDeclareAmbientBlock(i int) (int, bool) {
 	if !hasWordAt(s.code, i, "declare") {
 		return i, false
@@ -935,7 +994,10 @@ func (s *parseState) parseImportStatement(i int) (int, bool) {
 		detailedKeywords, detailedNext = parseImportKeywords(s.code, i, isWholeStatementType)
 	}
 
-	if kind == NotTypeOrMixedImport && s.code[i] == '{' {
+	// i can be at the end here: `import   ` and `export   ` with nothing following are what
+	// a file saved mid-edit looks like, and the walk above stops on whitespace without
+	// requiring anything after it.
+	if kind == NotTypeOrMixedImport && i < s.n && s.code[i] == '{' {
 		if areAllImportsInBracesTypes(s.code, i) {
 			kind = OnlyTypeImport
 		}
@@ -1295,7 +1357,10 @@ func (s *parseState) parseExportStatement(i int) (int, bool) {
 	}
 
 	// Check if we have { type A } case in export
-	if kind == NotTypeOrMixedImport && s.code[i] == '{' {
+	// i can be at the end here: `import   ` and `export   ` with nothing following are what
+	// a file saved mid-edit looks like, and the walk above stops on whitespace without
+	// requiring anything after it.
+	if kind == NotTypeOrMixedImport && i < s.n && s.code[i] == '{' {
 		if areAllImportsInBracesTypes(s.code, i) {
 			kind = OnlyTypeImport
 		}
@@ -1354,172 +1419,58 @@ func (s *parseState) parseExportStatement(i int) (int, bool) {
 	return i, true
 }
 
-// ParseImportsByte parses JS/TS code and extracts all imports/exports
+// ParseImportsByte parses JS/TS code and extracts all imports/exports.
+//
+// It runs the unified scan with block recording switched off, so imports and duplicate
+// detection share one traversal of the source and one implementation of the awkward parts
+// - strings, template literals, comments and regex literals.
+//
+// The standalone loop this replaced was kept for a while alongside it, so the two could be
+// diffed over a corpus and shown to agree. That test has done its job and is gone: parity
+// with the old scan also pinned the old scan's bugs, and the first one worth fixing - `</`
+// being read as a regex literal - could not be fixed while something asserted the two behave
+// identically. The corpus sweep survives as a golden test over this scan alone, which catches
+// an accidental change without forbidding a deliberate one.
 func ParseImportsByte(code []byte, ignoreTypeImports bool, mode ParseMode) []Import {
-	state := parseState{
-		code:              code,
-		n:                 len(code),
-		ignoreTypeImports: ignoreTypeImports,
-		mode:              mode,
-		imports:           make([]Import, 0, 32),
-	}
-	i := 0
-	n := state.n
-	depth := 0 // brace depth: static import/export can only appear at depth 0
-
-	for i < n {
-		// Fast path: when inside braces (depth > 0), static import/export/declare
-		// cannot appear. Only dynamic import() and require() are possible.
-		// Use a tight switch-based scan instead of the full keyword detection.
-		if depth > 0 {
-			b := code[i]
-			switch b {
-			case '{':
-				depth++
-				i++
-			case '}':
-				depth--
-				i++
-			case '\'', '"', '`':
-				i = skipToStringEnd(code, i, b)
-				if i < n {
-					i++ // advance past closing quote
-				}
-			case '/':
-				if i+1 < n && code[i+1] == '/' {
-					i = skipLineComment(code, i)
-				} else if i+1 < n && code[i+1] == '*' {
-					i = skipBlockComment(code, i)
-				} else if regexLiteralAllowedBefore(code, i) {
-					// Skip a regex literal so a quote inside it (e.g. /'/g or /"/g) is not
-					// mistaken for a string delimiter, which would desync the scanner.
-					if next, ok := skipRegexLiteral(code, i); ok {
-						i = next
-					} else {
-						i++
-					}
-				} else {
-					i++
-				}
-			case 'i':
-				// Check for dynamic import: import(
-				if state.isImportKeywordStart(i) {
-					i += 6
-					i = skipSpaces(code, i)
-					if i < n && code[i] == '(' {
-						module, next, start, end := parseExpression(code, i)
-						if module != "" {
-							state.imports = append(state.imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
-						}
-						i = next
-					}
-				} else {
-					i++
-				}
-			case 'r':
-				// Check for require(
-				if state.isRequireKeywordStart(i) {
-					i += 7
-					if i < n && (code[i] == '(' || skipSpaces(code, i) > i) {
-						module, next, start, end := parseExpression(code, i)
-						if module != "" {
-							state.imports = append(state.imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
-						}
-						i = next
-					}
-				} else {
-					i++
-				}
-			default:
-				i++
-			}
-			continue
-		}
-
-		// Depth == 0: full keyword scanning for static import/export/declare/require
-
-		i = skipSpaces(code, i)
-		if i >= n {
-			break
-		}
-
-		// skip string context
-		if code[i] == '\'' {
-			i = skipToStringEnd(code, i, '\'')
-			if i < n {
-				i++ // advance past closing quote
-			}
-			continue
-		} else if code[i] == '"' {
-			i = skipToStringEnd(code, i, '"')
-			if i < n {
-				i++ // advance past closing quote
-			}
-			continue
-		} else if code[i] == '`' {
-			i = skipToStringEnd(code, i, '`')
-			if i < n {
-				i++ // advance past closing quote
-			}
-			continue
-		}
-
-		// skip line comment
-		if i+1 < n && code[i] == '/' && code[i+1] == '/' {
-			i = skipLineComment(code, i)
-			continue
-		}
-
-		// skip multi-line comment
-		if i+1 < n && code[i] == '/' && code[i+1] == '*' {
-			i = skipBlockComment(code, i)
-			continue
-		}
-
-		// skip regex literal so a quote inside it (e.g. /'/g or /"/g) is not mistaken for a
-		// string delimiter, which would desync scanning and drop subsequent imports.
-		if code[i] == '/' && regexLiteralAllowedBefore(code, i) {
-			if next, ok := skipRegexLiteral(code, i); ok {
-				i = next
-				continue
-			}
-		}
-
-		switch code[i] {
-		case 'd':
-			if next, ok := state.skipDeclareAmbientBlock(i); ok {
-				i = next
-				continue
-			}
-		case 'i':
-			if next, ok := state.parseImportStatement(i); ok {
-				i = next
-				continue
-			}
-		case 'e':
-			if next, ok := state.parseExportStatement(i); ok {
-				i = next
-				continue
-			}
-		case 'r':
-			if next, ok := state.parseRequireStatement(i); ok {
-				i = next
-				continue
-			}
-		}
-
-		// Track brace depth for non-keyword bytes at depth 0.
-		// Opening braces enter depth > 0, enabling the fast scan path.
-		if code[i] == '{' {
-			depth++
-		}
-		i++
-	}
-
-	return state.imports
+	res := ScanCodeBlocks(code, BlockScanOptions{
+		SkipBlocks:        true,
+		CollectImports:    true,
+		IgnoreTypeImports: ignoreTypeImports,
+		ImportMode:        mode,
+	}, nil)
+	return res.Imports
 }
 
+// BlockSink receives block-scan results while imports are being parsed, so a caller that
+// needs both gets them from one read and one traversal of each file.
+//
+// Collect runs on the goroutine that read the file. Implementations must tolerate
+// concurrent calls for different files, but are guaranteed at most one call per (pass,
+// idx) pair - which is why the usual implementation writes into a preallocated slot and
+// needs no lock at all.
+type BlockSink interface {
+	// Passes returns one configuration per block scan to run. The first pass also
+	// collects imports, so a single-pass sink costs exactly one traversal per file.
+	Passes() []BlockScanOptions
+	// AllowJSX decides per file whether '<' can open an element, which depends on the
+	// extension and so cannot be baked into Passes.
+	AllowJSX(path string) bool
+	// Collect takes the result of one pass over one file. scan is reused once this
+	// returns, so anything needed later must be copied out.
+	Collect(pass int, idx int, path string, content []byte, scan *BlockScan)
+}
+
+// scanPool keeps the per-file scratch (canonical buffer, block slice, frame stack) alive
+// between files instead of reallocating it for each one.
+var scanPool = sync.Pool{New: func() any { return &BlockScan{} }}
+
 func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool, mode ParseMode) ([]FileImports, int) {
+	return ParseImportsFromFilesWithBlocks(filePaths, ignoreTypeImports, mode, nil)
+}
+
+// ParseImportsFromFilesWithBlocks parses imports and, when sink is non-nil, scans code
+// blocks in the same pass. With sink nil it is exactly ParseImportsFromFiles.
+func ParseImportsFromFilesWithBlocks(filePaths []string, ignoreTypeImports bool, mode ParseMode, sink BlockSink) ([]FileImports, int) {
 	// Each worker owns one slot, so results needs no mutex and comes out in input order
 	// instead of goroutine-completion order. A file that fails to read leaves its slot with
 	// an empty FilePath, which is what the compaction below drops.
@@ -1534,6 +1485,14 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool, mode Pars
 	// number only raises the open-file count for nothing.
 	maxConcurrency := runtime.GOMAXPROCS(0) * 2
 	sem := make(chan struct{}, maxConcurrency)
+
+	var passes []BlockScanOptions
+	if sink != nil {
+		passes = sink.Passes()
+		if len(passes) == 0 {
+			sink = nil
+		}
+	}
 
 	for i, filePath := range filePaths {
 		wg.Add(1)
@@ -1558,7 +1517,33 @@ func ParseImportsFromFiles(filePaths []string, ignoreTypeImports bool, mode Pars
 				parseContent = normalizeSvelteForParsing(fileContent)
 			}
 
-			imports := ParseImportsByte(parseContent, ignoreTypeImports, mode)
+			var imports []Import
+			if sink == nil {
+				imports = ParseImportsByte(parseContent, ignoreTypeImports, mode)
+			} else {
+				// The Vue/Svelte normalisers mask non-script regions in place, so the
+				// buffer keeps the original length and block offsets stay valid against
+				// the file on disk.
+				scan := scanPool.Get().(*BlockScan)
+				allowJSX := sink.AllowJSX(path)
+				for pass, opts := range passes {
+					opts.AllowJSX = allowJSX
+					// Imports ride along on the first pass; further passes exist only
+					// because another block mode was configured.
+					if pass == 0 {
+						opts.CollectImports = true
+						opts.IgnoreTypeImports = ignoreTypeImports
+						opts.ImportMode = mode
+					}
+					ScanCodeBlocks(parseContent, opts, scan)
+					if pass == 0 {
+						// scan is recycled below, so the imports must be copied out.
+						imports = append(make([]Import, 0, len(scan.Imports)), scan.Imports...)
+					}
+					sink.Collect(pass, idx, path, parseContent, scan)
+				}
+				scanPool.Put(scan)
+			}
 
 			slots[idx] = FileImports{
 				FilePath: path,

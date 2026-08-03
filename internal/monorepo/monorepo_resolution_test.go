@@ -73,8 +73,8 @@ func TestMonorepoResolution(t *testing.T) {
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -171,8 +171,8 @@ func TestMonorepoResolutionSelectiveFollow(t *testing.T) {
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{Packages: map[string]bool{"@company/lib-a": true}}, []string{"import", "default", "node"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -192,7 +192,7 @@ func TestMonorepoResolutionSelectiveFollow(t *testing.T) {
 
 	_, _, errB := resolver.ResolveModule("@company/lib-b", filepath.Join(cwd, "src/main.ts"))
 	if errB == nil || *errB != resolve.AliasNotResolved {
-		t.Fatalf("Expected @company/lib-b to be unresolved in selective mode, got %v", errB)
+		t.Fatalf("Expected @company/lib-b to be unresolved in selective blinding, got %v", errB)
 	}
 }
 
@@ -231,8 +231,8 @@ func TestMonorepoResolutionSelectiveFollowDoesNotUseWildcardMatching(t *testing.
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{Packages: map[string]bool{"@company/*": true}}, []string{"import", "default", "node"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -291,8 +291,8 @@ func TestMonorepoResolutionSelectiveFollow_UsesPackageLocalResolverContext(t *te
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{Packages: map[string]bool{"@repo/shared": true}}, []string{"import", "default", "node"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -342,8 +342,8 @@ func TestDependencyValidation(t *testing.T) {
 	cwd := filepath.Join(tmpDir, "packages/app")
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     []string{filepath.Join(cwd, "index.ts")},
-		Cwd:             cwd,
+		SortedFiles: []string{filepath.Join(cwd, "index.ts")},
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -405,8 +405,8 @@ func TestMonorepoSubpackageExports(t *testing.T) {
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -489,8 +489,8 @@ func TestMonorepoRelaxedAndAliases(t *testing.T) {
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             appDir,
+		SortedFiles: allKeys,
+		Cwd:         appDir,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default", "node"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -569,8 +569,8 @@ func TestMonorepoInternalImportsAlias(t *testing.T) {
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -664,8 +664,8 @@ func TestMonorepoInternalTsconfigAlias(t *testing.T) {
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []globutil.GlobMatcher{}, nil)
@@ -886,8 +886,8 @@ func TestMonorepoImportAliasToWorkspacePackage(t *testing.T) {
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{FollowAll: true}, []string{"import", "default"}, rootParams, []globutil.GlobMatcher{}, nil)

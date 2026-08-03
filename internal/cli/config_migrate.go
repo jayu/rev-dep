@@ -75,7 +75,7 @@ edit can address. Review those manually - see the v3 breaking-changes guide.`,
 			if err := os.WriteFile(configPath, res.Migrated, 0o644); err != nil {
 				return fmt.Errorf("Could not write %s: %v", configPath, err)
 			}
-			fmt.Printf("\n%s  Applied automatically:\n", emoji.Fix)
+			fmt.Printf("\n%s Applied automatically:\n", emoji.Fix)
 			for _, c := range res.AppliedChanges {
 				fmt.Printf("    - %s\n", c)
 			}
@@ -94,7 +94,7 @@ edit can address. Review those manually - see the v3 breaking-changes guide.`,
 
 func printMigrateReviews(res *config.MigrateResult) {
 	if len(res.PatternReviews) > 0 {
-		fmt.Printf("\n%s  Review these glob patterns - v3's glob bug fixes changed how they match files.\n", emoji.Warning)
+		fmt.Printf("\n%s Review these glob patterns - v3's glob bug fixes changed how they match files.\n", emoji.Warning)
 		fmt.Printf("    legend:\n")
 		fmt.Printf("    - matching: how this glob matches files changed in v3 - its match set may differ\n")
 		fmt.Printf("    - sibling:  may have matched files in sibling workspaces, now it's matching files only in workspace where it is defined\n")
@@ -194,7 +194,7 @@ func printMigrateLintSummary(cwd string) {
 		return
 	}
 	if errors, warnings := countLintFindings(result, false); errors > 0 || warnings > 0 {
-		fmt.Printf("\n%s  Config lint found %d error(s) and %d warning(s) that could be improved - run `rev-dep config lint` for details (add `--fix` to apply).\n",
+		fmt.Printf("\n%s Config lint found %d error(s) and %d warning(s) that could be improved - run `rev-dep config lint` for details (add `--fix` to apply).\n",
 			emoji.Warning, errors, warnings)
 	}
 }

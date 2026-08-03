@@ -1,0 +1,474 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jayu/rev-dep/blob/master/output-schema/duplicated-code-1.0.schema.json",
+  "title": "Rev-Dep Duplicated Code JSON Output",
+  "description": "JSON output format for rev-dep duplicated-code --format json. Every object sets additionalProperties:false, so a key the tool emits but this file does not declare makes real output fail validation - which is what keeps the two from drifting apart.",
+  "type": "object",
+  "required": [
+    "version",
+    "tool",
+    "cwd",
+    "settings",
+    "summary",
+    "findings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Shape of this document. Bumped whenever a key is added, removed, renamed or changes meaning, so a consumer can tell a tool upgrade from a format change."
+    },
+    "tool": {
+      "type": "string",
+      "description": "The command that produced this report"
+    },
+    "cwd": {
+      "type": "string",
+      "description": "Absolute directory that was analysed. Every path below is relative to it."
+    },
+    "settings": {
+      "$ref": "#/definitions/settings"
+    },
+    "snapshot": {
+      "$ref": "#/definitions/snapshot",
+      "description": "Present only when the run was compared against a baseline"
+    },
+    "summary": {
+      "$ref": "#/definitions/summary"
+    },
+    "findings": {
+      "type": "array",
+      "description": "Every duplicated pattern the run reported. NOT filtered to what changed when a snapshot is used - filter on the status field for that.",
+      "items": {
+        "$ref": "#/definitions/finding"
+      }
+    }
+  },
+  "definitions": {
+    "settings": {
+      "type": "object",
+      "description": "Everything that decided which findings are here, so two runs reporting different numbers can be told apart by configuration rather than by guesswork.",
+      "required": [
+        "blinding",
+        "blindIdentifiers",
+        "blindStrings",
+        "blindNumbers",
+        "minTokens",
+        "minLines",
+        "minDepth",
+        "minStatements",
+        "minDuplicates",
+        "skipObjects"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "blinding": {
+          "type": "string",
+          "description": "Derived label for the three flags below: \"exact\", \"identifiers\", \"identifiers+strings\" and so on"
+        },
+        "blindIdentifiers": {
+          "type": "boolean",
+          "description": "Names were wildcards, so renamed copies still matched"
+        },
+        "blindStrings": {
+          "type": "boolean",
+          "description": "String and template contents were wildcards"
+        },
+        "blindNumbers": {
+          "type": "boolean",
+          "description": "Numeric literals were wildcards"
+        },
+        "minTokens": {
+          "type": "integer",
+          "description": "Smallest reported duplication, in tokens"
+        },
+        "minLines": {
+          "type": "integer",
+          "description": "Smallest reported duplication, in lines"
+        },
+        "minDepth": {
+          "type": "integer",
+          "description": "Smallest reported duplication, in nesting levels counting the block itself"
+        },
+        "minStatements": {
+          "type": "integer",
+          "description": "Smallest reported statement block, in statements. Does not apply to object literals or JSX."
+        },
+        "minDuplicates": {
+          "type": "integer",
+          "description": "How many copies a chunk needed before it was reported"
+        },
+        "skipObjects": {
+          "type": "boolean",
+          "description": "Duplications that are only object literals were dropped"
+        },
+        "ignoreFiles": {
+          "type": "array",
+          "description": "Glob patterns excluded from the analysis, relative to cwd",
+          "items": {
+            "type": "string"
+          }
+        },
+        "processIgnoredFiles": {
+          "type": "array",
+          "description": "Glob patterns analysed despite gitignore, relative to cwd",
+          "items": {
+            "type": "string"
+          }
+        },
+        "configLevel": {
+          "$ref": "#/definitions/configLevel",
+          "description": "Present only when a config file applied its own file selection on top of the above"
+        }
+      }
+    },
+    "configLevel": {
+      "type": "object",
+      "description": "A config file's top-level file selection. Its patterns are relative to the config rather than to cwd, which is why they are reported separately instead of merged into the lists above - the same string means different files read from the two places.",
+      "required": [
+        "configPath"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "configPath": {
+          "type": "string",
+          "description": "The config file whose directory the patterns below are resolved against"
+        },
+        "ignoreFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "processIgnoredFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "description": "The comparison against a committed baseline.",
+      "required": [
+        "path",
+        "clean",
+        "counts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "The snapshot file this run was compared against"
+        },
+        "clean": {
+          "type": "boolean",
+          "description": "Whether the run matches the baseline exactly. False for improvements too: a snapshot that overstates duplication is one nobody can trust."
+        },
+        "counts": {
+          "$ref": "#/definitions/deltaCounts"
+        },
+        "resolved": {
+          "type": "array",
+          "description": "Acknowledged patterns that are gone. Not findings, because there is no code left to report - no occurrences, no metrics, no snippet.",
+          "items": {
+            "$ref": "#/definitions/snapshotEntry"
+          }
+        },
+        "belowThreshold": {
+          "type": "array",
+          "description": "Acknowledged patterns still duplicated, but by fewer copies than minDuplicates requires. They have real code and locations, which is what separates them from resolved ones - and why they are reported at all.",
+          "items": {
+            "$ref": "#/definitions/finding"
+          }
+        }
+      }
+    },
+    "deltaCounts": {
+      "type": "object",
+      "description": "The delta by kind. The names match the status field on findings.",
+      "required": [
+        "new",
+        "spread",
+        "moved",
+        "fewer",
+        "belowThreshold",
+        "resolved",
+        "unchanged"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "new": {
+          "type": "integer",
+          "description": "Not in the snapshot at all"
+        },
+        "spread": {
+          "type": "integer",
+          "description": "More copies than acknowledged"
+        },
+        "moved": {
+          "type": "integer",
+          "description": "Same number of copies, different files"
+        },
+        "fewer": {
+          "type": "integer",
+          "description": "Fewer copies than acknowledged"
+        },
+        "belowThreshold": {
+          "type": "integer",
+          "description": "Still duplicated, but below minDuplicates and so no longer reported"
+        },
+        "resolved": {
+          "type": "integer",
+          "description": "Acknowledged and now gone"
+        },
+        "unchanged": {
+          "type": "integer",
+          "description": "Matched the snapshot exactly"
+        }
+      }
+    },
+    "snapshotEntry": {
+      "type": "object",
+      "description": "An acknowledged duplication the run has no code for. All that survives is what the snapshot itself recorded.",
+      "required": [
+        "hash",
+        "occurrences",
+        "files"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "hash": {
+          "type": "string",
+          "description": "Canonical-form digest: the identity that survives reformatting, plus whatever else the run's blinding ignores"
+        },
+        "occurrences": {
+          "type": "integer",
+          "description": "How many copies were acknowledged. Equals the sum of files."
+        },
+        "files": {
+          "type": "object",
+          "description": "Each path mapped to how many copies lived in it",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "label": {
+          "type": "string",
+          "description": "First line of one occurrence, for a human reading a diff. Takes no part in identity."
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "Aggregates over findings, including the composition that says which kind of block they actually are.",
+      "required": [
+        "findings",
+        "occurrences",
+        "filesWithFindings",
+        "filesScanned",
+        "filesIgnored",
+        "statementBlocks",
+        "objectLiterals",
+        "jsxBlocks",
+        "other"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "type": "integer",
+          "description": "Distinct duplicated patterns"
+        },
+        "occurrences": {
+          "type": "integer",
+          "description": "Total places those patterns appear"
+        },
+        "filesWithFindings": {
+          "type": "integer"
+        },
+        "filesScanned": {
+          "type": "integer"
+        },
+        "filesIgnored": {
+          "type": "integer"
+        },
+        "statementBlocks": {
+          "type": "integer"
+        },
+        "objectLiterals": {
+          "type": "integer"
+        },
+        "jsxBlocks": {
+          "type": "integer"
+        },
+        "other": {
+          "type": "integer"
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "description": "One duplicated pattern and every place it appears.",
+      "required": [
+        "hash",
+        "kind",
+        "role",
+        "tokens",
+        "lines",
+        "depth",
+        "statements",
+        "canonicalChars",
+        "occurrences"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "hash": {
+          "type": "string",
+          "description": "Canonical-form digest. Comparable only across runs with the same blinding."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "code-block",
+            "jsx-block"
+          ]
+        },
+        "role": {
+          "type": "string",
+          "description": "What a code block's braces actually are"
+        },
+        "tokens": {
+          "type": "integer"
+        },
+        "lines": {
+          "type": "integer"
+        },
+        "depth": {
+          "type": "integer"
+        },
+        "statements": {
+          "type": "integer",
+          "description": "Meaningful only for statement blocks; expressions report 0"
+        },
+        "canonicalChars": {
+          "type": "integer",
+          "description": "Size of the canonical form. Informational."
+        },
+        "occurrences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/occurrence"
+          }
+        },
+        "snippet": {
+          "type": "string",
+          "description": "The first occurrence verbatim. Emitted only with --json-snippets."
+        },
+        "status": {
+          "type": "string",
+          "description": "How this finding relates to the snapshot. Absent when the run had no snapshot. Filtering on it is how a consumer gets the delta.",
+          "enum": [
+            "unchanged",
+            "new",
+            "spread",
+            "moved",
+            "fewer",
+            "under-min"
+          ]
+        },
+        "was": {
+          "$ref": "#/definitions/was",
+          "description": "The acknowledged state, for a status that is not unchanged or new"
+        },
+        "fileChanges": {
+          "type": "array",
+          "description": "Every file whose number of copies moved, so a copy added to a file already on the list is visible rather than folded into the total",
+          "items": {
+            "$ref": "#/definitions/fileChange"
+          }
+        }
+      }
+    },
+    "was": {
+      "type": "object",
+      "description": "The state a finding was acknowledged in.",
+      "required": [
+        "occurrences",
+        "files"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "occurrences": {
+          "type": "integer"
+        },
+        "files": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "fileChange": {
+      "type": "object",
+      "description": "One file whose number of copies moved. was 0 means the file is new to this pattern; now 0 means it holds none of them any more.",
+      "required": [
+        "path",
+        "was",
+        "now"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "was": {
+          "type": "integer"
+        },
+        "now": {
+          "type": "integer"
+        }
+      }
+    },
+    "occurrence": {
+      "type": "object",
+      "description": "One copy. Byte offsets are exact; line and column are 1-based and inclusive at both ends, which is what makes a range comparable with a tool that reports clones as line spans.",
+      "required": [
+        "file",
+        "startByte",
+        "endByte",
+        "startLine",
+        "startCol",
+        "endLine",
+        "endCol"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path relative to cwd"
+        },
+        "startByte": {
+          "type": "integer"
+        },
+        "endByte": {
+          "type": "integer"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

@@ -95,6 +95,13 @@
         },
         "restrictedDirectImporters": {
           "$ref": "#/definitions/checkResult"
+        },
+        "duplicatedCode": {
+          "type": "array",
+          "description": "Duplicated code detections for this workspace. An array because a workspace may configure several, each with its own blinding and budget. Unlike every other check it reports counts rather than an issues array: a real project has thousands of duplicated blocks, and the count is what the rule acts on. Use the `command` field to list the places.",
+          "items": {
+            "$ref": "#/definitions/duplicatedCodeResult"
+          }
         }
       }
     },
@@ -508,6 +515,137 @@
         },
         "importRequest": {
           "type": "string"
+        }
+      }
+    },
+    "duplicatedCodeResult": {
+      "type": "object",
+      "required": [
+        "status",
+        "blinding",
+        "snippets",
+        "occurrences",
+        "files",
+        "scanned",
+        "ignored",
+        "configIndex"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ],
+          "description": "Whether this detection stayed within its budget. With a snapshot configured, whether the baseline is unchanged."
+        },
+        "blinding": {
+          "type": "string",
+          "description": "What the comparison ignored: \"exact\", \"identifiers\", \"identifiers+strings\", and so on. Makes the counts interpretable and tells two detections on the same workspace apart."
+        },
+        "snippets": {
+          "type": "integer",
+          "description": "Number of distinct duplicated patterns found."
+        },
+        "occurrences": {
+          "type": "integer",
+          "description": "Total number of places those patterns appear. Always at least twice snippets."
+        },
+        "files": {
+          "type": "integer",
+          "description": "How many files contain at least one duplicated pattern."
+        },
+        "scanned": {
+          "type": "integer",
+          "description": "How many files were searched. Included so a disagreement with a direct `rev-dep duplicated-code` run can be traced to the scope rather than guessed at."
+        },
+        "ignored": {
+          "type": "integer",
+          "description": "How many files were left out by ignore patterns."
+        },
+        "configIndex": {
+          "type": "integer",
+          "description": "Which entry of the workspace's duplicatedCodeDetection array produced this result. Disabled detections produce no result, so this cannot be recovered by counting results. Use it to look the detection's settings up in the config."
+        },
+        "error": {
+          "type": "string",
+          "description": "Why the detection could not run - most often its settings contradict the snapshot it was told to compare against. Absent when it ran. Without it a consumer sees status \"fail\" beside a count of zero and cannot tell a clean run that failed some other way from a check that never ran at all."
+        },
+        "snapshot": {
+          "$ref": "#/definitions/duplicatedCodeSnapshot",
+          "description": "Present only when the detection is baselined against a snapshot file."
+        }
+      }
+    },
+    "duplicatedCodeSnapshot": {
+      "type": "object",
+      "required": [
+        "path",
+        "written",
+        "missing",
+        "new",
+        "spread",
+        "moved",
+        "fewer",
+        "belowThreshold",
+        "resolved",
+        "unchanged",
+        "canonicalFormChanged"
+      ],
+      "additionalProperties": false,
+      "description": "Comparison against the baseline, counted the same way as the totals: how many patterns changed in each direction, not which ones.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the snapshot file."
+        },
+        "written": {
+          "type": "boolean",
+          "description": "This run rewrote the baseline instead of checking against it, which is why nothing failed."
+        },
+        "missing": {
+          "type": "boolean",
+          "description": "A snapshot is configured but does not exist. A broken setup rather than a clean one, and the reason a status can be \"fail\" with no changes counted."
+        },
+        "new": {
+          "type": "integer",
+          "description": "Patterns that did not appear in the snapshot at all."
+        },
+        "spread": {
+          "type": "integer",
+          "description": "Patterns that now appear in more places than were acknowledged."
+        },
+        "moved": {
+          "type": "integer",
+          "description": "Patterns that now appear in a file they were not acknowledged in."
+        },
+        "fewer": {
+          "type": "integer",
+          "description": "Patterns that now appear in fewer places than were acknowledged."
+        },
+        "belowThreshold": {
+          "type": "integer",
+          "description": "Patterns still duplicated, but by fewer copies than minDuplicates requires, so no longer reported as findings. Distinct from resolved: the code is still there."
+        },
+        "resolved": {
+          "type": "integer",
+          "description": "Patterns that were acknowledged but no longer exist."
+        },
+        "unchanged": {
+          "type": "integer",
+          "description": "Patterns that matched the baseline exactly."
+        },
+        "parameterChanges": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Settings that differ from the ones the baseline was taken under. They do not affect the comparison, but they explain a surprising delta."
+        },
+        "canonicalFormChanged": {
+          "type": "boolean",
+          "description": "The baseline's hashes came from a different normaliser revision, so part of the delta may be re-canonicalisation rather than real change."
         }
       }
     },

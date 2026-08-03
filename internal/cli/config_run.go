@@ -12,10 +12,12 @@ import (
 
 	"rev-dep-go/internal/checks"
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/dupcode"
 	"rev-dep-go/internal/emoji"
 	"rev-dep-go/internal/node"
 	"rev-dep-go/internal/pathutil"
 	"rev-dep-go/internal/perf"
+	"rev-dep-go/internal/plural"
 	"rev-dep-go/internal/telemetry"
 )
 
@@ -32,14 +34,15 @@ var configCmd = &cobra.Command{
 
 // ---------------- config run ----------------
 var (
-	runConfigCwd       string
-	runConfigListAll   bool
-	runConfigFix       bool
-	runConfigRecheck   bool
-	runConfigRules     []string
-	runConfigFormat    string
-	runConfigLint      bool
-	runConfigLintRules []string
+	runConfigCwd            string
+	runConfigListAll        bool
+	runConfigFix            bool
+	runConfigUpdateSnapshot bool
+	runConfigRecheck        bool
+	runConfigRules          []string
+	runConfigFormat         string
+	runConfigLint           bool
+	runConfigLintRules      []string
 )
 
 var configRunCmd = &cobra.Command{
@@ -194,6 +197,24 @@ func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
 		totalIssues += len(ruleResult.RestrictedImportsViolations)
 		totalIssues += len(ruleResult.RestrictedImportersViolations)
 		totalIssues += len(ruleResult.RestrictedDirectImportersViolations)
+		// Without a snapshot every duplicated snippet is an issue; with one, only what changed.
+		for _, d := range ruleResult.DuplicatedCode {
+			dup := d.Result
+			switch {
+			case d.Err != nil:
+				totalIssues++
+			case dup.Delta != nil:
+				// Only what changed counts as an issue; acknowledged duplication does not.
+				// Changed() adds up every category, so a count cannot be left out of the
+				// total by being left out of this expression - which is what happened to the
+				// below-threshold one.
+				totalIssues += dupcode.CountsOf(dup.Delta).Changed()
+			case dup.SnapshotMissing:
+				totalIssues++
+			default:
+				totalIssues += dup.Snippets
+			}
+		}
 
 		fixableIssues += len(ruleResult.OrphanFilesAutofixable)
 
@@ -221,7 +242,7 @@ func processConfigRun(
 	recheck bool,
 	forceDetailed bool,
 ) (*config.ConfigProcessingResult, error) {
-	result, err := config.ProcessConfig(cfg, cwd, fix, forceDetailed)
+	result, err := config.ProcessConfigWithOptions(cfg, cwd, fix, forceDetailed, runConfigUpdateSnapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -295,9 +316,13 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 				} else {
 					fmt.Printf("  %s Circular Dependencies\n", emoji.Success)
 				}
+			case "duplicated-code":
+				for _, detection := range ruleResult.DuplicatedCode {
+					printDuplicatedCodeResult(detection)
+				}
 			case "orphan-files":
 				if len(ruleResult.OrphanFiles) > 0 {
-					fmt.Printf("  %s  Orphan Files Issues (%d):\n", emoji.Error, len(ruleResult.OrphanFiles))
+					fmt.Printf("  %s Orphan Files Issues (%d):\n", emoji.Error, len(ruleResult.OrphanFiles))
 
 					orphanFilesToDisplay := ruleResult.OrphanFiles
 					remaining := 0
@@ -794,12 +819,12 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 		}
 
 		if ruleResult.FileCount == 0 {
-			fmt.Printf("  %s  No files found for this workspace - check if the path is correct\n", emoji.Warning)
+			fmt.Printf("  %s No files found for this workspace - check if the path is correct\n", emoji.Warning)
 		}
 
 		if ruleResult.MissingPackageJson {
 			packageJsonPath := filepath.Join(cwd, ruleResult.RulePath, "package.json")
-			fmt.Printf("  %s  Warning: Workspace path missing package.json - some features may not work (missing: %s)\n", emoji.Warning, packageJsonPath)
+			fmt.Printf("  %s Warning: Workspace path missing package.json - some features may not work (missing: %s)\n", emoji.Warning, packageJsonPath)
 		}
 	}
 
@@ -851,10 +876,12 @@ func init() {
 	configRunCmd.Flags().StringVarP(&runConfigCwd, "cwd", "c", currentDir, "Working directory")
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
+	configRunCmd.Flags().BoolVar(&runConfigUpdateSnapshot, "update-snapshot", false,
+		"Rewrite every configured duplicated-code snapshot from this run, acknowledging what it found.")
 	configRunCmd.Flags().BoolVar(&runConfigRecheck, "recheck", false, "Run all checks again after '--fix' to validate the final state")
 	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "workspaces", []string{}, "Subset of workspaces to run (comma-separated list of workspace paths)")
-	configRunCmd.Flags().BoolVar(&runConfigLint, "lint-config", false, "Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use `config lint` for details and --fix")
+	configRunCmd.Flags().BoolVar(&runConfigLint, "lint-config", false, "Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use 'config lint' for details and --fix")
 	configRunCmd.Flags().StringSliceVar(&runConfigLintRules, "lint-config-rules", nil, "Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config")
 
 	// config init command
@@ -862,4 +889,68 @@ func init() {
 
 	// Add subcommands to config
 	configCmd.AddCommand(configRunCmd, configInitCmd)
+}
+
+// printDuplicatedCodeResult reports one duplicated-code detection. A workspace may have
+// several, so each states its own comparison mode and its own verdict.
+func printDuplicatedCodeResult(d config.DuplicatedCodeRuleResult) {
+	dup := d.Result
+
+	if d.Err != nil {
+		// The detection did not run. Saying so plainly beats reporting a count of zero,
+		// which is what skipping it would have looked like.
+		fmt.Printf("  %s Duplicated Code: could not run\n", emoji.Error)
+		for _, line := range strings.Split(d.Err.Error(), "\n") {
+			fmt.Printf("      %s\n", line)
+		}
+		return
+	}
+
+	if dup.SnapshotWritten {
+		fmt.Printf("  %s Duplicated Code (%s): snapshot updated (%s acknowledged) -> %s\n",
+			emoji.Success, dup.Blinding,
+			plural.Count(dup.Snippets, "pattern", "patterns"), dup.SnapshotPath)
+		return
+	}
+	if dup.SnapshotMissing {
+		fmt.Printf("  %s Duplicated Code (%s): snapshot %s does not exist\n",
+			emoji.Error, dup.Blinding, dup.SnapshotPath)
+		fmt.Printf("      Create it with: rev-dep config run --update-snapshot\n")
+		return
+	}
+	if dup.Delta != nil {
+		// With a baseline the total is not the news; the change is.
+		if dup.Delta.IsClean() {
+			fmt.Printf("  %s Duplicated Code (%s): %s\n",
+				emoji.Success, dup.Blinding, dupcode.DeltaSummary(dup.Delta))
+			return
+		}
+		fmt.Printf("  %s Duplicated Code (%s): %s\n",
+			emoji.Error, dup.Blinding, dupcode.DeltaSummary(dup.Delta))
+		fmt.Printf("      %s\n", d.Command)
+		fmt.Printf("      Acknowledge with: rev-dep config run --update-snapshot\n")
+		return
+	}
+
+	detail := fmt.Sprintf("%s in %s (%s)",
+		plural.Count(dup.Snippets, "duplicated snippet", "duplicated snippets"),
+		plural.Count(dup.Files, "file", "files"),
+		plural.Count(dup.Occurrences, "occurrence", "occurrences"))
+	// State what was searched as well: when this number and the command's disagree, the
+	// scanned counts are what identify why.
+	detail += ", scanned " + plural.Count(dup.Scanned, "file", "files")
+	if dup.Ignored > 0 {
+		detail += fmt.Sprintf(", %d ignored", dup.Ignored)
+	}
+
+	if dup.Snippets > 0 {
+		fmt.Printf("  %s Duplicated Code (%s): %s\n", emoji.Error, dup.Blinding, detail)
+		fmt.Printf("      To see them, run:\n        %s\n", d.Command)
+		// Without a snapshot there is nothing to compare against, so the only way to accept
+		// what is already there is to record it.
+		fmt.Printf("      To accept the current duplication, set \"snapshotPath\" on this " +
+			"detection and run: rev-dep config run --update-snapshot\n")
+		return
+	}
+	fmt.Printf("  %s Duplicated Code (%s): %s\n", emoji.Success, dup.Blinding, detail)
 }

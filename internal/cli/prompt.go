@@ -195,13 +195,13 @@ func selectOne(in io.Reader, out io.Writer, prompt string, options []string, def
 				fmt.Fprintln(out)
 				return defaultIndex, options[defaultIndex], nil
 			}
-			fmt.Fprintf(out, "  %s  please choose a number between 1 and %d.\n\n", emoji.Warning, len(options))
+			fmt.Fprintf(out, "  %s please choose a number between 1 and %d.\n\n", emoji.Warning, len(options))
 			continue
 		}
 
 		n, convErr := strconv.Atoi(line)
 		if convErr != nil || n < 1 || n > len(options) {
-			fmt.Fprintf(out, "  %s  %q is not a valid choice (1-%d).\n\n", emoji.Warning, line, len(options))
+			fmt.Fprintf(out, "  %s %q is not a valid choice (1-%d).\n\n", emoji.Warning, line, len(options))
 			continue
 		}
 		fmt.Fprintln(out)

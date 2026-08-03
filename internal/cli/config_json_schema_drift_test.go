@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -46,6 +47,20 @@ func TestJSONOutputSchemaNoDrift(t *testing.T) {
 		RestrictedImports:              &jsonCheckResult{Issues: []interface{}{}},
 		RestrictedImporters:            &jsonCheckResult{Issues: []interface{}{}},
 		RestrictedDirectImporters:      &jsonCheckResult{Issues: []interface{}{}},
+		// Non-empty on purpose: the field is omitempty, so an empty slice would vanish
+		// from the marshalled output and the key would look absent rather than undeclared.
+		DuplicatedCode: []jsonDuplicatedCodeResult{{}},
+	}
+
+	// Every field of jsonChecks must be populated above, or its key never reaches the
+	// comparison and a whole check can be missing from the schema while this test passes.
+	// That is exactly how duplicatedCode went unnoticed.
+	cv := reflect.ValueOf(allChecks)
+	for i := 0; i < cv.NumField(); i++ {
+		if cv.Field(i).IsZero() {
+			t.Errorf("allChecks.%s is not populated, so its schema coverage is untested",
+				cv.Type().Field(i).Name)
+		}
 	}
 
 	cases := []struct {
@@ -71,6 +86,8 @@ func TestJSONOutputSchemaNoDrift(t *testing.T) {
 		{"restrictedImportIssue", []string{"definitions", "restrictedImportIssue"}, jsonRestrictedImportIssue{DeniedFile: "f", DeniedModule: "m", ImportRequest: "r", jsonLocationFields: loc}},
 		{"restrictedImporterIssue", []string{"definitions", "restrictedImporterIssue"}, jsonRestrictedImporterIssue{File: "f", Module: "m"}},
 		{"restrictedDirectImporterIssue", []string{"definitions", "restrictedDirectImporterIssue"}, jsonRestrictedDirectImporterIssue{File: "f", Module: "m", ImportRequest: "r"}},
+		{"duplicatedCodeResult", []string{"definitions", "duplicatedCodeResult"}, jsonDuplicatedCodeResult{Error: "settings conflict", Snapshot: &jsonDuplicatedCodeSnapshot{}}},
+		{"duplicatedCodeSnapshot", []string{"definitions", "duplicatedCodeSnapshot"}, jsonDuplicatedCodeSnapshot{ParameterChanges: []string{"minTokens"}}},
 	}
 
 	for _, tc := range cases {

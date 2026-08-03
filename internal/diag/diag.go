@@ -14,6 +14,6 @@ func SetVerbose(v bool) {
 
 func Warnf(format string, args ...interface{}) {
 	if verbose {
-		fmt.Printf(emoji.Warning+"  Warning: "+format+"\n", args...)
+		fmt.Printf(emoji.Warning+" Warning: "+format+"\n", args...)
 	}
 }

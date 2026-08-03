@@ -37,6 +37,8 @@ var (
 	mu    sync.Mutex
 	spans = map[string]*span{}
 	seq   int
+	// unordered holds the paths whose children start concurrently - see MarkUnordered.
+	unordered = map[string]bool{}
 )
 
 // span aggregates every timing recorded for one path. sum can exceed wall-clock time when
@@ -141,11 +143,24 @@ func (s *span) add(duration time.Duration) {
 	}
 }
 
+// MarkUnordered declares that the children recorded under path are started concurrently,
+// so the order in which they first appear is a race rather than information.
+//
+// Report sorts those children by name instead of by first touch, which is what makes two
+// runs of the same command comparable line by line. Sequential phases keep first-touch
+// order, because there the order IS the pipeline and reading it that way is the point.
+func MarkUnordered(path string) {
+	mu.Lock()
+	defer mu.Unlock()
+	unordered[path] = true
+}
+
 // Reset drops all collected spans. Used by tests.
 func Reset() {
 	mu.Lock()
 	defer mu.Unlock()
 	spans = map[string]*span{}
+	unordered = map[string]bool{}
 	seq = 0
 }
 
@@ -154,6 +169,11 @@ type node struct {
 	span     *span
 	children []*node
 	order    int
+	// path is kept so buildTree can ask whether this node's children were declared
+	// unordered.
+	path string
+	// sortByName is set from the unordered registry when the tree is built.
+	sortByName bool
 }
 
 // buildTree assembles the recorded paths into a tree, synthesising any parent that was
@@ -162,7 +182,7 @@ func buildTree() *node {
 	mu.Lock()
 	defer mu.Unlock()
 
-	root := &node{order: -1}
+	root := &node{order: -1, sortByName: unordered[""]}
 	byPath := map[string]*node{"": root}
 
 	paths := make([]string, 0, len(spans))
@@ -183,7 +203,7 @@ func buildTree() *node {
 			if !exists {
 				// A synthesised parent inherits the order of the first child that needed
 				// it, keeping it next to the subtree it introduces.
-				current = &node{name: segment, order: spans[path].order}
+				current = &node{name: segment, order: spans[path].order, path: currentPath, sortByName: unordered[currentPath]}
 				byPath[currentPath] = current
 				parent := byPath[parentPath]
 				parent.children = append(parent.children, current)
@@ -201,9 +221,15 @@ func buildTree() *node {
 }
 
 func sortChildren(parent *node) {
-	sort.SliceStable(parent.children, func(i, j int) bool {
-		return parent.children[i].order < parent.children[j].order
-	})
+	if parent.sortByName {
+		sort.SliceStable(parent.children, func(i, j int) bool {
+			return parent.children[i].name < parent.children[j].name
+		})
+	} else {
+		sort.SliceStable(parent.children, func(i, j int) bool {
+			return parent.children[i].order < parent.children[j].order
+		})
+	}
 	for _, child := range parent.children {
 		sortChildren(child)
 	}

@@ -207,8 +207,8 @@ func TestPnpmResolution(t *testing.T) {
 	}
 
 	rootParams := resolve.ResolverManagerInput{
-		SortedFiles:     allKeys,
-		Cwd:             cwd,
+		SortedFiles: allKeys,
+		Cwd:         cwd,
 	}
 
 	manager := resolve.NewResolverManager(model.FollowMonorepoPackagesValue{FollowAll: true}, []string{"import"}, rootParams, []globutil.GlobMatcher{}, nil)

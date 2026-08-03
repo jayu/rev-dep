@@ -8,6 +8,7 @@ import (
 
 	"rev-dep-go/internal/checks"
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/shell"
 )
 
 // resolveHint builds `rev-dep resolve` example commands scoped to a single rule. It is shared by the
@@ -39,13 +40,13 @@ func newResolveHint(ruleResult config.RuleResult, cwd string) resolveHint {
 			pkgs = append(pkgs, pkg)
 		}
 		slices.Sort(pkgs)
-		ruleFlags = append(ruleFlags, fmt.Sprintf("--follow-monorepo-packages \"%s\"", strings.Join(pkgs, ",")))
+		ruleFlags = append(ruleFlags, fmt.Sprintf("--follow-monorepo-packages %s", shell.Quote(strings.Join(pkgs, ","))))
 	}
 	if len(ruleResult.ProcessIgnoredFiles) > 0 {
 		patterns := append([]string(nil), ruleResult.ProcessIgnoredFiles...)
 		slices.Sort(patterns)
 		for _, pattern := range patterns {
-			ruleFlags = append(ruleFlags, fmt.Sprintf("--process-ignored-files %q", pattern))
+			ruleFlags = append(ruleFlags, fmt.Sprintf("--process-ignored-files %s", shell.Quote(pattern)))
 		}
 	}
 
@@ -76,14 +77,16 @@ func (h resolveHint) extraFlagsPart(violationFlags []string) string {
 
 // fileExample formats a `rev-dep resolve --file ... --entry-points ... --cwd ...` example line.
 func (h resolveHint) fileExample(file, entryPoint string, violationFlags []string) string {
-	return fmt.Sprintf("    Example: `rev-dep resolve --file \"%s\" --entry-points \"%s\" --cwd \"%s\"%s`\n",
-		h.relToRule(file), h.relToRule(entryPoint), h.ruleCwdArg, h.extraFlagsPart(violationFlags))
+	return fmt.Sprintf("    Example: `rev-dep resolve --file %s --entry-points %s --cwd %s%s`\n",
+		shell.Quote(h.relToRule(file)), shell.Quote(h.relToRule(entryPoint)),
+		shell.Quote(h.ruleCwdArg), h.extraFlagsPart(violationFlags))
 }
 
 // moduleExample formats a `rev-dep resolve --module ... --entry-points ... --cwd ...` example line.
 func (h resolveHint) moduleExample(module, entryPoint string, violationFlags []string) string {
-	return fmt.Sprintf("    Example: `rev-dep resolve --module %s --entry-points \"%s\" --cwd \"%s\"%s`\n",
-		module, h.relToRule(entryPoint), h.ruleCwdArg, h.extraFlagsPart(violationFlags))
+	return fmt.Sprintf("    Example: `rev-dep resolve --module %s --entry-points %s --cwd %s%s`\n",
+		shell.Quote(module), shell.Quote(h.relToRule(entryPoint)),
+		shell.Quote(h.ruleCwdArg), h.extraFlagsPart(violationFlags))
 }
 
 func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string) {
@@ -98,7 +101,7 @@ func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string)
 			flags = append(flags, "--ignore-type-imports")
 		}
 		for _, pattern := range v.GraphExclude {
-			flags = append(flags, fmt.Sprintf("--graph-exclude %q", pattern))
+			flags = append(flags, fmt.Sprintf("--graph-exclude %s", shell.Quote(pattern)))
 		}
 		return flags
 	}

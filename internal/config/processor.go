@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"rev-dep-go/internal/checks"
+	"rev-dep-go/internal/dupcode"
 	"rev-dep-go/internal/fs"
 	globutil "rev-dep-go/internal/glob"
 	"rev-dep-go/internal/graph"
@@ -45,14 +46,18 @@ func validateRulePathPackageJson(rulePath, cwd string) bool {
 
 // RuleResult contains the results for a single rule in the config
 type RuleResult struct {
-	RulePath                                        string
-	FileCount                                       int
-	EnabledChecks                                   []string
-	DependencyTree                                  model.MinimalDependencyTree
-	ModuleBoundaryViolations                        []checks.ModuleBoundaryViolation
-	CircularDependencies                            [][]string
-	OrphanFiles                                     []string
-	OrphanFilesAutofixable                          []string
+	RulePath                 string
+	FileCount                int
+	EnabledChecks            []string
+	DependencyTree           model.MinimalDependencyTree
+	ModuleBoundaryViolations []checks.ModuleBoundaryViolation
+	CircularDependencies     [][]string
+	OrphanFiles              []string
+	OrphanFilesAutofixable   []string
+	// DuplicatedCode holds one entry per enabled duplicatedCodeDetection, in config
+	// order. A workspace may configure several - an exact comparison and a structural one,
+	// say - and each is reported on its own terms.
+	DuplicatedCode                                  []DuplicatedCodeRuleResult
 	MissingNodeModules                              []node.MissingNodeModuleResult
 	MissingNodeModulesOutputType                    string
 	UnusedNodeModules                               []node.UnusedNodeModuleIssue
@@ -69,6 +74,42 @@ type RuleResult struct {
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
 	UnmatchedEntryPointPatterns                     UnmatchedEntryPointPatterns
+}
+
+// DuplicatedCodeRuleResult is one duplicated-code detection's outcome, together with the
+// rule-level context needed to report and act on it.
+type DuplicatedCodeRuleResult struct {
+	Result checks.DuplicatedCodeResult
+	// ConfigIndex is this detection's position in the workspace's duplicatedCodeDetection array.
+	// Results skip disabled detections, so counting results does not recover it.
+	ConfigIndex int
+	// Command reproduces this detection on the command line.
+	Command string
+	// Err is set when the detection could not run at all - most often because its settings
+	// contradict the snapshot it was told to compare against. It fails the rule: a check
+	// that could not run has not passed.
+	Err error
+}
+
+// Failed reports whether this detection fails its rule.
+//
+// With a snapshot, any difference from the baseline fails - improvements included, because a
+// snapshot that overstates duplication is one nobody can trust. Without one, any duplication
+// fails: there is no tolerated count, because a number cannot say WHICH duplication it admits.
+// A snapshot can, which is how a project accepts what it already has.
+func (d DuplicatedCodeRuleResult) Failed() bool {
+	switch {
+	case d.Err != nil:
+		return true
+	case d.Result.SnapshotWritten:
+		return false
+	case d.Result.SnapshotMissing:
+		return true
+	case d.Result.Delta != nil:
+		return !d.Result.Delta.IsClean()
+	default:
+		return d.Result.Snippets > 0
+	}
 }
 
 // UnmatchedEntryPointPatterns captures, per entry-point bucket, the glob patterns
@@ -206,6 +247,7 @@ func buildDependencyTreeForConfig(
 	customAssetExtensions []string,
 	parseMode model.ParseMode,
 	packages []resolve.PackageSpec,
+	blockSink parser.BlockSink,
 ) (model.MinimalDependencyTree, *resolve.ResolverManager, error) {
 	// For config processing, we always resolve type imports (we filter later per-check)
 	ignoreTypeImports := false
@@ -218,7 +260,7 @@ func buildDependencyTreeForConfig(
 
 	// Parse imports from all files
 	doneParse := perf.Track("parse-imports")
-	fileImportsArr, _ := parser.ParseImportsFromFiles(allFiles, ignoreTypeImports, parseMode)
+	fileImportsArr, _ := parser.ParseImportsFromFilesWithBlocks(allFiles, ignoreTypeImports, parseMode, blockSink)
 	doneParse()
 
 	doneSort := perf.Track("sort-files")
@@ -359,6 +401,10 @@ func findUnmatchedEntryPointPatterns(patterns []string, ruleFiles []string, cwd 
 }
 
 // processRuleChecks runs all enabled checks for a rule in parallel
+// The checks under this path all start at once, so the order they first appear in is a
+// race. Declaring it keeps the performance report comparable between runs.
+func init() { perf.MarkUnordered("rules/checks") }
+
 func processRuleChecks(
 	rule Rule,
 	ruleFiles []string,
@@ -369,6 +415,11 @@ func processRuleChecks(
 	fix bool,
 	nearestPackage bool,
 	includeDevDepsFromRoot bool,
+	blockCollector *dupcode.Collector,
+	configFilePath string,
+	globalIgnoreFiles []string,
+	globalProcessIgnoredFiles []string,
+	updateSnapshot bool,
 ) RuleResult {
 	// Track enabled checks
 	enabledChecks := []string{}
@@ -379,6 +430,9 @@ func processRuleChecks(
 	}
 	if anyEnabled(rule.getOrphanFilesDetections()) {
 		enabledChecks = append(enabledChecks, "orphan-files")
+	}
+	if anyEnabled(rule.getDuplicatedCodeDetections()) {
+		enabledChecks = append(enabledChecks, "duplicated-code")
 	}
 	if len(rule.ModuleBoundaries) > 0 {
 		enabledChecks = append(enabledChecks, "module-boundaries")
@@ -496,6 +550,79 @@ func processRuleChecks(
 
 			mu.Lock()
 			ruleResult.CircularDependencies = circularDeps
+			mu.Unlock()
+		}()
+	}
+
+	// Duplicated code
+	if anyEnabled(rule.getDuplicatedCodeDetections()) {
+		wg.Add(1)
+		go func() {
+			defer perf.Track("rules/checks/duplicated-code")()
+			defer wg.Done()
+
+			// Every enabled detection is reported on its own terms. Merging them would
+			// be meaningless - a literal count and a structural count measure different
+			// things - and picking one would silently discard the rest.
+			var results []DuplicatedCodeRuleResult
+			for configIndex, detection := range rule.getDuplicatedCodeDetections() {
+				if !detection.Enabled {
+					continue
+				}
+				res, err := checks.FindDuplicatedCode(checks.DuplicatedCodeParams{
+					Cwd:              fullRulePath,
+					Files:            ruleFiles,
+					Collector:        blockCollector,
+					BlindIdentifiers: detection.BlindIdentifiers,
+					BlindStrings:     detection.BlindStrings,
+					BlindNumbers:     detection.BlindNumbers,
+					MinTokens:        detection.MinTokens,
+					MinLines:         detection.MinLines,
+					MinDepth:         detection.MinDepth,
+					MinStatements:    detection.MinStatements,
+					MinDuplicates:    detection.MinDuplicates,
+					SkipObjects:      detection.SkipObjects,
+					IgnoreFiles:      detection.IgnoreFiles,
+					// The config's top-level patterns travel with the config they were
+					// written in, rather than being rewritten to the workspace: the
+					// detector resolves them from there, and the snapshot records them the
+					// same way, so `rev-dep duplicated-code --snapshot ...` sees the same
+					// files this run did.
+					ConfigLevel: dupcode.ConfigLevelFilters{
+						ConfigPath:          configFilePath,
+						IgnoreFiles:         globalIgnoreFiles,
+						ProcessIgnoredFiles: globalProcessIgnoredFiles,
+					},
+					// Against the WORKSPACE, not the config file. A snapshot describes one
+					// workspace's duplication, so it belongs beside that workspace - and
+					// resolving from the config instead meant every workspace writing the
+					// same default path landed on one file, each overwriting the last.
+					SnapshotPath:   resolveSnapshotPath(detection.SnapshotPath, fullRulePath),
+					UpdateSnapshot: updateSnapshot,
+				})
+				if err != nil {
+					// Reported rather than skipped. A settings conflict with the snapshot
+					// is a contradiction between two files in the repository, and dropping
+					// the detection would turn it into a check that silently stopped
+					// running - the one outcome worse than either file being wrong.
+					results = append(results, DuplicatedCodeRuleResult{
+						Err:         err,
+						ConfigIndex: configIndex,
+						Command: DuplicatedCodeCommand(
+							detection, rule.Path, globalIgnoreFiles, globalProcessIgnoredFiles),
+					})
+					continue
+				}
+				results = append(results, DuplicatedCodeRuleResult{
+					Result:      res,
+					ConfigIndex: configIndex,
+					Command: DuplicatedCodeCommand(
+						detection, rule.Path, globalIgnoreFiles, globalProcessIgnoredFiles),
+				})
+			}
+
+			mu.Lock()
+			ruleResult.DuplicatedCode = results
 			mu.Unlock()
 		}()
 	}
@@ -943,6 +1070,18 @@ func ProcessConfig(
 	fix bool,
 	forceDetailed bool,
 ) (*ConfigProcessingResult, error) {
+	return ProcessConfigWithOptions(config, cwd, fix, forceDetailed, false)
+}
+
+// ProcessConfigWithOptions is ProcessConfig with the switches that only some entry points
+// need. updateSnapshot rewrites every configured duplicated-code baseline from this run.
+func ProcessConfigWithOptions(
+	config *RevDepConfig,
+	cwd string,
+	fix bool,
+	forceDetailed bool,
+	updateSnapshot bool,
+) (*ConfigProcessingResult, error) {
 	// Step 1: Discover all files
 	doneDiscover := perf.Track("discover")
 	allFiles, excludePatterns, includePatterns, exclusions, err := discoverAllFilesForConfig(cwd, config.IgnoreFiles, config.ProcessIgnoredFiles)
@@ -951,10 +1090,26 @@ func ProcessConfig(
 		return nil, err
 	}
 
-	// Step 2: Build dependency tree for config
+	// Step 2: Build dependency tree for config.
+	//
+	// The parse runs once for the whole run, and how much it does depends on what is
+	// switched on. Three tiers, each paying only for what some enabled check needs:
+	//
+	//   basic     imports only - the default, and the cheapest
+	//   detailed  imports and export details, for unused-exports
+	//   +blocks   the above plus code blocks, for duplicated-code
+	//
+	// Blocks compose with either import mode rather than forming a separate tier of
+	// their own, so enabling duplicated-code never forces detailed export parsing on a
+	// run that did not otherwise need it.
 	parseMode := model.ParseModeBasic
 	if forceDetailed || anyRuleChecksForUnusedExports(config) {
 		parseMode = model.ParseModeDetailed
+	}
+
+	var blockCollector *dupcode.Collector
+	if specs := duplicatedCodeSpecs(config); len(specs) > 0 {
+		blockCollector = dupcode.NewCollector(specs, len(allFiles))
 	}
 
 	// Resolve the config's rule paths (always relative to cwd) to absolute, internal-form
@@ -971,6 +1126,7 @@ func ProcessConfig(
 		config.CustomAssetExtensions,
 		parseMode,
 		workspacePackages(config, cwd),
+		blockSinkOrNil(blockCollector),
 	)
 	if err != nil {
 		return nil, err
@@ -1019,6 +1175,11 @@ func ProcessConfig(
 				fix,
 				config.UsesNearestPackage(),
 				config.IncludeDevDepsFromRoot(),
+				blockCollector,
+				config.SourcePath,
+				config.IgnoreFiles,
+				config.ProcessIgnoredFiles,
+				updateSnapshot,
 			)
 			doneChecks()
 			ruleResult.ProcessIgnoredFiles = config.ProcessIgnoredFiles
@@ -1038,7 +1199,8 @@ func ProcessConfig(
 				len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 ||
 				len(ruleResult.RestrictedImportsViolations) > 0 ||
 				len(ruleResult.RestrictedImportersViolations) > 0 ||
-				len(ruleResult.RestrictedDirectImportersViolations) > 0
+				len(ruleResult.RestrictedDirectImportersViolations) > 0 ||
+				anyDuplicatedCodeFailed(ruleResult)
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult
@@ -1148,4 +1310,65 @@ func ProcessConfig(
 	}
 
 	return result, nil
+}
+
+// duplicatedCodeSpecs gathers what the enabled duplicated-code detections need from the
+// shared parse. Rules that agree on comparison mode share one scan; the floors collapse to
+// the loosest any of them asked for, and each rule narrows back to its own afterwards.
+func duplicatedCodeSpecs(config *RevDepConfig) []dupcode.CollectorSpec {
+	var specs []dupcode.CollectorSpec
+	for _, rule := range config.Rules {
+		for _, detection := range rule.getDuplicatedCodeDetections() {
+			if !detection.Enabled {
+				continue
+			}
+			specs = append(specs, dupcode.CollectorSpec{
+				Blinding: dupcode.Blinding{
+					Identifiers: detection.BlindIdentifiers,
+					Strings:     detection.BlindStrings,
+					Numbers:     detection.BlindNumbers,
+				},
+				MinTokens:     detection.MinTokens,
+				MinDepth:      detection.MinDepth,
+				MinStatements: detection.MinStatements,
+				SkipObjects:   detection.SkipObjects,
+			})
+		}
+	}
+	return specs
+}
+
+// blockSinkOrNil avoids handing the parser a non-nil interface holding a nil pointer,
+// which would make it scan blocks nobody asked for.
+func blockSinkOrNil(c *dupcode.Collector) parser.BlockSink {
+	if c == nil {
+		return nil
+	}
+	return c
+}
+
+// resolveSnapshotPath makes a configured snapshot path absolute against the workspace
+// directory, so the same config works whatever directory the command is run from.
+//
+// resolveSnapshotPathKey in config.go must resolve the same way: it builds the key the
+// collision check compares detections on, and if the two drift apart that check starts
+// waving through configs whose snapshots overwrite one another.
+func resolveSnapshotPath(path, cwd string) string {
+	if path == "" {
+		return ""
+	}
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(cwd, path)
+}
+
+// anyDuplicatedCodeFailed reports whether any of the rule's detections failed.
+func anyDuplicatedCodeFailed(rr RuleResult) bool {
+	for _, d := range rr.DuplicatedCode {
+		if d.Failed() {
+			return true
+		}
+	}
+	return false
 }

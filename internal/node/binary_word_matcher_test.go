@@ -21,7 +21,7 @@ func TestBinaryWordMatcher(t *testing.T) {
 		{"tsc", "tsc --noEmit && jest", true},
 		{"c8", "c8 --reporter=text jest", true},
 		// The Bug 2 false matches.
-		{"pack", "webpack --mode production", false},
+		{"pack", "webpack --blinding production", false},
 		{"rm", "prettier --write && format", false},
 		{"ts", "ts-node script.ts", false},
 		{"next", "nextra build", false},

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/dupcode"
+	"rev-dep-go/internal/plural"
 )
 
 func runConfigWithIssuesListOutput(cfg config.RevDepConfig, cwd string, runConfigFix bool, runConfigRecheck bool) error {
@@ -40,6 +42,29 @@ func runConfigWithIssuesListOutput(cfg config.RevDepConfig, cwd string, runConfi
 type issuesListGroup struct {
 	Title string
 	Items []issuesListItem
+}
+
+// duplicatedCodeIssueLabel states what failed in one line. It mirrors the console wording
+// so the two formats describe the same run the same way.
+func duplicatedCodeIssueLabel(d jsonDuplicatedCodeResult) string {
+	if d.Error != "" {
+		// The first line only: the full explanation belongs in the console output, and an
+		// issues list is one line per issue.
+		return "could not run: " + strings.SplitN(d.Error, "\n", 2)[0]
+	}
+	if s := d.Snapshot; s != nil {
+		if s.Missing {
+			return fmt.Sprintf("snapshot %s does not exist", s.Path)
+		}
+		// With a baseline the total is not the news; the change is. The counts come straight
+		// off the embedded struct rather than being copied field by field, which is how a
+		// category went missing here before.
+		return dupcode.DeltaCountsSummary(s.DeltaCounts)
+	}
+	return fmt.Sprintf("%s in %s (%s)",
+		plural.Count(d.Snippets, "duplicated snippet", "duplicated snippets"),
+		plural.Count(d.Files, "file", "files"),
+		plural.Count(d.Occurrences, "occurrence", "occurrences"))
 }
 
 type issuesListItem struct {
@@ -202,6 +227,16 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 				}
 			}
 		}
+		// One item per failing detection, not one per duplicated block. A real project
+		// has thousands of duplicated blocks and listing them here would bury every
+		// other issue - the count is what the rule acts on, and the command is how to
+		// see the places.
+		for _, d := range rule.Checks.DuplicatedCode {
+			if d.Status != "fail" {
+				continue
+			}
+			add("Duplicated Code Issues", duplicatedCodeIssueLabel(d), d.Command)
+		}
 	}
 
 	order := []string{
@@ -217,6 +252,7 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 		"Restricted Imports Issues",
 		"Restricted Importers Issues",
 		"Restricted Direct Importers Issues",
+		"Duplicated Code Issues",
 	}
 
 	groups := make([]issuesListGroup, 0, len(order))

@@ -247,6 +247,24 @@
             }
           ]
         },
+        "duplicatedCodeDetection": {
+          "description": "Duplicated code detection: a single object or an array of them.",
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Shorthand: true enables the detector with default options, false disables it."
+            },
+            {
+              "$ref": "#/definitions/DuplicatedCodeOptions"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/DuplicatedCodeOptions"
+              }
+            }
+          ]
+        },
         "unusedNodeModulesDetection": {
           "oneOf": [
             {
@@ -552,6 +570,73 @@
           "default": false
         }
       }
+    },
+    "DuplicatedCodeOptions": {
+      "type": "object",
+      "description": "Duplicated code detection. Reports how many duplicated code snippets exist in the workspace; run `rev-dep duplicated-code` to see them.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable duplicated code detection"
+        },
+        "blindIdentifiers": {
+          "type": "boolean",
+          "description": "Ignore the spelling of names, so a copy whose variables, functions or components were renamed still counts as duplication. Keywords are never blinded. Defaults to false."
+        },
+        "blindStrings": {
+          "type": "boolean",
+          "description": "Ignore the contents of string and template literals, so two copies that differ only in the text they carry still count as duplication. Defaults to false."
+        },
+        "blindNumbers": {
+          "type": "boolean",
+          "description": "Ignore the value of numeric literals, so two copies that differ only in their constants still count as duplication. Defaults to false."
+        },
+        "minTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Smallest duplication to count, in tokens. Tokens rather than characters because the count does not change when a blind* option is applied, so one number means the same amount of code whatever is being ignored. Defaults to 50."
+        },
+        "minLines": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Smallest duplication to count, in lines. Defaults to 3."
+        },
+        "minDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Smallest duplication to count, in nesting levels counting the block itself. 1 admits everything; 2 requires at least one nested level, which filters out flat objects and single JSX elements. Defaults to 0."
+        },
+        "minStatements": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Smallest duplication to count, in statements directly inside the block. Applies only to statement blocks (function and control-flow bodies); object literals and JSX elements are expressions and are not filtered by it - use minDepth for those. Defaults to 0."
+        },
+        "minDuplicates": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "How many copies a snippet needs before it counts. Defaults to 2."
+        },
+        "skipObjects": {
+          "type": "boolean",
+          "description": "Do not count duplications that are only object literals. A nested object's shape recurs across unrelated code, so with blindIdentifiers it is the main source of matches that are not duplication in any useful sense. Defaults to false."
+        },
+        "ignoreFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns of files to leave out of the analysis. Applied before anything is counted, so a snippet whose other copies are all in ignored files falls below minDuplicates and is not reported."
+        },
+        "snapshotPath": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path (relative to this config file) to a JSON snapshot of acknowledged duplications. With it the rule reports what CHANGED since the snapshot instead of the total, and fails on any difference - including improvements, which leave the snapshot out of date. Create or refresh it with `rev-dep config run --update-snapshot`."
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false
     },
     "UnusedNodeModulesOptions": {
       "type": "object",

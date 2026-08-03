@@ -780,7 +780,7 @@ func printInitConfigResults(result *initConfigResult) {
 	fmt.Println()
 	switch {
 	case result.createdForMonorepoSubPackage:
-		fmt.Printf("%s  Created config for monorepo sub-package. This file targets the current package only.\n", emoji.Warning)
+		fmt.Printf("%s Created config for monorepo sub-package. This file targets the current package only.\n", emoji.Warning)
 	case result.isMonorepo:
 		if len(result.workspacePackagePaths) > 0 {
 			fmt.Printf("%s Monorepo detected: discovered %d workspace %s and created settings for each workspace:\n", emoji.Package, len(result.workspacePackagePaths), packagesWord(len(result.workspacePackagePaths)))
@@ -822,5 +822,5 @@ func printInitConfigResults(result *initConfigResult) {
 
 	fmt.Println()
 	fmt.Printf("%s Integration guide: %s\n", emoji.Guide, integrationGuide)
-	fmt.Printf("%s  Troubleshooting: https://rev-dep.com/troubleshooting\n\n", emoji.Troubleshooting)
+	fmt.Printf("%s Troubleshooting: https://rev-dep.com/troubleshooting\n\n", emoji.Troubleshooting)
 }

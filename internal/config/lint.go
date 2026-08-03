@@ -905,6 +905,7 @@ func buildModuleUniverseForConfig(cfg *RevDepConfig, cwd string, allFiles []stri
 		cfg.CustomAssetExtensions,
 		model.ParseModeBasic,
 		workspacePackages(cfg, cwd),
+		nil, // the linter needs imports only
 	)
 	if err != nil {
 		return nil, err

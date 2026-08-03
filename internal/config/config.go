@@ -36,6 +36,58 @@ type OrphanFilesOptions struct {
 
 func (o *OrphanFilesOptions) IsEnabled() bool { return o != nil && o.Enabled }
 
+// DuplicatedCodeOptions configures duplicated code detection. The fields mirror the
+// `rev-dep duplicated-code` flags one for one, so a threshold tuned on the command line
+// transfers to the config unchanged.
+//
+// Only the number of duplicated snippets is reported. Listing every one of them is not
+// useful in a check that runs on every commit - what a rule can act on is whether the
+// count moved.
+type DuplicatedCodeOptions struct {
+	Enabled bool `json:"enabled"`
+	// BlindIdentifiers, BlindStrings and BlindNumbers each drop one category of token
+	// from the comparison, so a copy that differs only in that category still counts as
+	// duplication. They combine freely: none set is an exact comparison, all three
+	// matches on shape alone.
+	//
+	// Comments and formatting are always ignored, whatever these are set to.
+	BlindIdentifiers bool `json:"blindIdentifiers,omitempty"`
+	BlindStrings     bool `json:"blindStrings,omitempty"`
+	BlindNumbers     bool `json:"blindNumbers,omitempty"`
+	// MinTokens, MinLines, MinDepth and MinStatements are the size and complexity floors
+	// a duplicate must clear. Zero means the detector's default.
+	//
+	// MinTokens is in tokens rather than characters because a token count does not move
+	// when a blinding is applied, so one number means the same amount of code whatever
+	// is being ignored.
+	//
+	// MinDepth counts the block itself, so 1 admits everything and 2 requires at least
+	// one nested level. MinStatements applies only to statement blocks and leaves
+	// object literals and JSX alone - use MinDepth to filter those.
+	MinTokens     int `json:"minTokens,omitempty"`
+	MinLines      int `json:"minLines,omitempty"`
+	MinDepth      int `json:"minDepth,omitempty"`
+	MinStatements int `json:"minStatements,omitempty"`
+	// MinDuplicates is how many copies a snippet needs before it counts. Zero means 2.
+	MinDuplicates int `json:"minDuplicates,omitempty"`
+	// SkipObjects drops duplications that are only object literals. Their shape recurs
+	// across unrelated code - three keys with a nested pair is not a fingerprint - so
+	// under structural comparison they are the main source of matches that read as
+	// false positives.
+	SkipObjects bool `json:"skipObjects,omitempty"`
+	// IgnoreFiles are glob patterns for files to leave out of the analysis entirely.
+	// They apply before anything is counted, so a snippet whose only extra copies live
+	// in ignored files falls below minDuplicates and is not reported.
+	IgnoreFiles []string `json:"ignoreFiles,omitempty"`
+	// SnapshotPath points at a committed JSON baseline of acknowledged duplications,
+	// relative to the config file. With it the rule reports what CHANGED rather than the
+	// total, which is what makes the check usable on a project that already has
+	// duplication it is not going to fix today.
+	SnapshotPath string `json:"snapshotPath,omitempty"`
+}
+
+func (o *DuplicatedCodeOptions) IsEnabled() bool { return o != nil && o.Enabled }
+
 type UnusedNodeModulesOptions struct {
 	Enabled                   bool     `json:"enabled"`
 	IncludeModules            []string `json:"includeModules,omitempty"`
@@ -97,6 +149,7 @@ type Rule struct {
 	ModuleBoundaries                    []BoundaryRule                               `json:"moduleBoundaries,omitempty"`
 	CircularImportsDetections           []*CircularImportsOptions                    `json:"-"`
 	OrphanFilesDetections               []*OrphanFilesOptions                        `json:"-"`
+	DuplicatedCodeDetections            []*DuplicatedCodeOptions                     `json:"-"`
 	UnusedNodeModulesDetections         []*UnusedNodeModulesOptions                  `json:"-"`
 	MissingNodeModulesDetections        []*MissingNodeModulesOptions                 `json:"-"`
 	UnusedExportsDetections             []*UnusedExportsOptions                      `json:"-"`
@@ -114,6 +167,10 @@ func (r *Rule) getCircularImportsDetections() []*CircularImportsOptions {
 
 func (r *Rule) getOrphanFilesDetections() []*OrphanFilesOptions {
 	return r.OrphanFilesDetections
+}
+
+func (r *Rule) getDuplicatedCodeDetections() []*DuplicatedCodeOptions {
+	return r.DuplicatedCodeDetections
 }
 
 func (r *Rule) getUnusedNodeModulesDetections() []*UnusedNodeModulesOptions {
@@ -251,6 +308,7 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 		ModuleBoundaries                   []BoundaryRule         `json:"moduleBoundaries,omitempty"`
 		CircularImportsDetection           interface{}            `json:"circularImportsDetection,omitempty"`
 		OrphanFilesDetection               interface{}            `json:"orphanFilesDetection,omitempty"`
+		DuplicatedCodeDetection            interface{}            `json:"duplicatedCodeDetection,omitempty"`
 		UnusedNodeModulesDetection         interface{}            `json:"unusedNodeModulesDetection,omitempty"`
 		MissingNodeModulesDetection        interface{}            `json:"missingNodeModulesDetection,omitempty"`
 		UnusedExportsDetection             interface{}            `json:"unusedExportsDetection,omitempty"`
@@ -271,6 +329,7 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 		ModuleBoundaries:                   r.ModuleBoundaries,
 		CircularImportsDetection:           marshalOneOrManyObjects(r.getCircularImportsDetections()),
 		OrphanFilesDetection:               marshalOneOrManyObjects(r.getOrphanFilesDetections()),
+		DuplicatedCodeDetection:            marshalOneOrManyObjects(r.getDuplicatedCodeDetections()),
 		UnusedNodeModulesDetection:         marshalOneOrManyObjects(r.getUnusedNodeModulesDetections()),
 		MissingNodeModulesDetection:        marshalOneOrManyObjects(r.getMissingNodeModulesDetections()),
 		UnusedExportsDetection:             marshalOneOrManyObjects(r.getUnusedExportsDetections()),
@@ -295,6 +354,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 		ModuleBoundaries                   []BoundaryRule  `json:"moduleBoundaries,omitempty"`
 		CircularImportsDetection           json.RawMessage `json:"circularImportsDetection,omitempty"`
 		OrphanFilesDetection               json.RawMessage `json:"orphanFilesDetection,omitempty"`
+		DuplicatedCodeDetection            json.RawMessage `json:"duplicatedCodeDetection,omitempty"`
 		UnusedNodeModulesDetection         json.RawMessage `json:"unusedNodeModulesDetection,omitempty"`
 		MissingNodeModulesDetection        json.RawMessage `json:"missingNodeModulesDetection,omitempty"`
 		UnusedExportsDetection             json.RawMessage `json:"unusedExportsDetection,omitempty"`
@@ -314,6 +374,12 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	duplicatedCode, err := parseOneOrManyObjects[DuplicatedCodeOptions](wire.DuplicatedCodeDetection)
+	if err != nil {
+		return err
+	}
+	r.DuplicatedCodeDetections = duplicatedCode
+
 	orphan, err := parseOneOrManyObjects[OrphanFilesOptions](wire.OrphanFilesDetection)
 	if err != nil {
 		return err
@@ -387,6 +453,9 @@ type RevDepConfig struct {
 	// {resolutionType: "entry-package", includeDevDepsFromRoot: false}.
 	NodeModulesResolution *NodeModulesResolutionConfig `json:"nodeModulesResolution,omitempty"`
 	Rules                 []Rule                       `json:"workspaces"`
+
+	// Path to parsed config file, only for internal use.
+	SourcePath string `json:"-"`
 }
 
 // Node modules resolution modes for NodeModulesResolutionConfig.ResolutionType.
@@ -556,33 +625,40 @@ func FindConfigFile(dir string) (string, error) {
 // configPath can be a specific file path or a directory containing rev-dep.config.json or rev-dep.config.jsonc.
 // Returns a single RevDepConfig object.
 func LoadConfig(configPath string) (RevDepConfig, error) {
-	content, err := readConfigFile(configPath)
+	content, path, err := readConfigFile(configPath)
 	if err != nil {
 		return RevDepConfig{}, err
 	}
 
-	return ParseConfig(content)
+	cfg, err := ParseConfig(content)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.SourcePath = path
+	return cfg, nil
 }
 
-// readConfigFile reads the config file content from the specified path.
-// configPath can be a specific file path or a directory containing config files.
-func readConfigFile(configPath string) ([]byte, error) {
+// readConfigFile returns the content and the file it came from - the only point in the flow
+// where that is known for certain.
+func readConfigFile(configPath string) ([]byte, string, error) {
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if fileInfo.IsDir() {
 		// Look for config files in the directory
 		configFile, err := findConfigFile(configPath)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		return os.ReadFile(configFile)
+		content, err := os.ReadFile(configFile)
+		return content, configFile, err
 	}
 
 	// Direct file path provided
-	return os.ReadFile(configPath)
+	content, err := os.ReadFile(configPath)
+	return content, configPath, err
 }
 
 // ParseConfig parses the config content and returns a validated RevDepConfig.
@@ -929,6 +1005,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 		"moduleBoundaries":                   true,
 		"circularImportsDetection":           true,
 		"orphanFilesDetection":               true,
+		"duplicatedCodeDetection":            true,
 		"unusedNodeModulesDetection":         true,
 		"missingNodeModulesDetection":        true,
 		"unusedExportsDetection":             true,
@@ -994,6 +1071,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 	// Validate detection options if present
 	if circular, exists := rule["circularImportsDetection"]; exists {
 		if err := validateRawCircularImportsDetection(circular, index); err != nil {
+			return err
+		}
+	}
+
+	if dup, exists := rule["duplicatedCodeDetection"]; exists {
+		if err := validateRawDuplicatedCodeDetection(dup, index); err != nil {
 			return err
 		}
 	}
@@ -1242,6 +1325,100 @@ func validateRawCircularImportsDetectionInstance(circularMap map[string]interfac
 	if ignoreType, exists := circularMap["ignoreTypeImports"]; exists && ignoreType != nil {
 		if _, ok := ignoreType.(bool); !ok {
 			return fmt.Errorf("%s.ignoreTypeImports must be a boolean, got %T", prefix, ignoreType)
+		}
+	}
+
+	return nil
+}
+
+// validateRawDuplicatedCodeDetection validates duplicated code detection structure
+func validateRawDuplicatedCodeDetection(dup interface{}, ruleIndex int) error {
+	return validateRawDetectionObjectOrArray(dup, ruleIndex, "duplicatedCodeDetection", validateRawDuplicatedCodeDetectionInstance)
+}
+
+func validateRawDuplicatedCodeDetectionInstance(dupMap map[string]interface{}, prefix string) error {
+	allowedFields := map[string]bool{
+		"enabled":          true,
+		"blindIdentifiers": true,
+		"blindStrings":     true,
+		"blindNumbers":     true,
+		"minTokens":        true,
+		"minLines":         true,
+		"minDepth":         true,
+		"minStatements":    true,
+		"minDuplicates":    true,
+		"skipObjects":      true,
+		"ignoreFiles":      true,
+		"snapshotPath":     true,
+	}
+
+	for field := range dupMap {
+		if !allowedFields[field] {
+			return fmt.Errorf("%s: unknown field '%s'", prefix, field)
+		}
+	}
+
+	if err := validateRawEnabledField(dupMap, prefix); err != nil {
+		return err
+	}
+
+	if v, exists := dupMap["skipObjects"]; exists && v != nil {
+		if _, ok := v.(bool); !ok {
+			return fmt.Errorf("%s.skipObjects must be a boolean, got %T", prefix, v)
+		}
+	}
+
+	if patterns, exists := dupMap["ignoreFiles"]; exists && patterns != nil {
+		list, ok := patterns.([]interface{})
+		if !ok {
+			return fmt.Errorf("%s.ignoreFiles must be an array, got %T", prefix, patterns)
+		}
+		for i, pattern := range list {
+			if _, ok := pattern.(string); !ok {
+				return fmt.Errorf("%s.ignoreFiles[%d] must be a string, got %T", prefix, i, pattern)
+			}
+		}
+	}
+
+	if p, exists := dupMap["snapshotPath"]; exists && p != nil {
+		str, ok := p.(string)
+		if !ok {
+			return fmt.Errorf("%s.snapshotPath must be a string, got %T", prefix, p)
+		}
+		if strings.TrimSpace(str) == "" {
+			return fmt.Errorf("%s.snapshotPath must not be empty", prefix)
+		}
+	}
+
+	for _, field := range []string{"blindIdentifiers", "blindStrings", "blindNumbers"} {
+		if v, exists := dupMap[field]; exists && v != nil {
+			if _, ok := v.(bool); !ok {
+				return fmt.Errorf("%s.%s must be a boolean, got %T", prefix, field, v)
+			}
+		}
+	}
+
+	// JSON numbers decode as float64, so a non-integer is caught here rather than being
+	// silently truncated into a threshold the user did not ask for.
+	for _, field := range []string{"minTokens", "minLines", "minDepth", "minStatements", "minDuplicates"} {
+		value, exists := dupMap[field]
+		if !exists || value == nil {
+			continue
+		}
+		num, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("%s.%s must be a number, got %T", prefix, field, value)
+		}
+		if num != float64(int(num)) {
+			return fmt.Errorf("%s.%s must be a whole number, got %v", prefix, field, num)
+		}
+		if num < 0 {
+			return fmt.Errorf("%s.%s must not be negative, got %v", prefix, field, num)
+		}
+	}
+	if value, exists := dupMap["minDuplicates"]; exists && value != nil {
+		if num, ok := value.(float64); ok && num == 1 {
+			return fmt.Errorf("%s.minDuplicates must be at least 2: a snippet appearing once is not a duplicate", prefix)
 		}
 	}
 
@@ -1636,7 +1813,76 @@ func ValidateConfig(config *RevDepConfig) error {
 		}
 	}
 
+	// Checked across the whole config rather than per workspace, because that is the scope
+	// the clash lives in.
+	if err := validateDuplicatedCodeSnapshotPaths(config); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// validateDuplicatedCodeSnapshotPaths rejects two duplicated-code detections that would
+// write to the same snapshot file.
+//
+// A snapshot is a baseline for ONE detection, so two of them sharing a file is not a
+// configuration with a subtle consequence - it is a configuration that cannot work. Each
+// --update-snapshot overwrites the other's entries, so the file never settles and both
+// detections keep reporting duplications that were already acknowledged. Worse, workspaces
+// are checked in parallel, so which one survives is not even fixed from run to run.
+//
+// The clash is only visible after resolution: two workspaces can write the same
+// `snapshotPath` string and mean different files, and two different strings can name the
+// same one. So the paths are resolved against their workspaces before being compared - the
+// same way the run resolves them.
+//
+// Disabled detections are included. Enabling one is not something that should be able to
+// turn a valid config into a broken one.
+func validateDuplicatedCodeSnapshotPaths(config *RevDepConfig) error {
+	type origin struct {
+		location string
+		raw      string
+	}
+	seen := map[string]origin{}
+
+	for j, rule := range config.Rules {
+		detections := rule.getDuplicatedCodeDetections()
+		for idx, detection := range detections {
+			if detection == nil || detection.SnapshotPath == "" {
+				continue
+			}
+			location := fmt.Sprintf("workspaces[%d].duplicatedCodeDetection", j)
+			if len(detections) > 1 {
+				location = fmt.Sprintf("%s[%d]", location, idx)
+			}
+
+			resolved := resolveSnapshotPathKey(detection.SnapshotPath, rule.Path)
+			if previous, clash := seen[resolved]; clash {
+				return fmt.Errorf(
+					"%s.snapshotPath %q and %s.snapshotPath %q both resolve to %s - "+
+						"each duplicated code detection needs its own snapshot file, or they "+
+						"overwrite each other",
+					previous.location, previous.raw, location, detection.SnapshotPath, resolved)
+			}
+			seen[resolved] = origin{location: location, raw: detection.SnapshotPath}
+		}
+	}
+	return nil
+}
+
+// resolveSnapshotPathKey renders a snapshot path as the run would resolve it, relative to
+// the config, so two spellings of the same file compare equal.
+//
+// It MUST agree with resolveSnapshotPath in processor.go, which does the same join against
+// the absolute workspace directory. This one stays relative because it is only ever a
+// comparison key and an absolute path would put the config's own location into the error
+// message. If one of the two changes, the other has to follow, or this check starts passing
+// configs the run then collides on.
+func resolveSnapshotPathKey(snapshotPath, rulePath string) string {
+	if filepath.IsAbs(snapshotPath) {
+		return filepath.Clean(snapshotPath)
+	}
+	return filepath.ToSlash(filepath.Join(rulePath, snapshotPath))
 }
 
 // validateBoundaryRule validates a single boundary rule

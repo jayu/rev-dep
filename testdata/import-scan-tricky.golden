@@ -1,0 +1,856 @@
+# imports found in hand-written awkward sources
+# regenerate: UPDATE_IMPORT_SCAN_GOLDEN=1 go test ./internal/parser/ -run 'ImportScan.*Golden'
+
+import inside a string [mode=0 ignoreTypes=false]
+  source: "const s = \"import foo from 'x'\"; import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=51..52
+
+import inside a string [mode=0 ignoreTypes=true]
+  source: "const s = \"import foo from 'x'\"; import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=51..52
+
+import inside a string [mode=1 ignoreTypes=false]
+  source: "const s = \"import foo from 'x'\"; import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=51..52 keywords=1
+
+import inside a string [mode=1 ignoreTypes=true]
+  source: "const s = \"import foo from 'x'\"; import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=51..52 keywords=1
+
+import inside a line comment [mode=0 ignoreTypes=false]
+  source: "// import fake from 'x'\nimport real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=42..43
+
+import inside a line comment [mode=0 ignoreTypes=true]
+  source: "// import fake from 'x'\nimport real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=42..43
+
+import inside a line comment [mode=1 ignoreTypes=false]
+  source: "// import fake from 'x'\nimport real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=42..43 keywords=1
+
+import inside a line comment [mode=1 ignoreTypes=true]
+  source: "// import fake from 'x'\nimport real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=42..43 keywords=1
+
+import inside a block comment [mode=0 ignoreTypes=false]
+  source: "/* import fake from 'x' */ import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=45..46
+
+import inside a block comment [mode=0 ignoreTypes=true]
+  source: "/* import fake from 'x' */ import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=45..46
+
+import inside a block comment [mode=1 ignoreTypes=false]
+  source: "/* import fake from 'x' */ import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=45..46 keywords=1
+
+import inside a block comment [mode=1 ignoreTypes=true]
+  source: "/* import fake from 'x' */ import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=45..46 keywords=1
+
+require inside a template [mode=0 ignoreTypes=false]
+  source: "const t = `require('fake')`; const r = require('real');"
+    real kind=0 resolved=4 dynamic=true range=48..52
+
+require inside a template [mode=0 ignoreTypes=true]
+  source: "const t = `require('fake')`; const r = require('real');"
+    real kind=0 resolved=4 dynamic=true range=48..52
+
+require inside a template [mode=1 ignoreTypes=false]
+  source: "const t = `require('fake')`; const r = require('real');"
+    real kind=0 resolved=4 dynamic=true range=48..52
+
+require inside a template [mode=1 ignoreTypes=true]
+  source: "const t = `require('fake')`; const r = require('real');"
+    real kind=0 resolved=4 dynamic=true range=48..52
+
+dynamic import in a nested block [mode=0 ignoreTypes=false]
+  source: "function f() { if (x) { return import('./a'); } }"
+    ./a kind=0 resolved=4 dynamic=true range=39..42
+
+dynamic import in a nested block [mode=0 ignoreTypes=true]
+  source: "function f() { if (x) { return import('./a'); } }"
+    ./a kind=0 resolved=4 dynamic=true range=39..42
+
+dynamic import in a nested block [mode=1 ignoreTypes=false]
+  source: "function f() { if (x) { return import('./a'); } }"
+    ./a kind=0 resolved=4 dynamic=true range=39..42
+
+dynamic import in a nested block [mode=1 ignoreTypes=true]
+  source: "function f() { if (x) { return import('./a'); } }"
+    ./a kind=0 resolved=4 dynamic=true range=39..42
+
+require in a nested block [mode=0 ignoreTypes=false]
+  source: "function f() { const m = require('./b'); return m; }"
+    ./b kind=0 resolved=4 dynamic=true range=34..37
+
+require in a nested block [mode=0 ignoreTypes=true]
+  source: "function f() { const m = require('./b'); return m; }"
+    ./b kind=0 resolved=4 dynamic=true range=34..37
+
+require in a nested block [mode=1 ignoreTypes=false]
+  source: "function f() { const m = require('./b'); return m; }"
+    ./b kind=0 resolved=4 dynamic=true range=34..37
+
+require in a nested block [mode=1 ignoreTypes=true]
+  source: "function f() { const m = require('./b'); return m; }"
+    ./b kind=0 resolved=4 dynamic=true range=34..37
+
+member access is not an import [mode=0 ignoreTypes=false]
+  source: "obj.import('x'); obj.require('y'); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=53..54
+
+member access is not an import [mode=0 ignoreTypes=true]
+  source: "obj.import('x'); obj.require('y'); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=53..54
+
+member access is not an import [mode=1 ignoreTypes=false]
+  source: "obj.import('x'); obj.require('y'); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=53..54 keywords=1
+
+member access is not an import [mode=1 ignoreTypes=true]
+  source: "obj.import('x'); obj.require('y'); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=53..54 keywords=1
+
+regex containing quotes [mode=0 ignoreTypes=false]
+  source: "const re = /['\"]/g; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=38..39
+
+regex containing quotes [mode=0 ignoreTypes=true]
+  source: "const re = /['\"]/g; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=38..39
+
+regex containing quotes [mode=1 ignoreTypes=false]
+  source: "const re = /['\"]/g; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=38..39 keywords=1
+
+regex containing quotes [mode=1 ignoreTypes=true]
+  source: "const re = /['\"]/g; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=38..39 keywords=1
+
+regex containing a slash [mode=0 ignoreTypes=false]
+  source: "const re = /a\\/b/g; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=38..39
+
+regex containing a slash [mode=0 ignoreTypes=true]
+  source: "const re = /a\\/b/g; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=38..39
+
+regex containing a slash [mode=1 ignoreTypes=false]
+  source: "const re = /a\\/b/g; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=38..39 keywords=1
+
+regex containing a slash [mode=1 ignoreTypes=true]
+  source: "const re = /a\\/b/g; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=38..39 keywords=1
+
+template with interpolation [mode=0 ignoreTypes=false]
+  source: "const t = `a ${ b } c`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=42..43
+
+template with interpolation [mode=0 ignoreTypes=true]
+  source: "const t = `a ${ b } c`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=42..43
+
+template with interpolation [mode=1 ignoreTypes=false]
+  source: "const t = `a ${ b } c`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=42..43 keywords=1
+
+template with interpolation [mode=1 ignoreTypes=true]
+  source: "const t = `a ${ b } c`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=42..43 keywords=1
+
+nested template literals [mode=0 ignoreTypes=false]
+  source: "const t = `a ${ `x ${ y }` } b`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=51..52
+
+nested template literals [mode=0 ignoreTypes=true]
+  source: "const t = `a ${ `x ${ y }` } b`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=51..52
+
+nested template literals [mode=1 ignoreTypes=false]
+  source: "const t = `a ${ `x ${ y }` } b`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=51..52 keywords=1
+
+nested template literals [mode=1 ignoreTypes=true]
+  source: "const t = `a ${ `x ${ y }` } b`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=51..52 keywords=1
+
+regex with a double quote inside an interpolation [mode=0 ignoreTypes=false]
+  source: "const t = `${ s.replace(/\"/g, '-') }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=57..58
+
+regex with a double quote inside an interpolation [mode=0 ignoreTypes=true]
+  source: "const t = `${ s.replace(/\"/g, '-') }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=57..58
+
+regex with a double quote inside an interpolation [mode=1 ignoreTypes=false]
+  source: "const t = `${ s.replace(/\"/g, '-') }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=57..58 keywords=1
+
+regex with a double quote inside an interpolation [mode=1 ignoreTypes=true]
+  source: "const t = `${ s.replace(/\"/g, '-') }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=57..58 keywords=1
+
+regex with a single quote inside an interpolation [mode=0 ignoreTypes=false]
+  source: "const t = `${ s.replace(/'/g, '-') }`; const r = require('y');"
+    y kind=0 resolved=4 dynamic=true range=58..59
+
+regex with a single quote inside an interpolation [mode=0 ignoreTypes=true]
+  source: "const t = `${ s.replace(/'/g, '-') }`; const r = require('y');"
+    y kind=0 resolved=4 dynamic=true range=58..59
+
+regex with a single quote inside an interpolation [mode=1 ignoreTypes=false]
+  source: "const t = `${ s.replace(/'/g, '-') }`; const r = require('y');"
+    y kind=0 resolved=4 dynamic=true range=58..59
+
+regex with a single quote inside an interpolation [mode=1 ignoreTypes=true]
+  source: "const t = `${ s.replace(/'/g, '-') }`; const r = require('y');"
+    y kind=0 resolved=4 dynamic=true range=58..59
+
+regex with a brace inside an interpolation [mode=0 ignoreTypes=false]
+  source: "const t = `${ s.replace(/[{}]/g, '-') }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=60..61
+
+regex with a brace inside an interpolation [mode=0 ignoreTypes=true]
+  source: "const t = `${ s.replace(/[{}]/g, '-') }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=60..61
+
+regex with a brace inside an interpolation [mode=1 ignoreTypes=false]
+  source: "const t = `${ s.replace(/[{}]/g, '-') }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=60..61 keywords=1
+
+regex with a brace inside an interpolation [mode=1 ignoreTypes=true]
+  source: "const t = `${ s.replace(/[{}]/g, '-') }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=60..61 keywords=1
+
+quoted regex inside a nested template [mode=0 ignoreTypes=false]
+  source: "const t = `${ `${ s.replace(/\"/g, '-') }` }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=64..65
+
+quoted regex inside a nested template [mode=0 ignoreTypes=true]
+  source: "const t = `${ `${ s.replace(/\"/g, '-') }` }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=64..65
+
+quoted regex inside a nested template [mode=1 ignoreTypes=false]
+  source: "const t = `${ `${ s.replace(/\"/g, '-') }` }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=64..65 keywords=1
+
+quoted regex inside a nested template [mode=1 ignoreTypes=true]
+  source: "const t = `${ `${ s.replace(/\"/g, '-') }` }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=64..65 keywords=1
+
+comment containing a brace inside an interpolation [mode=0 ignoreTypes=false]
+  source: "const t = `${ /* } */ b }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=46..47
+
+comment containing a brace inside an interpolation [mode=0 ignoreTypes=true]
+  source: "const t = `${ /* } */ b }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=46..47
+
+comment containing a brace inside an interpolation [mode=1 ignoreTypes=false]
+  source: "const t = `${ /* } */ b }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=46..47 keywords=1
+
+comment containing a brace inside an interpolation [mode=1 ignoreTypes=true]
+  source: "const t = `${ /* } */ b }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=46..47 keywords=1
+
+line comment inside an interpolation [mode=0 ignoreTypes=false]
+  source: "const t = `${ b // }\n }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=44..45
+
+line comment inside an interpolation [mode=0 ignoreTypes=true]
+  source: "const t = `${ b // }\n }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=44..45
+
+line comment inside an interpolation [mode=1 ignoreTypes=false]
+  source: "const t = `${ b // }\n }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=44..45 keywords=1
+
+line comment inside an interpolation [mode=1 ignoreTypes=true]
+  source: "const t = `${ b // }\n }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=44..45 keywords=1
+
+division inside an interpolation [mode=0 ignoreTypes=false]
+  source: "const t = `${ a / b }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=42..43
+
+division inside an interpolation [mode=0 ignoreTypes=true]
+  source: "const t = `${ a / b }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=42..43
+
+division inside an interpolation [mode=1 ignoreTypes=false]
+  source: "const t = `${ a / b }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=42..43 keywords=1
+
+division inside an interpolation [mode=1 ignoreTypes=true]
+  source: "const t = `${ a / b }`; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=42..43 keywords=1
+
+export from [mode=0 ignoreTypes=false]
+  source: "export { a, b } from './m'; export * from './n';"
+    ./m kind=0 resolved=4 dynamic=false range=22..25
+    ./n kind=0 resolved=4 dynamic=false range=43..46
+
+export from [mode=0 ignoreTypes=true]
+  source: "export { a, b } from './m'; export * from './n';"
+    ./m kind=0 resolved=4 dynamic=false range=22..25
+    ./n kind=0 resolved=4 dynamic=false range=43..46
+
+export from [mode=1 ignoreTypes=false]
+  source: "export { a, b } from './m'; export * from './n';"
+    ./m kind=0 resolved=4 dynamic=false range=22..25 keywords=2
+    ./n kind=0 resolved=4 dynamic=false range=43..46 keywords=1
+
+export from [mode=1 ignoreTypes=true]
+  source: "export { a, b } from './m'; export * from './n';"
+    ./m kind=0 resolved=4 dynamic=false range=22..25 keywords=2
+    ./n kind=0 resolved=4 dynamic=false range=43..46 keywords=1
+
+export default function with body [mode=0 ignoreTypes=false]
+  source: "export default function f() { const m = require('./inner'); return m; }"
+    ./inner kind=0 resolved=4 dynamic=true range=49..56
+
+export default function with body [mode=0 ignoreTypes=true]
+  source: "export default function f() { const m = require('./inner'); return m; }"
+    ./inner kind=0 resolved=4 dynamic=true range=49..56
+
+export default function with body [mode=1 ignoreTypes=false]
+  source: "export default function f() { const m = require('./inner'); return m; }"
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    ./inner kind=0 resolved=4 dynamic=true range=49..56
+
+export default function with body [mode=1 ignoreTypes=true]
+  source: "export default function f() { const m = require('./inner'); return m; }"
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    ./inner kind=0 resolved=4 dynamic=true range=49..56
+
+type import [mode=0 ignoreTypes=false]
+  source: "import type { A } from './types'; import { B } from './values';"
+    ./types kind=1 resolved=4 dynamic=false range=24..31
+    ./values kind=0 resolved=4 dynamic=false range=53..61
+
+type import [mode=0 ignoreTypes=true]
+  source: "import type { A } from './types'; import { B } from './values';"
+    ./values kind=0 resolved=4 dynamic=false range=53..61
+
+type import [mode=1 ignoreTypes=false]
+  source: "import type { A } from './types'; import { B } from './values';"
+    ./types kind=1 resolved=4 dynamic=false range=24..31 keywords=1
+    ./values kind=0 resolved=4 dynamic=false range=53..61 keywords=1
+
+type import [mode=1 ignoreTypes=true]
+  source: "import type { A } from './types'; import { B } from './values';"
+    ./values kind=0 resolved=4 dynamic=false range=53..61 keywords=1
+
+mixed type specifiers [mode=0 ignoreTypes=false]
+  source: "import { type A, B } from './m';"
+    ./m kind=0 resolved=4 dynamic=false range=27..30
+
+mixed type specifiers [mode=0 ignoreTypes=true]
+  source: "import { type A, B } from './m';"
+    ./m kind=0 resolved=4 dynamic=false range=27..30
+
+mixed type specifiers [mode=1 ignoreTypes=false]
+  source: "import { type A, B } from './m';"
+    ./m kind=0 resolved=4 dynamic=false range=27..30 keywords=2
+
+mixed type specifiers [mode=1 ignoreTypes=true]
+  source: "import { type A, B } from './m';"
+    ./m kind=0 resolved=4 dynamic=false range=27..30 keywords=2
+
+declare module block [mode=0 ignoreTypes=false]
+  source: "declare module 'x' { import fake from './fake'; } import real from './real';"
+    ./real kind=0 resolved=4 dynamic=false range=68..74
+
+declare module block [mode=0 ignoreTypes=true]
+  source: "declare module 'x' { import fake from './fake'; } import real from './real';"
+    ./real kind=0 resolved=4 dynamic=false range=68..74
+
+declare module block [mode=1 ignoreTypes=false]
+  source: "declare module 'x' { import fake from './fake'; } import real from './real';"
+    ./real kind=0 resolved=4 dynamic=false range=68..74 keywords=1
+
+declare module block [mode=1 ignoreTypes=true]
+  source: "declare module 'x' { import fake from './fake'; } import real from './real';"
+    ./real kind=0 resolved=4 dynamic=false range=68..74 keywords=1
+
+import assertion [mode=0 ignoreTypes=false]
+  source: "import data from './d.json' assert { type: 'json' };"
+    ./d.json kind=0 resolved=4 dynamic=false range=18..26
+
+import assertion [mode=0 ignoreTypes=true]
+  source: "import data from './d.json' assert { type: 'json' };"
+    ./d.json kind=0 resolved=4 dynamic=false range=18..26
+
+import assertion [mode=1 ignoreTypes=false]
+  source: "import data from './d.json' assert { type: 'json' };"
+    ./d.json kind=0 resolved=4 dynamic=false range=18..26 keywords=1
+
+import assertion [mode=1 ignoreTypes=true]
+  source: "import data from './d.json' assert { type: 'json' };"
+    ./d.json kind=0 resolved=4 dynamic=false range=18..26 keywords=1
+
+side effect import [mode=0 ignoreTypes=false]
+  source: "import './styles.css';"
+    ./styles.css kind=0 resolved=4 dynamic=false range=8..20
+
+side effect import [mode=0 ignoreTypes=true]
+  source: "import './styles.css';"
+    ./styles.css kind=0 resolved=4 dynamic=false range=8..20
+
+side effect import [mode=1 ignoreTypes=false]
+  source: "import './styles.css';"
+    ./styles.css kind=0 resolved=4 dynamic=false range=8..20
+
+side effect import [mode=1 ignoreTypes=true]
+  source: "import './styles.css';"
+    ./styles.css kind=0 resolved=4 dynamic=false range=8..20
+
+namespace import [mode=0 ignoreTypes=false]
+  source: "import * as ns from './m';"
+    ./m kind=0 resolved=4 dynamic=false range=21..24
+
+namespace import [mode=0 ignoreTypes=true]
+  source: "import * as ns from './m';"
+    ./m kind=0 resolved=4 dynamic=false range=21..24
+
+namespace import [mode=1 ignoreTypes=false]
+  source: "import * as ns from './m';"
+    ./m kind=0 resolved=4 dynamic=false range=21..24 keywords=1
+
+namespace import [mode=1 ignoreTypes=true]
+  source: "import * as ns from './m';"
+    ./m kind=0 resolved=4 dynamic=false range=21..24 keywords=1
+
+require with template arg [mode=0 ignoreTypes=false]
+  source: "const m = require(`./x`);"
+    (none)
+
+require with template arg [mode=0 ignoreTypes=true]
+  source: "const m = require(`./x`);"
+    (none)
+
+require with template arg [mode=1 ignoreTypes=false]
+  source: "const m = require(`./x`);"
+    (none)
+
+require with template arg [mode=1 ignoreTypes=true]
+  source: "const m = require(`./x`);"
+    (none)
+
+jsx with closing tags [mode=0 ignoreTypes=false]
+  source: "import React from 'react'; const a = <Row><Cell><Dot /></Cell></Row>;"
+    react kind=0 resolved=4 dynamic=false range=19..24
+
+jsx with closing tags [mode=0 ignoreTypes=true]
+  source: "import React from 'react'; const a = <Row><Cell><Dot /></Cell></Row>;"
+    react kind=0 resolved=4 dynamic=false range=19..24
+
+jsx with closing tags [mode=1 ignoreTypes=false]
+  source: "import React from 'react'; const a = <Row><Cell><Dot /></Cell></Row>;"
+    react kind=0 resolved=4 dynamic=false range=19..24 keywords=1
+
+jsx with closing tags [mode=1 ignoreTypes=true]
+  source: "import React from 'react'; const a = <Row><Cell><Dot /></Cell></Row>;"
+    react kind=0 resolved=4 dynamic=false range=19..24 keywords=1
+
+jsx expression with import [mode=0 ignoreTypes=false]
+  source: "const a = <div>{load(() => import('./lazy'))}</div>;"
+    ./lazy kind=0 resolved=4 dynamic=true range=35..41
+
+jsx expression with import [mode=0 ignoreTypes=true]
+  source: "const a = <div>{load(() => import('./lazy'))}</div>;"
+    ./lazy kind=0 resolved=4 dynamic=true range=35..41
+
+jsx expression with import [mode=1 ignoreTypes=false]
+  source: "const a = <div>{load(() => import('./lazy'))}</div>;"
+    ./lazy kind=0 resolved=4 dynamic=true range=35..41
+
+jsx expression with import [mode=1 ignoreTypes=true]
+  source: "const a = <div>{load(() => import('./lazy'))}</div>;"
+    ./lazy kind=0 resolved=4 dynamic=true range=35..41
+
+class with methods [mode=0 ignoreTypes=false]
+  source: "export class A { m() { return require('./x'); } n() { return 1; } }"
+    ./x kind=0 resolved=4 dynamic=true range=39..42
+
+class with methods [mode=0 ignoreTypes=true]
+  source: "export class A { m() { return require('./x'); } n() { return 1; } }"
+    ./x kind=0 resolved=4 dynamic=true range=39..42
+
+class with methods [mode=1 ignoreTypes=false]
+  source: "export class A { m() { return require('./x'); } n() { return 1; } }"
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    ./x kind=0 resolved=4 dynamic=true range=39..42
+
+class with methods [mode=1 ignoreTypes=true]
+  source: "export class A { m() { return require('./x'); } n() { return 1; } }"
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    ./x kind=0 resolved=4 dynamic=true range=39..42
+
+object literal with braces [mode=0 ignoreTypes=false]
+  source: "const o = { a: { b: { c: 1 } } }; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=52..53
+
+object literal with braces [mode=0 ignoreTypes=true]
+  source: "const o = { a: { b: { c: 1 } } }; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=52..53
+
+object literal with braces [mode=1 ignoreTypes=false]
+  source: "const o = { a: { b: { c: 1 } } }; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=52..53 keywords=1
+
+object literal with braces [mode=1 ignoreTypes=true]
+  source: "const o = { a: { b: { c: 1 } } }; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=52..53 keywords=1
+
+arrow returning object [mode=0 ignoreTypes=false]
+  source: "const f = () => ({ a: 1 }); import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=46..47
+
+arrow returning object [mode=0 ignoreTypes=true]
+  source: "const f = () => ({ a: 1 }); import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=46..47
+
+arrow returning object [mode=1 ignoreTypes=false]
+  source: "const f = () => ({ a: 1 }); import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=46..47 keywords=1
+
+arrow returning object [mode=1 ignoreTypes=true]
+  source: "const f = () => ({ a: 1 }); import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=46..47 keywords=1
+
+labelled statement [mode=0 ignoreTypes=false]
+  source: "outer: for (;;) { break outer; } import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=51..52
+
+labelled statement [mode=0 ignoreTypes=true]
+  source: "outer: for (;;) { break outer; } import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=51..52
+
+labelled statement [mode=1 ignoreTypes=false]
+  source: "outer: for (;;) { break outer; } import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=51..52 keywords=1
+
+labelled statement [mode=1 ignoreTypes=true]
+  source: "outer: for (;;) { break outer; } import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=51..52 keywords=1
+
+semicolonless [mode=0 ignoreTypes=false]
+  source: "import a from './a'\nimport b from './b'\nconst c = require('./c')"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+    ./b kind=0 resolved=4 dynamic=false range=35..38
+    ./c kind=0 resolved=4 dynamic=true range=59..62
+
+semicolonless [mode=0 ignoreTypes=true]
+  source: "import a from './a'\nimport b from './b'\nconst c = require('./c')"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+    ./b kind=0 resolved=4 dynamic=false range=35..38
+    ./c kind=0 resolved=4 dynamic=true range=59..62
+
+semicolonless [mode=1 ignoreTypes=false]
+  source: "import a from './a'\nimport b from './b'\nconst c = require('./c')"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+    ./b kind=0 resolved=4 dynamic=false range=35..38 keywords=1
+    ./c kind=0 resolved=4 dynamic=true range=59..62
+
+semicolonless [mode=1 ignoreTypes=true]
+  source: "import a from './a'\nimport b from './b'\nconst c = require('./c')"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+    ./b kind=0 resolved=4 dynamic=false range=35..38 keywords=1
+    ./c kind=0 resolved=4 dynamic=true range=59..62
+
+windows line endings [mode=0 ignoreTypes=false]
+  source: "import a from './a';\r\nimport b from './b';\r\n"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+    ./b kind=0 resolved=4 dynamic=false range=37..40
+
+windows line endings [mode=0 ignoreTypes=true]
+  source: "import a from './a';\r\nimport b from './b';\r\n"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+    ./b kind=0 resolved=4 dynamic=false range=37..40
+
+windows line endings [mode=1 ignoreTypes=false]
+  source: "import a from './a';\r\nimport b from './b';\r\n"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+    ./b kind=0 resolved=4 dynamic=false range=37..40 keywords=1
+
+windows line endings [mode=1 ignoreTypes=true]
+  source: "import a from './a';\r\nimport b from './b';\r\n"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+    ./b kind=0 resolved=4 dynamic=false range=37..40 keywords=1
+
+unicode identifiers [mode=0 ignoreTypes=false]
+  source: "import { café } from './c'; const naïve = 1;"
+    ./c kind=0 resolved=4 dynamic=false range=23..26
+
+unicode identifiers [mode=0 ignoreTypes=true]
+  source: "import { café } from './c'; const naïve = 1;"
+    ./c kind=0 resolved=4 dynamic=false range=23..26
+
+unicode identifiers [mode=1 ignoreTypes=false]
+  source: "import { café } from './c'; const naïve = 1;"
+    ./c kind=0 resolved=4 dynamic=false range=23..26 keywords=1
+
+unicode identifiers [mode=1 ignoreTypes=true]
+  source: "import { café } from './c'; const naïve = 1;"
+    ./c kind=0 resolved=4 dynamic=false range=23..26 keywords=1
+
+deeply nested dynamic import [mode=0 ignoreTypes=false]
+  source: "function a(){ function b(){ function c(){ return import('./deep'); } } }"
+    ./deep kind=0 resolved=4 dynamic=true range=57..63
+
+deeply nested dynamic import [mode=0 ignoreTypes=true]
+  source: "function a(){ function b(){ function c(){ return import('./deep'); } } }"
+    ./deep kind=0 resolved=4 dynamic=true range=57..63
+
+deeply nested dynamic import [mode=1 ignoreTypes=false]
+  source: "function a(){ function b(){ function c(){ return import('./deep'); } } }"
+    ./deep kind=0 resolved=4 dynamic=true range=57..63
+
+deeply nested dynamic import [mode=1 ignoreTypes=true]
+  source: "function a(){ function b(){ function c(){ return import('./deep'); } } }"
+    ./deep kind=0 resolved=4 dynamic=true range=57..63
+
+export declare [mode=0 ignoreTypes=false]
+  source: "export declare const x: number; import real from './r';"
+    ./r kind=0 resolved=4 dynamic=false range=50..53
+
+export declare [mode=0 ignoreTypes=true]
+  source: "export declare const x: number; import real from './r';"
+    ./r kind=0 resolved=4 dynamic=false range=50..53
+
+export declare [mode=1 ignoreTypes=false]
+  source: "export declare const x: number; import real from './r';"
+    ./r kind=0 resolved=4 dynamic=false range=50..53 keywords=1
+
+export declare [mode=1 ignoreTypes=true]
+  source: "export declare const x: number; import real from './r';"
+    ./r kind=0 resolved=4 dynamic=false range=50..53 keywords=1
+
+import in default param [mode=0 ignoreTypes=false]
+  source: "function f(g = () => import('./p')) {}"
+    ./p kind=0 resolved=4 dynamic=true range=29..32
+
+import in default param [mode=0 ignoreTypes=true]
+  source: "function f(g = () => import('./p')) {}"
+    ./p kind=0 resolved=4 dynamic=true range=29..32
+
+import in default param [mode=1 ignoreTypes=false]
+  source: "function f(g = () => import('./p')) {}"
+    ./p kind=0 resolved=4 dynamic=true range=29..32
+
+import in default param [mode=1 ignoreTypes=true]
+  source: "function f(g = () => import('./p')) {}"
+    ./p kind=0 resolved=4 dynamic=true range=29..32
+
+comment between keyword and specifier [mode=0 ignoreTypes=false]
+  source: "import /* c */ { a } /* c */ from /* c */ './m';"
+    (none)
+
+comment between keyword and specifier [mode=0 ignoreTypes=true]
+  source: "import /* c */ { a } /* c */ from /* c */ './m';"
+    (none)
+
+comment between keyword and specifier [mode=1 ignoreTypes=false]
+  source: "import /* c */ { a } /* c */ from /* c */ './m';"
+    (none)
+
+comment between keyword and specifier [mode=1 ignoreTypes=true]
+  source: "import /* c */ { a } /* c */ from /* c */ './m';"
+    (none)
+
+empty file [mode=0 ignoreTypes=false]
+  source: ""
+    (none)
+
+empty file [mode=0 ignoreTypes=true]
+  source: ""
+    (none)
+
+empty file [mode=1 ignoreTypes=false]
+  source: ""
+    (none)
+
+empty file [mode=1 ignoreTypes=true]
+  source: ""
+    (none)
+
+only whitespace [mode=0 ignoreTypes=false]
+  source: "   \n\t\n  "
+    (none)
+
+only whitespace [mode=0 ignoreTypes=true]
+  source: "   \n\t\n  "
+    (none)
+
+only whitespace [mode=1 ignoreTypes=false]
+  source: "   \n\t\n  "
+    (none)
+
+only whitespace [mode=1 ignoreTypes=true]
+  source: "   \n\t\n  "
+    (none)
+
+unterminated string [mode=0 ignoreTypes=false]
+  source: "import a from './a'; const s = \"unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+
+unterminated string [mode=0 ignoreTypes=true]
+  source: "import a from './a'; const s = \"unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+
+unterminated string [mode=1 ignoreTypes=false]
+  source: "import a from './a'; const s = \"unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+
+unterminated string [mode=1 ignoreTypes=true]
+  source: "import a from './a'; const s = \"unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+
+unterminated template [mode=0 ignoreTypes=false]
+  source: "import a from './a'; const t = `unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+
+unterminated template [mode=0 ignoreTypes=true]
+  source: "import a from './a'; const t = `unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+
+unterminated template [mode=1 ignoreTypes=false]
+  source: "import a from './a'; const t = `unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+
+unterminated template [mode=1 ignoreTypes=true]
+  source: "import a from './a'; const t = `unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+
+unterminated block comment [mode=0 ignoreTypes=false]
+  source: "import a from './a'; /* unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+
+unterminated block comment [mode=0 ignoreTypes=true]
+  source: "import a from './a'; /* unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+
+unterminated block comment [mode=1 ignoreTypes=false]
+  source: "import a from './a'; /* unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+
+unterminated block comment [mode=1 ignoreTypes=true]
+  source: "import a from './a'; /* unterminated"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+
+lone angle bracket [mode=0 ignoreTypes=false]
+  source: "const a = 1 < 2; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=35..36
+
+lone angle bracket [mode=0 ignoreTypes=true]
+  source: "const a = 1 < 2; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=35..36
+
+lone angle bracket [mode=1 ignoreTypes=false]
+  source: "const a = 1 < 2; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=35..36 keywords=1
+
+lone angle bracket [mode=1 ignoreTypes=true]
+  source: "const a = 1 < 2; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=35..36 keywords=1
+
+generic call [mode=0 ignoreTypes=false]
+  source: "const m = new Map<string, number>(); import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=55..56
+
+generic call [mode=0 ignoreTypes=true]
+  source: "const m = new Map<string, number>(); import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=55..56
+
+generic call [mode=1 ignoreTypes=false]
+  source: "const m = new Map<string, number>(); import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=55..56 keywords=1
+
+generic call [mode=1 ignoreTypes=true]
+  source: "const m = new Map<string, number>(); import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=55..56 keywords=1
+
+adjacent elements on one line [mode=0 ignoreTypes=false]
+  source: "const a = <div><b></b><i>{require('./x')}</i></div>;"
+    ./x kind=0 resolved=4 dynamic=true range=35..38
+
+adjacent elements on one line [mode=0 ignoreTypes=true]
+  source: "const a = <div><b></b><i>{require('./x')}</i></div>;"
+    ./x kind=0 resolved=4 dynamic=true range=35..38
+
+adjacent elements on one line [mode=1 ignoreTypes=false]
+  source: "const a = <div><b></b><i>{require('./x')}</i></div>;"
+    ./x kind=0 resolved=4 dynamic=true range=35..38
+
+adjacent elements on one line [mode=1 ignoreTypes=true]
+  source: "const a = <div><b></b><i>{require('./x')}</i></div>;"
+    ./x kind=0 resolved=4 dynamic=true range=35..38
+
+empty element then a sibling [mode=0 ignoreTypes=false]
+  source: "const a = <><Icon /><Label>{require('./y')}</Label></>;"
+    ./y kind=0 resolved=4 dynamic=true range=37..40
+
+empty element then a sibling [mode=0 ignoreTypes=true]
+  source: "const a = <><Icon /><Label>{require('./y')}</Label></>;"
+    ./y kind=0 resolved=4 dynamic=true range=37..40
+
+empty element then a sibling [mode=1 ignoreTypes=false]
+  source: "const a = <><Icon /><Label>{require('./y')}</Label></>;"
+    ./y kind=0 resolved=4 dynamic=true range=37..40
+
+empty element then a sibling [mode=1 ignoreTypes=true]
+  source: "const a = <><Icon /><Label>{require('./y')}</Label></>;"
+    ./y kind=0 resolved=4 dynamic=true range=37..40
+
+dynamic import between two closing tags [mode=0 ignoreTypes=false]
+  source: "const a = <ul><li></li><li>{import('./z')}</li></ul>;"
+    ./z kind=0 resolved=4 dynamic=true range=36..39
+
+dynamic import between two closing tags [mode=0 ignoreTypes=true]
+  source: "const a = <ul><li></li><li>{import('./z')}</li></ul>;"
+    ./z kind=0 resolved=4 dynamic=true range=36..39
+
+dynamic import between two closing tags [mode=1 ignoreTypes=false]
+  source: "const a = <ul><li></li><li>{import('./z')}</li></ul>;"
+    ./z kind=0 resolved=4 dynamic=true range=36..39
+
+dynamic import between two closing tags [mode=1 ignoreTypes=true]
+  source: "const a = <ul><li></li><li>{import('./z')}</li></ul>;"
+    ./z kind=0 resolved=4 dynamic=true range=36..39
+
+closing tag then a division [mode=0 ignoreTypes=false]
+  source: "const a = <p></p>; const q = total / count; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=62..63
+
+closing tag then a division [mode=0 ignoreTypes=true]
+  source: "const a = <p></p>; const q = total / count; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=62..63
+
+closing tag then a division [mode=1 ignoreTypes=false]
+  source: "const a = <p></p>; const q = total / count; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=62..63 keywords=1
+
+closing tag then a division [mode=1 ignoreTypes=true]
+  source: "const a = <p></p>; const q = total / count; import real from 'x';"
+    x kind=0 resolved=4 dynamic=false range=62..63 keywords=1
+
+less-than followed by a regex [mode=0 ignoreTypes=false]
+  source: "const a = x < /re/.source.length; import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=52..53
+
+less-than followed by a regex [mode=0 ignoreTypes=true]
+  source: "const a = x < /re/.source.length; import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=52..53
+
+less-than followed by a regex [mode=1 ignoreTypes=false]
+  source: "const a = x < /re/.source.length; import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=52..53 keywords=1
+
+less-than followed by a regex [mode=1 ignoreTypes=true]
+  source: "const a = x < /re/.source.length; import real from 'y';"
+    y kind=0 resolved=4 dynamic=false range=52..53 keywords=1

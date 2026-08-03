@@ -3,6 +3,10 @@ const fs = fsSync.promises;
 const { execFileSync } = require('child_process');
 const path = require('path');
 
+// Every command that gets a reference page, in sidebar order. Nothing derives this
+// from the binary, so a new command is documented nowhere until it is added here -
+// `duplicated-code` shipped and stayed missing from both READMEs and the docs site.
+// `doc-gen` is deliberately absent: it generates these pages and is not for users.
 const settings = {
   commands: [
     { name: 'circular' },
@@ -10,6 +14,16 @@ const settings = {
       name: 'config',
       subcommands: ['run', 'init', 'lint', 'migrate'],
     },
+    {
+      name: 'debug',
+      subcommands: [
+        'get-tree-for-cwd',
+        'list-cwd-files',
+        'parse-file',
+        'parse-tsconfig',
+      ],
+    },
+    { name: 'duplicated-code' },
     { name: 'entry-points' },
     { name: 'files' },
     { name: 'imported-by' },
@@ -19,10 +33,12 @@ const settings = {
     {
       name: 'node-modules',
       subcommands: [
+        'analyze-size',
         'dirs-size',
         'installed-duplicates',
         'installed',
         'missing',
+        'prune-docs',
         'unused',
         'used',
       ],

@@ -56,6 +56,20 @@ const config: Config = {
         crossorigin: 'anonymous',
       },
     },
+    // The faces live here rather than in custom.css because static/ is one of
+    // webpack's resolve.roots: a url('/fonts/...') in a bundled stylesheet is
+    // rewritten to /assets/fonts/<name>-<hash>.woff2, which does not match the
+    // preloads above. Every face then downloaded twice - once for the unused
+    // preload, once for the hashed copy - and the real font arrived late.
+    // Inline in <head> the URL is never processed, and the face is declared
+    // before the stylesheet loads.
+    {
+      tagName: 'style',
+      attributes: {},
+      innerHTML:
+        "@font-face{font-family:'Geist';src:url('/fonts/Geist-Variable.woff2') format('woff2-variations');font-weight:100 900;font-style:normal;font-display:swap}" +
+        "@font-face{font-family:'Geist Mono';src:url('/fonts/GeistMono-Variable.woff2') format('woff2-variations');font-weight:100 900;font-style:normal;font-display:swap}",
+    },
     // Hide the document until the webfonts resolve, then fade it in.
     // Must be inline in <head> so it applies before the first paint - React
     // cannot do this, because hydration runs after the HTML has painted.

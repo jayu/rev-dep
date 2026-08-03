@@ -23,11 +23,12 @@ export type ToolRow = {
  *
  *   1. unused files
  *   2. unused exports
- *   3. unused dependencies
- *   4. missing dependencies
- *   5. unresolved imports
- *   6. circular imports
- *   7. module boundaries
+ *   3. duplicated code
+ *   4. unused dependencies
+ *   5. missing dependencies
+ *   6. unresolved imports
+ *   7. circular imports
+ *   8. module boundaries
  *
  * Each row lists only the entries that tool actually covers, in that order.
  * Capabilities are taken from each tool's own comparison page, so this list and
@@ -36,6 +37,7 @@ export type ToolRow = {
 export const replacedTools: ToolRow[] = [
   { name: 'knip', covers: 'unused files, unused exports, unused dependencies, circular imports', href: '/docs/comparison-with-other-tools/knip-vs-rev-dep' },
   { name: 'madge', covers: 'unused files, circular imports', href: '/docs/comparison-with-other-tools/madge-vs-rev-dep' },
+  { name: 'jscpd', covers: 'duplicated code', href: '/docs/comparison-with-other-tools/jscpd-vs-rev-dep' },
   { name: 'dependency-cruiser', covers: 'unused files, circular imports, module boundaries', href: '/docs/comparison-with-other-tools/dependency-cruiser-vs-rev-dep' },
   { name: 'depcheck', covers: 'unused dependencies, missing dependencies', href: '/docs/comparison-with-other-tools/depcheck-vs-rev-dep' },
   { name: 'dpdm', covers: 'unused files, circular imports', href: '/docs/comparison-with-other-tools/dpdm-vs-rev-dep' },

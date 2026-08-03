@@ -6,6 +6,7 @@ import "strings"
 // be written in the compact (boolean / optional-`enabled`) form.
 var detectorFieldNames = map[string]bool{
 	"circularImportsDetection":           true,
+	"duplicatedCodeDetection":            true,
 	"orphanFilesDetection":               true,
 	"unusedNodeModulesDetection":         true,
 	"missingNodeModulesDetection":        true,

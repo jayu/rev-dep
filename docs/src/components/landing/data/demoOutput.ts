@@ -12,7 +12,7 @@
 import type { TerminalLine } from '../primitives/Terminal';
 
 /**
- * Every one of the twelve detectors appears at least once, spread across four
+ * Every one of the thirteen detectors appears at least once, spread across four
  * workspaces the way a real config does - a workspace enables the checks that
  * make sense for it, not all of them. Repeating the same list under every
  * workspace would pad the window without showing anything new.
@@ -42,6 +42,7 @@ export const demoOutput: TerminalLine[] = [
   // The ✅ carries the "passed" signal on its own - colouring the check name
   // green too makes the block read as one solid wall of green.
   { text: '✅ Orphan Files', indent: 1 },
+  { text: '✅ Duplicated Code', indent: 1 },
   { text: '✅ Module Boundaries', indent: 1 },
   { text: '✅ Unused Exports', indent: 1 },
   { text: '', gap: true },

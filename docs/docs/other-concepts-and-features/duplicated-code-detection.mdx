@@ -1,0 +1,144 @@
+---
+description: "How rev-dep detects duplicated code - why it reports repeated blocks and JSX elements rather than repeated lines, and what that changes about the findings you get."
+title: How duplicated code detection works
+---
+
+# How duplicated code detection works
+
+rev-dep reports two things: **repeated code blocks** and **repeated JSX elements**. Not repeated lines.
+
+That is the whole design decision, and it changes what the findings are worth.
+
+## Why blocks, not lines
+
+Most duplicate-code tools compare **lines** or token windows. They will tell you that lines 40-58 of one file match lines 12-30 of another. That is true, and it is usually not actionable, because a run of matching lines rarely lines up with anything you can extract:
+
+```ts
+// a 19-line match that starts mid-function and ends mid-loop
+// - you cannot pull this out without first working out
+//   where it actually begins and ends
+```
+
+You then have to read both sites, work out where the real boundary is, and decide whether the match is a coincidence of formatting.
+
+A **code block** is different. A code block is already a unit the language recognises - a function body, a branch, a loop body, an object literal. A JSX element is the same thing for markup. When one of those appears twice, the refactoring is usually obvious:
+
+- a duplicated function body → extract a function
+- a duplicated JSX element → extract a component
+- a duplicated branch → extract a helper, or hoist the condition
+
+So the finding *is* the suggestion. You do not have to reconstruct the boundary, because the boundary is what was matched.
+
+This is a deliberate trade: rev-dep will not report a 19-line copy-paste that starts halfway through one function and ends halfway through another. That is a real duplicate, and it is one you would have to disentangle by hand anyway.
+
+## Nesting
+
+Every block is compared, at every level of nesting. A duplicated function contains a duplicated `if`, which contains a duplicated call.
+
+Reporting all three would be the same copy-paste three times, so when a block appears only inside a larger reported block - in the same number of copies - it is dropped. You get the outermost unit that captures the duplication, which is the one worth extracting.
+
+## What "the same code" means
+
+Comparison never looks at raw text. Each chunk is reduced to a formatting agnostic **canonical form** first:
+
+- comments removed
+- whitespace collapsed to only what separates tokens
+
+So a re-indented, re-commented copy still matches its original. Nothing else is ignored by default - names, strings and numbers must match as written.
+
+Beyond that, three switches each drop one category of token from the comparison, and they combine freely:
+
+| switch | effect |
+| --- | --- |
+| blind identifiers | names are wildcards, so a renamed copy still matches |
+| blind strings | string and template contents are wildcards |
+| blind numbers | numeric literals are wildcards |
+
+Keywords are never blinded, so `if` never matches `while` however much is ignored.
+
+Blinding identifiers is what finds the interesting cases - the same logic pasted and then adapted, with the variables renamed. To find those it effectively compares code structure rather than code text.
+
+```ts
+// these do NOT match by default
+function totalPrice(items) { return items.reduce((a, i) => a + i.price, 0) }
+function sumWeights(rows)  { return rows.reduce((a, r) => a + r.weight, 0) }
+
+// with identifiers blinded, they do - and the extraction is obvious
+```
+
+Blinding also produces more findings, so it is disabled by default.
+
+## Filters
+
+Every codebase has some repeated code, and not all of it is worth extracting to shared modules. Detection can be fine tuned with filters that can reduce the more trivial duplications:
+
+- **size** - how much code (tokens, lines)
+- **complexity** - how much structure (nesting depth, statement count)
+- **frequency** - how many copies exist (min duplicates)
+
+Size alone is not enough. A flat three-key config object with long string values is *large* and *trivial*; a small nested loop is the opposite. Depth is what tells them apart:
+
+```ts
+// large, flat, uninteresting - min-depth 2 excludes it
+const config = {
+  apiBaseUrlForTheStagingEnvironment: "https://staging.example.com/api/v2",
+  requestTimeoutInMillisecondsForSlowNetworks: 30000,
+}
+```
+
+Object literals are the main source of matches that read as false positives, because a three-key object with a nested pair is a shape that recurs across unrelated code. They can be excluded entirely when they get in the way.
+
+Frequency is a different lever. The default reports anything appearing twice, but two copies is often a deliberate choice - the second use did not justify an abstraction yet. Raising **min duplicates** to `3` reports only what has spread beyond that:
+
+```ts
+// with min duplicates 3: not reported - one copy-paste, still cheap to change
+formatUserRow()   // src/users/table.tsx
+formatUserRow()   // src/admin/table.tsx
+
+// reported - the third copy is where the cost of not extracting it starts compounding
+formatUserRow()   // src/users/table.tsx
+formatUserRow()   // src/admin/table.tsx
+formatUserRow()   // src/reports/table.tsx
+```
+
+It is a useful setting when adopting the check on a codebase that already has duplication you are not going to remove today: raise it to surface only the patterns that keep growing, and lower it later.
+
+## Which duplication is worth extracting
+
+A finding is not a defect. Duplication is a trade, and sometimes it is the right one.
+
+Extracting shared code **couples** the call sites: from then on they change together. When the copies belong to different features, or different teams, that coupling has a cost that arrives later - the shared helper grows parameters and flags as each caller's needs drift apart, until it is harder to read than the duplication it replaced.
+
+Two copies also diverge more often than people expect, because they were never the same requirement - only the same shape on the day they were written. Extract them early and the first divergence has to be paid for by bending the abstraction.
+
+So judge each finding in its own context. Chasing DRY across a whole codebase trades duplication for coupling, and coupling is the more expensive of the two to undo.
+
+### The signal worth acting on
+
+Extraction is a clear win when a block is both:
+
+- **repeated many times** - five copies, not two. At that count the shape is not a coincidence.
+- **stable over time** - unchanged while the code around it kept moving. Copies that have not diverged after months of edits are not going to; the shared meaning is real rather than accidental.
+
+The second half is the one tools usually miss, and it matters more than the count. Raising **min duplicates** covers the first. For the second, the snapshot file is committed and identifies each duplication by a stable `hash`, so its git history tells you how long that duplication has existed:
+
+```sh
+git log -S'<hash from the snapshot file>' -- duplicated-code.json
+```
+
+A block that has sat in the snapshot across months of commits, in five places, is the case where extracting it is almost certainly right.
+
+## Snapshots
+
+A project that already has duplication will report a lot of it on the first run, and none of it is news.
+
+A **snapshot** is a committed file recording what has been acknowledged. With one, a run reports **what changed** rather than everything that exists - new duplication fails, acknowledged duplication does not.
+
+It records hashes, never code. A duplicate is identified by the digest of its canonical form, so an entry survives reformatting - and under identifier blinding, renaming too. It deliberately does not record line numbers: those move on every commit above them, which would invalidate the file constantly while saying nothing about duplication.
+
+Because the identity is the canonical form, the snapshot also stores the settings it was taken under, and applies them to the run. Comparing against a baseline built with a different threshold is not measuring the same thing - lowering one invents findings the baseline never had a chance to acknowledge, raising one resolves findings nobody fixed.
+
+## Where to go next
+
+- [`duplicatedCodeDetection`](../config-based-checks/checks/duplicated-code.mdx) - the config check, for CI.
+- [`rev-dep duplicated-code`](../exploratory-toolkit/duplicated-code.mdx) - the CLI command, for looking at the actual snippets.

@@ -1,0 +1,118 @@
+---
+title: Duplicated Code Detection
+description: Detect copy-pasted code across a project or monorepo - repeated code blocks and JSX elements that can be extracted into shared implementations.
+---
+
+# Duplicated code
+
+Detect copy-pasted code across a project or monorepo - repeated code blocks and JSX elements that can be extracted into shared implementations.
+
+It reports whole repeated **code blocks**, not repeated lines, because a block is already something you can extract: a duplicated function body becomes a shared function, a duplicated JSX element becomes a component. See [How duplicated code detection works](../../other-concepts-and-features/duplicated-code-detection.mdx) for the reasoning and for what comparison ignores.
+
+The check reports **counts**. To see the actual snippets, run [`rev-dep duplicated-code`](../../exploratory-toolkit/duplicated-code.mdx) - the failure output prints the exact command that reproduces the detection.
+
+## Adopting it on an existing project
+
+Most projects have duplication before they start checking for it. A **snapshot** acknowledges what exists today, so the check reports only what changes from here.
+
+`rev-dep config init` already writes `snapshotPath` for you, without creating the file - the first run reports what exists and tells you the baseline is missing. To set it up by hand:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "duplicatedCodeDetection": {
+        "enabled": true,
+        "snapshotPath": "duplicated-code.json"
+      }
+    }
+  ]
+}
+```
+
+```bash
+rev-dep config run --update-snapshot
+```
+
+Commit the file. From then on the check reports the **delta**: new duplication fails, acknowledged duplication passes.
+
+When you resolve some of the acknowledged duplication, run `rev-dep config run --update-snapshot` again and commit the updated baseline, so it reflects the new state.
+
+Until the baseline exists the check still reports the duplication it finds, and fails - a configured baseline that is not there is a broken setup, not a clean one. Without `snapshotPath` at all, any duplication fails.
+
+`snapshotPath` is resolved against the **workspace** the detection sits on, and two detections resolving to the same file is a config error.
+
+## Where to put it in a monorepo
+
+On the **root workspace**, which is what `rev-dep config init` generates. Duplication is a property of the repository: a block pasted from one package into another is one finding, not one per package, and the root workspace already scans every package below it.
+
+Per-package detections are for the case where a package must be held to a different standard - stricter floors on a library, say - and each one then needs its own `snapshotPath`.
+
+## Comprehensive Configuration Example
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "duplicatedCodeDetection": {
+        "enabled": true,
+        "blindIdentifiers": true,
+        "minTokens": 50,
+        "minLines": 3,
+        "minDepth": 2,
+        "minStatements": 2,
+        "minDuplicates": 2,
+        "skipObjects": true,
+        "ignoreFiles": ["**/*.test.ts"],
+        "snapshotPath": "duplicated-code.json"
+      }
+    }
+  ]
+}
+```
+
+A workspace may configure **several** detections as an array - an exact comparison and a looser structural one, say. Each is reported on its own terms, and each needs its own `snapshotPath`.
+
+## Options
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `enabled` | - | Enable the detection. |
+| `blindIdentifiers` | `false` | Names are wildcards, so a renamed copy still counts. |
+| `blindStrings` | `false` | String and template contents are wildcards. |
+| `blindNumbers` | `false` | Numeric literals are wildcards. |
+| `minTokens` | `50` | Smallest duplication to report, in tokens. |
+| `minLines` | `3` | Smallest duplication to report, in lines. |
+| `minDepth` | `0` | Smallest nesting depth, counting the block itself. `2` requires at least one nested level. |
+| `minStatements` | `0` | Smallest statement count. Applies only to statement blocks. |
+| `minDuplicates` | `2` | How many copies a chunk needs. Raise to `3` to tolerate a single copy-paste. |
+| `skipObjects` | `false` | Do not report duplications that are only object literals. |
+| `ignoreFiles` | `[]` | Glob patterns to leave out of the analysis. |
+| `snapshotPath` | - | Path to a committed baseline, relative to the workspace. |
+
+Keywords are never blinded, so `if` never matches `while` however much is ignored.
+
+`minTokens` is measured in **tokens**, not characters, because a token count does not change when a `blind*` option is applied - one number means the same amount of code whatever is being ignored.
+
+`minDepth` and `minStatements` measure complexity rather than size, which is what separates a duplicated three-key config object from duplicated logic. No size floor can: the object's keys and string values may be long. `minStatements` does not apply to object literals or JSX elements, which are expressions and have no statements to be short of - use `minDepth` for those.
+
+### Interaction with `ignoreFiles`
+
+`ignoreFiles` is applied **before** anything is counted, not to the finished report. A chunk appearing in three files with one of them ignored is a *two*-copy duplicate, so with `minDuplicates: 3` it is not reported at all.
+
+The config's top-level [`ignoreFiles`](../../other-concepts-and-features/ignoring-files.mdx) applies as well, and is recorded in the snapshot so the reproduction command sees the same files.
+
+### Also referred as
+Duplicated Code Detection is also known as:
+- Copy-paste detection
+- Code clone detection
+- Duplicate code detection
+- Repeated code blocks
+- CPD
+- jscpd
+- duplicate code javascript
+- duplicate code typescript
+- find duplicate code in monorepo
+- DRY violations

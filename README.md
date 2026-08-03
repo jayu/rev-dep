@@ -78,6 +78,7 @@ Available checks:
 - `missingNodeModulesDetection` - detect imports missing from package json.
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
+- `duplicatedCodeDetection` - detect copy-pasted code (repeated blocks and JSX elements).
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 - `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
 - `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
@@ -92,9 +93,12 @@ Use CLI commands for ad-hoc dependency exploration:
 - `resolve` - trace dependency paths between files (who imports this file).
 - `imported-by` - list direct importers of a file.
 - `circular` - list circular dependency chains.
+- `duplicated-code` - find copy-pasted code blocks and JSX elements.
 - `node-modules` - inspect `used`, `unused`, `missing`, and `installed` node modules.
 - `lines-of-code` - count effective LOC.
+- `unresolved` - list imports that could not be resolved, grouped by file.
 - `list-cwd-files` - list all source code files in CWD
+- `debug` - inspect what rev-dep parses, resolves, and discovers internally.
 
 ## **Installation 📦**
 
@@ -146,11 +150,15 @@ Follow the guide that matches your project to get from zero to a working setup:
 A few instant-use examples to get a feel for the tool:
 
 ```bash
-# Detect unused node modules
-rev-dep node-modules unused
 
 # Detect circular imports/dependencies
 rev-dep circular
+
+# Find copy-pasted code
+rev-dep duplicated-code
+
+# Detect unused node modules
+rev-dep node-modules unused
 
 # List all entry points in the project
 rev-dep entry-points
@@ -180,6 +188,7 @@ Available checks are:
 - `missingNodeModulesDetection` - detect imports missing from package json.
 - `unresolvedImportsDetection` - detect unresolved import requests.
 - `circularImportsDetection` - detect circular imports.
+- `duplicatedCodeDetection` - detect copy-pasted code blocks and JSX elements.
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 - `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
 - `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
@@ -395,6 +404,7 @@ Each workspace can contain the following properties:
 - **`ignoreEntryPoints`** (optional): Workspace-level patterns for leftover entry points you no longer care about. Files matching these patterns are not processed as issues - they are never reported as orphan files, and their unused exports are not reported. Useful for files that must stay committed but are no longer wired into the app.
 - **`moduleBoundaries`** (optional): Array of module boundary rules
 - **`circularImportsDetection`** (optional): Circular import detection configuration (single object or array of objects)
+- **`duplicatedCodeDetection`** (optional): Duplicated code detection configuration (single object or array of objects)
 - **`orphanFilesDetection`** (optional): Orphan files detection configuration (single object or array of objects)  
 - **`unusedNodeModulesDetection`** (optional): Unused node modules detection configuration (single object or array of objects)
 - **`missingNodeModulesDetection`** (optional): Missing node modules detection configuration (single object or array of objects)
@@ -429,6 +439,20 @@ Each detection property can be configured as:
 **CircularImportsDetection:**
 - **`enabled`** (required): Enable/disable circular import detection
 - **`ignoreTypeImports`** (optional): Exclude type-only imports when building graph (default: false)
+
+**DuplicatedCodeDetection:**
+- **`enabled`** (required): Enable/disable duplicated code detection
+- **`blindIdentifiers`** (optional): Treat names as wildcards, so a renamed copy still counts (default: false)
+- **`blindStrings`** (optional): Treat string and template contents as wildcards (default: false)
+- **`blindNumbers`** (optional): Treat numeric literals as wildcards (default: false)
+- **`minTokens`** (optional): Smallest duplication to report, in tokens (default: 50)
+- **`minLines`** (optional): Smallest duplication to report, in lines (default: 3)
+- **`minDepth`** (optional): Smallest nesting depth, counting the block itself. 2 requires at least one nested level (default: 0)
+- **`minStatements`** (optional): Smallest statement count; applies only to statement blocks (default: 0)
+- **`minDuplicates`** (optional): How many copies a chunk needs before it is reported (default: 2)
+- **`skipObjects`** (optional): Do not report duplications that are only object literals (default: false)
+- **`ignoreFiles`** (optional): Glob patterns to leave out of the analysis
+- **`snapshotPath`** (optional): Path to a committed baseline of acknowledged duplications, relative to the workspace. With it the check reports what changed rather than the total
 
 **OrphanFilesDetection:**
 - **`enabled`** (required): Enable/disable orphan files detection
@@ -554,6 +578,14 @@ Useful for identifying heavy components or unintended dependencies.
 ```
 rev-dep circular
 ```
+
+### **How to detect duplicated code**
+
+```
+rev-dep duplicated-code
+```
+
+Reports repeated code blocks and JSX elements - units you can extract - rather than repeated lines. Add `--blind-identifiers` to catch copies whose variables were renamed.
 
 ### **How to find unused node modules**
 
@@ -814,10 +846,11 @@ rev-dep config run [flags]
       --fix                         Automatically fix fixable issues
       --format string               Output format (json, issues-list)
   -h, --help                        help for run
-      --lint-config config lint     Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use config lint for details and --fix
+      --lint-config                 Also lint the config after running; prints only error/warning counts and fails (non-zero exit) on any lint error. Use 'config lint' for details and --fix
       --lint-config-rules strings   Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config
       --list-all-issues             List all issues instead of limiting output
       --recheck                     Run all checks again after '--fix' to validate the final state
+      --update-snapshot             Rewrite every configured duplicated-code snapshot from this run, acknowledging what it found.
   -v, --verbose                     Show warnings and verbose output
       --workspaces strings          Subset of workspaces to run (comma-separated list of workspace paths)
 ```
@@ -902,6 +935,184 @@ rev-dep config migrate [flags]
 ```
   -c, --cwd string   Working directory (default "$PWD")
   -h, --help         help for migrate
+```
+
+
+### rev-dep debug
+
+Debugging tools to inspect parser and resolver internals
+
+#### Synopsis
+
+Debugging tools to inspect how rev-dep parses files and resolves dependencies. Output does not follow semver.
+
+#### Options
+
+```
+  -h, --help   help for debug
+```
+
+
+### rev-dep debug get-tree-for-cwd
+
+Debug: Show complete dependency tree for analysis
+
+#### Synopsis
+
+Debugging tool to inspect the complete dependency tree. Output does not follow semver.
+
+```
+rev-dep debug get-tree-for-cwd [flags]
+```
+
+#### Options
+
+```
+      --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
+      --cwd string                                                  Working directory for the command (default "$PWD")
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+  -h, --help                                                        help for get-tree-for-cwd
+  -t, --ignore-type-imports                                         Exclude type imports from the analysis
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
+      --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                                                     Show warnings and verbose output
+```
+
+
+### rev-dep debug list-cwd-files
+
+List all files in the current working directory
+
+#### Synopsis
+
+Recursively lists all files in the specified directory,
+with options to filter results.
+
+```
+rev-dep debug list-cwd-files [flags]
+```
+
+#### Examples
+
+```
+rev-dep debug list-cwd-files --include='*.ts' --exclude='*.test.ts'
+```
+
+#### Options
+
+```
+      --count             Only display the count of matching files
+      --cwd string        Directory to list files from (default "$PWD")
+      --exclude strings   Exclude files matching these glob patterns
+  -h, --help              help for list-cwd-files
+      --include strings   Only include files matching these glob patterns
+```
+
+
+### rev-dep debug parse-file
+
+Debug: Show parsed imports for a single file
+
+#### Synopsis
+
+Debugging tool to inspect how the parser processes a specific file. Output does not follow semver.
+
+```
+rev-dep debug parse-file [flags]
+```
+
+#### Options
+
+```
+      --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
+      --cwd string                                                  Working directory for the command (default "$PWD")
+      --file string                                                 file to parse
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+  -h, --help                                                        help for parse-file
+      --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
+      --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
+      --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
+  -v, --verbose                                                     Show warnings and verbose output
+```
+
+
+### rev-dep debug parse-tsconfig
+
+Debug: Show parsed TypeScript configuration aliases
+
+#### Synopsis
+
+Debugging tool to inspect how TypeScript configuration is parsed and what aliases are extracted. Output does not follow semver.
+
+```
+rev-dep debug parse-tsconfig [flags]
+```
+
+#### Options
+
+```
+  -h, --help              help for parse-tsconfig
+      --tsconfig string   Path to TypeScript configuration file
+```
+
+
+### rev-dep duplicated-code
+
+Find code duplicated across (and within) the files of the project
+
+#### Synopsis
+
+Scans every source file for copy-pasteable chunks - brace blocks and JSX elements,
+at every level of nesting - and reports the ones that appear more than once.
+
+Comparison ignores formatting and comments entirely, so re-indented copies still match.
+
+Four filters decide what counts as worth reporting. --min-tokens and --min-lines
+measure size; --min-depth and --min-statements measure complexity, which is what
+separates a duplicated three-key config object from duplicated logic - no size
+floor can, because the object's keys and string values may be long. --min-duplicates
+sets how many copies it takes to qualify.
+
+By default the code must match as written. Each --blind-* flag drops one category
+of token out of the comparison, and they combine freely:
+
+  --blind-identifiers   names are wildcards, so a copy whose variables, functions
+                        or components were renamed is still reported
+  --blind-strings       string and template contents are wildcards
+  --blind-numbers       numeric literals are wildcards
+
+
+```
+rev-dep duplicated-code [flags]
+```
+
+#### Examples
+
+```
+rev-dep duplicated-code --cwd ./src --blind-identifiers
+```
+
+#### Options
+
+```
+      --blind-identifiers               Ignore the spelling of names, so a copy whose variables, functions or components were renamed still counts as duplication.
+      --blind-numbers                   Ignore the value of numeric literals, so a copy with different constants still counts
+      --blind-strings                   Ignore the text of string and template literals, so a copy with different messages or keys still counts
+  -c, --cwd string                      Working directory for the command (default "$PWD")
+  -f, --format string                   Output format: "human" or "json". JSON reports every finding with its canonical hash and the byte and line range of each occurrence, for comparing against another run or another tool (default "human")
+  -h, --help                            help for duplicated-code
+      --ignore-files strings            Glob patterns of files to leave out of the analysis.
+      --json-snippets                   Include the source of each finding in JSON output. Off by default because snippets dominate the file size and a comparison keyed on ranges does not need them
+      --min-depth int                   Smallest duplication to report, in nesting levels counting the block itself. 1 admits everything; 2 requires at least one nested level, which is what filters out flat objects and single JSX elements however long their keys or strings are
+      --min-duplicates int              How many copies a chunk needs before it is reported. Raise to 3 to ignore code that has only been copied once (default 2)
+      --min-lines int                   Smallest duplication to report, in lines of the first occurrence (default 3)
+      --min-statements int              Smallest duplication to report, in statements directly inside the block. Applies only to statement blocks (function and control-flow bodies); object literals and JSX elements are expressions and are not filtered by it - use --min-depth for those
+      --min-tokens int                  Smallest duplication to report, in tokens. Tokens rather than characters because the count does not change when a --blind-* flag is applied, so one number means the same amount of code whatever is being ignored (default 50)
+      --process-ignored-files strings   Glob patterns to analyse even when gitignore excludes them.
+      --skip-objects                    Do not report duplications that are only object literals. 
+      --snapshot string                 Path to a JSON snapshot of acknowledged duplications. With it, the command reports what changed since the snapshot instead of everything that exists, and exits non-zero on any difference
+      --update-snapshot                 Rewrite the --snapshot file from this run, acknowledging everything it found. Always explicit: nothing updates a snapshot on its own
 ```
 
 
@@ -1120,6 +1331,33 @@ Helps identify unused, missing, or duplicate dependencies in your project.
 ```
 
 
+### rev-dep node-modules analyze-size
+
+Analyze disk usage of node_modules
+
+#### Synopsis
+
+Provides detailed size analysis of node_modules directory.
+Helps identify space-hogging dependencies.
+
+```
+rev-dep node-modules analyze-size [flags]
+```
+
+#### Examples
+
+```
+rev-dep node-modules analyze-size
+```
+
+#### Options
+
+```
+  -c, --cwd string   Working directory for the command (default "$PWD")
+  -h, --help         help for analyze-size
+```
+
+
 ### rev-dep node-modules dirs-size
 
 Calculates cumulative files size in node_modules directories
@@ -1249,6 +1487,38 @@ rev-dep node-modules missing --entry-points=src/main.ts
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                                                     Show warnings and verbose output
       --zero-exit-code                                              Use this flag to always return zero exit code
+```
+
+
+### rev-dep node-modules prune-docs
+
+Remove markdown/docs-like files from installed node_modules packages
+
+#### Synopsis
+
+Removes files from installed node_modules packages based on glob patterns.
+Useful for pruning README/LICENSE/docs files to reduce dependency size.
+
+```
+rev-dep node-modules prune-docs [flags]
+```
+
+#### Examples
+
+```
+rev-dep node-modules prune-docs --defaults
+rev-dep node-modules prune-docs --patterns "*.md,README.md,docs/**"
+rev-dep node-modules prune-docs --defaults --patterns "*.txt"
+```
+
+#### Options
+
+```
+  -c, --cwd string         Working directory for the command (default "$PWD")
+      --defaults           Use default prune patterns: LICENSE, README.md, docs/**
+  -h, --help               help for prune-docs
+      --pattern strings    Alias for --patterns
+  -p, --patterns strings   Glob patterns (relative to each package root) of files to remove, e.g. "*.md,README.md,docs/**"
 ```
 
 

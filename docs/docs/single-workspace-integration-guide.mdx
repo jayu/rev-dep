@@ -10,7 +10,7 @@ This guide takes you from zero to a working rev-dep setup in a single-package pr
 > This guide assumes rev-dep is already installed. If not, see [Installation](./installation.mdx) and the [intro](./intro.mdx) first. 
 > Working in a monorepo? Use the [monorepo integration guide](./monorepo-integration-guide.mdx) instead.
 
-The mental model is simple: rev-dep builds one dependency graph from your source files, and each check is a query against that graph. Most of the work is making sure the graph is accurate (steps 1-4); after that, enabling checks is quick.
+The mental model is simple: rev-dep builds one dependency graph from your source files, and each check is a query against that graph. Most of the work is making sure the graph is accurate - resolution (step 3) and entry points (step 6); after that, enabling checks is quick.
 
 ## 1. Generate the base config
 
@@ -59,7 +59,57 @@ If it reports nothing, your imports parse and resolve cleanly - move on. If it r
 
 Learn more about the [`unresolvedImportsDetection`](./config-based-checks/checks/unresolved-imports.mdx) check configuration.
 
-## 4. Define entry points
+## 4. Circular dependencies
+
+The first check that needs nothing but correct resolution - no entry points, no tuning. `config init` already enables it, so it works as generated. A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime cycles while tolerating existing type-only ones.
+
+```jsonc
+{
+  "circularImportsDetection": {
+    "ignoreTypeImports": true
+  }
+}
+```
+
+Learn more about the [`circularImportsDetection`](./config-based-checks/checks/circular-imports.mdx) check configuration.
+
+## 5. Duplicated code
+
+Also independent of entry points, and unlike every other check `config init` puts this one on the
+**root workspace only**: a block pasted from one package into another is one finding for the
+repository, not one per package, and the root workspace already scans every package below it.
+
+It points the detection at a snapshot file it has not created, so the first run reports the
+duplication that exists and tells you the baseline is missing:
+
+```
+❌ Duplicated Code: 34 duplicated snippets in 21 files (79 occurrences), scanned 812 files
+      To see them, run:
+        rev-dep duplicated-code
+      No baseline recorded yet at duplicated-code-snapshot.json
+      To accept them as the baseline, run: rev-dep config run --update-snapshot
+```
+
+Two ways forward, and both are legitimate:
+
+**Look at them now.** The printed command shows the locations and the source of every copy - it
+finds repeated code blocks and JSX elements that you can extract into shared implementations. Refactor them straight away **or accept the current state and move on.** This is the usual choice on an existing codebase. Anyways, generate the the snapshot file to establish the baseline for future runs:
+
+```bash
+rev-dep config run --update-snapshot
+```
+
+Commit the snapshot. From then on the check reports only the **delta** - new duplication fails,
+acknowledged duplication passes. Run the same command again after you resolve some of it, so the
+baseline follows the code.
+
+If the findings are dominated by configuration objects rather than logic, the detection can be
+tuned - size and nesting floors, whether object literals count, how many copies it takes, and
+whether renamed copies should match. Learn more about the
+[`duplicatedCodeDetection`](./config-based-checks/checks/duplicated-code.mdx) check configuration and
+[how duplicated code detection works](./other-concepts-and-features/duplicated-code-detection.mdx).
+
+## 6. Define entry points
 
 Entry points are the roots of reachability - the foundation for orphan files, unused exports, and dev-dependency checks.
 
@@ -84,7 +134,7 @@ Keep the list honest and start narrow. See [entry points](./config-based-checks/
 
 > **Paths with brackets?** Entry-point patterns are globs, so a literal path containing `[ ]` or `{ }` - such as a Next.js dynamic route `pages/[clientId]/edit.tsx` - won't match unless you escape the brackets: `"pages/\\[clientId\\]/edit.tsx"`. See [Glob patterns](./other-concepts-and-features/glob-patterns.mdx).
 
-## 5. Node-module hygiene
+## 7. Node-module hygiene
 
 rev-dep checks dependency **declarations** in your `package.json` (it never scans `node_modules/`): a package is flagged if it's declared but unused, or imported but undeclared.
 
@@ -116,7 +166,7 @@ Learn more about the [`missingNodeModulesDetection`](./config-based-checks/check
 
 ### Dev dependencies in production
 
-A follow-up to the above: flags `devDependencies` reachable from your production entry points (they would crash a production install). Needs `prodEntryPoints` from step 4.
+A follow-up to the above: flags `devDependencies` reachable from your production entry points (they would crash a production install). Needs `prodEntryPoints` from step 6.
 
 ```jsonc
 {
@@ -130,7 +180,7 @@ A follow-up to the above: flags `devDependencies` reachable from your production
 
 Learn more about the [`devDepsUsageOnProdDetection`](./config-based-checks/checks/dev-deps-on-prod.mdx) check configuration.
 
-## 6. Orphan files
+## 8. Orphan files
 
 Files not reachable from any entry point - dead files left by refactors. Supports autofix (deletes the file).
 
@@ -157,7 +207,7 @@ A useful pattern is a second detector that excludes test files from the graph, t
 
 Learn more about the [`orphanFilesDetection`](./config-based-checks/checks/orphan-files.mdx) check configuration.
 
-## 7. Unused exports
+## 9. Unused exports
 
 Exported members never imported anywhere reachable. Enable it only once entry points are trustworthy - incomplete roots make live exports look dead. Supports autofix.
 
@@ -171,21 +221,7 @@ Exported members never imported anywhere reachable. Enable it only once entry po
 
 Learn more about the [`unusedExportsDetection`](./config-based-checks/checks/unused-exports.mdx) check configuration.
 
-## 8. Circular dependencies
-
-A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime cycles while tolerating existing type-only ones.
-
-```jsonc
-{
-  "circularImportsDetection": {
-    "ignoreTypeImports": true
-  }
-}
-```
-
-Learn more about the [`circularImportsDetection`](./config-based-checks/checks/circular-imports.mdx) check configuration.
-
-## 9. Restricted imports
+## 10. Restricted imports
 
 Block specific files/modules from being reachable from chosen entry points - e.g. keep server-only code out of client bundles. Entry-point driven; `entryPoints` does **not** fall back to workspace-level entry points.
 
@@ -201,7 +237,7 @@ Block specific files/modules from being reachable from chosen entry points - e.g
 
 Learn more about the [`restrictedImportsDetection`](./config-based-checks/checks/restricted-imports.mdx) check configuration.
 
-## 10. Module boundaries
+## 11. Module boundaries
 
 Enforce layer/feature separation by file-path patterns: files matching `pattern` may not import paths in `deny`. Ideal for keeping UI free of API internals, or isolating features.
 
@@ -221,7 +257,7 @@ Boundaries are path-to-path; restricted imports is reachability-from-entry-point
 
 Learn more about the [`moduleBoundaries`](./config-based-checks/checks/module-boundaries.mdx) check configuration.
 
-## 11. Import conventions
+## 12. Import conventions
 
 Enforce a consistent import style - relative within a domain, aliased across domains - so import shape alone reveals whether colocation is correct. Supports autofix.
 
@@ -252,7 +288,7 @@ Enforce a consistent import style - relative within a domain, aliased across dom
 
 Learn more about the [`importConventions`](./config-based-checks/checks/import-conventions.mdx) check configuration.
 
-## 12. Wire into CI
+## 13. Wire into CI
 
 `rev-dep config run` exits `0` when everything passes and `1` when any check fails, so a single step gates your pipeline:
 

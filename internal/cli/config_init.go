@@ -208,7 +208,7 @@ func initConfigInteractive(cwd string, askStandalone standaloneAsker, askEntryPo
 
 	result := &meta
 	for _, spec := range specs {
-		result.rules = append(result.rules, materializeRule(spec, preset))
+		result.rules = append(result.rules, materializeRule(spec, preset, carriesDuplicatedCode(spec, meta.rootRuleCreated)))
 	}
 	if autoDetectEntryPoints {
 		applyFoldedEntryPoints(result.rules, foldedEntryPoints)
@@ -348,16 +348,18 @@ func planRules(ps projectStructure, standalone standalonePackages, selection sta
 	return specs, meta
 }
 
+// Duplication is a property of the repository, so only the root rule carries it - its scan already
+// covers everything below. With no root rule nothing covers the rest, so every rule keeps its own.
+func carriesDuplicatedCode(spec ruleSpec, rootRuleCreated bool) bool {
+	return !rootRuleCreated || spec.path == "."
+}
+
 // materializeRule turns a planned rule spec into a config.Rule with the given detector preset.
-func materializeRule(spec ruleSpec, preset detectorPreset) config.Rule {
-	switch spec.kind {
-	case ruleMonorepoRoot:
-		return makeMonorepoRootRule()
-	case ruleSrcRoot:
-		return makeSrcRootRule(preset)
-	default:
-		return makePackageRule(spec.path, preset)
+func materializeRule(spec ruleSpec, preset detectorPreset, duplicatedCode bool) config.Rule {
+	if spec.kind == ruleMonorepoRoot {
+		return makeMonorepoRootRule(preset, duplicatedCode)
 	}
+	return makePackageRule(spec.path, preset, duplicatedCode)
 }
 
 // buildConfigResult produces the rules and reporting metadata for the detected structure at the
@@ -366,7 +368,7 @@ func buildConfigResult(ps projectStructure, standalone standalonePackages, selec
 	specs, meta := planRules(ps, standalone, selection)
 	result := meta
 	for _, spec := range specs {
-		result.rules = append(result.rules, materializeRule(spec, preset))
+		result.rules = append(result.rules, materializeRule(spec, preset, carriesDuplicatedCode(spec, meta.rootRuleCreated)))
 	}
 	return &result
 }
@@ -648,12 +650,12 @@ func promptDetectorPreset() detectorPreset {
 	options := []string{
 		"No detectors",
 		"Unresolved imports only (a good start to confirm your setup and that resolution works)",
-		"Unresolved + circular imports (circular usually works out of the box once resolution is fine)",
-		"Circular + unresolved enabled, other detectors listed but disabled",
+		"Unresolved + circular imports + duplicated code (these work out of the box once resolution is fine)",
+		"Unresolved + circular + duplicated code enabled, other detectors listed but disabled",
 		"All detectors enabled (likely surfaces issues to fix and needs manual config adjustment)",
 	}
 
-	const defaultIndex = 2 // unresolved + circular imports
+	const defaultIndex = 2 // unresolved + circular imports + duplicated code
 	if !stdinIsInteractive() {
 		return presets[defaultIndex]
 	}
@@ -672,27 +674,45 @@ func hasPackageJson(dir string) bool {
 	return err == nil
 }
 
+// Relative to the workspace that carries the detection - see carriesDuplicatedCode.
+const duplicatedCodeSnapshotName = "duplicated-code-snapshot.json"
+
 // detectorPreset selects which detectors a generated rule enables.
 type detectorPreset int
 
 const (
 	detectorsNone               detectorPreset = iota // no detectors
 	detectorsUnresolvedOnly                           // only unresolved imports
-	detectorsUnresolvedCircular                       // unresolved + circular imports
-	detectorsScaffold                                 // circular + unresolved enabled, other detectors listed but disabled
+	detectorsUnresolvedCircular                       // unresolved + circular imports + duplicated code
+	detectorsScaffold                                 // the above enabled, other detectors listed but disabled
 	detectorsAll                                      // all detectors listed and enabled
 )
 
-// applyDetectorPreset sets a rule's detection fields according to preset.
-func applyDetectorPreset(rule *config.Rule, preset detectorPreset) {
+// Circular imports and duplicated code need nothing but correct resolution.
+func (p detectorPreset) enablesZeroConfigDetectors() bool {
+	return p != detectorsNone && p != detectorsUnresolvedOnly
+}
+
+// The baseline is deliberately not created - that would acknowledge duplication nobody has seen yet.
+func applyDuplicatedCodeDetection(rule *config.Rule) {
+	rule.DuplicatedCodeDetections = []*config.DuplicatedCodeOptions{{
+		Enabled:      true,
+		SnapshotPath: duplicatedCodeSnapshotName,
+	}}
+}
+
+// For duplicatedCode see carriesDuplicatedCode.
+func applyDetectorPreset(rule *config.Rule, preset detectorPreset, duplicatedCode bool) {
 	if preset == detectorsNone {
 		return
 	}
 	// Unresolved imports is enabled by every non-empty preset.
 	rule.UnresolvedImportsDetections = []*config.UnresolvedImportsOptions{{Enabled: true}}
-	// Circular imports is enabled by everything except the unresolved-only preset.
-	if preset != detectorsUnresolvedOnly {
+	if preset.enablesZeroConfigDetectors() {
 		rule.CircularImportsDetections = []*config.CircularImportsOptions{{Enabled: true}}
+		if duplicatedCode {
+			applyDuplicatedCodeDetection(rule)
+		}
 	}
 	// The remaining detectors are only listed for the scaffold (disabled) and all (enabled) presets.
 	// Detectors that need extra config to do anything (restricted imports/importers, import
@@ -707,40 +727,25 @@ func applyDetectorPreset(rule *config.Rule, preset detectorPreset) {
 	}
 }
 
-// makePackageRule builds a per-package rule (no module boundaries) for the given detector preset,
-// used for monorepo workspace packages, standalone subdirectory packages, and monorepo sub-package
-// configs.
-func makePackageRule(path string, preset detectorPreset) config.Rule {
+// No module boundaries: a generated one would be a guess about an architecture only the author knows.
+func makePackageRule(path string, preset detectorPreset, duplicatedCode bool) config.Rule {
 	rule := config.Rule{Path: path}
-	applyDetectorPreset(&rule, preset)
+	applyDetectorPreset(&rule, preset, duplicatedCode)
 	return rule
 }
 
-// makeSrcRootRule builds the root rule for a plain (non-monorepo) single-package project: the
-// selected detectors plus an exemplary src/**/* module boundary.
-func makeSrcRootRule(preset detectorPreset) config.Rule {
-	rule := makePackageRule(".", preset)
-	rule.ModuleBoundaries = []config.BoundaryRule{{
-		Name:    "src",
-		Pattern: "src/**/*",
-		Allow:   []string{"src/**/*"},
-	}}
-	return rule
-}
-
-// makeMonorepoRootRule builds the root rule used at a monorepo workspace root: an exemplary
-// packages/**/* module boundary and nothing else (per-package checks run on package rules).
-func makeMonorepoRootRule() config.Rule {
-	return config.Rule{
-		Path: ".",
-		ModuleBoundaries: []config.BoundaryRule{{
-			Name:    "packages",
-			Pattern: "packages/**/*",
-			Allow:   []string{"packages/**/*"},
-		}},
+// Per-package checks live on the package rules; duplicated code is the exception - it is the only
+// one that compares packages.
+func makeMonorepoRootRule(preset detectorPreset, duplicatedCode bool) config.Rule {
+	rule := config.Rule{
+		Path:                    ".",
 		OrphanFilesDetections:   []*config.OrphanFilesOptions{{Enabled: false}},
 		UnusedExportsDetections: []*config.UnusedExportsOptions{{Enabled: false}},
 	}
+	if duplicatedCode && preset.enablesZeroConfigDetectors() {
+		applyDuplicatedCodeDetection(&rule)
+	}
+	return rule
 }
 
 // mapValues returns the values of m in unspecified order.
@@ -814,6 +819,9 @@ func printInitConfigResults(result *initConfigResult) {
 
 	fmt.Println()
 	fmt.Println("Adjust the settings to make them relevant to your project setup.")
+
+	fmt.Println()
+	fmt.Println("To run the checks, use: rev-dep config run")
 
 	integrationGuide := "https://rev-dep.com/init/single-workspace"
 	if result.isMonorepo {

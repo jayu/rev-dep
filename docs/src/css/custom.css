@@ -4,20 +4,13 @@
    Geist and Geist Mono, self-hosted as variable fonts: two files
    cover every weight (~140kB total), and nothing is fetched from a
    third party. Licence in src/css/fonts/LICENSE.txt (OFL).
-   Served from static/ with a stable path so they can be preloaded from
-   docusaurus.config.ts - a hashed bundler URL cannot be referenced in a
-   <link rel="preload">.
 
-   `font-display: swap` renders system fonts first and swaps when
-   the webfont lands, so first paint is never blocked.
+   The two @font-face rules that carry a url() live inline in <head>
+   (docusaurus.config.ts), NOT here: static/ is one of webpack's
+   resolve.roots, so a url('/fonts/...') in this file gets resolved and
+   content-hashed to /assets/fonts/<name>-<hash>.woff2. The preload then
+   pointed at a file nothing used and every face downloaded twice.
    ═══════════════════════════════════════════════════════════════ */
-@font-face {
-  font-family: 'Geist';
-  src: url('/fonts/Geist-Variable.woff2') format('woff2-variations');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
 
 /* Font hold + hero entrance.
    ---------------------------------------------------------------
@@ -78,14 +71,6 @@
   size-adjust: 102.4%;
   font-weight: 100 900;
   font-style: normal;
-}
-
-@font-face {
-  font-family: 'Geist Mono';
-  src: url('/fonts/GeistMono-Variable.woff2') format('woff2-variations');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
 }
 
 /**
@@ -582,6 +567,18 @@
   background: var(--ifm-color-emphasis-200);
   color: var(--ifm-navbar-link-color);
   text-decoration: none;
+}
+
+/* Docusaurus hides both on mobile - the sidebar carries them there, and the
+   navbar has room for the search button only. The two `display` rules above are
+   more specific than the hiding ones, so they won it by accident and pushed the
+   glyphs onto a second row. Restated here at the same breakpoint. */
+@media screen and (max-width: 996px) {
+
+  .navbar__item:has(> .navbar__icon-link),
+  .navbar__items--right>[class*='colorModeToggle'] {
+    display: none;
+  }
 }
 
 .navbar .aa-DetachedSearchButton {

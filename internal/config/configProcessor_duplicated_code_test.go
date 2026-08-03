@@ -376,3 +376,42 @@ func TestConfigRunSkipObjectsWithMultipleDetections(t *testing.T) {
 		t.Errorf("order changed the answers: got %v, want [%d %d]", reversed, aloneSkipping, alone)
 	}
 }
+
+// `config init` writes a snapshotPath without creating the snapshot, so the first run always
+// hits this case. It has to still REPORT the duplication - the count is what the reader
+// decides on - and the reproduction command has to work, which means dropping --snapshot:
+// with no baseline on disk that command fails on the missing file instead of showing anything.
+func TestConfigRunMissingSnapshotStillReportsAndPrintsAWorkingCommand(t *testing.T) {
+	cwd := fixtureDupProject(t)
+	cfg := RevDepConfig{
+		ConfigVersion: "1.0",
+		Rules: []Rule{{
+			Path: ".",
+			DuplicatedCodeDetections: []*DuplicatedCodeOptions{{
+				Enabled: true, MinTokens: 10, MinLines: 3,
+				SnapshotPath: "never-written.json",
+			}},
+		}},
+	}
+	result, err := ProcessConfig(&cfg, cwd, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := result.RuleResults[0].DuplicatedCode
+	if len(got) != 1 {
+		t.Fatalf("expected 1 detection result, got %d", len(got))
+	}
+	if !got[0].Result.SnapshotMissing {
+		t.Fatal("the snapshot does not exist; the result should say so")
+	}
+	if got[0].Result.Snippets == 0 {
+		t.Error("the duplication was not reported, so the reader has no number to decide on")
+	}
+	if strings.Contains(got[0].Command, "--snapshot") {
+		t.Errorf("the command carries --snapshot, so it would fail on the missing baseline "+
+			"instead of showing the findings: %s", got[0].Command)
+	}
+	if !got[0].Failed() {
+		t.Error("a configured baseline that does not exist should fail the rule")
+	}
+}

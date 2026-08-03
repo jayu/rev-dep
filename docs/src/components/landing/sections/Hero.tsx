@@ -34,7 +34,7 @@ export default function Hero() {
         <div className={styles.layout}>
           <div className={styles.copy}>
             <Heading as="h1" className={clsx(styles.title, 'rd-hold')}>
-              Dead code, cycles and architecture violations.
+              Dead code, duplicate code, dependency cycles, and architecture violations.
               <span className={styles.titleAccent}> Found before you finish reading this.</span>
             </Heading>
 

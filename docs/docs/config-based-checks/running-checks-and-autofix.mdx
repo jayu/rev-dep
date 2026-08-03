@@ -79,4 +79,16 @@ Removing one orphan file can cause another file to become orphan.
 
 Running `rev-dep config run --fix` several times might be needed to remove all orphan files.
 
+## Updating the duplicated-code baseline
+
+`--fix` never touches duplicated code - there is no edit a tool can safely make for you. The other thing `config run` can write is the **snapshot**: the committed file that records which duplications are already acknowledged.
+
+```bash
+rev-dep config run --update-snapshot
+```
+
+This rewrites every `duplicatedCodeDetection` that has a `snapshotPath`, so whatever this run found becomes the new baseline. Detections without one are unaffected.
+
+Use it twice: once when adopting the check on a codebase that already has duplication, and again after you resolve some of it, so the baseline follows the code. See [duplicated code](./checks/duplicated-code.mdx).
+
 

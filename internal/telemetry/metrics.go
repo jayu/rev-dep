@@ -13,6 +13,7 @@ type Metrics struct {
 	// absent or disabled in every workspace is 0 - so 0 doubles as "feature unused in this project".
 	CircularImports           int `json:"circularImports"`
 	OrphanFiles               int `json:"orphanFiles"`
+	DuplicatedCode            int `json:"duplicatedCode"`
 	UnusedNodeModules         int `json:"unusedNodeModules"`
 	MissingNodeModules        int `json:"missingNodeModules"`
 	UnusedExports             int `json:"unusedExports"`
@@ -59,6 +60,7 @@ func BuildMetrics(cfg *config.RevDepConfig, fileCount int) Metrics {
 		rule := &cfg.Rules[i]
 		m.CircularImports = max(m.CircularImports, countEnabled(rule.CircularImportsDetections))
 		m.OrphanFiles = max(m.OrphanFiles, countEnabled(rule.OrphanFilesDetections))
+		m.DuplicatedCode = max(m.DuplicatedCode, countEnabled(rule.DuplicatedCodeDetections))
 		m.UnusedNodeModules = max(m.UnusedNodeModules, countEnabled(rule.UnusedNodeModulesDetections))
 		m.MissingNodeModules = max(m.MissingNodeModules, countEnabled(rule.MissingNodeModulesDetections))
 		m.UnusedExports = max(m.UnusedExports, countEnabled(rule.UnusedExportsDetections))
@@ -101,6 +103,7 @@ func (m Metrics) asMeasurements() map[string]float64 {
 		"fileCount":                    float64(m.FileCount),
 		"circularImports":              float64(m.CircularImports),
 		"orphanFiles":                  float64(m.OrphanFiles),
+		"duplicatedCode":               float64(m.DuplicatedCode),
 		"unusedNodeModules":            float64(m.UnusedNodeModules),
 		"missingNodeModules":           float64(m.MissingNodeModules),
 		"unusedExports":                float64(m.UnusedExports),

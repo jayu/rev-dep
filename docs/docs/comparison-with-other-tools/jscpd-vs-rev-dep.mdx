@@ -1,0 +1,69 @@
+---
+description: "jscpd vs rev-dep: compare copy-paste detection. A faster alternative for JS/TS that reports whole code blocks you can extract instead of token ranges, matches renamed copies, and runs alongside twelve other checks."
+title: jscpd vs Rev-dep
+sidebar_label: jscpd
+---
+
+<head>
+  <title>jscpd vs Rev-dep: a faster, more actionable copy-paste detector for JS/TS</title>
+</head>
+
+# jscpd vs Rev-dep
+
+[jscpd](https://github.com/kucherenko/jscpd) is a copy-paste detector for many languages. rev-dep detects duplication too, and for a JS/TS codebase it is both a faster and a more useful alternative.
+
+More useful because of what it reports. jscpd finds matching **token ranges**; rev-dep finds repeated **code blocks and JSX elements** - units the language already recognises, which means every finding comes with its own refactor: a duplicated function body becomes a shared function, a duplicated element becomes a component. It also matches copies whose variables were renamed, which is where most real copy-and-adapt duplication lives.
+
+It is faster, and it runs in the same pass as the rest of rev-dep's checks - so on a project that already runs them, duplication detection adds no second traversal and no second tool to the pipeline.
+
+## At a glance
+
+| | jscpd | Rev-dep |
+| --- | --- | --- |
+| Primary focus | copy-paste detection | dependency hygiene + architecture, duplication included |
+| Runtime | Node | Go - single parallel pass, alongside twelve other checks |
+| Languages | many, via per-language tokenizers | JS / TS / JSX / TSX, plus Vue and Svelte |
+| Unit reported | token range, as a line/column span | whole code block or JSX element |
+| Renamed copies | not matched | matched with `--blind-identifiers` |
+| Reporters | console, json, html, xml, sonar and more | console, json (with a published schema) |
+| CI baseline | duplication percentage threshold | snapshot of the exact duplications acknowledged |
+| Other checks | none | twelve more, in the same run |
+
+## The difference that matters: what gets reported
+
+Both tools find the same duplication in the same file. They describe it differently:
+
+```
+jscpd     components/Card.tsx [3:19 - 13:13]
+          components/Panel.tsx [3:20 - 13:13]
+
+rev-dep   JSX block, 7 lines, depth 3
+          src/components/Card.tsx:4:3
+          src/components/Panel.tsx:4:3
+```
+
+jscpd's range starts at column 19 of line 3 and ends at column 13 of line 13 - it begins mid-statement and ends mid-statement, because a token window has no reason to stop where a language construct does. rev-dep reports the `<section>` element itself.
+
+The practical difference is what you do next. A token range has to be read at both sites before you know where the extractable unit actually begins. A block *is* the unit: a duplicated function body becomes a shared function, a duplicated JSX element becomes a component.
+
+The trade runs the other way too. rev-dep will not report a copy-paste that starts halfway through one function and ends halfway through another; jscpd will.
+
+## Renamed copies
+
+jscpd compares tokens including identifier names, so a copy whose variables were renamed is not a clone. Its `--mode` settings (`strict`, `mild`, `weak`) change how whitespace and comments are treated, not names.
+
+On a fixture with three copies of the same request helper - one of them renamed - jscpd reports 2 clones in every mode. rev-dep reports the same 2 by default, and 3 with `--blind-identifiers`, which is where most real copy-and-adapt duplication lives.
+
+## Where jscpd may still fit
+
+- **Other languages.** jscpd covers Python, Java, C#, Go, CSS and many more. rev-dep is JS/TS only.
+- **Reporter formats.** jscpd ships html, xml, sonar and others. rev-dep prints human output and JSON.
+- **Whole-file percentage budgets.** jscpd's threshold is a duplication *percentage*; rev-dep's baseline is the exact set of acknowledged duplications, which is a different way to work.
+
+## Which should you choose?
+
+- Need duplication detection across a polyglot repository, or an HTML report? **jscpd.**
+- Working in JS/TS? **rev-dep** - faster, and every finding is a unit you can actually extract,
+  renamed copies included, checked alongside your other structural rules in a single run.
+
+Learn more in [How duplicated code detection works](../other-concepts-and-features/duplicated-code-detection.mdx).

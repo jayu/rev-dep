@@ -907,28 +907,26 @@ func printDuplicatedCodeResult(d config.DuplicatedCodeRuleResult) {
 	}
 
 	if dup.SnapshotWritten {
-		fmt.Printf("  %s Duplicated Code (%s): snapshot updated (%s acknowledged) -> %s\n",
-			emoji.Success, dup.Blinding,
-			plural.Count(dup.Snippets, "pattern", "patterns"), dup.SnapshotPath)
-		return
-	}
-	if dup.SnapshotMissing {
-		fmt.Printf("  %s Duplicated Code (%s): snapshot %s does not exist\n",
-			emoji.Error, dup.Blinding, dup.SnapshotPath)
-		fmt.Printf("      Create it with: rev-dep config run --update-snapshot\n")
+		fmt.Printf("  %s Duplicated Code: snapshot updated (%s acknowledged) -> %s\n",
+			emoji.Success, plural.Count(dup.Snippets, "pattern", "patterns"), dup.SnapshotPath)
 		return
 	}
 	if dup.Delta != nil {
 		// With a baseline the total is not the news; the change is.
 		if dup.Delta.IsClean() {
-			fmt.Printf("  %s Duplicated Code (%s): %s\n",
-				emoji.Success, dup.Blinding, dupcode.DeltaSummary(dup.Delta))
+			fmt.Printf("  %s Duplicated Code: %s\n",
+				emoji.Success, dupcode.DeltaSummary(dup.Delta))
 			return
 		}
-		fmt.Printf("  %s Duplicated Code (%s): %s\n",
-			emoji.Error, dup.Blinding, dupcode.DeltaSummary(dup.Delta))
+		fmt.Printf("  %s Duplicated Code: %s\n",
+			emoji.Error, dupcode.DeltaSummary(dup.Delta))
 		fmt.Printf("      %s\n", d.Command)
 		fmt.Printf("      Acknowledge with: rev-dep config run --update-snapshot\n")
+		return
+	}
+
+	if dup.Snippets == 0 && !dup.SnapshotMissing {
+		fmt.Printf("  %s Duplicated Code\n", emoji.Success)
 		return
 	}
 
@@ -943,14 +941,23 @@ func printDuplicatedCodeResult(d config.DuplicatedCodeRuleResult) {
 		detail += fmt.Sprintf(", %d ignored", dup.Ignored)
 	}
 
-	if dup.Snippets > 0 {
-		fmt.Printf("  %s Duplicated Code (%s): %s\n", emoji.Error, dup.Blinding, detail)
-		fmt.Printf("      To see them, run:\n        %s\n", d.Command)
-		// Without a snapshot there is nothing to compare against, so the only way to accept
-		// what is already there is to record it.
-		fmt.Printf("      To accept the current duplication, set \"snapshotPath\" on this " +
-			"detection and run: rev-dep config run --update-snapshot\n")
+	fmt.Printf("  %s Duplicated Code: %s\n", emoji.Error, detail)
+
+	// Only reachable with a missing baseline: nothing to look at, only a baseline to record.
+	if dup.Snippets == 0 {
+		fmt.Printf("      No baseline recorded yet at %s\n", dup.SnapshotPath)
+		fmt.Printf("      To record it, run: rev-dep config run --update-snapshot\n")
 		return
 	}
-	fmt.Printf("  %s Duplicated Code (%s): %s\n", emoji.Success, dup.Blinding, detail)
+
+	// The baseline line belongs beside the option it enables, not between the count and the command.
+	fmt.Printf("      To see them, run:\n        %s\n", d.Command)
+
+	if dup.SnapshotMissing {
+		fmt.Printf("      No baseline recorded yet at %s\n", dup.SnapshotPath)
+		fmt.Printf("      To accept them as the baseline, run: rev-dep config run --update-snapshot\n")
+		return
+	}
+	fmt.Printf("      To accept the current duplication, set \"snapshotPath\" on this " +
+		"detection and run: rev-dep config run --update-snapshot\n")
 }

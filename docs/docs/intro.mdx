@@ -25,9 +25,12 @@ Rev-dep provides a configuration system for orchestrating project checks. The co
 Available checks are:
 
 - `moduleBoundaries` - enforce architecture boundaries between modules.
-- `restrictedImportsDetection` - block importing denied files/modules from selected entry points.
+- `restrictedImportsDetection` - block transitively importing denied files/modules from selected entry points.
+- `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
+- `restrictedDirectImportersDetection` - constrain which files may directly import a set of files/modules (non-transitive).
 - `importConventions` - enforce import style conventions (offers autofix).
 - `circularImportsDetection` - detect circular imports.
+- `duplicatedCodeDetection` - detect copy-pasted code blocks and JSX elements.
 - `orphanFilesDetection` - detect dead/orphan files (offers autofix).
 - `unusedExportsDetection` - detect exports that are never used (offers autofix).
 - `unusedNodeModulesDetection` - detect dependencies declared but not used.
@@ -46,9 +49,12 @@ Use these CLI commands for ad-hoc dependency exploration and debugging:
 - `resolve` - trace dependency paths between files and find who depends on a file.
 - `imported-by` - list direct importers of a file.
 - `circular` - list circular dependency chains.
+- `duplicated-code` - find copy-pasted code blocks and JSX elements.
 - `node-modules` - inspect `used`, `unused`, `missing`, and `installed` node modules.
 - `lines-of-code` - count effective lines of code.
+- `unresolved` - list imports that could not be resolved, grouped by file.
 - `list-cwd-files` - list all source code files in the current working directory.
+- `debug` - inspect what rev-dep parses, resolves, and discovers internally.
 
 ## Ready to get started? 
 

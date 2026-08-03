@@ -27,6 +27,7 @@ func TestDetectorPresets(t *testing.T) {
 			"unusedExports":     state(len(r.UnusedExportsDetections) > 0, len(r.UnusedExportsDetections) > 0 && r.UnusedExportsDetections[0].Enabled),
 			"devDeps":           state(len(r.DevDepsUsageOnProdDetections) > 0, len(r.DevDepsUsageOnProdDetections) > 0 && r.DevDepsUsageOnProdDetections[0].Enabled),
 			"restrictedImports": state(len(r.RestrictedImportsDetections) > 0, len(r.RestrictedImportsDetections) > 0 && r.RestrictedImportsDetections[0].Enabled),
+			"duplicatedCode":    state(len(r.DuplicatedCodeDetections) > 0, len(r.DuplicatedCodeDetections) > 0 && r.DuplicatedCodeDetections[0].Enabled),
 		}
 	}
 
@@ -35,33 +36,44 @@ func TestDetectorPresets(t *testing.T) {
 		want   map[string]string
 	}{
 		{detectorsNone, map[string]string{
-			"circular": "absent", "unresolved": "absent", "orphan": "absent", "unusedNodeModules": "absent",
+			"circular": "absent", "duplicatedCode": "absent", "unresolved": "absent", "orphan": "absent", "unusedNodeModules": "absent",
 			"missingModules": "absent", "unusedExports": "absent", "devDeps": "absent", "restrictedImports": "absent",
 		}},
 		{detectorsUnresolvedOnly, map[string]string{
-			"circular": "absent", "unresolved": "on", "orphan": "absent", "unusedNodeModules": "absent",
+			"circular": "absent", "duplicatedCode": "absent", "unresolved": "on", "orphan": "absent", "unusedNodeModules": "absent",
 			"missingModules": "absent", "unusedExports": "absent", "devDeps": "absent", "restrictedImports": "absent",
 		}},
 		{detectorsUnresolvedCircular, map[string]string{
-			"circular": "on", "unresolved": "on", "orphan": "absent", "unusedNodeModules": "absent",
+			"circular": "on", "duplicatedCode": "on", "unresolved": "on", "orphan": "absent", "unusedNodeModules": "absent",
 			"missingModules": "absent", "unusedExports": "absent", "devDeps": "absent", "restrictedImports": "absent",
 		}},
 		{detectorsScaffold, map[string]string{
-			"circular": "on", "unresolved": "on", "orphan": "off", "unusedNodeModules": "off",
+			"circular": "on", "duplicatedCode": "on", "unresolved": "on", "orphan": "off", "unusedNodeModules": "off",
 			"missingModules": "off", "unusedExports": "off", "devDeps": "off", "restrictedImports": "absent",
 		}},
 		{detectorsAll, map[string]string{
-			"circular": "on", "unresolved": "on", "orphan": "on", "unusedNodeModules": "on",
+			"circular": "on", "duplicatedCode": "on", "unresolved": "on", "orphan": "on", "unusedNodeModules": "on",
 			"missingModules": "on", "unusedExports": "on", "devDeps": "on", "restrictedImports": "absent",
 		}},
 	}
 
 	for _, tc := range cases {
-		rule := makePackageRule("pkg", tc.preset)
+		rule := makePackageRule("pkg", tc.preset, true)
 		got := ruleState(rule)
 		for name, want := range tc.want {
 			if got[name] != want {
 				t.Errorf("preset %d: detector %q = %q, want %q", tc.preset, name, got[name], want)
+			}
+		}
+
+		// A rule that does not carry duplicated code loses only that detector.
+		notCarrying := ruleState(makePackageRule("pkg", tc.preset, false))
+		for name, want := range tc.want {
+			if name == "duplicatedCode" {
+				want = "absent"
+			}
+			if notCarrying[name] != want {
+				t.Errorf("preset %d without duplicated code: detector %q = %q, want %q", tc.preset, name, notCarrying[name], want)
 			}
 		}
 	}

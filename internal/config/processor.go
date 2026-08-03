@@ -613,11 +613,21 @@ func processRuleChecks(
 					})
 					continue
 				}
+				// The command has to SHOW the findings. With a snapshot configured it would
+				// normally carry --snapshot, but when that file does not exist yet the
+				// command would fail on the missing baseline instead of printing anything -
+				// a hint that contradicts the check it was printed under.
+				forCommand := detection
+				if res.SnapshotMissing {
+					withoutSnapshot := *detection
+					withoutSnapshot.SnapshotPath = ""
+					forCommand = &withoutSnapshot
+				}
 				results = append(results, DuplicatedCodeRuleResult{
 					Result:      res,
 					ConfigIndex: configIndex,
 					Command: DuplicatedCodeCommand(
-						detection, rule.Path, globalIgnoreFiles, globalProcessIgnoredFiles),
+						forCommand, rule.Path, globalIgnoreFiles, globalProcessIgnoredFiles),
 				})
 			}
 

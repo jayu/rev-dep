@@ -1,0 +1,90 @@
+---
+description: "Find copy-pasted code with rev-dep duplicated-code - repeated code blocks and JSX elements, printed with their locations and source."
+title: Find duplicated code
+---
+
+# Find duplicated code
+
+Use:
+
+```bash
+rev-dep duplicated-code
+```
+
+This prints every repeated code block and JSX element it finds, with the location of each copy and the code itself.
+
+It reports **blocks**, not repeated lines, because a block is already something you can extract. See [How duplicated code detection works](../other-concepts-and-features/duplicated-code-detection.mdx) for the reasoning and for what comparison ignores.
+
+## Useful flags
+
+```bash
+# the same logic pasted and then adapted - renamed variables still match; skip objects so objects with similar shape does not get reported
+rev-dep duplicated-code --blind-identifiers --skip-objects
+
+# only real structure: at least one nested level, no bare object literals
+rev-dep duplicated-code --min-depth 2
+
+# ignore code that has only been copied once
+rev-dep duplicated-code --min-duplicates 3
+
+rev-dep duplicated-code --cwd packages/app --ignore-files '**/*.test.ts'
+```
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--blind-identifiers` | off | Names are wildcards, so a renamed copy still counts. |
+| `--blind-strings` | off | String and template contents are wildcards. |
+| `--blind-numbers` | off | Numeric literals are wildcards. |
+| `--min-tokens` | `50` | Smallest duplication to report, in tokens. |
+| `--min-lines` | `3` | Smallest duplication to report, in lines. |
+| `--min-depth` | `0` | Smallest nesting depth, counting the block itself. `2` requires at least one nested level. |
+| `--min-statements` | `0` | Smallest statement count. Applies only to statement blocks. |
+| `--min-duplicates` | `2` | How many copies a chunk needs. |
+| `--skip-objects` | off | Do not report duplications that are only object literals. |
+| `--ignore-files` | - | Glob patterns to leave out of the analysis. |
+| `--format` | `human` | `human` or `json`. |
+| `--json-snippets` | off | Include the source of each finding in JSON output. |
+
+The `--blind-*` flags combine freely. Keywords are never blinded, so `if` never matches `while` however much is ignored.
+
+Start with the defaults. If the output is dominated by configuration objects rather than logic, add `--min-depth 2` or `--skip-objects` before raising the size floors - depth is what separates a large flat object from a small piece of real structure.
+
+## Snapshots
+
+On a project that already has duplication, the first run reports all of it and none of it is news. A snapshot records what has been acknowledged, so later runs report only what **changed**:
+
+```bash
+# acknowledge everything currently found
+rev-dep duplicated-code --snapshot duplicated-code.json --update-snapshot
+
+# from now on: only the difference, non-zero exit on any change
+rev-dep duplicated-code --snapshot duplicated-code.json
+```
+
+The snapshot records the settings it was taken under and applies them, so the second command needs no flags. A flag that contradicts the snapshot is an error rather than a silent re-baseline.
+
+## Output
+
+Each finding prints how many copies exist, where they are, and the source of one of them:
+
+```
+#1  3 duplicates in 3 files  -  code block, 9 lines, depth 2, 4 statements
+    src/services/adminApi.ts:3:53
+    src/services/teamApi.ts:6:84
+    src/services/userApi.ts:4:84
+
+  | {
+  |   const request = buildRequest(endpoint, payload);
+  |   ...
+  | }
+```
+
+With `--snapshot`, the output is filtered to what changed, each entry labelled `new`, `spread`, `moved`, `fewer`, `under-min` or `resolved`.
+
+`--format json` reports every finding with its canonical hash and the byte and line range of every occurrence, for comparing against another run or another tool. The format is versioned and has a published [JSON schema](https://github.com/jayu/rev-dep/blob/master/output-schema/duplicated-code-1.0.schema.json).
+
+## Exit code
+
+Exits non-zero when duplication is found - or, with `--snapshot`, when the result differs from the baseline in either direction. That makes it usable as a CI check on its own.
+
+For CI across a monorepo, prefer the [`duplicatedCodeDetection`](../config-based-checks/checks/duplicated-code.mdx) config check: it runs in the same single pass as every other check instead of a separate traversal.

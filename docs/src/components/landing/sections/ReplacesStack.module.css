@@ -77,14 +77,25 @@
   }
 }
 
+/* Two rows: name and caret on the first, capabilities across the second. Every
+   cell is placed explicitly - auto-placement pushed the caret past the full-width
+   capabilities line onto a third row of its own. */
 @media screen and (max-width: 640px) {
   .toolLink {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.2rem 0.75rem;
   }
 
+  .toolName {
+    grid-area: 1 / 1;
+  }
+
+  .toolChevron {
+    grid-area: 1 / 2;
+  }
+
   .toolCovers {
-    grid-column: 1 / -1;
+    grid-area: 2 / 1 / 3 / -1;
     font-size: 0.85rem;
   }
 }

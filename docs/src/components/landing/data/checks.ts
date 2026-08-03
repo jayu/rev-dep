@@ -36,7 +36,7 @@ export const checkGroups: CheckGroup[] = [
   {
     id: 'dead-weight',
     title: 'Dead weight',
-    blurb: 'Code and dependencies nothing reaches any more.',
+    blurb: 'Code and dependencies that earn nothing - unreachable, unused, or written twice.',
     checks: [
       {
         key: 'orphanFilesDetection',
@@ -51,6 +51,13 @@ export const checkGroups: CheckGroup[] = [
         description: 'Exported symbols nothing imports - the public surface a module never actually needed.',
         autofix: true,
         docs: '/docs/config-based-checks/checks/unused-exports',
+      },
+      {
+        key: 'duplicatedCodeDetection',
+        featured: true,
+        title: 'Duplicated code',
+        description: 'Copy-pasted code blocks and JSX elements. Each finding is a unit you can extract, not a line range you have to untangle first.',
+        docs: '/docs/config-based-checks/checks/duplicated-code',
       },
       {
         key: 'unusedNodeModulesDetection',
@@ -98,7 +105,6 @@ export const checkGroups: CheckGroup[] = [
     checks: [
       {
         key: 'moduleBoundaries',
-        featured: true,
         title: 'Module boundaries',
         description: 'Declare which parts of the codebase may import which. UI cannot reach the database layer; features stay independent.',
         docs: '/docs/config-based-checks/checks/module-boundaries',

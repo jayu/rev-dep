@@ -40,7 +40,7 @@ rev-dep config lint --rules orphan-file-globs,trailing-commas
 
 `--fix` removes dead patterns, trailing commas, and compacts declarations. Some findings are reported but never auto-removed - rule paths, required entry points/files/modules, and boundary selectors - because removing them could change a check's behavior or invalidate the config. Resolve those by hand.
 
-## Linting during a run
+## Linting during a config run
 
 `config run --lint-config` runs the linter right after the checks, reusing the run's graph so it adds almost no time. It prints only the error/warning counts and fails on any lint error:
 

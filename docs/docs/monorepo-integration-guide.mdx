@@ -5,12 +5,19 @@ title: Monorepo integration guide
 
 # Monorepo integration guide
 
-This guide takes you from zero to a working rev-dep setup in a monorepo, one step at a time. The order matters: initial steps builds the foundation the next one relies on.
+This guide takes you from zero to a working rev-dep setup in a monorepo, one step at a time. The order matters: each step builds the foundation the next one relies on.
 
 > This guide assumes rev-dep is already installed. If not, see [Installation](./installation.mdx) and the [intro](./intro.mdx) first.
 > Working in a single workspace project? Use the [single workspace integration guide](./single-workspace-integration-guide.mdx) instead.
 
 The mental model is simple: rev-dep builds one dependency graph from your source files, and each check is a query against that graph. Most of the work is making sure the graph is accurate - resolution (step 3) and entry points (step 6); after that, enabling checks is quick.
+
+The steps come in four groups:
+
+- **1-2** - generate the config and learn how to run it. `config init` may already have done part of steps 3-6 for you; each step says so.
+- **3-5** - checks that need nothing but correct resolution.
+- **6-9** - entry points, then everything that depends on them.
+- **10-13** - architecture rules you author yourself, then CI.
 
 ## 1. Generate the base config
 
@@ -18,9 +25,24 @@ The mental model is simple: rev-dep builds one dependency graph from your source
 rev-dep config init
 ```
 
-Run at the **monorepo root**, this creates a root workspace plus one workspace per discovered workspace package. 
+Run at the **monorepo root**, this creates a root workspace plus one workspace per discovered workspace package. It prints the packages it found, so you can confirm none is missing. 
 
-It writes `rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. See [config file structure](./config-based-checks/config-file-structure.mdx).
+It writes `.rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. See [config file structure](./config-based-checks/config-file-structure.mdx).
+
+### What init asks you - and which steps it already covers
+
+`config init` is interactive, and your answers pre-fill part of this guide. You can confirm every question default option with Enter. In a non-interactive shell (CI, scripts) nothing is asked: the defaults apply and entry-point detection is skipped.
+
+| Question | Default | What your answer changes |
+| --- | --- | --- |
+| **Standalone packages were found in subfolders. What should the config cover?** *(only asked when packages outside the workspace globs exist)* | Monorepo only - root + workspace packages | Adds a workspace per non-workspace subfolder package too. The curated option skips fixture/test/example-looking folders |
+| **Auto-detect entry points for each package?** | Yes - analyze and fill them in | Fills `prodEntryPoints` / `devEntryPoints` / `ignoreEntryPoints` **per package workspace**, so **step 6** becomes a review instead of authoring. The root workspace is left without entry points on purpose |
+| **Fold near-covered directories into one `dir/**` glob?** *(only asked when some directory almost qualifies)* | Strict (100%) | Trades entry-point precision for a shorter config - the caveat is in [step 6](#6-entry-points) |
+| **Which detectors should the config enable?** | Unresolved + circular imports + duplicated code | Pre-enables **steps 3, 4 and 5** on every package workspace. The fourth option additionally writes the remaining detectors as `"detector": false` placeholders; "All detectors" turns everything on at once |
+
+So when a step below says *enable X*, that means flipping an existing `"X": false` to `true` if init wrote the placeholder, or adding the key if it did not. The root workspace always gets `"orphanFilesDetection": false` and `"unusedExportsDetection": false` placeholders - steps 8 and 9 are where you turn them on.
+
+> `config init` never overwrites an existing config - it stops with an error if one is present. Delete the file if you want to start over.
 
 > The examples below use the [compact detector syntax](./config-based-checks/config-file-structure.mdx#compact-detector-syntax): `"detector": true` switches a check on, and when a detector carries options the `enabled` flag is optional. Write `{ "enabled": true }` if you prefer the explicit form.
 
@@ -56,7 +78,7 @@ Configure it as an object and set `resolutionType` to one of:
 }
 ```
 
-This is the form `rev-dep config init` generates.
+This is the form `rev-dep config init` generates - always with `"entry-package"`, since init cannot tell which package manager layout you use. This is the one top-level setting it cannot decide for you.
 
 **If you use pnpm with its default layout, set `resolutionType: "nearest-package"`.** Otherwise a followed package's own declared dependencies get reported as `missing` against the consumer that doesn't declare them - a flood of false positives. In `nearest-package` mode each package is judged by its own `package.json`: a followed package that imports something it forgot to declare is correctly flagged (just as a strict pnpm install would break), while its properly-declared dependencies are left alone. Full details and per-check effects: [Node modules resolution](./other-concepts-and-features/node-modules-resolution.mdx).
 
@@ -87,10 +109,13 @@ Only `unusedExportsDetection`, `orphanFilesDetection`, and `importConventions` s
 
 Enable this **first**. It tells you whether rev-dep can parse and resolve your project the way your tooling does - the precondition for every other check.
 
+Every detector option except "No detectors" already enabled it at init - on **each package workspace**, where a failure names the package that owns it. So usually there is nothing to add here, just run it. If your config has no `unresolvedImportsDetection`, add it per package:
+
 ```jsonc
 {
   "workspaces": [
-    { "path": ".", "unresolvedImportsDetection": true }
+    { "path": "apps/web", "unresolvedImportsDetection": true },
+    { "path": "packages/ui", "unresolvedImportsDetection": true }
   ]
 }
 ```
@@ -103,7 +128,7 @@ Learn more about the [`unresolvedImportsDetection`](./config-based-checks/checks
 
 ## 4. Circular dependencies
 
-The first check that needs nothing but correct resolution - no entry points, no tuning. `config init` already enables it, so it works as generated. A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime import cycles while tolerating existing type-only ones.
+The first check that needs nothing but correct resolution - no entry points, no tuning. `config init` enables it on every package workspace (unless you picked one of the first two detector options), so it works as generated. A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime import cycles while tolerating existing type-only ones.
 
 ```jsonc
 {
@@ -117,7 +142,8 @@ Learn more about the [`circularImportsDetection`](./config-based-checks/checks/c
 
 ## 5. Duplicated code
 
-Also independent of entry points, and unlike every other check `config init` puts this one on the
+Also independent of entry points. `config init` enables it alongside circular imports (unless you
+picked one of the first two detector options) and, unlike every other check, puts it on the
 **root workspace only**: a block pasted from one package into another is one finding for the
 repository, not one per package, and the root workspace already scans every package below it.
 
@@ -135,7 +161,7 @@ duplication that exists and tells you the baseline is missing:
 Two ways forward, and both are legitimate:
 
 **Look at them now.** The printed command shows the locations and the source of every copy - it
-finds repeated code blocks and JSX elements that you can extract into shared implementations. Refactor them straight away **or accept the current state and move on.** This is the usual choice on an existing codebase. Anyways, generate the the snapshot file to establish the baseline for future runs:
+finds repeated code blocks and JSX elements that you can extract into shared implementations. Refactor them straight away **or accept the current state and move on.** This is the usual choice on an existing codebase. Either way, generate the snapshot file to establish the baseline for future runs:
 
 ```bash
 rev-dep config run --update-snapshot
@@ -151,9 +177,27 @@ whether renamed copies should match. Learn more about the
 [`duplicatedCodeDetection`](./config-based-checks/checks/duplicated-code.mdx) check configuration and
 [how duplicated code detection works](./other-concepts-and-features/duplicated-code-detection.mdx).
 
-## 6. Define entry points
+## 6. Entry points
 
-Entry points are the roots of reachability - the foundation for orphan files, unused exports, and dev-dependency checks. Define them once per workspace:
+Entry points are the roots of reachability - the foundation for orphan files, unused exports, and dev-dependency checks. They are defined once per workspace, and everything from step 7 on depends on this step being honest.
+
+- [`prodEntryPoints`](./config-based-checks/entry-points-definition.mdx#kinds-of-entry-points) - real application roots (what ships).
+- [`devEntryPoints`](./config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points) - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
+- [`ignoreEntryPoints`](./config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points) - leftover-but-committed files you no longer use. Matching files are excluded from reporting: never flagged as orphan files, and their unused exports are suppressed.
+
+### If init detected them for you (the default)
+
+Every **package** workspace already has its patterns filled in. Detection is purely structural: **any file that nothing else imports is treated as an entry point**, then classified by path (tests, scripts, stories, `*.config.*` → dev; fixtures and snapshots → ignore; everything else → prod). Your job is to review, not to rewrite:
+
+- **Dead files look exactly like roots.** A leftover file nobody imports was listed as a production entry point. Delete it, or move it to `ignoreEntryPoints` - left in `prodEntryPoints` it is a root, and [step 8](#8-orphan-files) will never report it.
+- **Check the prod/dev split.** A dev-only file left in `prodEntryPoints` inflates the dev-dependency check in [step 7](#7-node-module-hygiene); something that ships but landed in `devEntryPoints` hides real production usage.
+- **Folded `dir/**` globs cover the whole directory.** If you accepted folding below 100%, that glob also marks the directory's non-entry files as roots, so orphans inside it can no longer be reported. Where a directory mixes roots and internals, replace the glob with the explicit files.
+- **A shared package's detected entry points are mostly noise.** Its files are imported by *other* packages, so within its own scope they look like roots. Leave them, but keep reachability checks for that package at the root workspace - see steps 8 and 9.
+- **The root workspace has none, by design.** It is the cross-package scope; give it broad app entry points only when you enable the checks in steps 8 and 9 there.
+
+### If you skipped detection
+
+Write the patterns yourself, per workspace:
 
 ```jsonc
 {
@@ -168,11 +212,20 @@ Entry points are the roots of reachability - the foundation for orphan files, un
 }
 ```
 
-- [`prodEntryPoints`](./config-based-checks/entry-points-definition.mdx#kinds-of-entry-points) - real application roots (what ships).
-- [`devEntryPoints`](./config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points) - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
-- [`ignoreEntryPoints`](./config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points) - leftover-but-committed files you no longer use. Matching files are excluded from reporting: never flagged as orphan files, and their unused exports are suppressed.
-
 Keep the list honest and start narrow. See [entry points definition guide](./config-based-checks/entry-points-definition.mdx).
+
+### Keep the patterns alive as the project moves
+
+Entry-point patterns rot: a file gets renamed, a package is restructured, and the glob that pointed at it silently matches nothing - so a real root quietly stops being a root and orphan files and unused exports start reporting nonsense. Nothing fails, which is exactly why it goes unnoticed - and in a monorepo it happens one package at a time.
+
+`rev-dep config lint` finds every config glob that no longer matches a file - entry points, workspace paths, deny lists, boundary selectors - so run it as you iterate, or fold it into the run so each check tells you:
+
+```bash
+rev-dep config lint               # report (--fix removes dead patterns)
+rev-dep config run --lint-config  # lint alongside every run, reusing its graph
+```
+
+See [linting the config](./config-based-checks/linting-the-config.mdx).
 
 > **Paths with brackets?** Entry-point patterns are globs, so a literal path containing `[ ]` or `{ }` - such as a Next.js dynamic route `pages/[clientId]/edit.tsx` - won't match unless you escape the brackets: `"pages/\\[clientId\\]/edit.tsx"`. See [Glob patterns](./other-concepts-and-features/glob-patterns.mdx).
 
@@ -251,7 +304,9 @@ A useful pattern is a second detector that excludes test files from the graph, t
 }
 ```
 
-**Monorepo placement matters.** Enable it on **compiled apps** (their dead code is truly dead) and at the **root** to catch unused files in shared packages - but **not** scoped to a shared package on its own, where cross-package usage is invisible. If shared-package files are wrongly reported, the [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide explains the fix.
+**Monorepo placement matters.** Enable it on **compiled apps** (their dead code is truly dead) and at the **root** to catch unused files in shared packages - but **not** scoped to a shared package on its own, where cross-package usage is invisible.
+
+At the root this is the `"orphanFilesDetection": false` placeholder init wrote - flip it to `true`, and **give the root broad app entry points first** (e.g. `"prodEntryPoints": ["apps/web/**", "apps/mobile/**"]`). Init leaves the root without entry points, and a root workspace with no entry points reports *every* file as an orphan. If shared-package files are wrongly reported, the [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide explains the fix.
 
 Learn more about the [`orphanFilesDetection`](./config-based-checks/checks/orphan-files.mdx) check configuration.
 
@@ -267,7 +322,7 @@ Exported members never imported anywhere reachable. Enable it only once entry po
 }
 ```
 
-Like orphan files, run it at the **root** for shared packages so cross-package usage is counted. To also catch app-local unused exports, enable it on the **compiled app** - but because the app follows shared source, its report will include shared-package exports; suppress those with an `ignoreFiles` pattern relative to the workspace (e.g. `"ignoreFiles": ["../../packages/**"]`) and let the root workspace own the shared findings. The [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide explains why unused exports leaks across packages while orphan files does not, and walks through this setup.
+Like orphan files, run it at the **root** for shared packages so cross-package usage is counted - the same `false` placeholder to flip, and the same broad root entry points from step 8. To also catch app-local unused exports, enable it on the **compiled app** - but because the app follows shared source, its report will include shared-package exports; suppress those with an `ignoreFiles` pattern relative to the workspace (e.g. `"ignoreFiles": ["../../packages/**"]`) and let the root workspace own the shared findings. The [orphan files and unused exports in shared packages](./troubleshooting/orphan-files-and-unused-exports-in-shared-packages.mdx) troubleshooting guide explains why unused exports leaks across packages while orphan files does not, and walks through this setup.
 
 Learn more about the [`unusedExportsDetection`](./config-based-checks/checks/unused-exports.mdx) check configuration.
 
@@ -346,4 +401,4 @@ Learn more about the [`importConventions`](./config-based-checks/checks/import-c
 rev-dep config run
 ```
 
-Run it on every PR to keep the dependency graph clean against both human and AI-introduced regressions. For machine-readable results, see [output formats](./config-based-checks/output-formats.mdx).
+Run it on every PR to keep the dependency graph clean against both human and AI-introduced regressions. Add `--lint-config` to that step so the config itself is held to the same standard - a pattern that stopped matching anything (see [step 6](#keep-the-patterns-alive-as-the-project-moves)) then fails the build instead of quietly weakening a check. For machine-readable results, see [output formats](./config-based-checks/output-formats.mdx).

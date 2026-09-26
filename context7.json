@@ -1,0 +1,28 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "rev-dep",
+  "description": "Go CLI for JS/TS dependency-graph analysis: module boundaries, circular imports, dead files, unused exports and dependencies, duplicated code.",
+  "folders": ["docs/docs"],
+  "excludeFolders": [
+    "docs/versioned_docs",
+    "docs/versioned_sidebars",
+    "docs/blog",
+    "docs/build",
+    "__fixtures__",
+    "__benchmarks__",
+    "testdata",
+    "node_modules",
+    "npm",
+    "tmp",
+    "notes"
+  ],
+  "excludeFiles": ["InternalReadme.md"],
+  "rules": [
+    "Run checks with `npx rev-dep config run --format json`. It prints one JSON document on stdout. Exit code 0 means every check passed; 1 means issues were found - a result to act on, not a crash.",
+    "`rev-dep config run` reads rev-dep.config.json(c) or .rev-dep.config.json(c) from the current directory only (or the directory passed with `-c <dir>`); it does not search parent directories.",
+    "In a monorepo, pass `--follow-monorepo-packages` to exploratory commands such as imported-by, resolve, files and entry-points: they follow no workspace packages by default, while config workspaces follow all of them.",
+    "`rev-dep imported-by --file <path>` lists direct importers only. `rev-dep resolve --file <path>` prints the import paths from entry points to a file; `rev-dep resolve -p <from> -f <to>` prints the path between two files.",
+    "Autofix needs `\"autofix\": true` on the detector and `rev-dep config run --fix`. Only unusedExportsDetection, orphanFilesDetection (deletes files) and importConventions support it. Use `--fix --recheck` to validate the result.",
+    "rev-dep v3 refuses configs with a configVersion of 1.x or a top-level `rules` array (the v2 schema). Upgrade them with `rev-dep config migrate`."
+  ]
+}

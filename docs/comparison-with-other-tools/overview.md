@@ -1,0 +1,124 @@
+# Comparison with other tools
+
+> JavaScript and TypeScript dependency analysis tools compared: knip, madge, dependency-cruiser, depcheck, jscpd and more - what each checks, which are still maintained, and which to pick for which problem.
+
+<head>
+  <title>knip, madge, dependency-cruiser, depcheck, jscpd and more: JS/TS dependency tools compared</title>
+</head>
+
+
+
+The JavaScript and TypeScript ecosystem has a tool for almost every dependency-graph question: unused files and exports, unused or missing dependencies, circular imports, architecture boundaries, duplicated code. This page maps that landscape - what each tool checks, whether it is still maintained, and which one fits which problem, including the cases where rev-dep is not the right choice. Each tool also has a detailed side-by-side page, linked [at the bottom](#detailed-comparisons).
+
+rev-dep focuses on the dependency graph and on architecture rules, run as one fast pass from one config. It does not render graph images, and it reports at the file, export and dependency level rather than at class-member or namespace-member level.
+
+_Last verified: September 2026._
+
+## What each tool checks
+
+A plain ✅ means the tool does this by default. Text instead of a tick means it does it with a
+qualification, spelled out in [which tool for which problem](#which-tool-for-which-problem) below.
+
+| Tool | Unused files | Unused exports | Unused / missing deps | Circular imports | Boundaries | Duplicated code | Graph |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **rev-dep** | ✅ | ✅ | ✅ / ✅ | ✅ | allow, deny, reachability | blocks & JSX | - |
+| [knip](./knip-vs-rev-dep.mdx) | ✅ | ✅ | ✅ / ✅ | opt-in | - | - | - |
+| [dependency-cruiser](./dependency-cruiser-vs-rev-dep.mdx) | ✅ | - | partial | ✅ | generic rules | - | ✅ |
+| [madge](./madge-vs-rev-dep.mdx) | ✅ | - | - | ✅ | - | - | ✅ |
+| [skott](./skott-vs-rev-dep.mdx) | ✅ | - | ✅ / - | ✅ | - | - | ✅ |
+| [dpdm](./dpdm-vs-rev-dep.mdx) | ✅ | - | - | ✅ | - | - | - |
+| [jscpd](./jscpd-vs-rev-dep.mdx) | opt-in | opt-in | - | - | - | token sequences | - |
+| [eslint-plugin-import](./eslint-plugin-import-vs-rev-dep.mdx) | - | ✅ | - / ✅ | slow on large repos | restricted paths | - | - |
+| [Sheriff](./sheriff-vs-rev-dep.mdx) | - | - | - | - | tags + encapsulation | - | - |
+| [good-fences](./good-fences-vs-rev-dep.mdx) | - | - | - | - | per-directory fences | - | - |
+| [depcheck](./depcheck-vs-rev-dep.mdx) | - | - | ✅ / ✅ | - | - | - | - |
+| [npm-check](./npm-check-vs-rev-dep.mdx) | - | - | ✅ / - | - | - | - | - |
+| [unimported](./unimported-vs-rev-dep.mdx) | ✅ | - | ✅ / - | - | - | - | - |
+| [ts-prune](./ts-prune-vs-rev-dep.mdx) | - | ✅ | - | - | - | - | - |
+| [ts-unused-exports](./ts-unused-exports-vs-rev-dep.mdx) | ✅ | ✅ | - | - | - | - | - |
+
+Everything here runs on Node, except **rev-dep** (Go), **jscpd** v5 (Rust) and the two ESLint plugins.
+
+A few tools also go deeper than this table shows: knip reports unused class and enum members and duplicate exports, jscpd adds complexity and health scoring and covers 220+ languages, and eslint-plugin-import and Sheriff give in-editor feedback. The detailed pages cover those differences.
+
+## Is it still maintained?
+
+Latest npm release, checked September 2026:
+
+| Tool | Latest release | Status |
+| --- | --- | --- |
+| rev-dep | 3.0.0 · Sep 2026 | active |
+| knip | 6.37.0 · Sep 2026 | active |
+| dependency-cruiser | 18.3.1 · Sep 2026 | active |
+| jscpd | 5.3.0 · Sep 2026 | active - v5 is a Rust rewrite |
+| skott | 0.35.12 · Sep 2026 | active |
+| dpdm | 4.3.0 · Jul 2026 | active |
+| eslint-plugin-import | 2.32.0 · Jun 2025 | slow; the fork [eslint-plugin-import-x](https://github.com/un-ts/eslint-plugin-import-x) releases more often |
+| Sheriff | 0.19.6 · Sep 2025 | no release in the past year |
+| madge | 8.0.0 · Aug 2024 | no release in over two years |
+| ts-unused-exports | 11.0.1 · Nov 2024 | no release since |
+| depcheck | 1.4.7 · Oct 2023 | repository archived |
+| unimported | 1.31.1 · Nov 2023 | deprecated on npm, repository archived |
+| good-fences | 1.2.0 · Mar 2023 | inactive |
+| npm-check | 6.0.1 · Jul 2022 | inactive |
+| ts-prune | 0.10.3 · Dec 2021 | maintenance mode; its README points to knip |
+
+If you are starting fresh, avoid the archived and inactive tools: depcheck, unimported, npm-check, ts-prune and good-fences all have maintained replacements below.
+
+## Which tool for which problem
+
+**Unused files, exports and dependencies**
+- **knip** - the most established choice, with a large plugin ecosystem and fine-grained reports.
+- **rev-dep** - the fastest, and runs in the same pass as your architecture checks.
+- **jscpd** (`--dead-code`, also standalone as `basta`) - opt-in; reports unused declarations and imports as well as files and exports, with a confidence score on each finding.
+
+**Circular imports**
+- **rev-dep** - fastest on large codebases; includes type-only imports by default (`ignoreTypeImports` to exclude them).
+- **knip** (`--cycles`) - opt-in, and considers value imports only.
+- **madge** or **dpdm** - simple command-line checks; madge can also draw the graph.
+- **eslint-plugin-import** `no-cycle` - in-editor, but known to be slow on large repositories.
+
+**Architecture boundaries**
+- **rev-dep** - `allow`, `deny` and `denyIgnore` rules on path patterns, plus entry-point reachability rules ([restricted imports](../config-based-checks/checks/restricted-imports.mdx), [restricted importers](../config-based-checks/checks/restricted-importers.mdx)), checked on every file.
+- **dependency-cruiser** - one generic `from`/`to` rule engine, plus visualization.
+- **Sheriff** - tags and barrel-file encapsulation, through ESLint.
+- **Nx** `enforce-module-boundaries` - if your monorepo already uses Nx.
+
+**Duplicated code**
+
+The tools differ in *what* they match, and that decides whether a finding is actionable.
+
+- **jscpd** - matches **token sequences**: a run of identical tokens, wherever it happens to start and end. That is what lets it cover 220+ languages and find exact, renamed and near-miss copies, with many report formats and baselines. The cost is that a match can begin and end mid-expression, so it often does not line up with anything you can extract.
+- **rev-dep** - matches **whole syntactic units**: a function body, a branch, a loop body, a JSX element. Every finding is a unit you can lift into a function or a component. Renamed copies are matched too, and a snapshot baseline means only new duplication fails ([how it works](../other-concepts-and-features/duplicated-code-detection.mdx)).
+
+**Seeing the graph**
+- **madge**, **dependency-cruiser** and **skott** render it. rev-dep does not; it answers "what imports what" as text through the [exploratory toolkit](../exploratory-toolkit/overview.mdx).
+
+## Using tools together
+
+These tools overlap, but not completely, and combinations are common:
+
+- **rev-dep + knip:** rev-dep as the fast architecture gate on every commit or agent edit; knip for member-level dead code.
+- **rev-dep + madge or dependency-cruiser:** rev-dep for enforcement in CI, the other for a picture of the graph.
+- **rev-dep + an ESLint plugin:** rev-dep for whole-graph checks, ESLint for in-editor feedback on individual files.
+
+## Detailed comparisons
+
+| vs Rev-dep | the other tool's focus |
+| --- | --- |
+| [knip](./knip-vs-rev-dep.mdx) | unused files, exports, dependencies |
+| [dependency-cruiser](./dependency-cruiser-vs-rev-dep.mdx) | dependency rules, circular & orphan, visualization |
+| [depcheck](./depcheck-vs-rev-dep.mdx) | unused & missing dependencies |
+| [madge](./madge-vs-rev-dep.mdx) | circular dependencies, graph visualization |
+| [jscpd](./jscpd-vs-rev-dep.mdx) | duplicated code detection |
+| [dpdm](./dpdm-vs-rev-dep.mdx) | circular dependencies, unused files |
+| [ts-prune](./ts-prune-vs-rev-dep.mdx) | unused exports |
+| [ts-unused-exports](./ts-unused-exports-vs-rev-dep.mdx) | unused exports |
+| [unimported](./unimported-vs-rev-dep.mdx) | unused files, unused & unresolved imports |
+| [skott](./skott-vs-rev-dep.mdx) | circular deps, unused files & deps, visualization |
+| [eslint-plugin-import](./eslint-plugin-import-vs-rev-dep.mdx) | import-graph ESLint rules |
+| [good-fences](./good-fences-vs-rev-dep.mdx) | directory import boundaries |
+| [sheriff](./sheriff-vs-rev-dep.mdx) | module boundaries & dependency rules |
+| [npm-check](./npm-check-vs-rev-dep.mdx) | unused dependencies, version updates |
+
+Ready to switch rather than compare? See the [migration guides](../migrating-from-other-tools/overview.mdx).

@@ -1,0 +1,348 @@
+# Single workspace integration guide
+
+> Step-by-step guide to integrating rev-dep into a single-package project - generate a config, verify resolution, define entry points, and enable each check in order.
+
+This guide takes you from zero to a working rev-dep setup in a single-package project, one step at a time. The order matters: each step builds the foundation the next one relies on.
+
+> This guide assumes rev-dep is already installed. If not, see [Installation](./installation.mdx) and the [intro](./intro.mdx) first. 
+> Working in a monorepo? Use the [monorepo integration guide](./monorepo-integration-guide.mdx) instead.
+
+The mental model is simple: rev-dep builds one dependency graph from your source files, and each check is a query against that graph. Most of the work is making sure the graph is accurate - resolution (step 3) and entry points (step 6); after that, enabling checks is quick.
+
+The steps come in four groups:
+
+- **1-2** - generate the config and learn how to run it. `config init` may already have done part of steps 3-6 for you; each step says so.
+- **3-5** - checks that need nothing but correct resolution.
+- **6-9** - entry points, then everything that depends on them.
+- **10-13** - architecture rules you author yourself, then CI.
+
+## 1. Generate the base config
+
+```bash
+rev-dep config init
+```
+
+Run inside your project, this creates a workspace with `path: "."` and writes `.rev-dep.config.jsonc` (JSONC - comments allowed) with a `$schema` for editor autocomplete. A **workspace** is a scope; in a single-package project you normally have just one, and every check below goes inside it. See [config file structure](./config-based-checks/config-file-structure.mdx).
+
+### What init asks you - and which steps it already covers
+
+`config init` is interactive, and your answers pre-fill part of this guide. You can confirm every question default option with Enter. In a non-interactive shell (CI, scripts) nothing is asked: the defaults apply and entry-point detection is skipped.
+
+| Question | Default | What your answer changes |
+| --- | --- | --- |
+| **Standalone packages were found in subfolders. What should the config cover?** *(only asked when subfolders with their own `package.json` exist)* | Root package only | Adds one workspace per subfolder package. The curated option skips fixture/test/example-looking folders |
+| **Auto-detect entry points for each package?** | Yes - analyze and fill them in | Fills `prodEntryPoints` / `devEntryPoints` / `ignoreEntryPoints`, so **step 6** becomes a review instead of authoring |
+| **Fold near-covered directories into one `dir/**` glob?** *(only asked when some directory almost qualifies)* | Strict (100%) | Trades entry-point precision for a shorter config - the caveat is in [step 6](#6-entry-points) |
+| **Which detectors should the config enable?** | Unresolved + circular imports + duplicated code | Pre-enables **steps 3, 4 and 5**. The fourth option additionally writes the remaining detectors as `"detector": false` placeholders; "All detectors" turns everything on at once |
+
+So when a step below says *enable X*, that means flipping an existing `"X": false` to `true` if init wrote the placeholder, or adding the key if it did not.
+
+> `config init` never overwrites an existing config - it stops with an error if one is present. Delete the file if you want to start over.
+
+> The examples below use the [compact detector syntax](./config-based-checks/config-file-structure.mdx#compact-detector-syntax): `"detector": true` switches a check on, and when a detector carries options the `enabled` flag is optional. Write `{ "enabled": true }` if you prefer the explicit form.
+
+## 2. Run and (auto)fix
+
+```bash
+rev-dep config run                    # report (first issues per check)
+rev-dep config run --list-all-issues  # full report
+```
+
+Adopt checks incrementally - enable one, run it, resolve the findings, commit, repeat. That keeps CI noise manageable.
+
+**Autofix** needs two things together: the check must have `"autofix": true` in the config, **and** you must pass `--fix`:
+
+```bash
+rev-dep config run --fix           # apply fixes for autofix-enabled checks
+rev-dep config run --fix --recheck # apply, then re-validate
+```
+
+Only `unusedExportsDetection`, `orphanFilesDetection`, and `importConventions` support autofix. Details: [Running checks and autofix](./config-based-checks/running-checks-and-autofix.mdx).
+
+## 3. Verify resolution: unresolved imports
+
+Enable this **first**. It tells you whether rev-dep can parse and resolve your project the way your tooling does - the precondition for every other check.
+
+Every detector option except "No detectors" already enabled it at init, so usually there is nothing to add here - just run it. If your config has no `unresolvedImportsDetection`, add it:
+
+```jsonc
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "unresolvedImportsDetection": true
+    }
+  ]
+}
+```
+
+If it reports nothing, your imports parse and resolve cleanly - move on. If it reports imports you expected to resolve, work through the [unresolved imports troubleshooting guide](./troubleshooting/unresolved-imports-troubleshooting.mdx) before going further (common causes: unsupported aliases, condition names, asset extensions, or gitignored files).
+
+Learn more about the [`unresolvedImportsDetection`](./config-based-checks/checks/unresolved-imports.mdx) check configuration.
+
+## 4. Circular dependencies
+
+The first check that needs nothing but correct resolution - no entry points, no tuning. `config init` enables it for you (unless you picked one of the first two detector options), so it works as generated. A high-signal, low-effort first architectural win. `ignoreTypeImports` lets you catch new runtime cycles while tolerating existing type-only ones.
+
+```jsonc
+{
+  "circularImportsDetection": {
+    "ignoreTypeImports": true
+  }
+}
+```
+
+Learn more about the [`circularImportsDetection`](./config-based-checks/checks/circular-imports.mdx) check configuration.
+
+## 5. Duplicated code
+
+Also independent of entry points. `config init` enables it alongside circular imports (unless you
+picked one of the first two detector options) and, unlike every other check, puts it on the
+**root workspace only**: a block pasted from one package into another is one finding for the
+repository, not one per package, and the root workspace already scans every package below it.
+
+It points the detection at a snapshot file it has not created, so the first run reports the
+duplication that exists and tells you the baseline is missing:
+
+```
+❌ Duplicated Code: 34 duplicated snippets in 21 files (79 occurrences), scanned 812 files
+      To see them, run:
+        rev-dep duplicated-code
+      No baseline recorded yet at duplicated-code-snapshot.json
+      To accept them as the baseline, run: rev-dep config run --update-snapshot
+```
+
+Two ways forward, and both are legitimate:
+
+**Look at them now.** The printed command shows the locations and the source of every copy - it
+finds repeated code blocks and JSX elements that you can extract into shared implementations. Refactor them straight away **or accept the current state and move on.** This is the usual choice on an existing codebase. Either way, generate the snapshot file to establish the baseline for future runs:
+
+```bash
+rev-dep config run --update-snapshot
+```
+
+Commit the snapshot. From then on the check reports only the **delta** - new duplication fails,
+acknowledged duplication passes. Run the same command again after you resolve some of it, so the
+baseline follows the code.
+
+If the findings are dominated by configuration objects rather than logic, the detection can be
+tuned - size and nesting floors, whether object literals count, how many copies it takes, and
+whether renamed copies should match. Learn more about the
+[`duplicatedCodeDetection`](./config-based-checks/checks/duplicated-code.mdx) check configuration and
+[how duplicated code detection works](./other-concepts-and-features/duplicated-code-detection.mdx).
+
+## 6. Entry points
+
+Entry points are the roots of reachability - the foundation for orphan files, unused exports, and dev-dependency checks. Everything from step 7 on depends on this step being honest.
+
+- [`prodEntryPoints`](./config-based-checks/entry-points-definition.mdx#kinds-of-entry-points) - real application roots (what ships).
+- [`devEntryPoints`](./config-based-checks/entry-points-definition.mdx#what-belongs-in-dev-entry-points) - tests, scripts, stories, config; keeps dev-only files from looking orphaned and feeds the dev-deps check.
+- [`ignoreEntryPoints`](./config-based-checks/entry-points-definition.mdx#ignoring-leftover-entry-points) - leftover-but-committed files you no longer use. Matching files are excluded from reporting: never flagged as orphan files, and their unused exports are suppressed.
+
+### If init detected them for you (the default)
+
+Your workspace already has `prodEntryPoints` / `devEntryPoints` / `ignoreEntryPoints`. Detection is purely structural: **any file that nothing else imports is treated as an entry point**, then classified by path (tests, scripts, stories, `*.config.*` → dev; fixtures and snapshots → ignore; everything else → prod). Your job is to review, not to rewrite:
+
+- **Dead files look exactly like roots.** A leftover file nobody imports was listed as a production entry point. Delete it, or move it to `ignoreEntryPoints` - left in `prodEntryPoints` it is a root, and [step 8](#8-orphan-files) will never report it.
+- **Check the prod/dev split.** A dev-only file left in `prodEntryPoints` inflates the dev-dependency check in [step 7](#7-node-module-hygiene); something that ships but landed in `devEntryPoints` hides real production usage.
+- **Folded `dir/**` globs cover the whole directory.** If you accepted folding below 100%, that glob also marks the directory's non-entry files as roots, so orphans inside it can no longer be reported. Where a directory mixes roots and internals, replace the glob with the explicit files.
+
+### If you skipped detection
+
+Write the patterns yourself:
+
+```jsonc
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/main.tsx", "src/pages/**/*.tsx"],
+      "devEntryPoints": ["**/*.test.*", "*.config.*", "scripts/**"],
+      "ignoreEntryPoints": ["src/legacy/oldDashboard.tsx"]
+    }
+  ]
+}
+```
+
+Keep the list honest and start narrow. See [entry points](./config-based-checks/entry-points-definition.mdx).
+
+### Keep the patterns alive as the project moves
+
+Entry-point patterns rot: a file gets renamed, a directory is deleted, and the glob that pointed at it silently matches nothing - so a real root quietly stops being a root and orphan files and unused exports start reporting nonsense. Nothing fails, which is exactly why it goes unnoticed.
+
+`rev-dep config lint` finds every config glob that no longer matches a file - entry points, rule paths, deny lists, boundary selectors - so run it as you iterate, or fold it into the run so each check tells you:
+
+```bash
+rev-dep config lint               # report (--fix removes dead patterns)
+rev-dep config run --lint-config  # lint alongside every run, reusing its graph
+```
+
+See [linting the config](./config-based-checks/linting-the-config.mdx).
+
+> **Paths with brackets?** Entry-point patterns are globs, so a literal path containing `[ ]` or `{ }` - such as a Next.js dynamic route `pages/[clientId]/edit.tsx` - won't match unless you escape the brackets: `"pages/\\[clientId\\]/edit.tsx"`. See [Glob patterns](./other-concepts-and-features/glob-patterns.mdx).
+
+## 7. Node-module hygiene
+
+rev-dep checks dependency **declarations** in your `package.json` (it never scans `node_modules/`): a package is flagged if it's declared but unused, or imported but undeclared.
+
+The top-level `nodeModulesResolution` block init wrote (`"entry-package"`) is the right setting for a single-package project - it validates every import against your one `package.json`. See [node modules resolution](./other-concepts-and-features/node-modules-resolution.mdx).
+
+### Unused node modules
+
+Declared in `package.json` but never imported.
+
+```jsonc
+{
+  "unusedNodeModulesDetection": true
+}
+```
+
+Tooling-only packages (bundler plugins, CLIs) aren't imported by source and may look unused - point the detector at them with `pkgJsonFieldsWithBinaries` / `filesWithBinaries` / `filesWithModules` instead of disabling it.
+
+Learn more about the [`unusedNodeModulesDetection`](./config-based-checks/checks/unused-node-modules.mdx) check configuration.
+
+### Missing node modules
+
+Imported in code but not declared.
+
+```jsonc
+{
+  "missingNodeModulesDetection": true
+}
+```
+
+Learn more about the [`missingNodeModulesDetection`](./config-based-checks/checks/missing-node-modules.mdx) check configuration.
+
+### Dev dependencies in production
+
+A follow-up to the above: flags `devDependencies` reachable from your production entry points (they would crash a production install). Needs `prodEntryPoints` from step 6.
+
+```jsonc
+{
+  "devDepsUsageOnProdDetection": {
+    // Optional: type-only imports are stripped from production builds, so a dev
+    // dependency imported only as a type is not a runtime risk. Opt in to skip them.
+    "ignoreTypeImports": true
+  }
+}
+```
+
+Learn more about the [`devDepsUsageOnProdDetection`](./config-based-checks/checks/dev-deps-on-prod.mdx) check configuration.
+
+## 8. Orphan files
+
+Files not reachable from any entry point - dead files left by refactors. Supports autofix (deletes the file).
+
+```jsonc
+{
+  "orphanFilesDetection": {
+    "autofix": true
+  }
+}
+```
+
+A useful pattern is a second detector that excludes test files from the graph, to surface utilities used only by tests:
+
+```jsonc
+{
+  "orphanFilesDetection": [
+    true,
+    {
+      "graphExclude": ["**/*.test.*"]
+    }
+  ]
+}
+```
+
+Learn more about the [`orphanFilesDetection`](./config-based-checks/checks/orphan-files.mdx) check configuration.
+
+## 9. Unused exports
+
+Exported members never imported anywhere reachable. Enable it only once entry points are trustworthy - incomplete roots make live exports look dead. Supports autofix.
+
+```jsonc
+{
+  "unusedExportsDetection": {
+    "autofix": true
+  }
+}
+```
+
+Learn more about the [`unusedExportsDetection`](./config-based-checks/checks/unused-exports.mdx) check configuration.
+
+## 10. Restricted imports
+
+Block specific files/modules from being reachable from chosen entry points - e.g. keep server-only code out of client bundles. Entry-point driven; `entryPoints` does **not** fall back to workspace-level entry points.
+
+```jsonc
+{
+  "restrictedImportsDetection": {
+    "entryPoints": ["src/pages/**/*.tsx"],
+    "denyFiles": ["src/server/**"],
+    "denyModules": ["fs", "child_process"]
+  }
+}
+```
+
+Learn more about the [`restrictedImportsDetection`](./config-based-checks/checks/restricted-imports.mdx) check configuration.
+
+## 11. Module boundaries
+
+Enforce layer/feature separation by file-path patterns: files matching `pattern` may not import paths in `deny`. Ideal for keeping UI free of API internals, or isolating features.
+
+```jsonc
+{
+  "moduleBoundaries": [
+    {
+      "name": "ui-not-to-api",
+      "pattern": "src/ui/**",
+      "deny": ["src/api/**"]
+    }
+  ]
+}
+```
+
+Boundaries are path-to-path; restricted imports is reachability-from-entry-points.
+
+Learn more about the [`moduleBoundaries`](./config-based-checks/checks/module-boundaries.mdx) check configuration.
+
+## 12. Import conventions
+
+Enforce a consistent import style - relative within a domain, aliased across domains - so import shape alone reveals whether colocation is correct. Supports autofix.
+
+```jsonc
+{
+  "importConventions": [
+    {
+      "rule": "relative-internal-absolute-external",
+      "autofix": true,
+      "domains": [
+        {
+          "path": "src/utils/ui",
+          "alias": "@ui-utils"
+        },
+        {
+          "path": "src/utils/server",
+          "alias": "@server-utils"
+        },
+        {
+          "path": "src/components",
+          "alias": "@design-system"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Learn more about the [`importConventions`](./config-based-checks/checks/import-conventions.mdx) check configuration.
+
+## 13. Wire into CI
+
+`rev-dep config run` exits `0` when everything passes and `1` when any check fails, so a single step gates your pipeline:
+
+```bash
+rev-dep config run
+```
+
+Run it on every PR to keep the dependency graph clean against both human and AI-introduced regressions. Add `--lint-config` to that step so the config itself is held to the same standard - a pattern that stopped matching anything (see [step 6](#keep-the-patterns-alive-as-the-project-moves)) then fails the build instead of quietly weakening a check. For machine-readable results, see [output formats](./config-based-checks/output-formats.mdx).

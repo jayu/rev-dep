@@ -1,0 +1,28 @@
+# Detect circular dependencies
+
+> Detect circular dependencies with rev-dep circular, with a non-zero exit code for lightweight CI use.
+
+Use:
+
+```bash
+rev-dep circular
+```
+
+This gives cycle-focused output without requiring a config file, which is useful during refactors or before adopting the full config runner. Can be used as a CI check on it's own.
+
+## Useful flags
+
+```bash
+rev-dep circular --ignore-type-imports
+rev-dep circular --process-ignored-files 'dist/**/*.generated.ts'
+```
+
+- `--ignore-type-imports` ignores type-only edges, so type-level cycles are not reported.
+
+## How cycles are detected
+
+Cycle detection uses Strongly Connected Components (SCC). Files that all depend on each other form one group, and the command reports one cycle per group. So a tangle of five files gives you one finding, not every possible path through it.
+
+## Exit code
+
+The command exits with the number of cycles found (non-zero when any exist), which makes it suitable for lightweight CI use even without a config file.

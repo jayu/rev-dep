@@ -1,0 +1,44 @@
+# dependency-cruiser vs Rev-dep
+
+> dependency-cruiser vs rev-dep: compare dependency rules, circular and orphan detection, visualization. rev-dep is a config-driven alternative, measured up to 65x faster.
+
+<head>
+  <title>dependency-cruiser vs Rev-dep: features compared, up to 65x faster</title>
+</head>
+
+
+
+[dependency-cruiser](https://github.com/sverweij/dependency-cruiser) validates dependencies against custom `forbidden` rules and draws dependency graphs. rev-dep covers the same validation with purpose-built checks and runs faster - but dependency-cruiser is also a graph visualizer, which rev-dep is not.
+
+## At a glance
+
+| | dependency-cruiser | Rev-dep |
+| --- | --- | --- |
+| Primary focus | dependency rules + visualization | dependency hygiene + architecture |
+| Runtime | Node | Go - single parallel pass (**up to 65x faster**) |
+| Circular / orphan detection | yes | yes |
+| Path-to-path forbidden rules | yes (generic `from`/`to`) | yes (module boundaries) |
+| Reachability rules - deny + whitelist | deny native; whitelist via negated `from` (`pathNot`) | dedicated checks both ways (restricted imports + restricted importers) |
+| Unused / missing dependencies | partial | yes |
+| Unused exports | no | yes |
+| Graph visualization (dot/mermaid/HTML) | yes | no |
+| Config | `.dependency-cruiser.js` (regex rules) | `rev-dep.config.jsonc` (named checks, globs) |
+
+## Where rev-dep is stronger
+
+- **Named checks instead of hand-written rules.** Boundaries, [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [restricted importers](../config-based-checks/checks/restricted-importers.mdx) (the reverse - whitelist which entry points may reach a file or banned package), [circular](../config-based-checks/checks/circular-imports.mdx), and [orphan files](../config-based-checks/checks/orphan-files.mdx) are dedicated detectors rather than generic `from`/`to` rules. The whitelist direction in particular is awkward in dependency-cruiser (a negated `pathNot` reachability rule) and a first-class check in rev-dep.
+- **Broader hygiene** - it also detects [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx) and [unused exports](../config-based-checks/checks/unused-exports.mdx).
+- **Speed** across large monorepos. On a 580k-LoC project ([benchmark](/#speed)) rev-dep is **50x faster** on module boundaries (164 ms vs 8.1 s), **65x** on restricted imports (170 ms vs 11.0 s) and **52x** on restricted importers (179 ms vs 9.2 s).
+
+## Where dependency-cruiser may still fit
+
+Its headline feature is **visualization** - rendering the graph as SVG, mermaid, or HTML. rev-dep answers reachability as text via the [exploratory toolkit](../exploratory-toolkit/overview.mdx) but produces no images. If you rely on the diagrams, keep dependency-cruiser for that.
+
+## Which should you choose?
+
+- Need dependency-graph diagrams? **dependency-cruiser** (optionally alongside rev-dep for the checks).
+- Want fast, named architecture checks plus unused-code/dependency detection in one config? **rev-dep.**
+
+## Migrating
+
+See [Migrating from dependency-cruiser](../migrating-from-other-tools/migrating-from-dependency-cruiser.mdx) to translate your `forbidden` rules into rev-dep checks.

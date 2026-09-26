@@ -1,0 +1,25 @@
+# Trace direct importers
+
+> Find the direct importers of a file with rev-dep imported-by for fast, local impact analysis before changing or moving a module.
+
+Use:
+
+```bash
+rev-dep imported-by --file src/utils/math.ts
+```
+
+This shows the **direct** importers of a file only - one hop, not the full chain from an entry point. Use it for fast local impact analysis before changing or moving a module.
+
+`--file` is required.
+
+## Useful flags
+
+```bash
+rev-dep imported-by --file src/utils/math.ts --count
+rev-dep imported-by --file src/utils/math.ts --list-imports
+```
+
+- `--count` prints only the number of importing files.
+- `--list-imports` groups output by file and shows the raw import request strings. This is useful when the same file is imported under different requests (relative path, alias, package entry).
+
+For the full path from an entry point to a file, use [`resolve`](./resolve.mdx).

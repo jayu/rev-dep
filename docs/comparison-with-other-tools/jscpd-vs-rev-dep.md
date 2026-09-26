@@ -1,0 +1,67 @@
+# jscpd vs Rev-dep
+
+> jscpd vs rev-dep: compare copy-paste detection for JS/TS - what each reports, renamed and near-miss copies, baselines, and where each fits. jscpd v5 is a Rust multi-language detector; rev-dep reports whole code blocks and JSX elements alongside its dependency checks.
+
+<head>
+  <title>jscpd vs Rev-dep: copy-paste detection for JS/TS compared</title>
+</head>
+
+
+
+[jscpd](https://github.com/kucherenko/jscpd) is a copy-paste detector for more than 220 languages. Since v5 it is a Rust engine shipped as a self-contained binary, and it has grown beyond duplication: dead-code detection, complexity hotspots, a health score and an MCP server. rev-dep detects duplication as one of its checks, next to its dependency-graph and architecture rules.
+
+The biggest difference is **what gets reported**. jscpd matches **token sequences**; rev-dep finds repeated **code blocks and JSX elements** - units the language already recognises - so every finding comes with its own refactor: a duplicated function body becomes a shared function, a duplicated element becomes a component.
+
+## At a glance
+
+| | jscpd | Rev-dep |
+| --- | --- | --- |
+| Primary focus | duplication, plus dead code, complexity and a health score | dependency hygiene + architecture, duplication included |
+| Runtime | Rust since v5 (v4 was Node) | Go - single parallel pass, alongside twelve other checks |
+| Languages | 224 formats | JS / TS / JSX / TSX, plus Vue and Svelte |
+| Unit reported | token sequence, as a line/column span; opt-in whole-function similarity for JS/TS | whole code block or JSX element |
+| Renamed copies | matched with `--ignore-identifiers` (reported as `renamed`) | matched with `--blind-identifiers` |
+| Near-miss copies (a few edited lines) | matched with `--max-gap-lines` or `--similarity` | not matched |
+| Reporters | 15, including html, sarif, markdown, codeclimate and an AI-oriented format | console, json (with a published schema) |
+| CI baseline | clone baseline (fail only on new clones), or a duplication-percentage threshold | snapshot of the exact duplications acknowledged |
+| Other checks | dead code (JS/TS/Python), complexity, health score, duplication history | twelve more dependency and architecture checks, in the same run |
+| Agent integration | MCP server, agent skills | CLI with JSON output |
+
+## The difference that matters: what gets reported
+
+Both tools find the same duplication in the same file. They describe it differently:
+
+```
+jscpd     components/Card.tsx [3:19 - 13:13]
+          components/Panel.tsx [3:20 - 13:13]
+
+rev-dep   JSX block, 7 lines, depth 3
+          src/components/Card.tsx:4:3
+          src/components/Panel.tsx:4:3
+```
+
+jscpd's range starts at column 19 of line 3 and ends at column 13 of line 13 - it begins mid-statement and ends mid-statement, because a window of matching tokens has no reason to stop where a language construct does. rev-dep reports the `<section>` element itself. (The jscpd output above is from v4; v5 still finds exact clones as matching token sequences.)
+
+The practical difference is what you do next. A token range has to be read at both sites before you know where the extractable unit actually begins. A block *is* the unit.
+
+The trade runs the other way too. rev-dep will not report a copy-paste that starts halfway through one function and ends halfway through another, or a near-miss copy with a few edited lines; jscpd will.
+
+## Renamed copies
+
+Copy-and-adapt duplication usually renames variables along the way. Both tools can now match it when asked: jscpd v5 with `--ignore-identifiers` (and `--ignore-literals`), reporting the clone as `renamed`; rev-dep with `--blind-identifiers` (plus `--blind-strings` and `--blind-numbers`). Neither does it by default. Earlier jscpd versions compared identifier names literally and could not match renamed copies.
+
+See [how rev-dep compares code](../other-concepts-and-features/duplicated-code-detection.mdx#what-the-same-code-means) for what blinding ignores and what it keeps.
+
+## Where jscpd may still fit
+
+- **Other languages.** jscpd covers Python, Java, C#, Go, CSS and many more. rev-dep is JS/TS only.
+- **Near-miss clones.** Copies with a few inserted or changed lines, and structurally similar JS/TS functions, which rev-dep does not detect.
+- **Reporting.** HTML, SARIF, Code Climate, markdown and more; duplication trends over git history; blame.
+- **A health score** combining duplication, dead code and complexity.
+
+## Which should you choose?
+
+- Need duplication detection across a polyglot repository, near-miss clones, or rich report formats? **jscpd.**
+- Working in JS/TS and want duplication reported as units you can extract - checked in the same run as your dependency and architecture rules? **rev-dep.**
+
+Learn more in [How duplicated code detection works](../other-concepts-and-features/duplicated-code-detection.mdx).

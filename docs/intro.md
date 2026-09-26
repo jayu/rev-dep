@@ -1,0 +1,63 @@
+# Overview
+
+> Learn about Rev-dep, a high-speed static analysis tool written in Go for enforcing architecture integrity and dependency hygiene in large-scale JS/TS projects.
+
+**Rev-dep** is a high-speed static analysis tool designed to enforce architecture integrity and dependency hygiene across large-scale JS/TS projects.
+
+Implemented in **Go**, it can audit a **500k+ LoC project in approximately 150ms**.
+
+Check out the [installation guide](./installation.mdx) to set up rev-dep in your project.
+
+## Key Features
+
+- 🛡️ **Architecture Integrity:** Enforce module boundaries and prevent illegal imports.
+- 🔍 **Dependency Hygiene:** Detect unused exports, orphan files, and unused node modules.
+- ⚡ **High Performance:** Optimized for speed to serve as a high-speed gatekeeper in your CI.
+- 🏗️ **Monorepo Support:** Native support for `pnpm`, `yarn`, and `npm` workspaces.
+
+## Config-Based Checks 🛡️
+
+Rev-dep provides a configuration system for orchestrating project checks. The config approach is **designed for speed** and is the **preferred way** of implementing project checks because it can execute all checks in a single pass, significantly faster than multiple running individual commands separately.
+
+Available checks are:
+
+- `moduleBoundaries` - enforce architecture boundaries between modules.
+- `restrictedImportsDetection` - block transitively importing denied files/modules from selected entry points.
+- `restrictedImportersDetection` - whitelist which entry points may transitively reach a set of files/modules.
+- `restrictedDirectImportersDetection` - constrain which files may directly import a set of files/modules (non-transitive).
+- `importConventions` - enforce import style conventions (offers autofix).
+- `circularImportsDetection` - detect circular imports.
+- `duplicatedCodeDetection` - detect copy-pasted code blocks and JSX elements.
+- `orphanFilesDetection` - detect dead/orphan files (offers autofix).
+- `unusedExportsDetection` - detect exports that are never used (offers autofix).
+- `unusedNodeModulesDetection` - detect dependencies declared but not used.
+- `missingNodeModulesDetection` - detect imports missing from package json.
+- `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
+- `unresolvedImportsDetection` - detect unresolved import requests.
+
+Checks are grouped in workspaces. You can have multiple workspaces, eg. one for each monorepo package.
+
+## Exploratory Toolkit 🧰
+
+Use these CLI commands for ad-hoc dependency exploration and debugging:
+
+- `entry-points` - discover project entry points.
+- `files` - list dependency tree files for a given entry point.
+- `resolve` - trace dependency paths between files and find who depends on a file.
+- `imported-by` - list direct importers of a file.
+- `circular` - list circular dependency chains.
+- `duplicated-code` - find copy-pasted code blocks and JSX elements.
+- `node-modules` - inspect `used`, `unused`, `missing`, and `installed` node modules.
+- `lines-of-code` - count effective lines of code.
+- `unresolved` - list imports that could not be resolved, grouped by file.
+- `list-cwd-files` - list all source code files in the current working directory.
+- `debug` - inspect what rev-dep parses, resolves, and discovers internally.
+
+## Ready to get started? 
+
+Check out the [installation guide](./installation.mdx) to set up rev-dep in your project.
+
+Then follow the step-by-step integration guide that matches your project:
+
+- [Monorepo integration guide](./monorepo-integration-guide.mdx) - for `pnpm`/`yarn`/`npm` workspaces.
+- [Single workspace integration guide](./single-workspace-integration-guide.mdx) - for single-package projects.

@@ -1,0 +1,89 @@
+# Running checks and autofix
+
+> Learn how to run rev-dep checks, use different output formats, and utilize the powerful autofix feature to automatically resolve dependency and import issues.
+
+## Running checks
+
+Run all enabled checks:
+
+```bash
+rev-dep config run
+```
+
+List every issue instead of the default truncated output:
+
+```bash
+rev-dep config run --list-all-issues
+```
+
+Can also run specific workspaces:
+
+```bash
+rev-dep config run --workspaces packages/app,packages/shared
+```
+
+Also lint the config for dead glob patterns while running (adds almost no time - it reuses the run's graph):
+
+```bash
+rev-dep config run --lint-config
+```
+
+This fails the run on any lint error and prints only the counts. See [Linting the config](./linting-the-config.mdx) for details.
+
+### Output formats
+
+Information about the supported output formats can be found in [Output formats](./output-formats.mdx).
+
+### Exit code
+
+- Exit code `0` when all enabled checks pass
+- Exit code `1` when violations exist
+
+## Using AutoFix
+
+Some checks can automatically apply fixes when both of these are true:
+
+- the check supports autofix
+- you run `rev-dep config run --fix`
+
+### Fixable detectors
+
+- `importConventions`
+- `unusedExportsDetection`
+- `orphanFilesDetection`
+
+Note that `autofix: true` must be set in the config for the detector be fixable.
+
+### Exit code nuance with `--fix` and `--recheck`
+
+Using `--fix` flag adjust the source code, but do not perform validation after the fixes are applied. 
+
+This means it will still exit with code `1`.
+
+To perform a re-check after applying fixes, you can use the `--recheck` flag in combination with `--fix`:
+
+```bash
+rev-dep config run --fix --recheck
+```
+
+Additional pass will be performed to check if all issues are resolved.
+
+### Autofixing orphan files issues
+
+Note that autofixing orphan files issues removes the orphan file. 
+
+Removing one orphan file can cause another file to become orphan.
+
+Running `rev-dep config run --fix` several times might be needed to remove all orphan files.
+
+## Updating the duplicated-code baseline
+
+`--fix` never touches duplicated code - there is no edit a tool can safely make for you. The other thing `config run` can write is the **snapshot**: the committed file that records which duplications are already acknowledged.
+
+```bash
+rev-dep config run --update-snapshot
+```
+
+This rewrites every `duplicatedCodeDetection` that has a `snapshotPath`, so whatever this run found becomes the new baseline. Detections without one are unaffected.
+
+Use it twice: once when adopting the check on a codebase that already has duplication, and again after you resolve some of it, so the baseline follows the code. See [duplicated code](./checks/duplicated-code.mdx).

@@ -1,0 +1,19 @@
+# Overview
+
+> This section is the exact command reference generated automatically from the CLI implementation.
+
+# CLI Reference
+
+## Use this section for
+
+- command names
+- flags
+- argument syntax
+- subcommand hierarchy
+
+## Command families
+
+- `config`: generate and run configuration-based checks
+- `entry-points`, `files`, `resolve`, `imported-by`, `circular`, `unresolved`: dependency exploration
+- `node-modules`: package-usage inspection
+- `lines-of-code`, `list-cwd-files`: project inventory utilities

@@ -1,0 +1,85 @@
+# Migrating from madge
+
+> Migrate from madge to rev-dep, measured up to 92x faster: replace circular-dependency and orphan detection with a config-driven suite (note: rev-dep is not a graph visualizer).
+
+<head>
+  <title>madge alternative - migrate to Rev-dep, up to 92x faster</title>
+</head>
+
+
+
+[madge](https://github.com/pahen/madge) generates dependency graphs and finds circular dependencies. rev-dep replaces its analysis commands with config-driven checks and fast text-based exploration.
+
+## Why migrate
+
+- **Speed.** rev-dep is written in Go and runs in one parallel pass - **up to 92x faster** than madge on a 580k-LoC project ([benchmark](/#speed)).
+- **Enforceable, not just informational.** madge prints info; rev-dep turns the same findings into CI checks that fail the build, and adds [unused exports](../config-based-checks/checks/unused-exports.mdx), [unused/missing dependencies](../config-based-checks/checks/unused-node-modules.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), and more.
+
+## What carries over, what changes
+
+- **Covered well:** circular dependencies, and the "what imports/depends on what" questions.
+- **Not replaced - visualization.** madge's main feature is rendering a graph image (`--image`, `--dot`). rev-dep has **no image output**; it answers reachability questions as text via the [exploratory toolkit](../exploratory-toolkit/overview.mdx). If you rely on the visual graph, keep madge for that and use rev-dep for the checks.
+
+## Feature mapping
+
+| madge | rev-dep |
+| --- | --- |
+| `madge --circular` | [`circular`](../exploratory-toolkit/circular.mdx) command / [`circularImportsDetection`](../config-based-checks/checks/circular-imports.mdx) check |
+| `madge --orphans` (modules nothing imports) | [`entry-points`](../exploratory-toolkit/entry-points.mdx) command |
+| `madge --leaves` (modules with no deps) | - (no equivalent) |
+| `madge --depends <module>` | [`imported-by`](../exploratory-toolkit/imported-by.mdx) / [`resolve`](../exploratory-toolkit/resolve.mdx) |
+| dead/unreachable files | [`orphanFilesDetection`](../config-based-checks/checks/orphan-files.mdx) (more precise - uses real entry points) |
+| `madge --image` / `--dot` (visual graph) | - (no image output) |
+
+## Translating your usage
+
+Ad-hoc madge commands:
+
+```bash
+madge --circular src
+madge --orphans src
+```
+
+become exploratory commands, or a config check for CI:
+
+```bash
+rev-dep circular
+rev-dep entry-points
+```
+
+```jsonc
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "circularImportsDetection": {
+        "enabled": true,
+        "ignoreTypeImports": true
+      }
+    }
+  ]
+}
+```
+
+| madge option | rev-dep equivalent |
+| --- | --- |
+| `--extensions js,ts` | supported source extensions are built in; see [supported file types](../other-concepts-and-features/supported-file-types.mdx) |
+| `--exclude <regexp>` | `graphExclude` / `ignoreFiles` (globs) |
+| `--ts-config` / `--webpack-config` | rev-dep reads `tsconfig.json` paths; webpack aliases must be mirrored in tsconfig - see [module resolution](../other-concepts-and-features/module-resolution-and-path-aliases.mdx) |
+
+## Running it
+
+```bash
+# madge
+npx madge --circular src
+
+# rev-dep (CI gate)
+rev-dep config run
+```
+
+`rev-dep circular` (and `config run`) exit non-zero when cycles exist, ready for CI.
+
+## Next steps
+
+- [Exploratory toolkit](../exploratory-toolkit/overview.mdx) for the text-based equivalents of madge's queries.
+- [Monorepo integration guide](../monorepo-integration-guide.mdx) to wire checks into CI.

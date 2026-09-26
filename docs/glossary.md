@@ -1,0 +1,82 @@
+# Glossary
+
+> A glossary of key terms used in static analysis problem space, covering concepts like entry points, circular dependencies, and dependency hygiene.
+
+# Glossary 📚
+
+Some of the terms used in the problem space that **rev-dep** covers can be confusing.
+Here is a small glossary to help you navigate the concepts.
+
+## Dependency
+
+A *dependency* can be understood literally. In the context of a project's dependency graph, it may refer to:
+
+* a **node module / package** (a package is a dependency of a project or file), or
+* a **source code file** (a file is a dependency of another file if it imports it).
+
+## Entry point
+
+An *entry point* is a source file that is **not imported by any other file**.
+It can represent:
+
+* the main entry of the application
+* an individual page or feature
+* configuration or test bootstrap files
+
+depending on the project structure.
+
+## Unused / Dead file
+
+A file is considered *unused* or *dead* when:
+
+* it is an **entry point** (nothing imports it), **and**
+* running it does **not produce any meaningful output** or side effect.
+
+In practice, such files can often be removed safely.
+
+## Circular dependency
+
+A *circular dependency* occurs when a file **directly or indirectly imports itself** through a chain of imports.
+
+This can lead to unpredictable runtime behavior, uninitialized values, or subtle bugs.
+However, circular dependencies between **TypeScript type-only imports** are usually harmless.
+
+## Duplicated code
+
+*Duplicated code* is the same logic written more than once, usually because it was copied and pasted and then adapted. Every copy has to be found and changed together, and in practice they drift apart instead - a bug fixed in one place survives in the others.
+
+Not all of it is worth removing. Extracting shared code **couples** the places that use it: from then on they change together. Two copies are often two requirements that merely look alike today, and forcing them into one helper means each later difference is paid for by adding a parameter or a flag, until the shared version is harder to read than the duplication it replaced.
+
+The cases worth extracting tend to be both:
+
+* **repeated many times** - at five copies the shape is not a coincidence, and
+* **stable over time** - unchanged while the code around them kept moving, which suggests the copies really do mean the same thing rather than happening to match.
+
+## Structural (semantic) code comparison
+
+*Structural* - or *semantic* - *code comparison* compares code by its **parsed structure**, the abstract syntax tree, instead of comparing it as text.
+
+Because the comparison happens after parsing, it is **formatting agnostic**: indentation, line breaks, spacing and comments are not part of the tree, so the same code formatted two different ways still compares as the same code. Line- or text-based comparison misses those matches, and reports a match that starts and ends mid-statement, because a run of characters has no reason to line up with anything the language recognises.
+
+The same idea extends further: a comparison can disregard the *identifier names* in the tree while keeping its shape, so a copy whose variables were renamed still matches the original.
+
+## Reverse dependency (or "dependents")
+
+Files that *import* a given file.
+Useful for answering: "What breaks if I change or delete this file?"
+
+## Import graph / Dependency graph
+
+A visual representation of how files or modules import each other.
+
+## Missing dependency / unused node module
+
+A module that your code imports but is **not listed in package.json**.
+
+## Unused dependency / unused node module
+
+A dependency listed in **package.json** that is **never imported** in the source code.
+
+## Root directory / Project root
+
+The top-level directory used as the starting point for dependency analysis.

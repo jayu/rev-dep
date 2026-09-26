@@ -1,0 +1,435 @@
+# v3 breaking changes
+
+> Breaking changes scheduled for rev-dep v3 and how to update your configuration for each one.
+
+This page tracks the breaking changes that are shipped in **rev-dep v3**. Each entry describes what worked in v2, what changes in v3, and how to update your configuration.
+
+There is a couple of breaking changes but for most of the projects everything should just work after migrating with `rev-dep config migrate`.
+
+:::tip
+Run `rev-dep config migrate` to apply the safe changes automatically:
+
+- renames `rules` → `workspaces`
+- bumps `configVersion`
+- drops the removed `algorithm` option form circular imports detection
+
+It then prints a list of the glob patterns and behavior changes you still need to review by hand.
+
+The command edits the file in place - review the change with git.
+:::
+
+## Breaking changes
+
+- [Config: the `rules` field is renamed to `workspaces`](#config-the-rules-field-is-renamed-to-workspaces)
+- [Glob patterns now strictly follow `.gitignore` rules](#glob-patterns-now-strictly-follow-gitignore-rules)
+- [Glob patterns are scoped to their workspace](#glob-patterns-are-scoped-to-their-workspace)
+- [Circular imports: the `algorithm` option is removed](#circular-imports-the-algorithm-option-is-removed)
+- [Unused dependencies: binary names match whole words only](#unused-dependencies-binary-names-match-whole-words-only)
+- [`config run` and `config lint`: four resolution flags are removed](#config-run-and-config-lint-four-resolution-flags-are-removed)
+- [`--package-json` is removed from every command](#--package-json-is-removed-from-every-command)
+
+---
+
+## Config: the `rules` field is renamed to `workspaces`
+
+The top-level config array `rules` is renamed to `workspaces`. This is purely a rename - the field works exactly as before. The new name reflects how it is actually used: typically one entry per workspace package.
+
+The config version is bumped to `2.0` accordingly.
+
+### What changes
+
+```json
+// v2
+{
+  "configVersion": "1.8",
+  "rules": [
+    { "path": ".", /* ... */ }
+  ]
+}
+```
+
+```json
+// v3
+{
+  "configVersion": "2.0",
+  "workspaces": [
+    { "path": ".", /* ... */ }
+  ]
+}
+```
+
+The CLI flag and JSON output are renamed to match:
+
+| Where | v2 | v3 |
+| --- | --- | --- |
+| Config field | `"rules": [ … ]` | `"workspaces": [ … ]` |
+| `config run` flag | `--rules <paths>` | `--workspaces <paths>` |
+| `--format json` output | top-level `"rules"` array (`"version": "1.0"`) | top-level `"workspaces"` array (`"version": "2.0"`) |
+
+### How to update
+
+1. Rename the top-level `rules` key to `workspaces` in your `rev-dep.config.json(c)`.
+2. Set `"configVersion": "2.0"`.
+3. If you run `rev-dep config run --rules …` anywhere (CI, scripts), change it to `--workspaces …`.
+4. If you consume `config run --format json`, read the results from the `workspaces` array instead of `rules`. The output `version` field is now `"2.0"`.
+
+A config still using `rules` fails fast with a dedicated message:
+
+> the `rules` field was renamed to `workspaces` in v3 (it was called `rules` in v2). Please rename the top-level `rules` array to `workspaces` in your config
+
+---
+
+## Glob patterns now strictly follow `.gitignore` rules
+
+:::note
+The v2 behavior described here is considered a bug. v3 fixes it.
+:::
+
+v3 matches glob patterns the same way `git` matches `.gitignore` entries. v2 differed in four ways. Each is listed below with what to expect after the upgrade.
+
+### Where it applies
+
+The changes affect config fields whose globs are matched against **file paths**:
+
+- Top-level: `ignoreFiles`, `processIgnoredFiles`
+- Per workspace: `prodEntryPoints`, `devEntryPoints`, `ignoreEntryPoints`
+- `moduleBoundaries`: `pattern`, `allow`, `deny`, `denyIgnore`, `mutuallyExclusive`
+- `orphanFilesDetection`: `validEntryPoints`, `graphExclude`
+- `unusedExportsDetection`: `validEntryPoints`, `graphExclude`, `ignoreFiles`, and the file keys of `ignore`
+- `unresolvedImportsDetection`: `ignoreFiles`, and the file keys of `ignore`
+- `devDepsUsageOnProdDetection`: `prodEntryPoints`
+- `restrictedImportsDetection`: `entryPoints`, `graphExclude`, `denyFiles`, `ignoreMatches`
+- `restrictedImportersDetection`: `files`, `allowedEntryPoints`, `graphExclude`, `ignoreMatches`
+- `restrictedDirectImportersDetection`: `files`, `allowImporters`, `denyImporters`, `ignoreMatches`
+- CLI options that take path globs: `--graph-exclude`, `--process-ignored-files`, `--entry-points`, `--ignore-files`, `--include`, `--exclude`, `--result-include`, `--result-exclude`
+
+Your `.gitignore` files are read with the same matcher, so their entries are now handled exactly as `git` handles them.
+
+They do **not** affect globs matched against non-path values, which are unchanged: `ignoreImports` (e.g. `@internal/*`), `ignoreExports` (e.g. `Internal*`), and the `denyModules` / `modules` fields of the restricted-imports detectors (e.g. `lodash/*`).
+
+### 1. `*` and `?` stop at `/`
+
+In v2 a single `*` could span directories. In v3 it matches inside one path segment. Use `**` to cross directories.
+
+| Pattern | v2 also matched | v3 matches | Update to keep v2 behavior |
+| --- | --- | --- | --- |
+| `src/*.ts` | `src/a/b.ts` | only `.ts` directly in `src/` | `src/**/*.ts` |
+| `a/*/b` | `a/x/y/b` | `b` exactly one directory under `a/` | `a/**/b` |
+| `**/use*.ts` | `src/useSearch/common.ts` | only files named `use*.ts` | `**/use*/**` |
+| `/*.ts` | nested files | only `.ts` in the root | `**/*.ts` |
+
+**Expect:** these patterns match **fewer** files. Files they used to exclude may now appear in results.
+
+**Not affected:** `src/*`, `dist*`, `*.ts`. These match a *directory*, and a matched directory still covers everything inside it. You do not need to change them.
+
+### 2. Patterns without `/` match at any depth
+
+A pattern with no `/` is matched against every part of the path, so it applies at any depth. In v2 this only worked for plain names like `node_modules`, not for patterns with wildcards.
+
+| Pattern | v2 matched | v3 matches |
+| --- | --- | --- |
+| `use*.ts` | only in the root | `src/useThing.ts` at any depth |
+| `cache-*` | only in the root | `src/cache-x/` at any depth, and its contents |
+| `[ab].ts`, `a.*`, `?.ts` | only in the root | at any depth |
+
+**Expect:** these patterns match **more** files.
+
+### 3. `**/` can match zero directories
+
+`a/**/b` now means "zero or more directories between `a` and `b`", as in `.gitignore`.
+
+| Pattern | v2 matched | v3 also matches |
+| --- | --- | --- |
+| `src/**/*.ts` | `src/a/b.ts` | `src/index.ts` |
+| `src/pages/**/*.ts*` | `src/pages/a/index.tsx` | `src/pages/index.tsx` |
+
+**Expect:** these patterns match **more** files. Entry points that were wrongly reported as orphans are now found.
+
+### 4. `!` exceptions follow `.gitignore` rules
+
+Two rules changed.
+
+**Order matters.** The last pattern that matches a file wins.
+
+```json
+["*.ts", "!src/a.ts"]   // src/a.ts is NOT matched
+["!src/a.ts", "*.ts"]   // src/a.ts IS matched
+```
+
+**A `!` has no effect inside a directory that is already matched.**
+
+```json
+["src/**", "!src/vendor/**"]
+```
+
+This reads as "everything in `src/`, except `src/vendor/`". It does not work that way. `src/vendor/lib.ts` is still matched.
+
+The reason: `src/**` matches the **directory** `src/vendor`, not only the files in it. `git` stops at a matched directory and never looks inside, so the `!` line is never used.
+
+To make the exception work, the `!` must name the directory, and the first pattern must not reach the file by itself:
+
+```json
+["src/*", "!src/vendor"]   // src/vendor/lib.ts is NOT matched
+```
+
+- `!src/vendor` names the directory and comes last, so the directory is no longer matched
+- `src/*` stops after one level, so it never matches `src/vendor/lib.ts` on its own
+
+Fixing only one of the two is not enough:
+
+```json
+["src/**", "!src/vendor"]     // still matched - src/** matches lib.ts itself
+["src/*", "!src/vendor/**"]   // still matched - the ! never names the directory
+```
+
+**Expect:** some `!` rules stop having an effect. Check every `!` pattern that points inside a directory you exclude with `/**`.
+
+### How to check whether you are affected
+
+1. Search your `rev-dep.config.json(c)` for patterns with a single `*` or `?`, for `**/`, and for `!`.
+2. Re-run your checks and compare the reported file counts with v2.
+3. Update the patterns as shown above.
+
+---
+
+## Glob patterns are scoped to their workspace
+
+:::note
+The v2 behavior described here is considered a bug. v3 fixes it.
+:::
+
+**This only affects a workspace that uses [`followMonorepoPackages`](../other-concepts-and-features/following-monorepo-packages.mdx).** That option pulls another package's source files into *this* workspace's dependency graph. In v2, this workspace's own glob patterns could then match those pulled-in **foreign** files, not just its own. v3 keeps each workspace's patterns matching only files **inside that workspace**; to reach another package on purpose you now use an explicit `../` pattern.
+
+It is **not** about one workspace's config affecting another's - workspaces never share settings, and each is still analyzed in isolation. The bug was narrower: a single workspace's *own* analysis wrongly reached into sibling files that `followMonorepoPackages` had dragged into its graph. **If you do not use `followMonorepoPackages`, nothing here changes for you.**
+
+Concretely: an `apps/web` workspace using `prodEntryPoints: ["**/api/**"]` - where the leading `**` matches any prefix - could match a followed `apps/mobile/.../api/file.ts` and wrongly treat it as one of `apps/web`'s own entry points. v3 no longer does.
+
+### What changes
+
+| Pattern in the `apps/web` workspace | v2 (old) | v3 (new) |
+| --- | --- | --- |
+| `**/api/**` | matches `apps/web/**/api/**` **and** `apps/mobile/**/api/**` | matches only `apps/web/**/api/**` |
+| `**/*.test.*` | matches test files in every workspace | matches only `apps/web` test files |
+| `api` (bare name) | matches an `api` dir in any workspace | matches only `apps/web`'s `api` dir |
+
+Patterns that were already scoped are unchanged: a non-leading-wildcard like `src/**`, a root-anchored `/src/api/**`, and any explicit `../…` relative pattern all behave exactly as before.
+
+### Why this might affect you
+
+Only monorepos are affected, and only a **per-workspace** workspace (not the root `path: "."`, which legitimately spans the whole repo) that:
+
+1. has `followMonorepoPackages` pulling another workspace's source into its graph, **and**
+2. uses an unanchored wildcard (`**/…` or a bare name) in a path-matching field.
+
+For such a workspace, patterns now match **fewer** files (foreign-workspace files drop out). That can change check results: a file previously treated as an entry point may now be reported as an orphan, a previously-ignored foreign file may now surface, and so on.
+
+### Where it applies
+
+The same path-matching fields as the `.gitignore` changes above. It does **not** affect non-path globs (import-request, export-name, and module-name patterns), which are never workspace-relative.
+
+### How to update
+
+If you actually relied on matching another workspace, switch from a leading wildcard to an explicit relative pattern that points at it:
+
+| Goal (from workspace `apps/web`) | v2 (leaky) | v3 |
+| --- | --- | --- |
+| Match a sibling workspace's files | `**/mobile/**` | `../mobile/**` |
+| Match any `api` dir across the repo | `**/api/**` | `../../**/api/**` (climb to the repo root, then match at any depth) |
+| Match a specific cousin path | `api/**` | `../api/**` |
+
+The mitigation is simple: **use a relative `../` pattern when you want to reach outside the workspace; a leading wildcard now stays within it.** All relative forms work as expected - for example `../api/**`, `../../**`, `../../**/api/code`, and `../../api/**/code` each match according to their semantics from the rebased root.
+
+### How to check whether you are affected
+
+1. In each per-workspace workspace (not the root), look at path-matching fields for patterns starting with `**/` or a bare directory name.
+2. If you intended any of them to reach files in *another* workspace, rewrite them with an explicit `../` prefix as shown.
+3. Re-run your checks after upgrading and compare reported file counts; most projects will see no change, since matching foreign workspaces is rarely intentional.
+
+---
+
+## Circular imports: the `algorithm` option is removed
+
+v2 had two cycle detection algorithms, `DFS` (default) and `SCC`. v3 always uses `SCC` and the option is gone.
+
+`DFS` was the default only because it came first. It is unstable: the same project could report a different number of cycles between runs. `SCC` is deterministic. 
+There is no need to keep `DFS` algo, it's not faster and it produces worse results.
+
+### What changes
+
+The `algorithm` field is removed from `circularImportsDetection`:
+
+```json
+// v2
+{
+  "circularImportsDetection": {
+    "enabled": true,
+    "algorithm": "SCC"
+  }
+}
+```
+
+```json
+// v3
+{
+  "circularImportsDetection": {
+    "enabled": true
+  }
+}
+```
+
+The `--algorithm` flag is removed from `rev-dep circular`:
+
+```bash
+# v2
+rev-dep circular --algorithm SCC
+
+# v3
+rev-dep circular
+```
+
+### How to update
+
+1. Delete the `algorithm` field from every `circularImportsDetection` in your config.
+2. Delete `--algorithm` from any `rev-dep circular` call in CI or scripts.
+
+A config still using `algorithm` fails fast:
+
+> the `algorithm` option was removed in v3. Cycle detection now always uses the SCC algorithm. Please remove the `algorithm` field from your config
+
+### What this changes in results
+
+If you already used `"algorithm": "SCC"`, your results stay the same.
+
+If you used the `DFS` default, expect **fewer reported cycles**. This is not a loss of coverage. When several files all depend on each other, `DFS` listed many overlapping paths through the same tangle. `SCC` groups those files and reports one cycle for the group.
+
+Example - four files in one tangle:
+
+```
+_index.ts → fileA.ts → fileB.ts → _index.ts
+_index.ts → fileA.ts → fileC.ts → _index.ts
+```
+
+| | Reported cycles |
+| --- | --- |
+| v2 (`DFS`) | 2 |
+| v3 (`SCC`) | 1 |
+
+Both point at the same tangle. Fix it once and both disappear.
+
+So if you track a cycle count in CI (for example a baseline number you do not want to exceed), lower it after upgrading.
+
+---
+
+## Unused dependencies: binary names match whole words only
+
+:::note
+The v2 behavior described here is considered a bug. v3 fixes it.
+:::
+
+To decide whether a CLI-only dependency is used, rev-dep takes the binary names a package installs (its `bin` field) and looks for them in your `scripts` and in the files you list under `filesWithBinaries`.
+
+In v2 that lookup was a plain substring search, so a name also matched inside a longer word. In v3 it matches only as a whole word.
+
+Two things changed here, in opposite directions:
+
+| Change | Effect on results | Action needed |
+| --- | --- | --- |
+| Binary names match whole words only | more packages reported unused | yes, see below |
+| Scoped packages with a string `bin` are detected correctly | fewer packages reported unused | none |
+
+### What changes
+
+Take a dependency `@acme/pack`, which installs a binary called `pack`. How each script is judged:
+
+| Only script in the project | v2 | v3 |
+| --- | --- | --- |
+| `pack --out dist` | used | used |
+| `npx pack --out dist` | used | used |
+| `./node_modules/.bin/pack` | used | used |
+| `pack --out dist && jest` | used | used |
+| `webpack --mode production` | used | **unused** |
+| `node scripts/pack.js` | used | **unused** |
+
+The two changed rows were both wrong in v2. Nothing in those projects runs `pack` - the name only sits inside the word `webpack`, and inside the filename `pack.js`.
+
+The rule: letters, digits, `_`, `-` and `.` are part of a word. Everything else - space, `/`, `:`, `&`, quotes - separates words, so a real invocation still matches.
+
+Two consequences worth knowing:
+
+- **Hyphenated names are different tools.** A dependency `npm` is no longer marked used by a script running `npm-run-all`.
+- **A filename is not an invocation.** A package whose binary is `ts` is no longer marked used by `node build.ts`, and `biome.json` alone no longer marks `@biomejs/biome` used. If a tool is only ever referenced by a filename, list the file under `filesWithBinaries` or add the package to `excludeModules`.
+
+### Why this might affect you
+
+Stricter matching finds fewer usages, so **more dependencies can be reported as unused**. A check that passed in v2 can fail in v3, without you changing anything - the run passed because of an accidental partial match.
+
+Short binary names are where this bites: `rm`, `ts`, `c8`, `pack` hide inside ordinary words like `format`, `normalize` and `webpack`.
+
+### How to update
+
+1. Run `rev-dep node-modules unused` (or your `config run`) after upgrading and compare with v2.
+2. For each newly reported package, check whether anything actually runs it.
+3. If it is genuinely unused, remove it. If it is used in a way rev-dep cannot see, add the file that uses it to `filesWithBinaries`, or exclude the package.
+
+### The scoped `bin` fix, in detail
+
+npm strips the scope when `bin` is a string: `@biomejs/biome` with `"bin": "./bin/biome"` installs `node_modules/.bin/biome`, not `.bin/@biomejs/biome`.
+
+v2 searched for the scoped name, which never appears in a script:
+
+| | rev-dep looked for | Found in `"lint": "biome check ."` | `@biomejs/biome` reported |
+| --- | --- | --- | --- |
+| v2 | `@biomejs/biome` | no | **unused** - wrong |
+| v3 | `biome` | yes | used |
+
+This hit CLI-only scoped devDependencies, which is most scoped tooling. The object form of `bin` was always correct - its keys are the real binary names, scope or not.
+
+The fix only finds **more** usages, so it can only reduce reported issues. A passing check cannot start failing because of it. Nothing to update.
+
+---
+
+## `config run` and `config lint`: four resolution flags are removed
+
+`rev-dep config run` and `rev-dep config lint` no longer accept these flags:
+
+| Removed flag | What to use instead |
+| --- | --- |
+| `--condition-names` | top-level `conditionNames` in the config |
+| `--follow-monorepo-packages` | nothing - these commands always follow monorepo packages |
+| `--package-json` | nothing - each workspace uses the package.json in its own `path` |
+| `--tsconfig-json` | nothing - each workspace uses the tsconfig.json in its own `path` |
+
+They all configure module resolution, which the config file already describes - and describes per workspace, which a single global flag cannot express. Both commands read these settings from the config, so the flags had no effect.
+
+Two of them did not even work as their help text suggested:
+
+- `--condition-names` was ignored. The config's `conditionNames` was used instead.
+- `--follow-monorepo-packages` was ignored. Both commands always follow all monorepo packages when building the graph. To control this per workspace, use `followMonorepoPackages` in the config.
+
+The other two applied one path to every workspace, which is wrong as soon as a config has more than one.
+
+### How to update
+
+Delete the flags from any `rev-dep config run` or `rev-dep config lint` call in CI or scripts. Only `--condition-names` has a replacement:
+
+```json
+{
+  "configVersion": "2.0",
+  "conditionNames": ["node", "imports"],
+  "workspaces": [ /* ... */ ]
+}
+```
+
+---
+
+## `--package-json` is removed from every command
+
+The `--package-json` flag is gone from all commands
+
+A package's `package.json` always lives at the root of its directory - Node requires it there, so it cannot be relocated. There was nothing for the flag to point at that was not already `<directory>/package.json`, and in a monorepo it was silently ignored.
+
+### How to update
+
+Delete `--package-json` from any command line. There is no replacement - the default (`<directory>/package.json`) is the only correct location.
+
+If tool is run from different directory than the package.json, use `--cwd` to point at the package root.

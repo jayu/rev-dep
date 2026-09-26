@@ -1,0 +1,33 @@
+# Overview
+
+> Overview of the rev-dep exploratory CLI commands for answering one-off dependency questions without writing a config file.
+
+# Exploratory Toolkit
+
+Use the exploratory commands when you want to answer one dependency question quickly, without building or changing a config. They read the same dependency graph the config runner uses, but print ad-hoc results instead of enforcing rules.
+
+These commands are ideal for refactoring, debugging, and understanding unfamiliar code.
+
+## Commands
+
+| Command | Answers |
+| --- | --- |
+| [`entry-points`](./entry-points.mdx) | What are the roots of the project? |
+| [`files`](./files.mdx) | Which files does this entry point pull in? |
+| [`imported-by`](./imported-by.mdx) | Who directly imports this file? |
+| [`resolve`](./resolve.mdx) | Is there a path from an entry point to this file or package? |
+| [`circular`](./circular.mdx) | Are there circular dependencies? |
+| [`duplicated-code`](./duplicated-code.mdx) | Which code has been copy-pasted? |
+| [`node-modules`](./node-modules.mdx) | Which packages are used, unused, missing, or installed? |
+| [`lines-of-code`](./lines-of-code.mdx) | How much effective code is there? |
+| [`unresolved`](../cli-reference/generated/rev-dep_unresolved.md) | Which imports could not be resolved? |
+| [`list-cwd-files`](../cli-reference/generated/rev-dep_list-cwd-files.md) | Which files would rev-dep look at? |
+| [`debug`](./debug.mdx) | What does rev-dep parse, resolve, and discover internally? |
+
+## Shared conventions
+
+- Most commands accept `-c, --cwd` to run against a different directory.
+- Graph-building commands accept `--follow-monorepo-packages` to trace across workspace package boundaries, plus `--package-json`, `--tsconfig-json`, and `--condition-names` to control resolution.
+- Glob arguments are matched relative to `--cwd`. Quote them (`'**/*.test.ts'`) so your shell does not expand them first.
+
+See [Common investigative workflows](./workflows.mdx) for recipes that chain these commands together.

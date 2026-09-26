@@ -1,12 +1,46 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import sidebars from './sidebars';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const siteTitle = 'Rev-dep - High-Speed Dependency Graph Analysis for JS/TS Monorepos';
 const siteDescription =
   'Enforce module boundaries, find circular imports, dead files, unused exports, and dependency issues in one fast CLI. Audit 500k+ LoC in around 150ms.';
+
+// The llms.txt intro. Every statement here is checked against the CLI - agents act on it.
+const llmsRootContent =
+  'These are the docs for rev-dep 3.x, a Go CLI distributed on npm that analyzes the dependency graph of JavaScript/TypeScript projects and monorepos. ' +
+  'It is used in two ways: config-based checks declared in `rev-dep.config.json(c)` and run with `rev-dep config run` ' +
+  '(add `--format json` for machine-readable output; exit code 0 means every check passed, 1 means issues were found), ' +
+  'and exploratory commands that need no config, such as `imported-by`, `resolve`, `files`, `entry-points`, `circular`, `duplicated-code` and `node-modules`. ' +
+  'Pages are listed in sidebar order, and each link points to a Markdown version of the page.';
+
+// Doc ids in sidebar order, as globs matching their source files (`intro` -> `intro.*`),
+// for docusaurus-plugin-llms' includeOrder - so llms.txt follows the sidebar without a
+// second hand-maintained page list.
+function sidebarDocGlobs(items: unknown[]): string[] {
+  return items.flatMap((item): string[] => {
+    if (typeof item === 'string') {
+      return [`${item}.*`];
+    }
+    const entry = item as {
+      type?: string;
+      id?: string;
+      items?: unknown[];
+      link?: {type?: string; id?: string};
+    };
+    if (entry.type === 'doc' && entry.id) {
+      return [`${entry.id}.*`];
+    }
+    if (entry.type === 'category') {
+      const link = entry.link?.type === 'doc' && entry.link.id ? [`${entry.link.id}.*`] : [];
+      return [...link, ...sidebarDocGlobs(entry.items ?? [])];
+    }
+    return [];
+  });
+}
 
 const config: Config = {
   title: siteTitle,
@@ -178,6 +212,25 @@ const config: Config = {
           {from: '/init/single-workspace', to: '/docs/single-workspace-integration-guide'},
           {from: '/troubleshooting', to: '/docs/troubleshooting'},
         ],
+      },
+    ],
+    // /llms.txt, /llms-full.txt and a Markdown twin of every docs page, for AI agents.
+    // docusaurus-plugin-llms rather than @signalwire/docusaurus-plugin-llms-txt: it is
+    // maintained against Docusaurus 3.x, while SignalWire's stable 1.x line has not moved
+    // since mid-2025 and its 2.x is still alpha. It reads `docs/` only - the current
+    // version - so the frozen v2 snapshot in versioned_docs/ stays out, as do the blog and
+    // the landing pages. It does not emit the llms.txt v2 discovery <link> tags.
+    [
+      'docusaurus-plugin-llms',
+      {
+        // /docs/intro -> /docs/intro.md; llms.txt links to these instead of the HTML.
+        generateMarkdownFiles: true,
+        excludeImports: true,
+        // A page missing from the sidebar is still included, appended at the end
+        // (includeUnmatchedLast defaults to true).
+        includeOrder: sidebarDocGlobs(sidebars.tutorialSidebar as unknown[]),
+        rootContent: llmsRootContent,
+        fullRootContent: llmsRootContent,
       },
     ],
   ],

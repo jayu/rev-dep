@@ -998,25 +998,30 @@ func TestShouldNotParseNonStaticImportSource(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not parse require with template literal path", func(t *testing.T) {
-		code := "require(`somePath`)"
-
-		imports := ParseImportsForTests(code)
-
-		if len(imports) != 0 {
-			t.Errorf("Should not parse import: from '%v'", code)
-		}
-	})
-
-	t.Run("Should not parse import with template literal path", func(t *testing.T) {
-		code := "import(`somePath`)"
-
-		imports := ParseImportsForTests(code)
-
-		if len(imports) != 0 {
-			t.Errorf("Should not parse import: from '%v'", code)
-		}
-	})
+	// require.resolve only returns a path; the file it names is loaded somewhere else, possibly
+	// in another file, so following it is data-flow analysis rather than import scanning.
+	for _, code := range []string{
+		"require(`some/${name}`)",
+		"import(`some/${name}`)",
+		"require.resolve('./c')",
+		"require.resolve(`./c`)",
+		"require . resolve ( './c' )",
+		"require(require.resolve('./c'))",
+		"function f() { return require.resolve('./c'); }",
+		"require.resolve(name)",
+		"require.resolve.paths('x')",
+		"require.cache('x')",
+		"import(`${name}`)",
+		"import(`a` + name)",
+	} {
+		t.Run("Should not parse "+code, func(t *testing.T) {
+			for _, mode := range []ParseMode{ParseModeBasic, ParseModeDetailed} {
+				if imports := ParseImportsByte([]byte(code), false, mode); len(imports) != 0 {
+					t.Errorf("mode %d: parsed %v", mode, imports)
+				}
+			}
+		})
+	}
 
 	// Computed paths whose string-literal operands themselves contain parentheses/brackets must
 	// still be treated as non-static (the parens are string content, not the end of the import()

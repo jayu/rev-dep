@@ -427,18 +427,114 @@ namespace import [mode=1 ignoreTypes=true]
 
 require with template arg [mode=0 ignoreTypes=false]
   source: "const m = require(`./x`);"
-    (none)
+    ./x kind=0 resolved=4 dynamic=true range=19..22
 
 require with template arg [mode=0 ignoreTypes=true]
   source: "const m = require(`./x`);"
-    (none)
+    ./x kind=0 resolved=4 dynamic=true range=19..22
 
 require with template arg [mode=1 ignoreTypes=false]
   source: "const m = require(`./x`);"
-    (none)
+    ./x kind=0 resolved=4 dynamic=true range=19..22
 
 require with template arg [mode=1 ignoreTypes=true]
   source: "const m = require(`./x`);"
+    ./x kind=0 resolved=4 dynamic=true range=19..22
+
+import with template arg [mode=0 ignoreTypes=false]
+  source: "const m = import(`./x`);"
+    ./x kind=0 resolved=4 dynamic=true range=18..21
+
+import with template arg [mode=0 ignoreTypes=true]
+  source: "const m = import(`./x`);"
+    ./x kind=0 resolved=4 dynamic=true range=18..21
+
+import with template arg [mode=1 ignoreTypes=false]
+  source: "const m = import(`./x`);"
+    ./x kind=0 resolved=4 dynamic=true range=18..21
+
+import with template arg [mode=1 ignoreTypes=true]
+  source: "const m = import(`./x`);"
+    ./x kind=0 resolved=4 dynamic=true range=18..21
+
+template arg with interpolation [mode=0 ignoreTypes=false]
+  source: "const m = import(`./x/${y}`); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=48..49
+
+template arg with interpolation [mode=0 ignoreTypes=true]
+  source: "const m = import(`./x/${y}`); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=48..49
+
+template arg with interpolation [mode=1 ignoreTypes=false]
+  source: "const m = import(`./x/${y}`); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=48..49 keywords=1
+
+template arg with interpolation [mode=1 ignoreTypes=true]
+  source: "const m = import(`./x/${y}`); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=48..49 keywords=1
+
+template arg with a backtick in the interpolation [mode=0 ignoreTypes=false]
+  source: "const m = import(`./x/${`y`}`); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=50..51
+
+template arg with a backtick in the interpolation [mode=0 ignoreTypes=true]
+  source: "const m = import(`./x/${`y`}`); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=50..51
+
+template arg with a backtick in the interpolation [mode=1 ignoreTypes=false]
+  source: "const m = import(`./x/${`y`}`); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=50..51 keywords=1
+
+template arg with a backtick in the interpolation [mode=1 ignoreTypes=true]
+  source: "const m = import(`./x/${`y`}`); import real from 'z';"
+    z kind=0 resolved=4 dynamic=false range=50..51 keywords=1
+
+require.resolve [mode=0 ignoreTypes=false]
+  source: "const p = require.resolve('./x'); const q = require.resolve.paths('y');"
+    (none)
+
+require.resolve [mode=0 ignoreTypes=true]
+  source: "const p = require.resolve('./x'); const q = require.resolve.paths('y');"
+    (none)
+
+require.resolve [mode=1 ignoreTypes=false]
+  source: "const p = require.resolve('./x'); const q = require.resolve.paths('y');"
+    (none)
+
+require.resolve [mode=1 ignoreTypes=true]
+  source: "const p = require.resolve('./x'); const q = require.resolve.paths('y');"
+    (none)
+
+nested require.resolve [mode=0 ignoreTypes=false]
+  source: "function f() { return require.resolve(`./x`); }"
+    (none)
+
+nested require.resolve [mode=0 ignoreTypes=true]
+  source: "function f() { return require.resolve(`./x`); }"
+    (none)
+
+nested require.resolve [mode=1 ignoreTypes=false]
+  source: "function f() { return require.resolve(`./x`); }"
+    (none)
+
+nested require.resolve [mode=1 ignoreTypes=true]
+  source: "function f() { return require.resolve(`./x`); }"
+    (none)
+
+require of require.resolve [mode=0 ignoreTypes=false]
+  source: "const m = require(require.resolve('./x'));"
+    (none)
+
+require of require.resolve [mode=0 ignoreTypes=true]
+  source: "const m = require(require.resolve('./x'));"
+    (none)
+
+require of require.resolve [mode=1 ignoreTypes=false]
+  source: "const m = require(require.resolve('./x'));"
+    (none)
+
+require of require.resolve [mode=1 ignoreTypes=true]
+  source: "const m = require(require.resolve('./x'));"
     (none)
 
 jsx with closing tags [mode=0 ignoreTypes=false]

@@ -157,6 +157,16 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 			i++
 			continue
 		}
+		if code[i] == '`' {
+			end, ok := plainTemplateEnd(code, i)
+			if !ok {
+				return "", i, 0, 0
+			}
+			module = append(module, code[i+1:end]...)
+			moduleStart, moduleEnd = i+1, end
+			i = end + 1
+			continue
+		}
 		if code[i] == '(' {
 			parenthesisStack++
 			i++
@@ -184,6 +194,25 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 		return string(module), i, 0, 0
 	}
 	return string(module), i, moduleStart, moduleEnd
+}
+
+// plainTemplateEnd returns the index of the closing backtick of the template literal opening at
+// code[i], and ok=false when it has a `${` - that is an expression, not a path. Escapes are kept
+// raw, as quoted strings are, but skipped so an escaped backtick does not end the literal.
+func plainTemplateEnd(code []byte, i int) (int, bool) {
+	for j := i + 1; j < len(code); j++ {
+		switch code[j] {
+		case '`':
+			return j, true
+		case '\\':
+			j++
+		case '$':
+			if j+1 < len(code) && code[j+1] == '{' {
+				return j, false
+			}
+		}
+	}
+	return len(code), false
 }
 
 // areAllImportsInBracesTypes checks if a named import block { ... } contains only "type" imports.
@@ -1078,7 +1107,7 @@ func (s *parseState) parseRequireStatement(i int) (int, bool) {
 		return i, false
 	}
 	i += len("require")
-	if i < s.n && (bytes.HasPrefix(s.code[i:], []byte("(")) || skipSpaces(s.code, i) > i) {
+	if i < s.n && (s.code[i] == '(' || skipSpaces(s.code, i) > i) {
 		module, next, start, end := parseExpression(s.code, i)
 		if module != "" {
 			s.imports = append(s.imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})

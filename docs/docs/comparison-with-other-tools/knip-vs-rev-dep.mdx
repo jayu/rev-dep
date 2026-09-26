@@ -20,7 +20,8 @@ sidebar_label: knip
 | Runtime | Node | Go - single parallel pass (**up to 20x faster**) |
 | Unused files / exports / deps | yes | yes |
 | Member / namespace / duplicate-level | yes | no |
-| Circular, boundaries, restricted imports, conventions | no | yes |
+| Circular imports | yes (opt-in `--cycles`; value imports only) | yes (type imports included unless `ignoreTypeImports`) |
+| Boundaries, restricted imports, conventions | no | yes |
 | Graph visualization | no | no |
 | Config | `knip.json` / `knip.ts` | one `rev-dep.config.jsonc` |
 | Monorepo | yes | yes (per-workspace rules) |
@@ -28,7 +29,8 @@ sidebar_label: knip
 ## Where rev-dep is stronger
 
 - **Speed** on large codebases - one Go pass instead of Node analysis.
-- **Architecture governance** knip doesn't do: [circular imports](../config-based-checks/checks/circular-imports.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [import conventions](../config-based-checks/checks/import-conventions.mdx), and [dev-deps in production](../config-based-checks/checks/dev-deps-on-prod.mdx).
+- **Cycles including type-only imports.** knip's opt-in `--cycles` always ignores type-only import edges, with no flag to include them. [rev-dep's circular check](../config-based-checks/checks/circular-imports.mdx) includes them by default and can exclude them with `ignoreTypeImports`.
+- **Architecture governance** knip doesn't do: [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [import conventions](../config-based-checks/checks/import-conventions.mdx), and [dev-deps in production](../config-based-checks/checks/dev-deps-on-prod.mdx).
 - **One tool** for unused code *and* structure, instead of pairing knip with a boundaries linter.
 
 ## Where knip may still fit

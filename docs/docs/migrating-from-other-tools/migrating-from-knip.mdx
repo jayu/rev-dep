@@ -15,13 +15,13 @@ sidebar_label: knip
 ## Why migrate
 
 - **Speed.** knip runs on Node; rev-dep is written in Go and runs every check in one parallel pass - **up to 20x faster** on a 580k-LoC project ([benchmark](/#speed)), which keeps it cheap to run on every PR.
-- **More than unused code.** knip focuses on unused files/exports/dependencies. rev-dep does that *and* enforces architecture - [circular imports](../config-based-checks/checks/circular-imports.mdx), [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [import conventions](../config-based-checks/checks/import-conventions.mdx), and [dev-dependencies in production](../config-based-checks/checks/dev-deps-on-prod.mdx) - so it can replace several tools at once.
+- **More than unused code.** knip focuses on unused files/exports/dependencies. rev-dep does that *and* enforces architecture - [module boundaries](../config-based-checks/checks/module-boundaries.mdx), [restricted imports](../config-based-checks/checks/restricted-imports.mdx), [import conventions](../config-based-checks/checks/import-conventions.mdx), and [dev-dependencies in production](../config-based-checks/checks/dev-deps-on-prod.mdx) - so it can replace several tools at once.
 - **Built for monorepos.** A single config runs per-workspace rules in parallel and resolves cross-package imports, with whole-repo context when you need it.
 
 ## What carries over, what changes
 
-- **Covered well:** unused files, unused exports, unused dependencies, unlisted (missing) dependencies, unresolved imports.
-- **rev-dep adds:** circular imports, module boundaries, restricted imports, import conventions, and dev-dependencies-in-production.
+- **Covered well:** unused files, unused exports, unused dependencies, unlisted (missing) dependencies, unresolved imports, and circular imports (knip's opt-in `cycles`).
+- **rev-dep adds:** module boundaries, restricted imports, import conventions, and dev-dependencies-in-production.
 - **Not replaced:** knip's more granular reports - unused class/enum members, namespace-level exports, duplicate exports, unused catalog entries, and missing/optional binaries - have no equivalent in rev-dep, which works at the file/export/dependency level.
 
 ## Feature mapping
@@ -40,7 +40,7 @@ sidebar_label: knip
 | `duplicates` | - | No equivalent. |
 | `classMembers`, `enumMembers` | - | rev-dep has no member-level detector. |
 | `nsExports`, `nsTypes` | - | rev-dep has no namespace-member detector. |
-| - | [`circularImportsDetection`](../config-based-checks/checks/circular-imports.mdx) | New capability. |
+| `cycles` (opt-in, `--cycles`) | [`circularImportsDetection`](../config-based-checks/checks/circular-imports.mdx) | knip ignores type-only imports; set `ignoreTypeImports: true` to match its results, or leave it off to also catch cycles through types. |
 | - | [`moduleBoundaries`](../config-based-checks/checks/module-boundaries.mdx) | New capability. |
 | - | [`restrictedImportsDetection`](../config-based-checks/checks/restricted-imports.mdx) | New capability. |
 | - | [`importConventions`](../config-based-checks/checks/import-conventions.mdx) | New capability. |

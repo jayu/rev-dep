@@ -1,5 +1,6 @@
 import { Children, type ReactNode } from 'react';
 import clsx from 'clsx';
+import useBrokenLinks from '@docusaurus/useBrokenLinks';
 
 import Reveal from './Reveal';
 import SectionHeader from './SectionHeader';
@@ -41,6 +42,12 @@ export default function Section({
   children,
 }: SectionProps) {
   const hasHeader = Boolean(eyebrow || title || intro);
+
+  // Docusaurus only knows anchors that are registered with it, so without this
+  // links from the docs to e.g. `/#speed` are reported as broken anchors even
+  // though the id is in the rendered page.
+  const brokenLinks = useBrokenLinks();
+  if (id) {brokenLinks.collectAnchor(id)};
 
   return (
     <section

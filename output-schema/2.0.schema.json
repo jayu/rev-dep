@@ -354,7 +354,12 @@
           "type": "string"
         },
         "request": {
-          "type": "string"
+          "type": "string",
+          "description": "The module path the code asked for. When nonLiteral is true this is the specifier expression as written, such as \"'@/api/' + name\", not a path."
+        },
+        "nonLiteral": {
+          "type": "boolean",
+          "description": "Present and true when the import specifier is an expression rather than a string literal, so request holds source code instead of a module path"
         },
         "startLine": {
           "type": "integer"

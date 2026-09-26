@@ -27,6 +27,7 @@ rev-dep unresolved [flags]
       --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
+      --report-non-literal-imports                                  Also report imports whose specifier is an expression, e.g. import(x) or import('a/' + name)
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                                                     Show warnings and verbose output
 ```

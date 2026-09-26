@@ -1392,7 +1392,9 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 	for impIdx, imp := range imports {
 
-		if imp.ResolvedType == LocalExportDeclaration {
+		// A local export declares nothing to resolve; a non-literal import has no path to
+		// resolve. Both keep the type the parser gave them and never reach the resolver.
+		if imp.ResolvedType == LocalExportDeclaration || imp.ResolvedType == NonLiteralModule {
 			continue
 		}
 

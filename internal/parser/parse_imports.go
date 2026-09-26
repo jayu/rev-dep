@@ -103,23 +103,36 @@ func parseStringLiteral(code []byte, i int) (string, int, int, int) {
 	return string(code[start:i]), i + 1, start, i
 }
 
-func parseExpression(code []byte, i int) (string, int, int, int) {
+// exprResult says what parseExpression found inside a call argument.
+type exprResult uint8
+
+const (
+	exprNoCall     exprResult = iota // no `(` followed, or the file ends mid-call
+	exprLiteral                      // one string or plain template literal
+	exprNonLiteral                   // an expression: import(x), import(`a/${x}`), import("a" + x)
+)
+
+// parseExpression reads the argument of an `import(...)` / `require(...)` call. On exprNonLiteral
+// the start/end span the whole argument, and next still points at the byte where reading stopped
+// (not past the call), so a nested `require('./x')` inside the expression is still found.
+func parseExpression(code []byte, i int) (module string, next int, start int, end int, res exprResult) {
 	i = skipSpaces(code, i)
 	// A file can end on the keyword: `const x = require   ` with nothing after it is what a
 	// half-saved edit looks like, and the callers reach here having only checked that
 	// whitespace follows. Returning i rather than i+1 leaves the cursor at the end so the
 	// scan loop stops instead of stepping past it.
 	if i >= len(code) {
-		return "", i, 0, 0
+		return "", i, 0, 0, exprNoCall
 	}
 	if code[i] != '(' {
-		return "", i + 1, 0, 0
+		return "", i + 1, 0, 0, exprNoCall
 	}
+	openParen := i
 	i++
 	parenthesisStack := 1
 	stringContext := false
 	stringChar := byte(0)
-	module := make([]byte, 0)
+	moduleBuf := make([]byte, 0)
 	moduleStart := -1
 	moduleEnd := -1
 	maxIterations := len(code) + 1
@@ -128,7 +141,7 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 		// Guard against malformed input causing unexpectedly long scans.
 		// Return a graceful parse failure instead of panicking.
 		if j > maxIterations {
-			return "", i, 0, 0
+			return "", i, 0, 0, exprNoCall
 		}
 		j++
 
@@ -145,7 +158,7 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 				i++
 				continue
 			}
-			module = append(module, code[i])
+			moduleBuf = append(moduleBuf, code[i])
 			i++
 			continue
 		}
@@ -160,9 +173,10 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 		if code[i] == '`' {
 			end, ok := plainTemplateEnd(code, i)
 			if !ok {
-				return "", i, 0, 0
+				start, end, res := nonLiteralSpan(code, openParen, i, parenthesisStack)
+				return "", i, start, end, res
 			}
-			module = append(module, code[i+1:end]...)
+			moduleBuf = append(moduleBuf, code[i+1:end]...)
 			moduleStart, moduleEnd = i+1, end
 			i = end + 1
 			continue
@@ -181,19 +195,85 @@ func parseExpression(code []byte, i int) (string, int, int, int) {
 				continue
 			}
 		}
+		// A comma after a complete literal starts the second argument of
+		// `import('./a.json', { with: { type: 'json' } })` - import attributes, or nothing at all
+		// in `import('./a',)`. The path is still the literal that was read. Reading continues from
+		// the comma rather than past the call, so an import nested in the attributes is still seen.
+		if code[i] == ',' && moduleEnd != -1 {
+			return string(moduleBuf), i, moduleStart, moduleEnd, exprLiteral
+		}
 
 		// Skip whitespace and comments (e.g. /* webpackChunkName: "..." */) to reach the string literal.
 		skippedIndex := skipSpacesAndComments(code, i)
 		if skippedIndex == i {
-			// If there was any valid import the loop should break already
-			return "", i, 0, 0
+			// Anything else is an expression rather than a path: an identifier, a
+			// concatenation, a call. The literal read so far (if any) is only one operand of
+			// it, so it is discarded.
+			start, end, res := nonLiteralSpan(code, openParen, i, parenthesisStack)
+			return "", i, start, end, res
 		}
 		i = skippedIndex
 	}
 	if moduleStart == -1 || moduleEnd == -1 {
-		return string(module), i, 0, 0
+		return string(moduleBuf), i, 0, 0, exprNoCall
 	}
-	return string(module), i, moduleStart, moduleEnd
+	return string(moduleBuf), i, moduleStart, moduleEnd, exprLiteral
+}
+
+// nonLiteralSpan returns the byte range of the argument of the call opening at openParen, for
+// reporting the import that cannot be resolved. stopped is where reading gave up, inside depth
+// still-open brackets; the end is the `)` that closes the call when one is found, and the last
+// non-space byte otherwise, so a truncated file still yields a usable range.
+func nonLiteralSpan(code []byte, openParen int, stopped int, depth int) (start int, end int, res exprResult) {
+	start = skipSpacesAndComments(code, openParen+1)
+	if start >= len(code) {
+		return openParen, openParen + 1, exprNonLiteral
+	}
+	end = callArgumentEnd(code, stopped, depth)
+	if end <= start {
+		end = start + 1
+	}
+	return start, end, exprNonLiteral
+}
+
+// callArgumentEnd walks from i to the `)` that closes the enclosing call, stepping over strings,
+// templates, comments and regex literals so a bracket inside one does not end the scan. It runs
+// only for non-literal imports, which are rare.
+func callArgumentEnd(code []byte, i int, depth int) int {
+	n := len(code)
+	lastCode := i
+	for i < n {
+		switch c := code[i]; c {
+		case '(', '[', '{':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		case ']', '}':
+			depth--
+		case '\'', '"':
+			i = skipToStringEnd(code, i, c)
+		case '`':
+			i = skipTemplateLiteral(code, i) - 1
+		case '/':
+			if i+1 < n && code[i+1] == '/' {
+				i = skipLineComment(code, i) - 1
+			} else if i+1 < n && code[i+1] == '*' {
+				i = skipBlockComment(code, i) - 1
+			} else if regexLiteralAllowedBefore(code, i) {
+				if regexEnd, ok := skipRegexLiteral(code, i); ok {
+					i = regexEnd - 1
+				}
+			}
+		}
+		if i < n && !isWhiteSpace(code[i]) {
+			lastCode = i
+		}
+		i++
+	}
+	return lastCode + 1
 }
 
 // plainTemplateEnd returns the index of the closing backtick of the template literal opening at
@@ -873,6 +953,52 @@ func (s *parseState) isExportKeywordStart(i int) bool {
 	return s.hasStandaloneWordAt(i, "export")
 }
 
+// addCallImport records the argument of an `import(...)` / `require(...)` call: the path for a
+// literal, and for an expression the expression itself. The expression record is never resolved and
+// never becomes a graph edge; only unresolvedImportsDetection can report it, and only when asked to.
+//
+// Its Request is the source of the expression, whitespace collapsed so a call wrapped across lines
+// still reads as one line, and its range covers exactly that expression - there is no path to point
+// at, so the expression is what a report shows.
+func (s *parseState) addCallImport(module string, start int, end int, res exprResult) {
+	switch res {
+	case exprLiteral:
+		if module == "" {
+			return
+		}
+		s.imports = append(s.imports, Import{
+			Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule,
+			RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true,
+		})
+	case exprNonLiteral:
+		s.imports = append(s.imports, Import{
+			Request: collapseWhitespace(s.code[start:end]), Kind: NotTypeOrMixedImport,
+			ResolvedType: NonLiteralModule,
+			RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true,
+		})
+	}
+}
+
+// collapseWhitespace renders a source range as one line: every run of whitespace becomes a single
+// space. Only non-literal imports go through it.
+func collapseWhitespace(src []byte) string {
+	var b strings.Builder
+	b.Grow(len(src))
+	space := false
+	for _, c := range src {
+		if isWhiteSpace(c) {
+			space = b.Len() > 0
+			continue
+		}
+		if space {
+			b.WriteByte(' ')
+			space = false
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
 // parseDynamicImportAt handles `import(...)` at a position where a static import cannot
 // appear - inside braces. It is the nested-scope counterpart of parseImportStatement and
 // deliberately refuses everything else, so a static `import` seen at depth is left alone
@@ -886,13 +1012,8 @@ func (s *parseState) parseDynamicImportAt(i int) (int, bool) {
 	if j >= s.n || s.code[j] != '(' {
 		return i, false
 	}
-	module, next, start, end := parseExpression(s.code, j)
-	if module != "" {
-		s.imports = append(s.imports, Import{
-			Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule,
-			RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true,
-		})
-	}
+	module, next, start, end, res := parseExpression(s.code, j)
+	s.addCallImport(module, start, end, res)
 	return next, true
 }
 
@@ -905,13 +1026,8 @@ func (s *parseState) parseRequireCallAt(i int) (int, bool) {
 	if j >= s.n || !(s.code[j] == '(' || skipSpaces(s.code, j) > j) {
 		return i, false
 	}
-	module, next, start, end := parseExpression(s.code, j)
-	if module != "" {
-		s.imports = append(s.imports, Import{
-			Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule,
-			RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true,
-		})
-	}
+	module, next, start, end, res := parseExpression(s.code, j)
+	s.addCallImport(module, start, end, res)
 	return next, true
 }
 
@@ -1010,10 +1126,8 @@ func (s *parseState) parseImportStatement(i int) (int, bool) {
 		return next, true
 	}
 	if i < s.n && s.code[i] == '(' {
-		module, next, start, end := parseExpression(s.code, i)
-		if module != "" {
-			s.imports = append(s.imports, Import{Request: module, Kind: kind, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
-		}
+		module, next, start, end, res := parseExpression(s.code, i)
+		s.addCallImport(module, start, end, res)
 		return next, true
 	}
 
@@ -1108,10 +1222,8 @@ func (s *parseState) parseRequireStatement(i int) (int, bool) {
 	}
 	i += len("require")
 	if i < s.n && (s.code[i] == '(' || skipSpaces(s.code, i) > i) {
-		module, next, start, end := parseExpression(s.code, i)
-		if module != "" {
-			s.imports = append(s.imports, Import{Request: module, Kind: NotTypeOrMixedImport, ResolvedType: NotResolvedModule, RequestStart: uint32(start), RequestEnd: uint32(end), IsDynamicImport: true})
-		}
+		module, next, start, end, res := parseExpression(s.code, i)
+		s.addCallImport(module, start, end, res)
 		return next, true
 	}
 	return i, true

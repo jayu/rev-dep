@@ -35,6 +35,7 @@ Below is an example of how `unresolvedImportsDetection` fits within the `workspa
       "path": ".",
       "unresolvedImportsDetection": {
         "enabled": true,
+        "reportNonLiteralImports": true,
         "ignoreFiles": ["**/*.test.ts"],
         "ignoreImports": ["some-external-pkg/*"],
         "ignore": {
@@ -52,6 +53,59 @@ Below is an example of how `unresolvedImportsDetection` fits within the `workspa
 - `ignoreFiles` (array of strings): Glob patterns for files whose unresolved imports should be ignored.
 - `ignoreImports` (array of strings): Import requests (or globs) to ignore globally in unresolved imports results.
 - `ignore` (object): A map where the key is a file path glob (relative to the workspace path) and the value is an import request glob (or string) to ignore for that specific file. Use this when an exception depends on both the file location and the import itself.
+- `reportNonLiteralImports` (boolean, default `false`): Also report imports whose specifier is an expression instead of a string. See [Non-literal imports](#non-literal-imports).
+
+## Non-literal imports
+
+An import path can be built at runtime:
+
+```ts
+const mod = await import('@/api/' + name);
+const other = await import(path);
+```
+
+rev-dep cannot know which file these name, so there is no import to resolve and no dependency edge. The report shows the call, followed by `- non-literal`:
+
+```
+  ❌ Unresolved Imports (2):
+    src/domain/service.ts
+     - import('@/api/' + name) - non-literal
+     - import(path) - non-literal
+```
+
+`--format issues-list` adds the position:
+
+```
+Unresolved Imports (2):
+  import('@/api/' + name) - non-literal  src/domain/service.ts:12:22
+  import(path) - non-literal             src/domain/service.ts:18:15
+```
+
+In `--format json` the `request` field holds the specifier expression as written, and `nonLiteral` marks the record. The position covers that expression:
+
+```json
+{
+  "filePath": "src/domain/service.ts",
+  "request": "'@/api/' + name",
+  "nonLiteral": true,
+  "startLine": 12, "startCol": 22, "endLine": 12, "endCol": 39
+}
+```
+
+Note that `request` is source code here, not a module path, so a tool reading the output must check `nonLiteral` before treating it as one. A call written over several lines is recorded on one line.
+
+This matters because such an import goes around every rule that works on paths, including [restricted imports](restricted-imports.mdx) and [module boundaries](module-boundaries.mdx). Turn `reportNonLiteralImports` on if your project wants to forbid them.
+
+The option is off by default, because turning it on can add issues to a project that passes today. Everything else stays the same: a non-literal import never becomes a dependency, and it is never counted as a missing package, an unused export or an orphan file. A file that is only imported this way still counts as an orphan file, because nothing points at it that rev-dep can see.
+
+`ignoreFiles` still applies to these records, so a legacy area can be exempted. `ignoreImports` and `ignore` match the request text, which here is the expression itself, so they only fit when you want to exempt one exact expression.
+
+`require.resolve` is not an import at all, so it is never reported:
+
+```ts
+require.resolve('./worker');     // nothing: it returns a path, it does not load the file
+require(require.resolve('./x')); // reported: what reaches require() is an expression
+```
 
 ### Also referred as
 Unresolved or Broken Imports is also known as:

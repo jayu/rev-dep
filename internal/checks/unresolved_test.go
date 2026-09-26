@@ -20,6 +20,7 @@ func unresolvedTree() MinimalDependencyTree {
 		},
 		"/repo/src/b.ts": {
 			{Request: "missing-pkg-one", ResolvedType: NotResolvedModule},
+			{Request: "someVar", ResolvedType: NonLiteralModule},
 		},
 	}
 }
@@ -34,7 +35,7 @@ func hasUnresolved(list []UnresolvedImport, filePath, request string) bool {
 }
 
 func TestDetectUnresolvedImports_ReportsAllUnresolved(t *testing.T) {
-	got := DetectUnresolvedImports(unresolvedTree(), nil)
+	got := DetectUnresolvedImports(unresolvedTree(), nil, false)
 	if len(got) != 3 {
 		t.Fatalf("expected 3 unresolved imports, got %d: %+v", len(got), got)
 	}
@@ -48,9 +49,34 @@ func TestDetectUnresolvedImports_ReportsAllUnresolved(t *testing.T) {
 	}
 }
 
+// A non-literal import is reported only when the option asks for it, so a project that passes
+// today does not start failing.
+func TestDetectUnresolvedImports_NonLiteralIsOptIn(t *testing.T) {
+	off := DetectUnresolvedImports(unresolvedTree(), nil, false)
+	if hasUnresolved(off, "/repo/src/b.ts", "someVar") {
+		t.Fatalf("non-literal import reported with the option off: %+v", off)
+	}
+	if len(off) != 3 {
+		t.Fatalf("expected 3 unresolved imports with the option off, got %+v", off)
+	}
+
+	on := DetectUnresolvedImports(unresolvedTree(), nil, true)
+	if !hasUnresolved(on, "/repo/src/b.ts", "someVar") {
+		t.Fatalf("non-literal import not reported with the option on: %+v", on)
+	}
+	if len(on) != 4 {
+		t.Fatalf("expected 4 unresolved imports with the option on, got %+v", on)
+	}
+	for _, u := range on {
+		if u.Request == "someVar" && !u.IsNonLiteral {
+			t.Fatalf("non-literal import is not marked as one: %+v", u)
+		}
+	}
+}
+
 // ignoreImports matches the import request globally, regardless of the importing file.
 func TestFilterUnresolvedImports_IgnoreImports(t *testing.T) {
-	unresolved := DetectUnresolvedImports(unresolvedTree(), nil)
+	unresolved := DetectUnresolvedImports(unresolvedTree(), nil, false)
 
 	opts := &UnresolvedFilterOptions{
 		IgnoreImports: []string{"missing-pkg-*"},
@@ -67,7 +93,7 @@ func TestFilterUnresolvedImports_IgnoreImports(t *testing.T) {
 
 // ignoreFiles suppresses every unresolved import originating from a matching file.
 func TestFilterUnresolvedImports_IgnoreFiles(t *testing.T) {
-	unresolved := DetectUnresolvedImports(unresolvedTree(), nil)
+	unresolved := DetectUnresolvedImports(unresolvedTree(), nil, false)
 
 	opts := &UnresolvedFilterOptions{
 		IgnoreFiles: []string{"src/a.ts"},
@@ -85,7 +111,7 @@ func TestFilterUnresolvedImports_IgnoreFiles(t *testing.T) {
 // The ignore map suppresses an import only when BOTH the file glob and the value
 // glob match. The same request from a non-matching file must NOT be suppressed.
 func TestFilterUnresolvedImports_IgnoreFileValueMap(t *testing.T) {
-	unresolved := DetectUnresolvedImports(unresolvedTree(), nil)
+	unresolved := DetectUnresolvedImports(unresolvedTree(), nil, false)
 
 	opts := &UnresolvedFilterOptions{
 		Ignore: globutil.FileValueIgnoreMap{

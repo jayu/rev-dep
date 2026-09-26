@@ -2030,6 +2030,38 @@ func TestParseConfig_UnresolvedImportsDetection(t *testing.T) {
 		}
 	})
 
+	t.Run("reportNonLiteralImports parses and defaults to false", func(t *testing.T) {
+		withOption := `{
+			"configVersion": "1.3",
+			"workspaces": [{
+				"path": ".",
+				"unresolvedImportsDetection": { "enabled": true, "reportNonLiteralImports": true }
+			}]
+		}`
+		cfg, err := ParseConfig([]byte(withOption))
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if !firstDetectionOrNil(cfg.Rules[0].UnresolvedImportsDetections).ReportNonLiteralImports {
+			t.Error("Expected reportNonLiteralImports to be true")
+		}
+
+		withoutOption := `{
+			"configVersion": "1.3",
+			"workspaces": [{
+				"path": ".",
+				"unresolvedImportsDetection": { "enabled": true }
+			}]
+		}`
+		cfg, err = ParseConfig([]byte(withoutOption))
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if firstDetectionOrNil(cfg.Rules[0].UnresolvedImportsDetections).ReportNonLiteralImports {
+			t.Error("Expected reportNonLiteralImports to default to false")
+		}
+	})
+
 	t.Run("missing enabled field defaults to enabled", func(t *testing.T) {
 		configJSON := `{
 			"configVersion": "1.3",

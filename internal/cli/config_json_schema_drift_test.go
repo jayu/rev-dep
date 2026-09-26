@@ -80,7 +80,7 @@ func TestJSONOutputSchemaNoDrift(t *testing.T) {
 		{"missingNodeModuleIssue", []string{"definitions", "missingNodeModuleIssue"}, jsonMissingNodeModuleIssue{Locations: []jsonLocation{{}}}},
 		{"missingNodeModuleIssue.locations.items", []string{"definitions", "missingNodeModuleIssue", "properties", "locations", "items"}, jsonLocation{}},
 		{"importConventionIssue", []string{"definitions", "importConventionIssue"}, jsonImportConventionIssue{jsonLocationFields: loc}},
-		{"unresolvedImportIssue", []string{"definitions", "unresolvedImportIssue"}, jsonUnresolvedImportIssue{jsonLocationFields: loc}},
+		{"unresolvedImportIssue", []string{"definitions", "unresolvedImportIssue"}, jsonUnresolvedImportIssue{NonLiteral: true, jsonLocationFields: loc}},
 		{"unusedExportIssue", []string{"definitions", "unusedExportIssue"}, jsonUnusedExportIssue{jsonLocationFields: loc}},
 		{"restrictedDevDepsIssue", []string{"definitions", "restrictedDevDepsIssue"}, jsonRestrictedDevDepsIssue{jsonLocationFields: loc}},
 		{"restrictedImportIssue", []string{"definitions", "restrictedImportIssue"}, jsonRestrictedImportIssue{DeniedFile: "f", DeniedModule: "m", ImportRequest: "r", jsonLocationFields: loc}},

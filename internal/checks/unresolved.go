@@ -11,6 +11,13 @@ import (
 type UnresolvedImport struct {
 	FilePath string
 	Request  string
+	// IsNonLiteral marks `import(x)`: Request is then the expression as written in the code, not a
+	// module path, so a consumer must not treat it as one.
+	IsNonLiteral bool
+	// RequestStart/RequestEnd are the byte range of the import in the file, which reports use to
+	// order issues by where they appear and to quote the source.
+	RequestStart uint32
+	RequestEnd   uint32
 }
 
 type UnresolvedFilterOptions struct {
@@ -19,7 +26,10 @@ type UnresolvedFilterOptions struct {
 	IgnoreImports []string
 }
 
-func DetectUnresolvedImports(minimalTree MinimalDependencyTree, ignoredNodeModules map[string]bool) []UnresolvedImport {
+// DetectUnresolvedImports collects imports the resolver could not resolve. reportNonLiteral adds
+// the `import(x)` records, whose specifier is an expression: they are off by default because a
+// project that passes today would start failing on code that was never reported before.
+func DetectUnresolvedImports(minimalTree MinimalDependencyTree, ignoredNodeModules map[string]bool, reportNonLiteral bool) []UnresolvedImport {
 	if ignoredNodeModules == nil {
 		ignoredNodeModules = map[string]bool{}
 	}
@@ -33,10 +43,24 @@ func DetectUnresolvedImports(minimalTree MinimalDependencyTree, ignoredNodeModul
 	unresolved := []UnresolvedImport{}
 	for _, filePath := range filePaths {
 		for _, dep := range minimalTree[filePath] {
+			if dep.ResolvedType == NonLiteralModule {
+				if reportNonLiteral {
+					unresolved = append(unresolved, UnresolvedImport{
+						FilePath:     filePath,
+						Request:      dep.Request,
+						IsNonLiteral: true,
+						RequestStart: dep.RequestStart,
+						RequestEnd:   dep.RequestEnd,
+					})
+				}
+				continue
+			}
 			if dep.ResolvedType == NotResolvedModule && dep.Request != "" && !ignoredNodeModules[module.GetNodeModuleName(dep.Request)] {
 				unresolved = append(unresolved, UnresolvedImport{
-					FilePath: filePath,
-					Request:  dep.Request,
+					FilePath:     filePath,
+					Request:      dep.Request,
+					RequestStart: dep.RequestStart,
+					RequestEnd:   dep.RequestEnd,
 				})
 			}
 		}

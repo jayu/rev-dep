@@ -127,6 +127,9 @@ type UnresolvedImportsOptions struct {
 	Ignore        globutil.FileValueIgnoreMap `json:"ignore,omitempty"`
 	IgnoreFiles   []string                    `json:"ignoreFiles,omitempty"`
 	IgnoreImports []string                    `json:"ignoreImports,omitempty"`
+	// ReportNonLiteralImports reports `import(x)`, where the specifier is an expression. Off by
+	// default: it can only add issues to a project that passes today.
+	ReportNonLiteralImports bool `json:"reportNonLiteralImports,omitempty"`
 }
 
 func (o *UnresolvedImportsOptions) IsEnabled() bool { return o != nil && o.Enabled }
@@ -2033,10 +2036,11 @@ func validateRawUnresolvedImportsDetection(unresolved interface{}, ruleIndex int
 
 func validateRawUnresolvedImportsDetectionInstance(unresolvedMap map[string]interface{}, prefix string) error {
 	allowedFields := map[string]bool{
-		"enabled":       true,
-		"ignore":        true,
-		"ignoreFiles":   true,
-		"ignoreImports": true,
+		"enabled":                 true,
+		"ignore":                  true,
+		"ignoreFiles":             true,
+		"ignoreImports":           true,
+		"reportNonLiteralImports": true,
 	}
 
 	for field := range unresolvedMap {

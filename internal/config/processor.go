@@ -883,7 +883,7 @@ func processRuleChecks(
 				if !detection.Enabled {
 					continue
 				}
-				found := checks.DetectUnresolvedImports(ruleTree, ignoredNodeModules)
+				found := checks.DetectUnresolvedImports(ruleTree, ignoredNodeModules, detection.ReportNonLiteralImports)
 				filterOpts := &checks.UnresolvedFilterOptions{
 					Ignore:        detection.Ignore,
 					IgnoreFiles:   detection.IgnoreFiles,

@@ -171,7 +171,13 @@ type jsonImportConventionIssue struct {
 type jsonUnresolvedImportIssue struct {
 	FilePath string `json:"filePath"`
 	Request  string `json:"request"`
+	// NonLiteral marks a request that is an expression rather than a module path, so a consumer
+	// does not have to guess from the text. Omitted for ordinary unresolved imports.
+	NonLiteral bool `json:"nonLiteral,omitempty"`
 	jsonLocationFields
+	// callText is what the formats a person reads print: the expression wrapped in its call. It is
+	// unexported on purpose - JSON identifies the import by request and location.
+	callText string
 }
 
 type jsonUnusedExportIssue struct {
@@ -406,8 +412,12 @@ func buildJSONRuleResult(ruleResult config.RuleResult, cwd string, locator *file
 						FilePath: relPath(u.FilePath),
 						Request:  u.Request,
 					}
+					issue.NonLiteral = u.IsNonLiteral
 					if locator != nil {
 						issue.jsonLocationFields = locator.locationForRequest(u.FilePath, u.Request)
+						if u.IsNonLiteral {
+							issue.callText = locator.callText(u.FilePath, u.Request, u.RequestStart)
+						}
 					}
 					cr.Issues = append(cr.Issues, issue)
 				}

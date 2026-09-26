@@ -500,9 +500,14 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 
 					// Sort all results before limiting
 					unresolvedToDisplay := ruleResult.UnresolvedImports
+					// Within a file the issues follow the source, so the report reads in the order
+					// someone scrolls through the file rather than alphabetically by request.
 					slices.SortFunc(unresolvedToDisplay, func(a, b checks.UnresolvedImport) int {
 						if a.FilePath != b.FilePath {
 							return strings.Compare(a.FilePath, b.FilePath)
+						}
+						if a.RequestStart != b.RequestStart {
+							return int(a.RequestStart) - int(b.RequestStart)
 						}
 						return strings.Compare(a.Request, b.Request)
 					})
@@ -514,9 +519,10 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 					}
 
 					// Group by file
+					labeller := newUnresolvedLabeller(ruleResult.RulePath)
 					unresolvedByFile := make(map[string][]string)
 					for _, u := range unresolvedToDisplay {
-						unresolvedByFile[u.FilePath] = append(unresolvedByFile[u.FilePath], u.Request)
+						unresolvedByFile[u.FilePath] = append(unresolvedByFile[u.FilePath], labeller.Label(u))
 					}
 
 					var sortedFilePaths []string

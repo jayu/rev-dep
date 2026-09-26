@@ -839,6 +839,10 @@
             "type": "string"
           },
           "description": "Import requests (or globs) to ignore globally in unresolved imports results"
+        },
+        "reportNonLiteralImports": {
+          "type": "boolean",
+          "description": "Report imports whose specifier is an expression rather than a string, such as import(x) or import('a/' + name). They are reported as '<non-literal>' and are never resolved. Default: false"
         }
       }
     },

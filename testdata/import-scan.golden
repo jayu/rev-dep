@@ -1826,6 +1826,56 @@
     phantom-dep kind=0 resolved=4 dynamic=false range=96..107 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
+../../__fixtures__/nonLiteralImportsProject/src/index.ts [mode=0 ignoreTypes=false]
+    './pages/' + name kind=0 resolved=8 dynamic=true range=49..66
+    path kind=0 resolved=8 dynamic=true range=117..121
+    ./real kind=0 resolved=4 dynamic=true range=162..168
+
+../../__fixtures__/nonLiteralImportsProject/src/index.ts [mode=0 ignoreTypes=true]
+    './pages/' + name kind=0 resolved=8 dynamic=true range=49..66
+    path kind=0 resolved=8 dynamic=true range=117..121
+    ./real kind=0 resolved=4 dynamic=true range=162..168
+
+../../__fixtures__/nonLiteralImportsProject/src/index.ts [mode=1 ignoreTypes=false]
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    './pages/' + name kind=0 resolved=8 dynamic=true range=49..66
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    path kind=0 resolved=8 dynamic=true range=117..121
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    ./real kind=0 resolved=4 dynamic=true range=162..168
+
+../../__fixtures__/nonLiteralImportsProject/src/index.ts [mode=1 ignoreTypes=true]
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    './pages/' + name kind=0 resolved=8 dynamic=true range=49..66
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    path kind=0 resolved=8 dynamic=true range=117..121
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+    ./real kind=0 resolved=4 dynamic=true range=162..168
+
+../../__fixtures__/nonLiteralImportsProject/src/pages/home.ts [mode=0 ignoreTypes=false]
+    (none)
+
+../../__fixtures__/nonLiteralImportsProject/src/pages/home.ts [mode=0 ignoreTypes=true]
+    (none)
+
+../../__fixtures__/nonLiteralImportsProject/src/pages/home.ts [mode=1 ignoreTypes=false]
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../__fixtures__/nonLiteralImportsProject/src/pages/home.ts [mode=1 ignoreTypes=true]
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../__fixtures__/nonLiteralImportsProject/src/real.ts [mode=0 ignoreTypes=false]
+    (none)
+
+../../__fixtures__/nonLiteralImportsProject/src/real.ts [mode=0 ignoreTypes=true]
+    (none)
+
+../../__fixtures__/nonLiteralImportsProject/src/real.ts [mode=1 ignoreTypes=false]
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../__fixtures__/nonLiteralImportsProject/src/real.ts [mode=1 ignoreTypes=true]
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
 ../../__fixtures__/parseIMports600Loc.ts [mode=0 ignoreTypes=false]
     sentry/locale kind=0 resolved=4 dynamic=false range=39..52
     sentry/types/core kind=1 resolved=4 dynamic=false range=99..116
@@ -2549,31 +2599,35 @@
 ../../docs/src/components/landing/primitives/Section.tsx [mode=0 ignoreTypes=false]
     react kind=0 resolved=4 dynamic=false range=42..47
     clsx kind=0 resolved=4 dynamic=false range=68..72
-    ./Reveal kind=0 resolved=4 dynamic=false range=96..104
-    ./SectionHeader kind=0 resolved=4 dynamic=false range=134..149
-    ./Section.module.css kind=0 resolved=4 dynamic=false range=173..193
+    @docusaurus/useBrokenLinks kind=0 resolved=4 dynamic=false range=103..129
+    ./Reveal kind=0 resolved=4 dynamic=false range=153..161
+    ./SectionHeader kind=0 resolved=4 dynamic=false range=191..206
+    ./Section.module.css kind=0 resolved=4 dynamic=false range=230..250
 
 ../../docs/src/components/landing/primitives/Section.tsx [mode=0 ignoreTypes=true]
     react kind=0 resolved=4 dynamic=false range=42..47
     clsx kind=0 resolved=4 dynamic=false range=68..72
-    ./Reveal kind=0 resolved=4 dynamic=false range=96..104
-    ./SectionHeader kind=0 resolved=4 dynamic=false range=134..149
-    ./Section.module.css kind=0 resolved=4 dynamic=false range=173..193
+    @docusaurus/useBrokenLinks kind=0 resolved=4 dynamic=false range=103..129
+    ./Reveal kind=0 resolved=4 dynamic=false range=153..161
+    ./SectionHeader kind=0 resolved=4 dynamic=false range=191..206
+    ./Section.module.css kind=0 resolved=4 dynamic=false range=230..250
 
 ../../docs/src/components/landing/primitives/Section.tsx [mode=1 ignoreTypes=false]
     react kind=0 resolved=4 dynamic=false range=42..47 keywords=2
     clsx kind=0 resolved=4 dynamic=false range=68..72 keywords=1
-    ./Reveal kind=0 resolved=4 dynamic=false range=96..104 keywords=1
-    ./SectionHeader kind=0 resolved=4 dynamic=false range=134..149 keywords=1
-    ./Section.module.css kind=0 resolved=4 dynamic=false range=173..193 keywords=1
+    @docusaurus/useBrokenLinks kind=0 resolved=4 dynamic=false range=103..129 keywords=1
+    ./Reveal kind=0 resolved=4 dynamic=false range=153..161 keywords=1
+    ./SectionHeader kind=0 resolved=4 dynamic=false range=191..206 keywords=1
+    ./Section.module.css kind=0 resolved=4 dynamic=false range=230..250 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
 ../../docs/src/components/landing/primitives/Section.tsx [mode=1 ignoreTypes=true]
     react kind=0 resolved=4 dynamic=false range=42..47 keywords=2
     clsx kind=0 resolved=4 dynamic=false range=68..72 keywords=1
-    ./Reveal kind=0 resolved=4 dynamic=false range=96..104 keywords=1
-    ./SectionHeader kind=0 resolved=4 dynamic=false range=134..149 keywords=1
-    ./Section.module.css kind=0 resolved=4 dynamic=false range=173..193 keywords=1
+    @docusaurus/useBrokenLinks kind=0 resolved=4 dynamic=false range=103..129 keywords=1
+    ./Reveal kind=0 resolved=4 dynamic=false range=153..161 keywords=1
+    ./SectionHeader kind=0 resolved=4 dynamic=false range=191..206 keywords=1
+    ./Section.module.css kind=0 resolved=4 dynamic=false range=230..250 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
 ../../docs/src/components/landing/primitives/SectionHeader.tsx [mode=0 ignoreTypes=false]

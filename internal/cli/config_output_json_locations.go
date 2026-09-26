@@ -78,6 +78,15 @@ func (r *fileLocationResolver) getFileCode(filePath string) ([]byte, bool) {
 	return code, true
 }
 
+// callText wraps a non-literal request in the call it belongs to, for the formats a person reads.
+func (r *fileLocationResolver) callText(filePath string, request string, start uint32) string {
+	code, ok := r.getFileCode(filePath)
+	if !ok || int(start) >= len(code) {
+		return request
+	}
+	return callTextAround(code, request, start)
+}
+
 func (r *fileLocationResolver) locationForRequest(filePath string, request string) jsonLocationFields {
 	loc := r.nextLocation(filePath, "request", request)
 	return locationFieldsFromSimple(loc)
@@ -171,7 +180,12 @@ func (r *fileLocationResolver) getIndex(filePath string) (*fileLocationIndex, bo
 		if dep.Request != "" {
 			loc := primaryFromDependency(code, dep)
 			index.byRequest[dep.Request] = append(index.byRequest[dep.Request], loc)
-			moduleName := module.GetNodeModuleName(dep.Request)
+			// The stub specifier of a non-literal import is not a module name, and indexing it as
+			// one would let a missing-module lookup match it.
+			moduleName := ""
+			if dep.ResolvedType != model.NonLiteralModule {
+				moduleName = module.GetNodeModuleName(dep.Request)
+			}
 			if moduleName != "" {
 				index.byModuleName[moduleName] = append(index.byModuleName[moduleName], loc)
 			}

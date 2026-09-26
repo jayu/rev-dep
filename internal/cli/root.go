@@ -1074,6 +1074,7 @@ var (
 	unresolvedIgnoreImports         []string
 	unresolvedCustomAssetExtensions []string
 	unresolvedProcessIgnored        []string
+	unresolvedReportNonLiteral      bool
 )
 
 // ---------------- imported-by ----------------
@@ -1302,10 +1303,11 @@ var unresolvedCmd = &cobra.Command{
 		}
 
 		opts := &config.UnresolvedImportsOptions{
-			Enabled:       true,
-			Ignore:        stringMapToFileValueIgnoreMap(unresolvedIgnore),
-			IgnoreFiles:   unresolvedIgnoreFiles,
-			IgnoreImports: unresolvedIgnoreImports,
+			Enabled:                 true,
+			Ignore:                  stringMapToFileValueIgnoreMap(unresolvedIgnore),
+			IgnoreFiles:             unresolvedIgnoreFiles,
+			IgnoreImports:           unresolvedIgnoreImports,
+			ReportNonLiteralImports: unresolvedReportNonLiteral,
 		}
 		if err := config.ValidateUnresolvedImportsOptions(opts, "unresolved"); err != nil {
 			return err
@@ -1363,7 +1365,7 @@ func getUnresolvedOutput(cwd, tsconfigJson string, conditionNames []string, foll
 		}
 	}
 
-	unresolved := checks.DetectUnresolvedImports(minimalTree, ignoredNodeModules)
+	unresolved := checks.DetectUnresolvedImports(minimalTree, ignoredNodeModules, options.ReportNonLiteralImports)
 	filterOpts := &checks.UnresolvedFilterOptions{
 		Ignore:        options.Ignore,
 		IgnoreFiles:   options.IgnoreFiles,
@@ -1371,9 +1373,10 @@ func getUnresolvedOutput(cwd, tsconfigJson string, conditionNames []string, foll
 	}
 	unresolved = checks.FilterUnresolvedImports(unresolved, filterOpts, cwd)
 
+	labeller := newUnresolvedLabeller(cwd)
 	unresolvedByFile := make(map[string][]string)
 	for _, u := range unresolved {
-		unresolvedByFile[u.FilePath] = append(unresolvedByFile[u.FilePath], u.Request)
+		unresolvedByFile[u.FilePath] = append(unresolvedByFile[u.FilePath], labeller.Label(u))
 	}
 
 	// Build output
@@ -1580,6 +1583,8 @@ func init() {
 		"File path glob patterns to ignore in unresolved output")
 	unresolvedCmd.Flags().StringSliceVar(&unresolvedIgnoreImports, "ignore-imports", []string{},
 		"Import requests to ignore globally in unresolved output")
+	unresolvedCmd.Flags().BoolVar(&unresolvedReportNonLiteral, "report-non-literal-imports", false,
+		"Also report imports whose specifier is an expression, e.g. import(x) or import('a/' + name)")
 	unresolvedCmd.Flags().StringSliceVar(&unresolvedCustomAssetExtensions, "custom-asset-extensions", []string{},
 		"Additional asset extensions treated as resolvable (e.g. glb,mp3)")
 	unresolvedCmd.Flags().StringSliceVar(&unresolvedProcessIgnored, "process-ignored-files", []string{},

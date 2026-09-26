@@ -28,4 +28,5 @@ const (
 	AssetModule            = model.AssetModule
 	MonorepoModule         = model.MonorepoModule
 	LocalExportDeclaration = model.LocalExportDeclaration
+	NonLiteralModule       = model.NonLiteralModule
 )

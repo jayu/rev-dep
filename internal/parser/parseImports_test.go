@@ -937,116 +937,97 @@ func TestParseRequireFollowedByVarWithImportInName(t *testing.T) {
 		t.Errorf("Incorrectly parsed require stmt: from '%v'", code)
 	}
 }
+
+// A non-literal specifier - `import(x)`, `import("a" + x)`, import(`a/${x}`) - cannot be
+// resolved, but the record must exist so unresolvedImportsDetection can report it. The span is
+// the whole argument, so a report can point at it.
+func TestShouldRecordNonLiteralImportSource(t *testing.T) {
+	cases := []struct {
+		name string
+		code string
+		span string
+	}{
+		{"require, string first", `require('path' + variable + 'some-string.js')`, `'path' + variable + 'some-string.js'`},
+		{"require, variable first", `require(variable + 'some-string.js')`, `variable + 'some-string.js'`},
+		{"import, string first", `import('path' + variable + 'some-string.js')`, `'path' + variable + 'some-string.js'`},
+		{"import, variable first", `import(variable + 'some-string.js')`, `variable + 'some-string.js'`},
+		{"require wrapped in brackets", `require((('path' + variable + 'some-string.js')))`, `(('path' + variable + 'some-string.js'))`},
+		{"import wrapped in brackets", `import((('path' + variable + 'some-string.js')))`, `(('path' + variable + 'some-string.js'))`},
+		{"bare variable", `import(someVariable)`, `someVariable`},
+		{"require bare variable", `require(someVariable)`, `someVariable`},
+		{"template with interpolation", "require(`some/${name}`)", "`some/${name}`"},
+		{"import template with interpolation", "import(`some/${name}`)", "`some/${name}`"},
+		{"template that is only interpolation", "import(`${name}`)", "`${name}`"},
+		{"plain template plus variable", "import(`a` + name)", "`a` + name"},
+		{"alias path prefix", `import("@/api/" + name)`, `"@/api/" + name`},
+		{"nested in a function", `function f() { return import("@/api/" + name); }`, `"@/api/" + name`},
+		{"await of a variable", `const m = await import(modulePath);`, `modulePath`},
+		{"string with parens first", `import('string(asd).ts' + variable)`, `'string(asd).ts' + variable`},
+		{"variable then string with parens", `import(variable + 'string(asd).ts')`, `variable + 'string(asd).ts'`},
+		{"grouped expression", `import(('a' + var_name) + 'string(asd).ts')`, `('a' + var_name) + 'string(asd).ts'`},
+		{"wrapped, operands with parens", `import((('a(b).ts' + variable + 'c(d).js')))`, `(('a(b).ts' + variable + 'c(d).js'))`},
+		{"require wrapped, operands with parens", `require((('a(b).ts' + variable + 'c(d).js')))`, `(('a(b).ts' + variable + 'c(d).js'))`},
+		{"paren-only strings", `import('(' + ')')`, `'(' + ')'`},
+		{"square-bracket string", `import('a[b].ts' + variable)`, `'a[b].ts' + variable`},
+		{"curly-brace string", `import(variable + 'a{b}.ts')`, `variable + 'a{b}.ts'`},
+		{"mixed brackets across operands", `import('a{b}.ts' + variable + 'c[d].js')`, `'a{b}.ts' + variable + 'c[d].js'`},
+		{"comment before the expression", `import(/* c */ name)`, `name`},
+		{"ternary", `import(flag ? './a' : './b')`, `flag ? './a' : './b'`},
+		// The path is computed by require.resolve, which rev-dep does not follow, so the outer
+		// call is non-literal and the inner one records nothing of its own.
+		{"require of require.resolve", `require(require.resolve('./x'))`, `require.resolve('./x')`},
+		{"import of require.resolve", `import(require.resolve('./x'))`, `require.resolve('./x')`},
+		{"require of a resolve call in a function", `function f() { return require(require.resolve('./x')); }`, `require.resolve('./x')`},
+		// A comma only keeps the literal when the literal is the whole first argument.
+		{"expression then a second argument", `import('a' + x, { with: { type: 'json' } })`, `'a' + x, { with: { type: 'json' } }`},
+		{"variable then a second argument", `import(name, opts)`, `name, opts`},
+		// A call wrapped across lines is recorded on one line.
+		{"call split across lines", "const m = import(\n  '@/api/' +\n  name\n);", "'@/api/' +\n  name\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, mode := range []ParseMode{ParseModeBasic, ParseModeDetailed} {
+				imports := ParseImportsByte([]byte(tc.code), false, mode)
+				if len(imports) != 1 {
+					t.Fatalf("mode %d: expected 1 non-literal import, got %+v", mode, imports)
+				}
+				imp := imports[0]
+				if imp.ResolvedType != NonLiteralModule {
+					t.Fatalf("mode %d: expected a non-literal record, got %+v", mode, imp)
+				}
+				if got := tc.code[imp.RequestStart:imp.RequestEnd]; got != tc.span {
+					t.Fatalf("mode %d: span is %q, expected %q", mode, got, tc.span)
+				}
+				// Request is the same source, on one line: that is what a report shows.
+				if want := strings.Join(strings.Fields(tc.span), " "); imp.Request != want {
+					t.Fatalf("mode %d: request is %q, expected %q", mode, imp.Request, want)
+				}
+			}
+		})
+	}
+}
+
 func TestShouldNotParseNonStaticImportSource(t *testing.T) {
-	t.Run("Should not parse require with dynamic path starting with string", func(t *testing.T) {
-		code := `require('path' + variable + 'some-string.js')`
-
-		imports := ParseImportsForTests(code)
-
-		if len(imports) != 0 {
-			t.Errorf("Should not parse import: from '%v'", code)
-		}
-	})
-
-	t.Run("Should not parse require with dynamic path starting with variable", func(t *testing.T) {
-		code := `require(variable + 'some-string.js')`
-
-		imports := ParseImportsForTests(code)
-
-		if len(imports) != 0 {
-			t.Errorf("Should not parse import: from '%v'", code)
-		}
-	})
-
-	t.Run("Should not parse import with dynamic path starting with string", func(t *testing.T) {
-		code := `import('path' + variable + 'some-string.js')`
-
-		imports := ParseImportsForTests(code)
-
-		if len(imports) != 0 {
-			t.Errorf("Should not parse import: from '%v'", code)
-		}
-	})
-
-	t.Run("Should not parse import with dynamic path starting with variable", func(t *testing.T) {
-		code := `import(variable + 'some-string.js')`
-
-		imports := ParseImportsForTests(code)
-
-		if len(imports) != 0 {
-			t.Errorf("Should not parse import: from '%v'", code)
-		}
-	})
-
-	t.Run("Should not parse require with dynamic path wrapped with brackets", func(t *testing.T) {
-		code := `require((('path' + variable + 'some-string.js')))`
-
-		imports := ParseImportsForTests(code)
-
-		if len(imports) != 0 {
-			t.Errorf("Should not parse import: from '%v'", code)
-		}
-	})
-
-	t.Run("Should not parse import with dynamic path wrapped with brackets", func(t *testing.T) {
-		code := `import((('path' + variable + 'some-string.js')))`
-
-		imports := ParseImportsForTests(code)
-
-		if len(imports) != 0 {
-			t.Errorf("Should not parse import: from '%v'", code)
-		}
-	})
-
 	// require.resolve only returns a path; the file it names is loaded somewhere else, possibly
-	// in another file, so following it is data-flow analysis rather than import scanning.
+	// in another file, so following it is data-flow analysis rather than import scanning. Nothing
+	// is recorded for it, not even a non-literal import.
 	for _, code := range []string{
-		"require(`some/${name}`)",
-		"import(`some/${name}`)",
 		"require.resolve('./c')",
 		"require.resolve(`./c`)",
 		"require . resolve ( './c' )",
-		"require(require.resolve('./c'))",
-		"function f() { return require.resolve('./c'); }",
 		"require.resolve(name)",
+		"require.resolve(`some/${name}`)",
+		"function f() { return require.resolve('./c'); }",
 		"require.resolve.paths('x')",
 		"require.cache('x')",
-		"import(`${name}`)",
-		"import(`a` + name)",
+		"import()",
+		"require()",
 	} {
 		t.Run("Should not parse "+code, func(t *testing.T) {
 			for _, mode := range []ParseMode{ParseModeBasic, ParseModeDetailed} {
 				if imports := ParseImportsByte([]byte(code), false, mode); len(imports) != 0 {
 					t.Errorf("mode %d: parsed %v", mode, imports)
 				}
-			}
-		})
-	}
-
-	// Computed paths whose string-literal operands themselves contain parentheses/brackets must
-	// still be treated as non-static (the parens are string content, not the end of the import()
-	// call, but the surrounding expression makes the path non-resolvable). Run both parser modes.
-	expressionWithParensCases := []struct {
-		name string
-		code string
-	}{
-		{"string-with-parens + variable", `import('string(asd).ts' + variable)`},
-		{"variable + string-with-parens", `import(variable + 'string(asd).ts')`},
-		{"grouped expr + string-with-parens", `import(('a' + var_name) + 'string(asd).ts')`},
-		{"import wrapped, operands with parens", `import((('a(b).ts' + variable + 'c(d).js')))`},
-		{"require wrapped, operands with parens", `require((('a(b).ts' + variable + 'c(d).js')))`},
-		{"concatenated paren-only strings", `import('(' + ')')`},
-		{"square-bracket string + variable", `import('a[b].ts' + variable)`},
-		{"variable + curly-brace string", `import(variable + 'a{b}.ts')`},
-		{"mixed brackets across operands", `import('a{b}.ts' + variable + 'c[d].js')`},
-	}
-	for _, tc := range expressionWithParensCases {
-		t.Run("Should not parse computed path with parens in strings - "+tc.name, func(t *testing.T) {
-			if got := ParseImportsForTests(tc.code); len(got) != 0 {
-				t.Errorf("basic parser should not parse computed import from '%v', got %+v", tc.code, got)
-			}
-			if got := ParseImportsForTestsDetailed(tc.code); len(got) != 0 {
-				t.Errorf("detailed parser should not parse computed import from '%v', got %+v", tc.code, got)
 			}
 		})
 	}

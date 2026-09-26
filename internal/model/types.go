@@ -18,6 +18,10 @@ const (
 	AssetModule
 	MonorepoModule
 	LocalExportDeclaration
+	// NonLiteralModule marks `import(x)` / `require("a" + x)`: the specifier is an expression, so
+	// there is no path to resolve. Request then holds that expression as written, and the record
+	// exists only so a check can see the import: it is never resolved and never becomes an edge.
+	NonLiteralModule
 )
 
 type ParseMode uint8
@@ -147,6 +151,8 @@ func ResolvedImportTypeToString(resolvedType ResolvedImportType) string {
 		return "AssetModule"
 	case MonorepoModule:
 		return "MonorepoModule"
+	case NonLiteralModule:
+		return "NonLiteralModule"
 	default:
 		return "Unknown"
 	}

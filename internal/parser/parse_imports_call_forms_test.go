@@ -15,6 +15,16 @@ func TestParsePlainTemplateArgument(t *testing.T) {
 		{"function f() { return import(`./nested`); }", "./nested"},
 		{"const t = () => require(`./esc\\`aped`)", "./esc\\`aped"},
 		{"import(`$dollar`)", "$dollar"},
+		// Import attributes are a second argument, so the path is still the first one.
+		{`import('./a.json', { with: { type: 'json' } })`, "./a.json"},
+		{`import("./a.css", { with: { type: "css" } })`, "./a.css"},
+		{"import(`./a.json`, { with: { type: 'json' } })", "./a.json"},
+		{`import('./a',)`, "./a"},
+		{`import('./a' /* c */, opts)`, "./a"},
+		{`import(('./a'), opts)`, "./a"},
+		{`type G = import("pkg", { with: { "resolution-mode": "import" } }).Thing;`, "pkg"},
+		{`require('./a', ignored)`, "./a"},
+		{`function f() { return import('./a.json', { with: { type: 'json' } }); }`, "./a.json"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.code, func(t *testing.T) {
@@ -35,10 +45,28 @@ func TestParsePlainTemplateArgument(t *testing.T) {
 	}
 }
 
+// An import inside the attributes object is still found: reading resumes at the comma rather
+// than skipping the rest of the call.
+func TestParseImportNestedInAttributesArgument(t *testing.T) {
+	code := `import('./a.json', getOpts(require('./cfg')))`
+	imports := ParseImportsForTests(code)
+	want := []string{"./a.json", "./cfg"}
+	if len(imports) != len(want) {
+		t.Fatalf("expected %v, got %+v", want, imports)
+	}
+	for i, w := range want {
+		if imports[i].Request != w {
+			t.Fatalf("import %d: expected %q, got %q", i, w, imports[i].Request)
+		}
+	}
+}
+
 func TestParseTemplateImportDoesNotHideLaterImports(t *testing.T) {
 	code := "const a = import(`./a/${x}`);\nconst b = require(`./b`);\nimport c from './c';"
 	imports := ParseImportsForTests(code)
-	want := []string{"./b", "./c"}
+	// The interpolated template is kept as a non-literal record; the imports after it are
+	// still found, which is what this test guards.
+	want := []string{"`./a/${x}`", "./b", "./c"}
 	if len(imports) != len(want) {
 		t.Fatalf("expected %v, got %v", want, imports)
 	}

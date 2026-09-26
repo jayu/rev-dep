@@ -172,7 +172,11 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 		if rule.Checks.UnresolvedImports != nil {
 			for _, issue := range rule.Checks.UnresolvedImports.Issues {
 				if v, ok := issue.(jsonUnresolvedImportIssue); ok {
-					add("Unresolved Imports", v.Request, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
+					request := v.Request
+					if v.NonLiteral {
+						request = nonLiteralLabelFor(v.callText)
+					}
+					add("Unresolved Imports", request, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
 				}
 			}
 		}

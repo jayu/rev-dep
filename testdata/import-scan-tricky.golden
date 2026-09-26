@@ -459,34 +459,42 @@ import with template arg [mode=1 ignoreTypes=true]
 
 template arg with interpolation [mode=0 ignoreTypes=false]
   source: "const m = import(`./x/${y}`); import real from 'z';"
+    `./x/${y}` kind=0 resolved=8 dynamic=true range=17..27
     z kind=0 resolved=4 dynamic=false range=48..49
 
 template arg with interpolation [mode=0 ignoreTypes=true]
   source: "const m = import(`./x/${y}`); import real from 'z';"
+    `./x/${y}` kind=0 resolved=8 dynamic=true range=17..27
     z kind=0 resolved=4 dynamic=false range=48..49
 
 template arg with interpolation [mode=1 ignoreTypes=false]
   source: "const m = import(`./x/${y}`); import real from 'z';"
+    `./x/${y}` kind=0 resolved=8 dynamic=true range=17..27
     z kind=0 resolved=4 dynamic=false range=48..49 keywords=1
 
 template arg with interpolation [mode=1 ignoreTypes=true]
   source: "const m = import(`./x/${y}`); import real from 'z';"
+    `./x/${y}` kind=0 resolved=8 dynamic=true range=17..27
     z kind=0 resolved=4 dynamic=false range=48..49 keywords=1
 
 template arg with a backtick in the interpolation [mode=0 ignoreTypes=false]
   source: "const m = import(`./x/${`y`}`); import real from 'z';"
+    `./x/${`y`}` kind=0 resolved=8 dynamic=true range=17..29
     z kind=0 resolved=4 dynamic=false range=50..51
 
 template arg with a backtick in the interpolation [mode=0 ignoreTypes=true]
   source: "const m = import(`./x/${`y`}`); import real from 'z';"
+    `./x/${`y`}` kind=0 resolved=8 dynamic=true range=17..29
     z kind=0 resolved=4 dynamic=false range=50..51
 
 template arg with a backtick in the interpolation [mode=1 ignoreTypes=false]
   source: "const m = import(`./x/${`y`}`); import real from 'z';"
+    `./x/${`y`}` kind=0 resolved=8 dynamic=true range=17..29
     z kind=0 resolved=4 dynamic=false range=50..51 keywords=1
 
 template arg with a backtick in the interpolation [mode=1 ignoreTypes=true]
   source: "const m = import(`./x/${`y`}`); import real from 'z';"
+    `./x/${`y`}` kind=0 resolved=8 dynamic=true range=17..29
     z kind=0 resolved=4 dynamic=false range=50..51 keywords=1
 
 require.resolve [mode=0 ignoreTypes=false]
@@ -523,19 +531,123 @@ nested require.resolve [mode=1 ignoreTypes=true]
 
 require of require.resolve [mode=0 ignoreTypes=false]
   source: "const m = require(require.resolve('./x'));"
-    (none)
+    require.resolve('./x') kind=0 resolved=8 dynamic=true range=18..40
 
 require of require.resolve [mode=0 ignoreTypes=true]
   source: "const m = require(require.resolve('./x'));"
-    (none)
+    require.resolve('./x') kind=0 resolved=8 dynamic=true range=18..40
 
 require of require.resolve [mode=1 ignoreTypes=false]
   source: "const m = require(require.resolve('./x'));"
-    (none)
+    require.resolve('./x') kind=0 resolved=8 dynamic=true range=18..40
 
 require of require.resolve [mode=1 ignoreTypes=true]
   source: "const m = require(require.resolve('./x'));"
-    (none)
+    require.resolve('./x') kind=0 resolved=8 dynamic=true range=18..40
+
+dynamic import with attributes [mode=0 ignoreTypes=false]
+  source: "const m = import('./a.json', { with: { type: 'json' } });"
+    ./a.json kind=0 resolved=4 dynamic=true range=18..26
+
+dynamic import with attributes [mode=0 ignoreTypes=true]
+  source: "const m = import('./a.json', { with: { type: 'json' } });"
+    ./a.json kind=0 resolved=4 dynamic=true range=18..26
+
+dynamic import with attributes [mode=1 ignoreTypes=false]
+  source: "const m = import('./a.json', { with: { type: 'json' } });"
+    ./a.json kind=0 resolved=4 dynamic=true range=18..26
+
+dynamic import with attributes [mode=1 ignoreTypes=true]
+  source: "const m = import('./a.json', { with: { type: 'json' } });"
+    ./a.json kind=0 resolved=4 dynamic=true range=18..26
+
+dynamic import with a trailing comma [mode=0 ignoreTypes=false]
+  source: "const m = import('./a',);"
+    ./a kind=0 resolved=4 dynamic=true range=18..21
+
+dynamic import with a trailing comma [mode=0 ignoreTypes=true]
+  source: "const m = import('./a',);"
+    ./a kind=0 resolved=4 dynamic=true range=18..21
+
+dynamic import with a trailing comma [mode=1 ignoreTypes=false]
+  source: "const m = import('./a',);"
+    ./a kind=0 resolved=4 dynamic=true range=18..21
+
+dynamic import with a trailing comma [mode=1 ignoreTypes=true]
+  source: "const m = import('./a',);"
+    ./a kind=0 resolved=4 dynamic=true range=18..21
+
+attributes after a non-literal path [mode=0 ignoreTypes=false]
+  source: "const m = import(name, { with: { type: 'json' } });"
+    name, { with: { type: 'json' } } kind=0 resolved=8 dynamic=true range=17..49
+
+attributes after a non-literal path [mode=0 ignoreTypes=true]
+  source: "const m = import(name, { with: { type: 'json' } });"
+    name, { with: { type: 'json' } } kind=0 resolved=8 dynamic=true range=17..49
+
+attributes after a non-literal path [mode=1 ignoreTypes=false]
+  source: "const m = import(name, { with: { type: 'json' } });"
+    name, { with: { type: 'json' } } kind=0 resolved=8 dynamic=true range=17..49
+
+attributes after a non-literal path [mode=1 ignoreTypes=true]
+  source: "const m = import(name, { with: { type: 'json' } });"
+    name, { with: { type: 'json' } } kind=0 resolved=8 dynamic=true range=17..49
+
+non-literal variable [mode=0 ignoreTypes=false]
+  source: "const m = import(name);"
+    name kind=0 resolved=8 dynamic=true range=17..21
+
+non-literal variable [mode=0 ignoreTypes=true]
+  source: "const m = import(name);"
+    name kind=0 resolved=8 dynamic=true range=17..21
+
+non-literal variable [mode=1 ignoreTypes=false]
+  source: "const m = import(name);"
+    name kind=0 resolved=8 dynamic=true range=17..21
+
+non-literal variable [mode=1 ignoreTypes=true]
+  source: "const m = import(name);"
+    name kind=0 resolved=8 dynamic=true range=17..21
+
+non-literal concatenation [mode=0 ignoreTypes=false]
+  source: "const m = import(\"@/api/\" + name);"
+    "@/api/" + name kind=0 resolved=8 dynamic=true range=17..32
+
+non-literal concatenation [mode=0 ignoreTypes=true]
+  source: "const m = import(\"@/api/\" + name);"
+    "@/api/" + name kind=0 resolved=8 dynamic=true range=17..32
+
+non-literal concatenation [mode=1 ignoreTypes=false]
+  source: "const m = import(\"@/api/\" + name);"
+    "@/api/" + name kind=0 resolved=8 dynamic=true range=17..32
+
+non-literal concatenation [mode=1 ignoreTypes=true]
+  source: "const m = import(\"@/api/\" + name);"
+    "@/api/" + name kind=0 resolved=8 dynamic=true range=17..32
+
+non-literal after a real import [mode=0 ignoreTypes=false]
+  source: "import a from './a'; const m = import(name); import b from './b';"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+    name kind=0 resolved=8 dynamic=true range=38..42
+    ./b kind=0 resolved=4 dynamic=false range=60..63
+
+non-literal after a real import [mode=0 ignoreTypes=true]
+  source: "import a from './a'; const m = import(name); import b from './b';"
+    ./a kind=0 resolved=4 dynamic=false range=15..18
+    name kind=0 resolved=8 dynamic=true range=38..42
+    ./b kind=0 resolved=4 dynamic=false range=60..63
+
+non-literal after a real import [mode=1 ignoreTypes=false]
+  source: "import a from './a'; const m = import(name); import b from './b';"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+    name kind=0 resolved=8 dynamic=true range=38..42
+    ./b kind=0 resolved=4 dynamic=false range=60..63 keywords=1
+
+non-literal after a real import [mode=1 ignoreTypes=true]
+  source: "import a from './a'; const m = import(name); import b from './b';"
+    ./a kind=0 resolved=4 dynamic=false range=15..18 keywords=1
+    name kind=0 resolved=8 dynamic=true range=38..42
+    ./b kind=0 resolved=4 dynamic=false range=60..63 keywords=1
 
 jsx with closing tags [mode=0 ignoreTypes=false]
   source: "import React from 'react'; const a = <Row><Cell><Dot /></Cell></Row>;"

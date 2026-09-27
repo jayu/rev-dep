@@ -560,13 +560,13 @@ func patternMayMatchUnderPrunedDir(pattern, base string, prunedDirs []string) bo
 }
 
 // checkModuleArray flags each module pattern that matches nothing in the module universe.
-func (ctx *lintCtx) checkModuleArray(loc patternLoc, values []string, removable bool) {
+func (ctx *lintCtx) checkModuleArray(loc patternLoc, values []string, removable bool, matches func(pattern string, universe []string) bool) {
 	if len(values) == 0 || !ctx.optionPresent(loc) {
 		return
 	}
 	ctx.submit(func() {
 		for idx, v := range values {
-			if patternMatchesAnyModule(v, ctx.moduleUniverse) {
+			if matches(v, ctx.moduleUniverse) {
 				continue
 			}
 			ctx.add(loc, idx, v, KindModule, removable)
@@ -680,12 +680,12 @@ func (ctx *lintCtx) checkRuleModuleGlobs(ruleIndex int, rule Rule, fullRulePath 
 
 	for di, d := range rule.RestrictedImportsDetections {
 		l := func(k string) patternLoc { p := det("restrictedImportsDetection", di); p.OptionKey = k; return p }
-		ctx.checkModuleArray(l("denyModules"), d.DenyModules, false)
+		ctx.checkModuleArray(l("denyModules"), d.DenyModules, false, patternMatchesAnyImportedModule)
 		ctx.checkMixedArray(l("ignoreMatches"), d.IgnoreMatches, fullRulePath, ruleFiles, true)
 	}
 	for di, d := range rule.RestrictedImportersDetections {
 		l := func(k string) patternLoc { p := det("restrictedImportersDetection", di); p.OptionKey = k; return p }
-		ctx.checkModuleArray(l("modules"), d.Modules, false)
+		ctx.checkModuleArray(l("modules"), d.Modules, false, patternMatchesAnyImportedModule)
 		ctx.checkMixedArray(l("ignoreMatches"), d.IgnoreMatches, fullRulePath, ruleFiles, true)
 	}
 	for di, d := range rule.RestrictedDirectImportersDetections {
@@ -694,18 +694,18 @@ func (ctx *lintCtx) checkRuleModuleGlobs(ruleIndex int, rule Rule, fullRulePath 
 			p.OptionKey = k
 			return p
 		}
-		ctx.checkModuleArray(l("modules"), d.Modules, false)
+		ctx.checkModuleArray(l("modules"), d.Modules, false, patternMatchesAnyImportedModule)
 		ctx.checkMixedArray(l("ignoreMatches"), d.IgnoreMatches, fullRulePath, ruleFiles, true)
 	}
 	for di, d := range rule.UnusedNodeModulesDetections {
 		l := func(k string) patternLoc { p := det("unusedNodeModulesDetection", di); p.OptionKey = k; return p }
-		ctx.checkModuleArray(l("excludeModules"), d.ExcludeModules, true)
-		ctx.checkModuleArray(l("includeModules"), d.IncludeModules, false)
+		ctx.checkModuleArray(l("excludeModules"), d.ExcludeModules, true, patternMatchesAnyModule)
+		ctx.checkModuleArray(l("includeModules"), d.IncludeModules, false, patternMatchesAnyModule)
 	}
 	for di, d := range rule.MissingNodeModulesDetections {
 		l := func(k string) patternLoc { p := det("missingNodeModulesDetection", di); p.OptionKey = k; return p }
-		ctx.checkModuleArray(l("excludeModules"), d.ExcludeModules, true)
-		ctx.checkModuleArray(l("includeModules"), d.IncludeModules, false)
+		ctx.checkModuleArray(l("excludeModules"), d.ExcludeModules, true, patternMatchesAnyModule)
+		ctx.checkModuleArray(l("includeModules"), d.IncludeModules, false, patternMatchesAnyModule)
 	}
 }
 
@@ -742,6 +742,20 @@ func patternMatchesAnyModule(pattern string, universe []string) bool {
 	}
 	for _, m := range universe {
 		if g.Match(m) {
+			return true
+		}
+	}
+	return false
+}
+
+func patternMatchesAnyImportedModule(pattern string, universe []string) bool {
+	trimmed := strings.TrimSpace(pattern)
+	if trimmed == "" || module.ValidateModulePattern(trimmed) != nil {
+		return true
+	}
+	patterns := module.CompileModulePatterns([]string{trimmed})
+	for _, m := range universe {
+		if module.MatchesAnyModulePattern(patterns, m) {
 			return true
 		}
 	}

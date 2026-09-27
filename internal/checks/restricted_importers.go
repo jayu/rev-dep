@@ -65,12 +65,12 @@ func FindRestrictedImporters(
 	// Module targets: a "frontier file" is any file importing a module matching a configured module
 	// pattern; reaching such a file means reaching the module. moduleFrontier maps the frontier file
 	// to the matched module names it imports.
-	moduleMatchers := compileModuleGlobMatchers(opts.Modules)
+	moduleMatchers := module.CompileModulePatterns(opts.Modules)
 	moduleFrontier := map[string]map[string]bool{}
 	if len(moduleMatchers) > 0 {
 		for filePath, deps := range graphTree {
 			for _, dep := range deps {
-				if dep.ResolvedType != NodeModule && dep.ResolvedType != NotResolvedModule {
+				if !isModuleImport(dep) {
 					continue
 				}
 				if opts.IgnoreTypeImports && dep.ImportKind == OnlyTypeImport {
@@ -80,7 +80,7 @@ func FindRestrictedImporters(
 				if moduleName == "" || !module.IsValidNodeModuleName(moduleName) {
 					continue
 				}
-				if !matchesAnyModulePattern(moduleMatchers, moduleName, dep.Request) {
+				if !module.MatchesAnyModulePattern(moduleMatchers, dep.Request) {
 					continue
 				}
 				set := moduleFrontier[filePath]

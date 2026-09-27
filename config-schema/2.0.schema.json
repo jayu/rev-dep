@@ -917,9 +917,17 @@
           "type": "array",
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "^(?!\\s*builtin:(?!\\*\\s*$))"
           },
-          "description": "Denied module patterns (checked against module name/import request)"
+          "description": "Module name glob patterns forbidden from being imported (checked against module name/import request). Matches npm packages and built-in modules (Node.js, Deno, Bun) by the name as written in the import: `fs` matches `fs` and `fs/promises` but not `node:fs`, and `node:*` matches the imports written with the `node:` prefix. `builtin:*` matches every built-in module however it is imported; `builtin:` accepts nothing but `*`.",
+          "examples": [
+            [
+              "react-dom",
+              "@legacy/*",
+              "builtin:*"
+            ]
+          ]
         },
         "ignoreMatches": {
           "type": "array",
@@ -963,13 +971,15 @@
           "type": "array",
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "^(?!\\s*builtin:(?!\\*\\s*$))"
           },
-          "description": "Node module name glob patterns whose transitive importers (entry points) are constrained. Any non-allowlisted entry point that transitively imports a matching module is a violation - useful to stop a legacy/banned dependency from being reintroduced or spreading. At least one of files or modules is required when enabled.",
+          "description": "Module name glob patterns whose transitive importers (entry points) are constrained. Any non-allowlisted entry point that transitively imports a matching module is a violation - useful to stop a legacy/banned dependency from being reintroduced or spreading. Matches npm packages and built-in modules (Node.js, Deno, Bun) by the name as written in the import: `fs` matches `fs` and `fs/promises` but not `node:fs`, and `node:*` matches the imports written with the `node:` prefix. `builtin:*` matches every built-in module however it is imported; `builtin:` accepts nothing but `*`. At least one of files or modules is required when enabled.",
           "examples": [
             [
               "moment",
-              "@legacy/*"
+              "@legacy/*",
+              "node:fs"
             ]
           ]
         },
@@ -1036,13 +1046,15 @@
           "type": "array",
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "^(?!\\s*builtin:(?!\\*\\s*$))"
           },
-          "description": "Node module name glob patterns for the targets whose direct importers are constrained. Mutually exclusive with files; exactly one is required when enabled.",
+          "description": "Module name glob patterns for the targets whose direct importers are constrained. Matches npm packages and built-in modules (Node.js, Deno, Bun) by the name as written in the import: `fs` matches `fs` and `fs/promises` but not `node:fs`, and `node:*` matches the imports written with the `node:` prefix. `builtin:*` matches every built-in module however it is imported; `builtin:` accepts nothing but `*`. Mutually exclusive with files; exactly one is required when enabled.",
           "examples": [
             [
               "axios",
-              "@legacy/*"
+              "@legacy/*",
+              "node:fs"
             ]
           ]
         },

@@ -1317,7 +1317,6 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 					&wg,
 					&mu,
 					ch_idx,
-					module.BuiltInModules,
 					excludeFilePatterns,
 					includeFilePatterns,
 					assetExtensionsSet,
@@ -1371,7 +1370,7 @@ func ResolveImports(fileImportsArr []FileImports, sortedFiles []string, cwd stri
 	return filteredFileImportsArr, filteredFiles, resolverManager
 }
 
-func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, builtInModules map[string]bool, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, assetExtensionsSet map[string]bool, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) {
+func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutionFailedAttempts *map[string]bool, discoveredFiles *map[string]bool, fileImportsArr *[]FileImports, sortedFiles *[]string, ignoreTypeImports bool, skipResolveMissing bool, idx int, wg *sync.WaitGroup, mu *sync.Mutex, ch_idx chan int, excludeFilePatterns []globutil.GlobMatcher, includeFilePatterns []globutil.GlobMatcher, assetExtensionsSet map[string]bool, parseMode ParseMode, nodeModulesMatchingStrategy NodeModulesMatchingStrategy) {
 	mu.Lock()
 	fileImports := (*fileImportsArr)[idx]
 	mu.Unlock()
@@ -1402,14 +1401,13 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 
 		// No lock from here through the end of the classification below. Everything read
 		// in this stretch is either immutable for the whole resolution phase
-		// (builtInModules, nodeModules, monorepoContext.PackageToPath,
+		// (the built-in module list, nodeModules, monorepoContext.PackageToPath,
 		// followMonorepoPackages) or carries its own fine-grained lock
 		// (filesAndExtensions, aliasesCache, the monorepo package caches). The writes all
 		// target imports[impIdx], and this goroutine owns idx exclusively -
 		// each index is pushed to ch_idx exactly once - so no two goroutines write the
 		// same element. The shared discovery bookkeeping further down still takes mu.
-		_, isBuiltInModule := builtInModules[moduleName]
-		if isBuiltInModule {
+		if module.IsBuiltInModule(imp.Request) {
 			imports[impIdx].PathOrName = moduleName
 			imports[impIdx].ResolvedType = BuiltInModule
 			continue

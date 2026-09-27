@@ -895,3 +895,99 @@ func TestLintConfig_IgnoreFilesNegationLiveness(t *testing.T) {
 		t.Errorf("dead negation must never be auto-removable")
 	}
 }
+
+func TestLintConfig_BuiltInModulePatterns(t *testing.T) {
+	dir := writeLintProject(t, `{
+  "configVersion": "2.0",
+  "workspaces": [
+    {
+      "path": "src",
+      "prodEntryPoints": ["index.ts"],
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["index.ts"],
+        "denyModules": ["fs", "node:fs", "node:*", "builtin:*", "dns"]
+      },
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "modules": ["fs/*", "node:net"],
+        "allowedEntryPoints": ["index.ts"]
+      },
+      "restrictedDirectImportersDetection": {
+        "enabled": true,
+        "modules": ["fs/promises", "bun:*"],
+        "denyImporters": ["**"]
+      }
+    }
+  ]
+}`)
+	if err := os.WriteFile(filepath.Join(dir, "src/io.ts"), []byte("import { readFile } from 'fs/promises'\nexport const io = readFile\n"), 0644); err != nil {
+		t.Fatalf("write src/io.ts: %v", err)
+	}
+
+	cfg, err := LoadConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	result, err := LintConfig(&cfg, dir, nil)
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+
+	dead := []struct{ detector, option, value string }{
+		{"restrictedImportsDetection", "denyModules", "node:fs"},
+		{"restrictedImportsDetection", "denyModules", "node:*"},
+		{"restrictedImportsDetection", "denyModules", "dns"},
+		{"restrictedImportersDetection", "modules", "node:net"},
+		{"restrictedDirectImportersDetection", "modules", "bun:*"},
+	}
+	for _, c := range dead {
+		if findDead(result.DeadPatterns, c.detector, c.option, c.value) == nil {
+			t.Errorf("expected dead pattern %s.%s=%q not found", c.detector, c.option, c.value)
+		}
+	}
+
+	live := []struct{ detector, option, value string }{
+		{"restrictedImportsDetection", "denyModules", "fs"},
+		{"restrictedImportsDetection", "denyModules", "builtin:*"},
+		{"restrictedImportersDetection", "modules", "fs/*"},
+		{"restrictedDirectImportersDetection", "modules", "fs/promises"},
+	}
+	for _, c := range live {
+		if d := findDead(result.DeadPatterns, c.detector, c.option, c.value); d != nil {
+			t.Errorf("live pattern %s.%s=%q incorrectly reported dead", c.detector, c.option, c.value)
+		}
+	}
+}
+
+func TestLintConfig_AllBuiltInsPatternDeadWithoutBuiltIns(t *testing.T) {
+	dir := writeLintProject(t, `{
+  "configVersion": "2.0",
+  "workspaces": [
+    {
+      "path": "src",
+      "prodEntryPoints": ["index.ts"],
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["index.ts"],
+        "denyModules": ["builtin:*", "react"]
+      }
+    }
+  ]
+}`)
+
+	cfg, err := LoadConfig(dir)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	result, err := LintConfig(&cfg, dir, nil)
+	if err != nil {
+		t.Fatalf("LintConfig: %v", err)
+	}
+	if findDead(result.DeadPatterns, "restrictedImportsDetection", "denyModules", "builtin:*") == nil {
+		t.Errorf("expected %q to be reported dead", "builtin:*")
+	}
+	if findDead(result.DeadPatterns, "restrictedImportsDetection", "denyModules", "react") != nil {
+		t.Errorf("live pattern %q incorrectly reported dead", "react")
+	}
+}

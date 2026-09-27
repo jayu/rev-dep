@@ -4,8 +4,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gobwas/glob"
-
 	globutil "rev-dep-go/internal/glob"
 	"rev-dep-go/internal/graph"
 	"rev-dep-go/internal/module"
@@ -61,7 +59,7 @@ func FindRestrictedImports(
 
 	denyFileMatchers := globutil.CreateGlobMatchers(opts.DenyFiles, rulePath)
 	ignoreMatchers := globutil.CreateGlobMatchers(opts.IgnoreMatches, rulePath)
-	denyModuleMatchers := compileModuleGlobMatchers(opts.DenyModules)
+	denyModuleMatchers := module.CompileModulePatterns(opts.DenyModules)
 
 	violations := []RestrictedImportViolation{}
 	seen := map[string]bool{}
@@ -111,12 +109,16 @@ func FindRestrictedImports(
 			continue
 		}
 
-		for _, moduleRequest := range vertex.Modules {
+		for _, dep := range graphTree[filePath] {
+			if !isModuleImport(dep) || (opts.IgnoreTypeImports && dep.ImportKind == OnlyTypeImport) {
+				continue
+			}
+			moduleRequest := dep.Request
 			moduleName := module.GetNodeModuleName(moduleRequest)
 			if moduleName == "" || !module.IsValidNodeModuleName(moduleName) {
 				continue
 			}
-			if !matchesAnyModulePattern(denyModuleMatchers, moduleName, moduleRequest) {
+			if !module.MatchesAnyModulePattern(denyModuleMatchers, moduleRequest) {
 				continue
 			}
 			if matchesIgnoredPattern(moduleName, ignoreMatchers) ||
@@ -164,29 +166,8 @@ func FindRestrictedImports(
 	return violations
 }
 
-func compileModuleGlobMatchers(patterns []string) []glob.Glob {
-	matchers := make([]glob.Glob, 0, len(patterns))
-	for _, pattern := range patterns {
-		trimmed := strings.TrimSpace(pattern)
-		if trimmed == "" {
-			continue
-		}
-		matcher, err := glob.Compile(trimmed)
-		if err != nil {
-			continue
-		}
-		matchers = append(matchers, matcher)
-	}
-	return matchers
-}
-
-func matchesAnyModulePattern(matchers []glob.Glob, moduleName string, request string) bool {
-	for _, matcher := range matchers {
-		if matcher.Match(moduleName) || matcher.Match(request) {
-			return true
-		}
-	}
-	return false
+func isModuleImport(dep MinimalDependency) bool {
+	return dep.ResolvedType == NodeModule || dep.ResolvedType == NotResolvedModule || dep.ResolvedType == BuiltInModule
 }
 
 func matchesIgnoredPattern(candidate string, ignoreMatchers []globutil.GlobMatcher) bool {

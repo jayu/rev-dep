@@ -2,6 +2,7 @@ package checks
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"rev-dep-go/internal/rules"
@@ -212,5 +213,79 @@ func TestFindRestrictedImporters_Scenarios(t *testing.T) {
 				t.Errorf("got %+v, want %+v", got, sc.want)
 			}
 		})
+	}
+}
+
+func builtInImportersTree() MinimalDependencyTree {
+	return MinimalDependencyTree{
+		"/repo/src/app/main.ts": {
+			{ID: "/repo/src/service.ts", Request: "../service", ResolvedType: UserModule},
+		},
+		"/repo/src/service.ts": {
+			{ID: "node:fs", Request: "node:fs/promises", ResolvedType: BuiltInModule},
+		},
+		"/repo/src/admin/main.ts": {
+			{ID: "fs", Request: "fs", ResolvedType: BuiltInModule},
+		},
+		"/repo/src/worker/main.ts": {
+			{ID: "bun:sqlite", Request: "bun:sqlite", ResolvedType: BuiltInModule},
+		},
+		"/repo/src/web/main.ts": {
+			{ID: "axios", Request: "axios", ResolvedType: NodeModule},
+		},
+	}
+}
+
+func TestFindRestrictedImporters_BuiltInModules(t *testing.T) {
+	fsViolations := []RestrictedImporterViolation{
+		vModule("/repo/src/admin/main.ts", "fs"),
+		vModule("/repo/src/app/main.ts", "node:fs"),
+	}
+
+	cases := []struct {
+		modules []string
+		want    []RestrictedImporterViolation
+	}{
+		{[]string{"fs"}, []RestrictedImporterViolation{vModule("/repo/src/admin/main.ts", "fs")}},
+		{[]string{"node:fs"}, []RestrictedImporterViolation{vModule("/repo/src/app/main.ts", "node:fs")}},
+		{[]string{"fs", "node:fs"}, fsViolations},
+		{[]string{"fs/*"}, []RestrictedImporterViolation{}},
+		{[]string{"node:fs/*"}, []RestrictedImporterViolation{vModule("/repo/src/app/main.ts", "node:fs")}},
+		{[]string{"node:*"}, []RestrictedImporterViolation{vModule("/repo/src/app/main.ts", "node:fs")}},
+		{[]string{"bun:*"}, []RestrictedImporterViolation{vModule("/repo/src/worker/main.ts", "bun:sqlite")}},
+		{[]string{"builtin:*"}, append(append([]RestrictedImporterViolation{}, fsViolations...), vModule("/repo/src/worker/main.ts", "bun:sqlite"))},
+	}
+
+	for _, tc := range cases {
+		t.Run(strings.Join(tc.modules, ","), func(t *testing.T) {
+			opts := &rules.RestrictedImportersDetectionOptions{
+				Enabled:            true,
+				Modules:            tc.modules,
+				AllowedEntryPoints: []string{"src/allowed/**"},
+			}
+			ruleEntryPoints := []string{"src/*/main.ts"}
+			got := FindRestrictedImporters(builtInImportersTree(), opts, "/repo", ruleEntryPoints)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFindRestrictedImporters_FrontendEntryPointReachesBuiltIns(t *testing.T) {
+	opts := &rules.RestrictedImportersDetectionOptions{
+		Enabled:            true,
+		Modules:            []string{"builtin:*"},
+		AllowedEntryPoints: []string{"src/server/**"},
+	}
+	ruleEntryPoints := []string{"src/frontend/app.tsx", "src/server/main.ts"}
+
+	got := FindRestrictedImporters(frontendLeakTree(), opts, "/repo", ruleEntryPoints)
+	want := []RestrictedImporterViolation{
+		vModule("/repo/src/frontend/app.tsx", "fs"),
+		vModule("/repo/src/frontend/app.tsx", "node:path"),
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
 	}
 }

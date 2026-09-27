@@ -49,7 +49,7 @@ func FindRestrictedDirectImporters(
 
 	ignoreMatchers := globutil.CreateGlobMatchers(opts.IgnoreMatches, rulePath)
 	fileMatchers := globutil.CreateGlobMatchers(opts.Files, rulePath)
-	moduleMatchers := compileModuleGlobMatchers(opts.Modules)
+	moduleMatchers := module.CompileModulePatterns(opts.Modules)
 
 	// Policy: AllowImporters is a whitelist (only these may import); DenyImporters is a blacklist
 	// (these may not import). Exactly one is configured.
@@ -106,13 +106,12 @@ func FindRestrictedDirectImporters(
 			}
 
 			// Module target: a direct import of a node module matching Modules.
-			if len(moduleMatchers) > 0 &&
-				(dep.ResolvedType == NodeModule || dep.ResolvedType == NotResolvedModule) {
+			if len(moduleMatchers) > 0 && isModuleImport(dep) {
 				moduleName := module.GetNodeModuleName(dep.Request)
 				if moduleName == "" || !module.IsValidNodeModuleName(moduleName) {
 					continue
 				}
-				if !matchesAnyModulePattern(moduleMatchers, moduleName, dep.Request) {
+				if !module.MatchesAnyModulePattern(moduleMatchers, dep.Request) {
 					continue
 				}
 				// ignoreMatches applies to the importer only (handled above), not target modules.

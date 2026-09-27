@@ -534,6 +534,44 @@ func TestResolveCmd(t *testing.T) {
 		assert.Assert(t, strings.Contains(output, "Total: 0"))
 	})
 
+	t.Run("resolve --module finds built-in modules as written", func(t *testing.T) {
+		projectPath := t.TempDir()
+		files := map[string]string{
+			"package.json":       `{"name":"builtin-resolve","version":"1.0.0","private":true}`,
+			"src/entry.ts":       "import { read } from './shared/util';\nexport const run = read;\n",
+			"src/shared/util.ts": "import { readFileSync } from 'fs';\nimport { readFile } from 'node:fs/promises';\nimport { Database } from 'bun:sqlite';\nexport const read = [readFileSync, readFile, Database];\n",
+		}
+		for rel, content := range files {
+			path := filepath.Join(projectPath, rel)
+			assert.NilError(t, os.MkdirAll(filepath.Dir(path), 0755))
+			assert.NilError(t, os.WriteFile(path, []byte(content), 0644))
+		}
+
+		cases := []struct {
+			module  string
+			request string
+		}{
+			{"fs", "fs"},
+			{"node:fs", "node:fs/promises"},
+			{"node:fs/promises", "node:fs/promises"},
+			{"bun:sqlite", "bun:sqlite"},
+			{"path", ""},
+		}
+		for _, tc := range cases {
+			output, err := captureOutput(func() error {
+				return resolveCmdFn(projectPath, "", tc.module, []string{"src/entry.ts"}, []string{}, []string{}, false, false, false, "", []string{}, model.FollowMonorepoPackagesValue{})
+			})
+			assert.NilError(t, err)
+			if tc.request == "" {
+				assert.Assert(t, strings.Contains(output, "Total: 0"), "--module %s: %s", tc.module, output)
+				continue
+			}
+			assert.Assert(t, strings.Contains(output, "src/shared/util.ts"), "--module %s: %s", tc.module, output)
+			assert.Assert(t, strings.Contains(output, "➞ "+tc.request+"\n"), "--module %s: %s", tc.module, output)
+			assert.Assert(t, strings.Contains(output, "Total: 1"), "--module %s: %s", tc.module, output)
+		}
+	})
+
 	t.Run("resolve validation should require exactly one target", func(t *testing.T) {
 		mockProjectPath := fixturePath(t, "mockProject")
 

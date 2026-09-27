@@ -108,6 +108,7 @@ const sidebars: SidebarsConfig = {
             'other-concepts-and-features/duplicated-code-detection',
             'other-concepts-and-features/following-monorepo-packages',
             'other-concepts-and-features/node-modules-resolution',
+            'other-concepts-and-features/built-in-modules',
             'other-concepts-and-features/ignoring-files',
             'other-concepts-and-features/glob-patterns',
             'other-concepts-and-features/module-resolution-and-path-aliases',

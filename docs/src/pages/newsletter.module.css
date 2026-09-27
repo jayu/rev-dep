@@ -1,0 +1,87 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 44rem;
+  margin-inline: auto;
+  padding: 4rem 1rem 5rem;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--rd-eyebrow-color);
+}
+
+.title {
+  margin: 0 0 1.25rem;
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+  line-height: 1.2;
+  text-wrap: balance;
+  color: var(--rd-text-strong);
+}
+
+.copy {
+  max-width: 34rem;
+  margin: 0 0 2.5rem;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  text-wrap: balance;
+  color: var(--rd-text-muted);
+}
+
+.formCard {
+  width: 100%;
+  overflow: hidden;
+  padding-bottom: 1.5rem;
+  background: #ffffff;
+  border: var(--rd-card-border);
+  border-radius: var(--rd-card-radius-lg);
+  box-shadow: var(--rd-card-shadow);
+}
+
+.formCrop {
+  overflow: hidden;
+}
+
+.form {
+  display: block;
+  width: 100%;
+  min-height: 44rem;
+  border: 0;
+}
+
+.badge {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 1rem 0;
+}
+
+.badgeImage {
+  display: block;
+  width: 15rem;
+  max-width: 100%;
+  height: auto;
+}
+
+@media screen and (max-width: 640px) {
+  .form {
+    min-height: 52rem;
+  }
+}
+
+.formSized {
+  min-height: 0;
+}
+
+.footnote {
+  margin: 2.25rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--rd-text-muted);
+}

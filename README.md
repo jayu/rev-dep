@@ -9,7 +9,7 @@
   <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="https://rev-dep.com/docs/intro"><b>Documentation</b></a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#exploratory-toolkit-">Exploratory Toolkit</a>&nbsp;&nbsp;•&nbsp;&nbsp;
-  <a href="#cli-reference-">CLI Reference</a>
+  <a href="https://rev-dep.com/newsletter">Newsletter</a>
 </p>
 
 <p align="center">

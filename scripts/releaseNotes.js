@@ -7,8 +7,6 @@ const { execSync } = require('child_process')
 const REPO_URL = 'https://github.com/jayu/rev-dep'
 const UNIT = '\x1f' // unlikely-in-text field separator
 
-// Closes every release body. One pinned discussion collects the feedback, so the
-// link is to that thread rather than to the discussions index.
 const FEEDBACK_FOOTER = `---
 
 **Using Rev-dep?** [Tell me how it goes](${REPO_URL}/discussions/45) - questions, feedback and ideas are all welcome.`

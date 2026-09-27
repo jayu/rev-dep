@@ -2226,6 +2226,36 @@
 ../../__fixtures__/vueConfigProcessorProject/src/utils.ts [mode=1 ignoreTypes=true]
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
+../../docs/src/components/docs/AskOnGitHub.tsx [mode=0 ignoreTypes=false]
+    react kind=0 resolved=4 dynamic=false range=43..48
+    clsx kind=0 resolved=4 dynamic=false range=69..73
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=94..110
+    @site/src/links kind=0 resolved=4 dynamic=false range=160..175
+    ./AskOnGitHub.module.css kind=0 resolved=4 dynamic=false range=199..223
+
+../../docs/src/components/docs/AskOnGitHub.tsx [mode=0 ignoreTypes=true]
+    react kind=0 resolved=4 dynamic=false range=43..48
+    clsx kind=0 resolved=4 dynamic=false range=69..73
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=94..110
+    @site/src/links kind=0 resolved=4 dynamic=false range=160..175
+    ./AskOnGitHub.module.css kind=0 resolved=4 dynamic=false range=199..223
+
+../../docs/src/components/docs/AskOnGitHub.tsx [mode=1 ignoreTypes=false]
+    react kind=0 resolved=4 dynamic=false range=43..48 keywords=3
+    clsx kind=0 resolved=4 dynamic=false range=69..73 keywords=1
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=94..110 keywords=1
+    @site/src/links kind=0 resolved=4 dynamic=false range=160..175 keywords=2
+    ./AskOnGitHub.module.css kind=0 resolved=4 dynamic=false range=199..223 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/components/docs/AskOnGitHub.tsx [mode=1 ignoreTypes=true]
+    react kind=0 resolved=4 dynamic=false range=43..48 keywords=3
+    clsx kind=0 resolved=4 dynamic=false range=69..73 keywords=1
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=94..110 keywords=1
+    @site/src/links kind=0 resolved=4 dynamic=false range=160..175 keywords=2
+    ./AskOnGitHub.module.css kind=0 resolved=4 dynamic=false range=199..223 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
 ../../docs/src/components/landing/analytics.ts [mode=0 ignoreTypes=false]
     (none)
 
@@ -2346,16 +2376,18 @@
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
 ../../docs/src/components/landing/data/faq.ts [mode=0 ignoreTypes=false]
-    (none)
+    @site/src/links kind=0 resolved=4 dynamic=false range=256..271
 
 ../../docs/src/components/landing/data/faq.ts [mode=0 ignoreTypes=true]
-    (none)
+    @site/src/links kind=0 resolved=4 dynamic=false range=256..271
 
 ../../docs/src/components/landing/data/faq.ts [mode=1 ignoreTypes=false]
+    @site/src/links kind=0 resolved=4 dynamic=false range=256..271 keywords=1
      kind=1 resolved=7 dynamic=false range=0..0 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
 ../../docs/src/components/landing/data/faq.ts [mode=1 ignoreTypes=true]
+    @site/src/links kind=0 resolved=4 dynamic=false range=256..271 keywords=1
      kind=1 resolved=7 dynamic=false range=0..0 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
@@ -2949,7 +2981,8 @@
     ../primitives/TrackedLink kind=0 resolved=4 dynamic=false range=228..253
     ../analytics kind=0 resolved=4 dynamic=false range=284..296
     ../data/faq kind=0 resolved=4 dynamic=false range=327..338
-    ./Faq.module.css kind=0 resolved=4 dynamic=false range=361..377
+    @site/src/links kind=0 resolved=4 dynamic=false range=374..389
+    ./Faq.module.css kind=0 resolved=4 dynamic=false range=412..428
 
 ../../docs/src/components/landing/sections/Faq.tsx [mode=0 ignoreTypes=true]
     react kind=0 resolved=4 dynamic=false range=26..31
@@ -2960,7 +2993,8 @@
     ../primitives/TrackedLink kind=0 resolved=4 dynamic=false range=228..253
     ../analytics kind=0 resolved=4 dynamic=false range=284..296
     ../data/faq kind=0 resolved=4 dynamic=false range=327..338
-    ./Faq.module.css kind=0 resolved=4 dynamic=false range=361..377
+    @site/src/links kind=0 resolved=4 dynamic=false range=374..389
+    ./Faq.module.css kind=0 resolved=4 dynamic=false range=412..428
 
 ../../docs/src/components/landing/sections/Faq.tsx [mode=1 ignoreTypes=false]
     react kind=0 resolved=4 dynamic=false range=26..31 keywords=1
@@ -2971,7 +3005,8 @@
     ../primitives/TrackedLink kind=0 resolved=4 dynamic=false range=228..253 keywords=1
     ../analytics kind=0 resolved=4 dynamic=false range=284..296 keywords=1
     ../data/faq kind=0 resolved=4 dynamic=false range=327..338 keywords=1
-    ./Faq.module.css kind=0 resolved=4 dynamic=false range=361..377 keywords=1
+    @site/src/links kind=0 resolved=4 dynamic=false range=374..389 keywords=1
+    ./Faq.module.css kind=0 resolved=4 dynamic=false range=412..428 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
 ../../docs/src/components/landing/sections/Faq.tsx [mode=1 ignoreTypes=true]
@@ -2983,7 +3018,8 @@
     ../primitives/TrackedLink kind=0 resolved=4 dynamic=false range=228..253 keywords=1
     ../analytics kind=0 resolved=4 dynamic=false range=284..296 keywords=1
     ../data/faq kind=0 resolved=4 dynamic=false range=327..338 keywords=1
-    ./Faq.module.css kind=0 resolved=4 dynamic=false range=361..377 keywords=1
+    @site/src/links kind=0 resolved=4 dynamic=false range=374..389 keywords=1
+    ./Faq.module.css kind=0 resolved=4 dynamic=false range=412..428 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
 ../../docs/src/components/landing/sections/FinalCta.tsx [mode=0 ignoreTypes=false]
@@ -3398,6 +3434,24 @@
 ../../docs/src/gtagFallback.ts [mode=1 ignoreTypes=true]
     (none)
 
+../../docs/src/links.ts [mode=0 ignoreTypes=false]
+    (none)
+
+../../docs/src/links.ts [mode=0 ignoreTypes=true]
+    (none)
+
+../../docs/src/links.ts [mode=1 ignoreTypes=false]
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/links.ts [mode=1 ignoreTypes=true]
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
 ../../docs/src/pages/index.tsx [mode=0 ignoreTypes=false]
     react kind=1 resolved=4 dynamic=false range=32..37
     @theme/Layout kind=0 resolved=4 dynamic=false range=60..73
@@ -3460,6 +3514,108 @@
     ../components/landing/sections/RealProjects kind=0 resolved=4 dynamic=false range=711..754 keywords=1
     ../components/landing/sections/Faq kind=0 resolved=4 dynamic=false range=774..808 keywords=1
     ../components/landing/sections/FinalCta kind=0 resolved=4 dynamic=false range=833..872 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/pages/newsletter.tsx [mode=0 ignoreTypes=false]
+    react kind=0 resolved=4 dynamic=false range=61..66
+    clsx kind=0 resolved=4 dynamic=false range=87..91
+    @theme/Layout kind=0 resolved=4 dynamic=false range=114..127
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=148..164
+    @docusaurus/useBaseUrl kind=0 resolved=4 dynamic=false range=191..213
+    @site/src/links kind=0 resolved=4 dynamic=false range=250..265
+    ./newsletter.module.css kind=0 resolved=4 dynamic=false range=288..311
+
+../../docs/src/pages/newsletter.tsx [mode=0 ignoreTypes=true]
+    react kind=0 resolved=4 dynamic=false range=61..66
+    clsx kind=0 resolved=4 dynamic=false range=87..91
+    @theme/Layout kind=0 resolved=4 dynamic=false range=114..127
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=148..164
+    @docusaurus/useBaseUrl kind=0 resolved=4 dynamic=false range=191..213
+    @site/src/links kind=0 resolved=4 dynamic=false range=250..265
+    ./newsletter.module.css kind=0 resolved=4 dynamic=false range=288..311
+
+../../docs/src/pages/newsletter.tsx [mode=1 ignoreTypes=false]
+    react kind=0 resolved=4 dynamic=false range=61..66 keywords=4
+    clsx kind=0 resolved=4 dynamic=false range=87..91 keywords=1
+    @theme/Layout kind=0 resolved=4 dynamic=false range=114..127 keywords=1
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=148..164 keywords=1
+    @docusaurus/useBaseUrl kind=0 resolved=4 dynamic=false range=191..213 keywords=1
+    @site/src/links kind=0 resolved=4 dynamic=false range=250..265 keywords=1
+    ./newsletter.module.css kind=0 resolved=4 dynamic=false range=288..311 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/pages/newsletter.tsx [mode=1 ignoreTypes=true]
+    react kind=0 resolved=4 dynamic=false range=61..66 keywords=4
+    clsx kind=0 resolved=4 dynamic=false range=87..91 keywords=1
+    @theme/Layout kind=0 resolved=4 dynamic=false range=114..127 keywords=1
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=148..164 keywords=1
+    @docusaurus/useBaseUrl kind=0 resolved=4 dynamic=false range=191..213 keywords=1
+    @site/src/links kind=0 resolved=4 dynamic=false range=250..265 keywords=1
+    ./newsletter.module.css kind=0 resolved=4 dynamic=false range=288..311 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/pages/newsletter/thanks.tsx [mode=0 ignoreTypes=false]
+    react kind=1 resolved=4 dynamic=false range=32..37
+    @docusaurus/Head kind=0 resolved=4 dynamic=false range=58..74
+    @theme/Layout kind=0 resolved=4 dynamic=false range=97..110
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=131..147
+    ./thanks.module.css kind=0 resolved=4 dynamic=false range=171..190
+
+../../docs/src/pages/newsletter/thanks.tsx [mode=0 ignoreTypes=true]
+    @docusaurus/Head kind=0 resolved=4 dynamic=false range=58..74
+    @theme/Layout kind=0 resolved=4 dynamic=false range=97..110
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=131..147
+    ./thanks.module.css kind=0 resolved=4 dynamic=false range=171..190
+
+../../docs/src/pages/newsletter/thanks.tsx [mode=1 ignoreTypes=false]
+    react kind=1 resolved=4 dynamic=false range=32..37 keywords=1
+    @docusaurus/Head kind=0 resolved=4 dynamic=false range=58..74 keywords=1
+    @theme/Layout kind=0 resolved=4 dynamic=false range=97..110 keywords=1
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=131..147 keywords=1
+    ./thanks.module.css kind=0 resolved=4 dynamic=false range=171..190 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/pages/newsletter/thanks.tsx [mode=1 ignoreTypes=true]
+    @docusaurus/Head kind=0 resolved=4 dynamic=false range=58..74 keywords=1
+    @theme/Layout kind=0 resolved=4 dynamic=false range=97..110 keywords=1
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=131..147 keywords=1
+    ./thanks.module.css kind=0 resolved=4 dynamic=false range=171..190 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/theme/DocItem/TOC/Desktop/index.tsx [mode=0 ignoreTypes=false]
+    react kind=1 resolved=4 dynamic=false range=30..35
+    clsx kind=0 resolved=4 dynamic=false range=56..60
+    @docusaurus/theme-common kind=0 resolved=4 dynamic=false range=94..118
+    @docusaurus/plugin-content-docs/client kind=0 resolved=4 dynamic=false range=143..181
+    @theme/TOC kind=0 resolved=4 dynamic=false range=201..211
+    @site/src/components/docs/AskOnGitHub kind=0 resolved=4 dynamic=false range=239..276
+    ./styles.module.css kind=0 resolved=4 dynamic=false range=300..319
+
+../../docs/src/theme/DocItem/TOC/Desktop/index.tsx [mode=0 ignoreTypes=true]
+    clsx kind=0 resolved=4 dynamic=false range=56..60
+    @docusaurus/theme-common kind=0 resolved=4 dynamic=false range=94..118
+    @docusaurus/plugin-content-docs/client kind=0 resolved=4 dynamic=false range=143..181
+    @theme/TOC kind=0 resolved=4 dynamic=false range=201..211
+    @site/src/components/docs/AskOnGitHub kind=0 resolved=4 dynamic=false range=239..276
+    ./styles.module.css kind=0 resolved=4 dynamic=false range=300..319
+
+../../docs/src/theme/DocItem/TOC/Desktop/index.tsx [mode=1 ignoreTypes=false]
+    react kind=1 resolved=4 dynamic=false range=30..35 keywords=1
+    clsx kind=0 resolved=4 dynamic=false range=56..60 keywords=1
+    @docusaurus/theme-common kind=0 resolved=4 dynamic=false range=94..118 keywords=1
+    @docusaurus/plugin-content-docs/client kind=0 resolved=4 dynamic=false range=143..181 keywords=1
+    @theme/TOC kind=0 resolved=4 dynamic=false range=201..211 keywords=1
+    @site/src/components/docs/AskOnGitHub kind=0 resolved=4 dynamic=false range=239..276 keywords=1
+    ./styles.module.css kind=0 resolved=4 dynamic=false range=300..319 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/theme/DocItem/TOC/Desktop/index.tsx [mode=1 ignoreTypes=true]
+    clsx kind=0 resolved=4 dynamic=false range=56..60 keywords=1
+    @docusaurus/theme-common kind=0 resolved=4 dynamic=false range=94..118 keywords=1
+    @docusaurus/plugin-content-docs/client kind=0 resolved=4 dynamic=false range=143..181 keywords=1
+    @theme/TOC kind=0 resolved=4 dynamic=false range=201..211 keywords=1
+    @site/src/components/docs/AskOnGitHub kind=0 resolved=4 dynamic=false range=239..276 keywords=1
+    ./styles.module.css kind=0 resolved=4 dynamic=false range=300..319 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
 ../../docs/src/theme/DocSidebarItem/Category/index.tsx [mode=0 ignoreTypes=false]
@@ -3638,6 +3794,46 @@
     @docusaurus/useBaseUrl kind=0 resolved=4 dynamic=false range=101..123 keywords=1
     @docusaurus/useDocusaurusContext kind=0 resolved=4 dynamic=false range=160..192 keywords=1
     ./styles.module.css kind=0 resolved=4 dynamic=false range=216..235 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/theme/NotFound/Content/index.tsx [mode=0 ignoreTypes=false]
+    react kind=0 resolved=4 dynamic=false range=51..56
+    clsx kind=0 resolved=4 dynamic=false range=77..81
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=102..118
+    @theme/Heading kind=0 resolved=4 dynamic=false range=142..156
+    @theme/NotFound/Content kind=1 resolved=4 dynamic=false range=185..208
+    @site/src/components/landing/primitives/Terminal kind=0 resolved=4 dynamic=false range=254..302
+    @site/src/links kind=0 resolved=4 dynamic=false range=351..366
+    ./styles.module.css kind=0 resolved=4 dynamic=false range=390..409
+
+../../docs/src/theme/NotFound/Content/index.tsx [mode=0 ignoreTypes=true]
+    react kind=0 resolved=4 dynamic=false range=51..56
+    clsx kind=0 resolved=4 dynamic=false range=77..81
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=102..118
+    @theme/Heading kind=0 resolved=4 dynamic=false range=142..156
+    @site/src/components/landing/primitives/Terminal kind=0 resolved=4 dynamic=false range=254..302
+    @site/src/links kind=0 resolved=4 dynamic=false range=351..366
+    ./styles.module.css kind=0 resolved=4 dynamic=false range=390..409
+
+../../docs/src/theme/NotFound/Content/index.tsx [mode=1 ignoreTypes=false]
+    react kind=0 resolved=4 dynamic=false range=51..56 keywords=3
+    clsx kind=0 resolved=4 dynamic=false range=77..81 keywords=1
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=102..118 keywords=1
+    @theme/Heading kind=0 resolved=4 dynamic=false range=142..156 keywords=1
+    @theme/NotFound/Content kind=1 resolved=4 dynamic=false range=185..208 keywords=1
+    @site/src/components/landing/primitives/Terminal kind=0 resolved=4 dynamic=false range=254..302 keywords=2
+    @site/src/links kind=0 resolved=4 dynamic=false range=351..366 keywords=2
+    ./styles.module.css kind=0 resolved=4 dynamic=false range=390..409 keywords=1
+     kind=0 resolved=7 dynamic=false range=0..0 keywords=1
+
+../../docs/src/theme/NotFound/Content/index.tsx [mode=1 ignoreTypes=true]
+    react kind=0 resolved=4 dynamic=false range=51..56 keywords=3
+    clsx kind=0 resolved=4 dynamic=false range=77..81 keywords=1
+    @docusaurus/Link kind=0 resolved=4 dynamic=false range=102..118 keywords=1
+    @theme/Heading kind=0 resolved=4 dynamic=false range=142..156 keywords=1
+    @site/src/components/landing/primitives/Terminal kind=0 resolved=4 dynamic=false range=254..302 keywords=2
+    @site/src/links kind=0 resolved=4 dynamic=false range=351..366 keywords=2
+    ./styles.module.css kind=0 resolved=4 dynamic=false range=390..409 keywords=1
      kind=0 resolved=7 dynamic=false range=0..0 keywords=1
 
 ../../docs/src/theme/sidebarIcons.tsx [mode=0 ignoreTypes=false]

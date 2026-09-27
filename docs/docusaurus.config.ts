@@ -268,6 +268,7 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
+        {to: '/newsletter', label: 'Newsletter', position: 'left'},
         {type: 'docsVersionDropdown', position: 'right'},
         {type: 'search', position: 'right'},
         // {to: '/blog', label: 'Blog', position: 'left'},

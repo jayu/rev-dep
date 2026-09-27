@@ -80,8 +80,6 @@
   color: var(--rd-button-fg);
 }
 
-/* The landing page's outline button is built for the dark hero band; this one
-   sits on the page background, so it borrows the theme's own hairline colour. */
 .buttonQuiet {
   background: transparent;
   border-color: var(--ifm-color-emphasis-300);

@@ -7,6 +7,12 @@ const { execSync } = require('child_process')
 const REPO_URL = 'https://github.com/jayu/rev-dep'
 const UNIT = '\x1f' // unlikely-in-text field separator
 
+// Closes every release body. One pinned discussion collects the feedback, so the
+// link is to that thread rather than to the discussions index.
+const FEEDBACK_FOOTER = `---
+
+**Using Rev-dep?** [Tell me how it goes](${REPO_URL}/discussions/45) - questions, feedback and ideas are all welcome.`
+
 const sh = (cmd) => execSync(cmd, { encoding: 'utf8' }).trim()
 
 // Map a conventional-commit type to a section bucket.
@@ -85,7 +91,7 @@ function generateReleaseNotes({ range, version, date, previousVersion }) {
     lines.push('_No notable changes._', '')
   }
 
-  return lines.join('\n').trim() + '\n'
+  return `${lines.join('\n').trim()}\n\n${FEEDBACK_FOOTER}\n`
 }
 
-module.exports = { generateReleaseNotes, dateOf, REPO_URL }
+module.exports = { generateReleaseNotes, dateOf, REPO_URL, FEEDBACK_FOOTER }

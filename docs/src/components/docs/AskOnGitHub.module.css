@@ -1,0 +1,107 @@
+.card {
+  margin-bottom: 1rem;
+  padding: 1.4rem 1.15rem 1.3rem;
+  border: 1px dashed var(--rd-ask-border);
+  border-radius: var(--rd-card-radius);
+  background: var(--rd-ask-bg);
+  text-align: center;
+  transition: opacity 0.18s ease;
+}
+
+.cardFaded {
+  opacity: 0;
+}
+
+@media (max-width: 996px) {
+
+  .card,
+  .pillRow {
+    display: none;
+  }
+}
+
+.pillRow {
+  position: sticky;
+  top: calc(var(--ifm-navbar-height) + 1rem);
+  height: 0;
+}
+
+.greeting {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--rd-text-strong);
+}
+
+.copy {
+  margin: 0 0 0.3rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-wrap: balance;
+  color: var(--rd-text-muted);
+}
+
+.copyLast {
+  margin-bottom: 1.05rem;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.28rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ifm-color-primary);
+  border: 1px solid var(--ifm-color-primary);
+  border-radius: 0.4rem;
+  transition: background 0.15s ease;
+}
+
+.button:hover {
+  background: var(--rd-accent-soft-bg);
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--ifm-color-primary-light);
+  outline-offset: 3px;
+}
+
+.pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin-inline: auto;
+  opacity: 0;
+  transition: opacity 0.18s ease, background 0.15s ease;
+}
+
+.pillShown {
+  opacity: 1;
+}
+
+.footnote {
+  margin: 0.95rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--rd-text-muted);
+}
+
+.footnoteLink {
+  color: inherit;
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .card,
+  .pill,
+  .button {
+    transition: none;
+  }
+}

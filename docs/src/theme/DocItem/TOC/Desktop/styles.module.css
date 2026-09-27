@@ -1,0 +1,6 @@
+.railToc {
+  top: calc(var(--ifm-navbar-height) + 1rem + var(--rd-ask-pill-row));
+  max-height: calc(
+    100vh - var(--ifm-navbar-height) - 2rem - var(--rd-ask-pill-row)
+  );
+}

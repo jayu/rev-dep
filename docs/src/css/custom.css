@@ -421,6 +421,10 @@
   /* Accents */
   --rd-accent-soft-bg: rgba(195, 102, 231, 0.1);
 
+  --rd-ask-border: rgba(195, 102, 231, 0.5);
+  --rd-ask-bg: rgba(195, 102, 231, 0.04);
+  --rd-ask-pill-row: 2.6rem;
+
   /* Filled button. Deliberately NOT --ifm-color-primary: in dark mode that is
      lightened to a pale lavender for readable link text, which is far too
      bright as a button fill behind white label text. */
@@ -455,6 +459,9 @@
   --rd-bar-rival: rgba(148, 163, 184, 0.32);
 
   --rd-accent-soft-bg: rgba(168, 85, 247, 0.16);
+
+  --rd-ask-border: rgba(214, 174, 255, 0.34);
+  --rd-ask-bg: rgba(168, 85, 247, 0.09);
 
   --rd-card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.09);
 

@@ -48,6 +48,47 @@ Below is a comprehensive example demonstrating how to use all available options.
 }
 ```
 
+### Built-in modules
+
+`denyModules` also matches built-in modules (Node.js, Deno and Bun). `builtin:*` denies every one of them in one token - here, no page may reach a server-only API, even through a shared util:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["src/pages/**/*.tsx"],
+        "denyModules": ["builtin:*"]
+      }
+    }
+  ]
+}
+```
+
+To deny specific built-in modules, list them by name. Built-in modules are matched by the name as written in the import, the same way as npm packages: `fs` matches `import "fs"` and `import "fs/promises"`, but not `import "node:fs"`. If the project writes both spellings, list both.
+
+| Pattern | Matches |
+| --- | --- |
+| `builtin:*` | every built-in module of every runtime (Node.js, Deno, Bun), however it is imported |
+| `fs` | `fs`, `fs/promises` |
+| `node:fs` | `node:fs`, `node:fs/promises` |
+| `fs/*` | `fs/promises` |
+| `node:*` | every import written with the `node:` prefix |
+| `bun:*` | Bun's `bun:` modules, e.g. `bun:sqlite`, `bun:test` |
+
+`builtin:*` is a keyword, not a glob: it matches by what the import is rather than by its name, and `builtin:` accepts nothing but `*`. A catch-all glob such as `*` matches built-in modules as well as npm packages. See [Built-in modules](other-concepts-and-features/built-in-modules.mdx) for the modules each runtime provides.
+
+Violations report the module as it is written in the import (`fs` or `node:fs`).
+
+`ignoreMatches` exempts built-in modules the same way as npm packages, by the name as written. For example, deny every built-in module except `path`, in a project that imports it both ways:
+
+```json
+"denyModules": ["builtin:*"],
+"ignoreMatches": ["path", "node:path"]
+```
+
 ## Defining multiple restricted imports rules
 
 Configuration file supports defining multiple `restrictedImportsDetection` rules within the same workspace. 
@@ -83,7 +124,7 @@ Simply define `restrictedImportsDetection` as an array of detectors:
 - `entryPoints` (array of strings): The starting points for the dependency graph analysis. Note that unlike other checks, these do not fall back to workspace-level entry points.
 - `graphExclude` (array of strings): Glob patterns to exclude certain files from the dependency graph analysis.
 - `denyFiles` (array of strings): Glob patterns for file paths that are forbidden from being imported.
-- `denyModules` (array of strings): Glob patterns for module names that are forbidden from being imported.
+- `denyModules` (array of strings): Glob patterns for module names that are forbidden from being imported. Matches npm packages and [built-in modules](#built-in-modules) by the name as written; `builtin:*` matches every built-in module.
 - `ignoreMatches` (array of strings): File or module patterns to ignore in the final detection results. Use it as an exception to deny rules.
 - `ignoreTypeImports` (boolean): Whether to exclude type-only imports from the dependency graph traversal.
 

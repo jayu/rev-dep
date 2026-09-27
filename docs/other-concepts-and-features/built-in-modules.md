@@ -1,0 +1,81 @@
+# Built-in modules
+
+> Which imports rev-dep treats as built-in modules of Node.js, Deno and Bun, how to restrict them with builtin:* or by name, and what happens where the runtimes disagree.
+
+An import of a module the runtime itself provides - `fs`, `node:crypto`, `bun:sqlite` - is a **built-in module**. Built-in modules are not `package.json` dependencies, so the missing and unused node modules checks never report them.
+
+## Restricting built-in modules
+
+The module options of the restricted import checks match built-in modules the same way as npm packages - by the name as written in the import:
+
+- [`restrictedImportsDetection.denyModules`](config-based-checks/checks/restricted-imports.mdx#built-in-modules)
+- [`restrictedImportersDetection.modules`](config-based-checks/checks/restricted-importers.mdx#built-in-modules)
+- [`restrictedDirectImportersDetection.modules`](config-based-checks/checks/restricted-direct-importers.mdx#built-in-modules)
+
+| Pattern | Matches |
+| --- | --- |
+| `builtin:*` | every built-in module of every runtime (Node.js, Deno, Bun), however it is imported |
+| `fs` | `fs`, `fs/promises` |
+| `node:fs` | `node:fs`, `node:fs/promises` |
+| `fs/*` | `fs/promises` |
+| `node:*` | every import written with the `node:` prefix |
+| `bun:*` | Bun's `bun:` modules, e.g. `bun:sqlite`, `bun:test` |
+
+Use `builtin:*` when a rule is about built-in modules as a whole. You don't list them one by one, and the rule stays correct as runtimes add modules. For example, no front-end entry point may reach any built-in module:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["src/pages/**/*.tsx"],
+        "denyModules": ["builtin:*"]
+      }
+    }
+  ]
+}
+```
+
+- `builtin:*` is a keyword, not a glob: it matches by what the import is rather than by its name. `builtin:` accepts nothing but `*`, and any other form (such as `builtin:fs`) is a config error.
+- To match one built-in module, use its name as the project imports it. `fs` does not match `node:fs`: a project that writes both spellings lists both.
+- `node:*` does not match bare imports such as `fs`, nor Bun's own modules. `bun:*` matches the `bun:` ones; the bare `bun` module needs its own pattern.
+- A catch-all glob such as `*` matches built-in modules as well as npm packages.
+- `restrictedImportsDetection.ignoreMatches` exempts built-in modules the same way as npm packages, by the name as written: `["path", "node:path"]` exempts both spellings.
+- [`rev-dep resolve --module`](exploratory-toolkit/resolve.mdx) traces built-in modules too, for example `--module fs` or `--module node:fs`.
+
+## Which modules are built-in
+
+**Every `node:` and `bun:` import is a built-in module**, whether rev-dep knows that module or not. npm package names cannot contain `:`, so a module a runtime adds later is recognised without updating rev-dep, and `builtin:*`, `node:*` and `bun:*` match it. The one cost is that a typo such as `node:fss` counts as built-in rather than unresolved.
+
+Bare names (`fs`, `bun`) come from **one list: the union of Node.js, Deno and Bun**. There is no per-runtime list to select in the config:
+
+- rev-dep does not know which runtime a project targets, and many target more than one - Node.js in production, Bun for tests.
+- A module that one runtime lacks cannot be installed from npm either, so treating it as built-in never hides a real dependency.
+
+| Runtime | Built-in modules |
+| --- | --- |
+| Node.js | Every `node:` module. Bare: the modules of every Node.js version, including the ones since removed. Newer modules (`node:sea`, `node:sqlite`, `node:test`, ...) exist only with the prefix, so their bare names stay npm packages. |
+| Deno | The Node.js modules, under the same names. Deno has no built-in modules of its own. |
+| Bun | The Node.js modules, plus `bun` and every `bun:` module, e.g. `bun:sqlite`, `bun:test`. |
+
+Removed Node.js modules stay built-in because projects still run on the versions that had them: `_stream_*` (removed in Node.js 26), `_tls_legacy` (10), `_debugger`, `_debug_agent` and `_linklist` (8), `freelist` (6), `smalloc` (io.js 3) and `buffer_ieee754` (0.9.7).
+
+### Where the runtimes disagree
+
+Coverage differs: Deno has no `node:sea`, `_http_client` or `_stream_wrap`, and Bun has no `node:sea` or `node:ffi`. These stay built-in, because the list is a union.
+
+Some names are built-in to one runtime but an npm package to Node.js. rev-dep treats these as npm packages, since treating them as built-in would report their `package.json` entries as unused:
+
+| Import | Built-in to | Why it is not built-in in rev-dep |
+| --- | --- | --- |
+| `ws`, `undici` | Bun, which replaces the npm packages with its own implementations | npm packages to Node.js and Deno |
+| bare `ffi` | Bun | npm package to Node.js and Deno; Node.js's module is `node:ffi` |
+| bare `test`, `sqlite` | Deno, which resolves prefix-only Node.js modules without the prefix | npm packages to Node.js and Bun; write `node:test` and `node:sqlite` |
+
+A Bun-only project that imports `ws` or `undici` without declaring them can exclude them from the missing node modules check with `"excludeModules": ["ws", "undici"]`.
+
+A trailing slash (`buffer/`, `punycode/`) imports the npm package that shares a built-in module's name, as it does in Node.js, so it is not a built-in module.
+
+The list of bare names was verified by importing every specifier in Node.js 24 and 26, Bun 1.4 and Deno 2.9, and against [is-core-module](https://github.com/inspect-js/is-core-module) for past Node.js versions.

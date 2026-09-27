@@ -8,9 +8,10 @@ Use `resolve` when you need to know whether - and how - a file or package is rea
 rev-dep resolve --file src/utils/math.ts
 rev-dep resolve --file src/utils/math.ts --entry-points src/index.ts
 rev-dep resolve --module react --entry-points src/index.ts
+rev-dep resolve --module node:fs --entry-points src/pages/index.tsx
 ```
 
-Provide exactly one of `--file` (a project file) or `--module` (a package name). When `--entry-points` is omitted, entry points are auto-detected.
+Provide exactly one of `--file` (a project file) or `--module` (an npm package or a [built-in module](other-concepts-and-features/built-in-modules.mdx)). A module is matched by the name as written in the import: `--module fs` finds `fs` and `fs/promises` imports, `--module node:fs` finds `node:fs` ones. When `--entry-points` is omitted, entry points are auto-detected.
 
 This is one of the best commands for explaining unexpected reachability.
 

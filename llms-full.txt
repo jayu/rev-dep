@@ -1433,6 +1433,47 @@ Below is a comprehensive example demonstrating how to use all available options.
 }
 ```
 
+#### Built-in modules
+
+`denyModules` also matches built-in modules (Node.js, Deno and Bun). `builtin:*` denies every one of them in one token - here, no page may reach a server-only API, even through a shared util:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["src/pages/**/*.tsx"],
+        "denyModules": ["builtin:*"]
+      }
+    }
+  ]
+}
+```
+
+To deny specific built-in modules, list them by name. Built-in modules are matched by the name as written in the import, the same way as npm packages: `fs` matches `import "fs"` and `import "fs/promises"`, but not `import "node:fs"`. If the project writes both spellings, list both.
+
+| Pattern | Matches |
+| --- | --- |
+| `builtin:*` | every built-in module of every runtime (Node.js, Deno, Bun), however it is imported |
+| `fs` | `fs`, `fs/promises` |
+| `node:fs` | `node:fs`, `node:fs/promises` |
+| `fs/*` | `fs/promises` |
+| `node:*` | every import written with the `node:` prefix |
+| `bun:*` | Bun's `bun:` modules, e.g. `bun:sqlite`, `bun:test` |
+
+`builtin:*` is a keyword, not a glob: it matches by what the import is rather than by its name, and `builtin:` accepts nothing but `*`. A catch-all glob such as `*` matches built-in modules as well as npm packages. See [Built-in modules](other-concepts-and-features/built-in-modules.mdx) for the modules each runtime provides.
+
+Violations report the module as it is written in the import (`fs` or `node:fs`).
+
+`ignoreMatches` exempts built-in modules the same way as npm packages, by the name as written. For example, deny every built-in module except `path`, in a project that imports it both ways:
+
+```json
+"denyModules": ["builtin:*"],
+"ignoreMatches": ["path", "node:path"]
+```
+
 ### Defining multiple restricted imports rules
 
 Configuration file supports defining multiple `restrictedImportsDetection` rules within the same workspace. 
@@ -1468,7 +1509,7 @@ Simply define `restrictedImportsDetection` as an array of detectors:
 - `entryPoints` (array of strings): The starting points for the dependency graph analysis. Note that unlike other checks, these do not fall back to workspace-level entry points.
 - `graphExclude` (array of strings): Glob patterns to exclude certain files from the dependency graph analysis.
 - `denyFiles` (array of strings): Glob patterns for file paths that are forbidden from being imported.
-- `denyModules` (array of strings): Glob patterns for module names that are forbidden from being imported.
+- `denyModules` (array of strings): Glob patterns for module names that are forbidden from being imported. Matches npm packages and [built-in modules](#built-in-modules) by the name as written; `builtin:*` matches every built-in module.
 - `ignoreMatches` (array of strings): File or module patterns to ignore in the final detection results. Use it as an exception to deny rules.
 - `ignoreTypeImports` (boolean): Whether to exclude type-only imports from the dependency graph traversal.
 
@@ -1564,11 +1605,46 @@ Use `modules` to constrain which entry points may transitively import a node mod
 
 `modules` are matched as **module-name glob patterns** (the same matching `restrictedImports` uses for `denyModules`): `moment` matches `moment` and `moment/locale/...`, and `@legacy/*` matches any package in the `@legacy` scope. You can set `files`, `modules`, or both in the same detector.
 
+#### Built-in modules
+
+`modules` also matches built-in modules (Node.js, Deno and Bun). `builtin:*` matches every one of them. For example, only the server entry point may reach built-in modules. A client entry point that pulls in `fs` through a shared util is reported:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/client/main.tsx", "src/server/main.ts"],
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "modules": ["builtin:*"],
+        "allowedEntryPoints": ["src/server/main.ts"]
+      }
+    }
+  ]
+}
+```
+
+To constrain specific built-in modules, list them by name, for example `"modules": ["fs", "node:fs"]`. Built-in modules are matched by the name as written in the import, the same way as npm packages: `fs` matches `import "fs"` and `import "fs/promises"`, but not `import "node:fs"`. If the project writes both spellings, list both.
+
+| Pattern | Matches |
+| --- | --- |
+| `builtin:*` | every built-in module of every runtime (Node.js, Deno, Bun), however it is imported |
+| `fs` | `fs`, `fs/promises` |
+| `node:fs` | `node:fs`, `node:fs/promises` |
+| `fs/*` | `fs/promises` |
+| `node:*` | every import written with the `node:` prefix |
+| `bun:*` | Bun's `bun:` modules, e.g. `bun:sqlite`, `bun:test` |
+
+`builtin:*` is a keyword, not a glob: it matches by what the import is rather than by its name, and `builtin:` accepts nothing but `*`. A catch-all glob such as `*` matches built-in modules as well as npm packages. See [Built-in modules](other-concepts-and-features/built-in-modules.mdx) for the modules each runtime provides.
+
+Violations report the module as it is written in the import (`fs` or `node:fs`), so an entry point that reaches both spellings is reported once for each.
+
 ### Options
 
 - `enabled` (boolean, required): Whether to enable restricted importers detection.
 - `files` (array of strings): Glob patterns for the files whose transitive importers are constrained. At least one of `files` or `modules` is required when enabled.
-- `modules` (array of strings): Node-module name glob patterns whose transitive importers are constrained. At least one of `files` or `modules` is required when enabled.
+- `modules` (array of strings): Module name glob patterns whose transitive importers are constrained. Matches npm packages and [built-in modules](#built-in-modules) by the name as written; `builtin:*` matches every built-in module. At least one of `files` or `modules` is required when enabled.
 - `allowedEntryPoints` (array of strings, required when enabled): Whitelist of entry points permitted to reach the targets. Any other entry point that reaches a target file or module is a violation.
 - `graphExclude` (array of strings, optional): Glob patterns to prune from the dependency graph before the analysis.
 - `ignoreMatches` (array of strings, optional): Entry-point patterns to drop from the results.
@@ -1696,13 +1772,47 @@ Use `modules` (instead of `files`) to constrain which files may directly import 
 }
 ```
 
+#### Built-in modules
+
+`modules` also matches built-in modules (Node.js, Deno and Bun). For example, keep raw I/O out of the domain and application layers:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedDirectImportersDetection": {
+        "enabled": true,
+        "modules": ["fs", "dns", "net"],
+        "denyImporters": ["src/domain/**", "src/application/**"]
+      }
+    }
+  ]
+}
+```
+
+Built-in modules are matched by the name as written in the import, the same way as npm packages: `fs` matches `import "fs"` and `import "fs/promises"`, but not `import "node:fs"`. So if this project also wrote `import { readFile } from "node:fs/promises"`, the config above would need `node:fs` too. To keep out every built-in module however it is imported, use `builtin:*`.
+
+| Pattern | Matches |
+| --- | --- |
+| `builtin:*` | every built-in module of every runtime (Node.js, Deno, Bun), however it is imported |
+| `fs` | `fs`, `fs/promises` |
+| `node:fs` | `node:fs`, `node:fs/promises` |
+| `fs/*` | `fs/promises` |
+| `node:*` | every import written with the `node:` prefix |
+| `bun:*` | Bun's `bun:` modules, e.g. `bun:sqlite`, `bun:test` |
+
+`builtin:*` is a keyword, not a glob: it matches by what the import is rather than by its name, and `builtin:` accepts nothing but `*`. A catch-all glob such as `*` matches built-in modules as well as npm packages. See [Built-in modules](other-concepts-and-features/built-in-modules.mdx) for the modules each runtime provides.
+
+Violations report the module as it is written in the import (`fs` or `node:fs`).
+
 `files` and `modules` are **mutually exclusive** - provide exactly one. `allowImporters` and `denyImporters` are **mutually exclusive** too - provide exactly one.
 
 ### Options
 
 - `enabled` (boolean, required): Whether to enable restricted direct importers detection.
 - `files` (array of strings): Glob patterns for the target files whose direct importers are constrained. Mutually exclusive with `modules`; exactly one is required when enabled.
-- `modules` (array of strings): Node-module name glob patterns for the targets whose direct importers are constrained. Mutually exclusive with `files`; exactly one is required when enabled.
+- `modules` (array of strings): Module name glob patterns for the targets whose direct importers are constrained. Matches npm packages and [built-in modules](#built-in-modules) by the name as written; `builtin:*` matches every built-in module. Mutually exclusive with `files`; exactly one is required when enabled.
 - `allowImporters` (array of strings): Whitelist of files permitted to directly import a target. Any other direct importer is a violation. Mutually exclusive with `denyImporters`; exactly one is required when enabled.
 - `denyImporters` (array of strings): Blacklist of files forbidden from directly importing a target. Any matching direct importer is a violation. Mutually exclusive with `allowImporters`; exactly one is required when enabled.
 - `ignoreMatches` (array of strings, optional): Importer patterns to exempt - a direct importer matching any of these is never reported. This filters the **importer** side only; it does not narrow the `files`/`modules` targets.
@@ -2467,6 +2577,7 @@ Below is an example of how `unresolvedImportsDetection` fits within the `workspa
       "path": ".",
       "unresolvedImportsDetection": {
         "enabled": true,
+        "reportNonLiteralImports": true,
         "ignoreFiles": ["**/*.test.ts"],
         "ignoreImports": ["some-external-pkg/*"],
         "ignore": {
@@ -2484,6 +2595,59 @@ Below is an example of how `unresolvedImportsDetection` fits within the `workspa
 - `ignoreFiles` (array of strings): Glob patterns for files whose unresolved imports should be ignored.
 - `ignoreImports` (array of strings): Import requests (or globs) to ignore globally in unresolved imports results.
 - `ignore` (object): A map where the key is a file path glob (relative to the workspace path) and the value is an import request glob (or string) to ignore for that specific file. Use this when an exception depends on both the file location and the import itself.
+- `reportNonLiteralImports` (boolean, default `false`): Also report imports whose specifier is an expression instead of a string. See [Non-literal imports](#non-literal-imports).
+
+### Non-literal imports
+
+An import path can be built at runtime:
+
+```ts
+const mod = await import('@/api/' + name);
+const other = await import(path);
+```
+
+rev-dep cannot know which file these name, so there is no import to resolve and no dependency edge. The report shows the call, followed by `- non-literal`:
+
+```
+  ❌ Unresolved Imports (2):
+    src/domain/service.ts
+     - import('@/api/' + name) - non-literal
+     - import(path) - non-literal
+```
+
+`--format issues-list` adds the position:
+
+```
+Unresolved Imports (2):
+  import('@/api/' + name) - non-literal  src/domain/service.ts:12:22
+  import(path) - non-literal             src/domain/service.ts:18:15
+```
+
+In `--format json` the `request` field holds the specifier expression as written, and `nonLiteral` marks the record. The position covers that expression:
+
+```json
+{
+  "filePath": "src/domain/service.ts",
+  "request": "'@/api/' + name",
+  "nonLiteral": true,
+  "startLine": 12, "startCol": 22, "endLine": 12, "endCol": 39
+}
+```
+
+Note that `request` is source code here, not a module path, so a tool reading the output must check `nonLiteral` before treating it as one. A call written over several lines is recorded on one line.
+
+This matters because such an import goes around every rule that works on paths, including [restricted imports](restricted-imports.mdx) and [module boundaries](module-boundaries.mdx). Turn `reportNonLiteralImports` on if your project wants to forbid them.
+
+The option is off by default, because turning it on can add issues to a project that passes today. Everything else stays the same: a non-literal import never becomes a dependency, and it is never counted as a missing package, an unused export or an orphan file. A file that is only imported this way still counts as an orphan file, because nothing points at it that rev-dep can see.
+
+`ignoreFiles` still applies to these records, so a legacy area can be exempted. `ignoreImports` and `ignore` match the request text, which here is the expression itself, so they only fit when you want to exempt one exact expression.
+
+`require.resolve` is not an import at all, so it is never reported:
+
+```ts
+require.resolve('./worker');     // nothing: it returns a path, it does not load the file
+require(require.resolve('./x')); // reported: what reaches require() is an expression
+```
 
 #### Also referred as
 Unresolved or Broken Imports is also known as:
@@ -3149,9 +3313,10 @@ Use `resolve` when you need to know whether - and how - a file or package is rea
 rev-dep resolve --file src/utils/math.ts
 rev-dep resolve --file src/utils/math.ts --entry-points src/index.ts
 rev-dep resolve --module react --entry-points src/index.ts
+rev-dep resolve --module node:fs --entry-points src/pages/index.tsx
 ```
 
-Provide exactly one of `--file` (a project file) or `--module` (a package name). When `--entry-points` is omitted, entry points are auto-detected.
+Provide exactly one of `--file` (a project file) or `--module` (an npm package or a [built-in module](other-concepts-and-features/built-in-modules.mdx)). A module is matched by the name as written in the import: `--module fs` finds `fs` and `fs/promises` imports, `--module node:fs` finds `node:fs` ones. When `--entry-points` is omitted, entry points are auto-detected.
 
 This is one of the best commands for explaining unexpected reachability.
 
@@ -3756,6 +3921,88 @@ rev-dep node-modules missing -c packages/app --follow-monorepo-packages --node-m
 ```
 
 > Edge case: with `--follow-monorepo-packages` and `--node-modules-resolution entry-package`, the CLI's `unresolved` command lists a followed package's undeclared-by-entry dependency that the config's `unresolvedImports` would instead report under `missing`. The primary `missing` signal is identical across both; only the secondary `unresolved` diagnostic differs. Without `--follow-monorepo-packages` the two modes are identical.
+
+---
+
+## Built-in modules
+
+An import of a module the runtime itself provides - `fs`, `node:crypto`, `bun:sqlite` - is a **built-in module**. Built-in modules are not `package.json` dependencies, so the missing and unused node modules checks never report them.
+
+### Restricting built-in modules
+
+The module options of the restricted import checks match built-in modules the same way as npm packages - by the name as written in the import:
+
+- [`restrictedImportsDetection.denyModules`](config-based-checks/checks/restricted-imports.mdx#built-in-modules)
+- [`restrictedImportersDetection.modules`](config-based-checks/checks/restricted-importers.mdx#built-in-modules)
+- [`restrictedDirectImportersDetection.modules`](config-based-checks/checks/restricted-direct-importers.mdx#built-in-modules)
+
+| Pattern | Matches |
+| --- | --- |
+| `builtin:*` | every built-in module of every runtime (Node.js, Deno, Bun), however it is imported |
+| `fs` | `fs`, `fs/promises` |
+| `node:fs` | `node:fs`, `node:fs/promises` |
+| `fs/*` | `fs/promises` |
+| `node:*` | every import written with the `node:` prefix |
+| `bun:*` | Bun's `bun:` modules, e.g. `bun:sqlite`, `bun:test` |
+
+Use `builtin:*` when a rule is about built-in modules as a whole. You don't list them one by one, and the rule stays correct as runtimes add modules. For example, no front-end entry point may reach any built-in module:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "restrictedImportsDetection": {
+        "enabled": true,
+        "entryPoints": ["src/pages/**/*.tsx"],
+        "denyModules": ["builtin:*"]
+      }
+    }
+  ]
+}
+```
+
+- `builtin:*` is a keyword, not a glob: it matches by what the import is rather than by its name. `builtin:` accepts nothing but `*`, and any other form (such as `builtin:fs`) is a config error.
+- To match one built-in module, use its name as the project imports it. `fs` does not match `node:fs`: a project that writes both spellings lists both.
+- `node:*` does not match bare imports such as `fs`, nor Bun's own modules. `bun:*` matches the `bun:` ones; the bare `bun` module needs its own pattern.
+- A catch-all glob such as `*` matches built-in modules as well as npm packages.
+- `restrictedImportsDetection.ignoreMatches` exempts built-in modules the same way as npm packages, by the name as written: `["path", "node:path"]` exempts both spellings.
+- [`rev-dep resolve --module`](exploratory-toolkit/resolve.mdx) traces built-in modules too, for example `--module fs` or `--module node:fs`.
+
+### Which modules are built-in
+
+**Every `node:` and `bun:` import is a built-in module**, whether rev-dep knows that module or not. npm package names cannot contain `:`, so a module a runtime adds later is recognised without updating rev-dep, and `builtin:*`, `node:*` and `bun:*` match it. The one cost is that a typo such as `node:fss` counts as built-in rather than unresolved.
+
+Bare names (`fs`, `bun`) come from **one list: the union of Node.js, Deno and Bun**. There is no per-runtime list to select in the config:
+
+- rev-dep does not know which runtime a project targets, and many target more than one - Node.js in production, Bun for tests.
+- A module that one runtime lacks cannot be installed from npm either, so treating it as built-in never hides a real dependency.
+
+| Runtime | Built-in modules |
+| --- | --- |
+| Node.js | Every `node:` module. Bare: the modules of every Node.js version, including the ones since removed. Newer modules (`node:sea`, `node:sqlite`, `node:test`, ...) exist only with the prefix, so their bare names stay npm packages. |
+| Deno | The Node.js modules, under the same names. Deno has no built-in modules of its own. |
+| Bun | The Node.js modules, plus `bun` and every `bun:` module, e.g. `bun:sqlite`, `bun:test`. |
+
+Removed Node.js modules stay built-in because projects still run on the versions that had them: `_stream_*` (removed in Node.js 26), `_tls_legacy` (10), `_debugger`, `_debug_agent` and `_linklist` (8), `freelist` (6), `smalloc` (io.js 3) and `buffer_ieee754` (0.9.7).
+
+#### Where the runtimes disagree
+
+Coverage differs: Deno has no `node:sea`, `_http_client` or `_stream_wrap`, and Bun has no `node:sea` or `node:ffi`. These stay built-in, because the list is a union.
+
+Some names are built-in to one runtime but an npm package to Node.js. rev-dep treats these as npm packages, since treating them as built-in would report their `package.json` entries as unused:
+
+| Import | Built-in to | Why it is not built-in in rev-dep |
+| --- | --- | --- |
+| `ws`, `undici` | Bun, which replaces the npm packages with its own implementations | npm packages to Node.js and Deno |
+| bare `ffi` | Bun | npm package to Node.js and Deno; Node.js's module is `node:ffi` |
+| bare `test`, `sqlite` | Deno, which resolves prefix-only Node.js modules without the prefix | npm packages to Node.js and Bun; write `node:test` and `node:sqlite` |
+
+A Bun-only project that imports `ws` or `undici` without declaring them can exclude them from the missing node modules check with `"excludeModules": ["ws", "undici"]`.
+
+A trailing slash (`buffer/`, `punycode/`) imports the npm package that shares a built-in module's name, as it does in Node.js, so it is not a built-in module.
+
+The list of bare names was verified by importing every specifier in Node.js 24 and 26, Bun 1.4 and Deno 2.9, and against [is-core-module](https://github.com/inspect-js/is-core-module) for past Node.js versions.
 
 ---
 
@@ -5372,7 +5619,7 @@ rev-dep config run
 
 The JavaScript and TypeScript ecosystem has a tool for almost every dependency-graph question: unused files and exports, unused or missing dependencies, circular imports, architecture boundaries, duplicated code. This page maps that landscape - what each tool checks, whether it is still maintained, and which one fits which problem, including the cases where rev-dep is not the right choice. Each tool also has a detailed side-by-side page, linked [at the bottom](#detailed-comparisons).
 
-rev-dep focuses on the dependency graph and on architecture rules, run as one fast pass from one config. It does not render graph images, and it reports at the file, export and dependency level rather than at class-member or namespace-member level.
+**Rev-dep focuses on the dependency graph and on architecture rules, run as one fast pass from one config.** It does not render graph images, and it reports at the file, export and dependency level rather than at class-member or namespace-member level.
 
 _Last verified: September 2026._
 
@@ -6671,6 +6918,7 @@ rev-dep unresolved [flags]
       --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
+      --report-non-literal-imports                                  Also report imports whose specifier is an expression, e.g. import(x) or import('a/' + name)
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
   -v, --verbose                                                     Show warnings and verbose output
 ```
@@ -7024,7 +7272,7 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
-      --module string                                               Target node module name to check for dependencies
+      --module string                                               Target module name (npm package or built-in module) to check for dependencies
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)

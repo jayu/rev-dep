@@ -1,0 +1,137 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 48rem;
+  padding-block: 1.5rem 2rem;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--rd-eyebrow-color);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.75rem, 4.5vw, 2.5rem);
+  line-height: 1.2;
+  text-wrap: balance;
+  color: var(--rd-text-strong);
+}
+
+.terminal {
+  width: 100%;
+  margin: 2.75rem 0 2.5rem;
+  text-align: left;
+}
+
+.copy {
+  max-width: 34rem;
+  margin: 0 0 2.25rem;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  text-wrap: balance;
+  color: var(--rd-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1.6rem;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.button:hover {
+  text-decoration: none;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--ifm-color-primary-light);
+  outline-offset: 3px;
+}
+
+.buttonPrimary {
+  background: var(--rd-button-bg);
+  border-color: var(--rd-button-bg);
+  color: var(--rd-button-fg);
+}
+
+.buttonPrimary:hover {
+  background: var(--rd-button-bg-hover);
+  border-color: var(--rd-button-bg-hover);
+  color: var(--rd-button-fg);
+}
+
+/* The landing page's outline button is built for the dark hero band; this one
+   sits on the page background, so it borrows the theme's own hairline colour. */
+.buttonQuiet {
+  background: transparent;
+  border-color: var(--ifm-color-emphasis-300);
+  color: var(--rd-text-strong);
+}
+
+.buttonQuiet:hover {
+  background: var(--rd-accent-soft-bg);
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+}
+
+.quickLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.75rem;
+  align-items: baseline;
+  justify-content: center;
+  width: 100%;
+  margin-top: 3.25rem;
+  padding-top: 2rem;
+  border-top: var(--rd-hairline);
+}
+
+.quickLinksLabel {
+  font-size: 0.85rem;
+  color: var(--rd-text-muted);
+}
+
+.quickLink {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .page {
+    padding-block: 0.5rem 1rem;
+  }
+
+  .terminal {
+    margin: 2rem 0 1.9rem;
+  }
+
+  .button {
+    width: 100%;
+  }
+}

@@ -7,6 +7,7 @@ import Split from '../primitives/Split';
 import TrackedLink from '../primitives/TrackedLink';
 import { trackClick } from '../analytics';
 import { faqEntries } from '../data/faq';
+import { DISCUSSIONS_URL } from '@site/src/links';
 import styles from './Faq.module.css';
 
 export default function Faq() {
@@ -29,7 +30,7 @@ export default function Faq() {
         >
           <TrackedLink
             className={styles.introLink}
-            to="https://github.com/jayu/rev-dep/issues"
+            to={DISCUSSIONS_URL}
             event={{ id: 'faq_ask_on_github', section: 'faq', type: 'external_link' }}
           >
             Ask something else on GitHub →

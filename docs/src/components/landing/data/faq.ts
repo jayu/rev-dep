@@ -4,6 +4,8 @@
  * engineer asks before they will run the install command.
  */
 
+import { NEW_ISSUE_URL } from '@site/src/links';
+
 export type FaqEntry = {
   /**
    * Stable slug for analytics. Deliberately not derived from the question:
@@ -56,7 +58,7 @@ export const faqEntries: FaqEntry[] = [
       'It parses every JavaScript and TypeScript extension in common use - .ts, .tsx, .mts, .d.ts, .js, .jsx, .cjs, .mjs - plus the script blocks of .vue and .svelte components. Imports of images, fonts, styles, JSON and YAML resolve out of the box, and any other extension your project uses takes one line of config.',
       'If something behaves differently than your project expects, or you need something that is not listed here, open an issue. That is the fastest way to get it covered, and it is the kind of report that makes the resolver better for everyone.',
     ],
-    link: { label: 'Report it on GitHub →', to: 'https://github.com/jayu/rev-dep/issues/new' },
+    link: { label: 'Report it on GitHub →', to: NEW_ISSUE_URL },
   },
   {
     id: 'replace_eslint_knip',

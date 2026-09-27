@@ -2,10 +2,9 @@ import {useEffect, useRef, useState} from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
 
-import styles from './AskOnGitHub.module.css';
+import {DISCUSSIONS_URL, NEW_ISSUE_URL} from '@site/src/links';
 
-const DISCUSSIONS_URL = 'https://github.com/jayu/rev-dep/discussions';
-const ISSUES_URL = 'https://github.com/jayu/rev-dep/issues/new';
+import styles from './AskOnGitHub.module.css';
 
 export default function AskOnGitHub() {
   const [pinned, setPinned] = useState(false);
@@ -49,7 +48,7 @@ export default function AskOnGitHub() {
 
         <p className={styles.footnote}>
           Found a bug?{' '}
-          <Link className={styles.footnoteLink} href={ISSUES_URL}>
+          <Link className={styles.footnoteLink} href={NEW_ISSUE_URL}>
             Report an issue
           </Link>
         </p>

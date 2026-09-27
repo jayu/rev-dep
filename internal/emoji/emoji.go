@@ -25,4 +25,5 @@ const (
 	Standalone      = "🧩"   // U+1F9E9 jigsaw puzzle piece
 	Guide           = "📖"   // U+1F4D6 open book
 	Troubleshooting = "🛟"   // U+1F6DF ring buoy
+	Discussion      = "💬"   // U+1F4AC speech balloon
 )

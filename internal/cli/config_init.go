@@ -830,5 +830,9 @@ func printInitConfigResults(result *initConfigResult) {
 
 	fmt.Println()
 	fmt.Printf("%s Integration guide: %s\n", emoji.Guide, integrationGuide)
-	fmt.Printf("%s Troubleshooting: https://rev-dep.com/troubleshooting\n\n", emoji.Troubleshooting)
+	fmt.Printf("%s Troubleshooting: https://rev-dep.com/troubleshooting\n", emoji.Troubleshooting)
+
+	fmt.Println()
+	fmt.Println("Something not clear? Have a question or doubt? Start discussion or open issue.")
+	fmt.Printf("%s https://github.com/jayu/rev-dep/discussions\n\n", emoji.Discussion)
 }

@@ -1447,7 +1447,7 @@ func init() {
 	resolveCmd.Flags().StringVarP(&resolveFile, "file", "f", "",
 		"Target file to check for dependencies")
 	resolveCmd.Flags().StringVar(&resolveModule, "module", "",
-		"Target node module name to check for dependencies")
+		"Target module name (npm package or built-in module) to check for dependencies")
 	resolveCmd.Flags().StringSliceVar(&resolveGraphExclude, "graph-exclude", []string{},
 		"Glob patterns to exclude files from dependency analysis")
 	resolveCmd.Flags().StringSliceVar(&resolveProcessIgnored, "process-ignored-files", []string{},

@@ -135,6 +135,9 @@ func (b *depsGraphBuilder) inner(path string, depth int, parent *SerializableNod
 			if d.Request != "" {
 				nodeModulesSet[d.Request] = true
 			}
+		}
+
+		if d.ResolvedType == NodeModule || d.ResolvedType == NotResolvedModule || d.ResolvedType == BuiltInModule {
 			for _, mt := range b.moduleTargets {
 				matched := false
 				if mt.isPackageName {

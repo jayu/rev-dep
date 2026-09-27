@@ -15,6 +15,7 @@ import (
 
 	globutil "rev-dep-go/internal/glob"
 	"rev-dep-go/internal/model"
+	"rev-dep-go/internal/module"
 	"rev-dep-go/internal/pathutil"
 	"rev-dep-go/internal/resolve"
 )
@@ -2327,8 +2328,8 @@ func validateRestrictedImportsDetectionOptions(opts *RestrictedImportsDetectionO
 		if trimmed == "" {
 			return fmt.Errorf("%s.denyModules[%d]: cannot be empty", prefix, i)
 		}
-		if _, err := glob.Compile(trimmed); err != nil {
-			return fmt.Errorf("%s.denyModules[%d]: invalid glob pattern '%s': %v", prefix, i, trimmed, err)
+		if err := module.ValidateModulePattern(trimmed); err != nil {
+			return fmt.Errorf("%s.denyModules[%d]: %w", prefix, i, err)
 		}
 	}
 
@@ -2376,8 +2377,8 @@ func validateRestrictedImportersDetectionOptions(opts *RestrictedImportersDetect
 		if trimmed == "" {
 			return fmt.Errorf("%s.modules[%d]: cannot be empty", prefix, i)
 		}
-		if _, err := glob.Compile(trimmed); err != nil {
-			return fmt.Errorf("%s.modules[%d]: invalid glob pattern '%s': %v", prefix, i, trimmed, err)
+		if err := module.ValidateModulePattern(trimmed); err != nil {
+			return fmt.Errorf("%s.modules[%d]: %w", prefix, i, err)
 		}
 	}
 
@@ -2446,8 +2447,8 @@ func validateRestrictedDirectImportersDetectionOptions(opts *RestrictedDirectImp
 		if trimmed == "" {
 			return fmt.Errorf("%s.modules[%d]: cannot be empty", prefix, i)
 		}
-		if _, err := glob.Compile(trimmed); err != nil {
-			return fmt.Errorf("%s.modules[%d]: invalid glob pattern '%s': %v", prefix, i, trimmed, err)
+		if err := module.ValidateModulePattern(trimmed); err != nil {
+			return fmt.Errorf("%s.modules[%d]: %w", prefix, i, err)
 		}
 	}
 

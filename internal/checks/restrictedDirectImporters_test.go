@@ -2,6 +2,7 @@ package checks
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"rev-dep-go/internal/rules"
@@ -291,6 +292,71 @@ func TestFindRestrictedDirectImporters_GlobMatching(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := FindRestrictedDirectImporters(globMatchingTree(), tc.opts, "/repo")
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func builtInImportsTree() MinimalDependencyTree {
+	return MinimalDependencyTree{
+		"/repo/src/domain/fs_bare.ts": {
+			{ID: "fs", Request: "fs", ResolvedType: BuiltInModule},
+		},
+		"/repo/src/domain/fs_prefixed.ts": {
+			{ID: "node:fs", Request: "node:fs", ResolvedType: BuiltInModule},
+		},
+		"/repo/src/domain/fs_prefixed_subpath.ts": {
+			{ID: "node:fs", Request: "node:fs/promises", ResolvedType: BuiltInModule},
+		},
+		"/repo/src/domain/fs_subpath.ts": {
+			{ID: "fs", Request: "fs/promises", ResolvedType: BuiltInModule},
+		},
+		"/repo/src/domain/other.ts": {
+			{ID: "path", Request: "path", ResolvedType: BuiltInModule},
+			{ID: "bun:sqlite", Request: "bun:sqlite", ResolvedType: BuiltInModule},
+			{ID: "axios", Request: "axios", ResolvedType: NodeModule},
+		},
+	}
+}
+
+func TestFindRestrictedDirectImporters_BuiltInModules(t *testing.T) {
+	fsBare := dvModule("/repo/src/domain/fs_bare.ts", "fs", "fs")
+	fsPrefixed := dvModule("/repo/src/domain/fs_prefixed.ts", "node:fs", "node:fs")
+	fsPrefixedSubpath := dvModule("/repo/src/domain/fs_prefixed_subpath.ts", "node:fs", "node:fs/promises")
+	fsSubpath := dvModule("/repo/src/domain/fs_subpath.ts", "fs", "fs/promises")
+
+	cases := []struct {
+		modules []string
+		want    []RestrictedDirectImporterViolation
+	}{
+		{[]string{"fs"}, []RestrictedDirectImporterViolation{fsBare, fsSubpath}},
+		{[]string{"node:fs"}, []RestrictedDirectImporterViolation{fsPrefixed, fsPrefixedSubpath}},
+		{[]string{"fs", "node:fs"}, []RestrictedDirectImporterViolation{fsBare, fsPrefixed, fsPrefixedSubpath, fsSubpath}},
+		{[]string{"fs/*"}, []RestrictedDirectImporterViolation{fsSubpath}},
+		{[]string{"node:fs/promises"}, []RestrictedDirectImporterViolation{fsPrefixedSubpath}},
+		{[]string{"node:*"}, []RestrictedDirectImporterViolation{fsPrefixed, fsPrefixedSubpath}},
+		{[]string{"bun:*"}, []RestrictedDirectImporterViolation{dvModule("/repo/src/domain/other.ts", "bun:sqlite", "bun:sqlite")}},
+		{
+			[]string{"builtin:*"},
+			[]RestrictedDirectImporterViolation{
+				fsBare, fsPrefixed, fsPrefixedSubpath, fsSubpath,
+				dvModule("/repo/src/domain/other.ts", "bun:sqlite", "bun:sqlite"),
+				dvModule("/repo/src/domain/other.ts", "path", "path"),
+			},
+		},
+		{[]string{"dns", "net"}, []RestrictedDirectImporterViolation{}},
+	}
+
+	for _, tc := range cases {
+		t.Run(strings.Join(tc.modules, ","), func(t *testing.T) {
+			opts := &rules.RestrictedDirectImportersDetectionOptions{
+				Enabled:       true,
+				Modules:       tc.modules,
+				DenyImporters: []string{"src/domain/**"},
+			}
+			got := FindRestrictedDirectImporters(builtInImportsTree(), opts, "/repo")
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("got %+v, want %+v", got, tc.want)
 			}

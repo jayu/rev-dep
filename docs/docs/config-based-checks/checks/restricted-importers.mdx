@@ -78,11 +78,46 @@ Use `modules` to constrain which entry points may transitively import a node mod
 
 `modules` are matched as **module-name glob patterns** (the same matching `restrictedImports` uses for `denyModules`): `moment` matches `moment` and `moment/locale/...`, and `@legacy/*` matches any package in the `@legacy` scope. You can set `files`, `modules`, or both in the same detector.
 
+### Built-in modules
+
+`modules` also matches built-in modules (Node.js, Deno and Bun). `builtin:*` matches every one of them. For example, only the server entry point may reach built-in modules. A client entry point that pulls in `fs` through a shared util is reported:
+
+```json
+{
+  "workspaces": [
+    {
+      "path": ".",
+      "prodEntryPoints": ["src/client/main.tsx", "src/server/main.ts"],
+      "restrictedImportersDetection": {
+        "enabled": true,
+        "modules": ["builtin:*"],
+        "allowedEntryPoints": ["src/server/main.ts"]
+      }
+    }
+  ]
+}
+```
+
+To constrain specific built-in modules, list them by name, for example `"modules": ["fs", "node:fs"]`. Built-in modules are matched by the name as written in the import, the same way as npm packages: `fs` matches `import "fs"` and `import "fs/promises"`, but not `import "node:fs"`. If the project writes both spellings, list both.
+
+| Pattern | Matches |
+| --- | --- |
+| `builtin:*` | every built-in module of every runtime (Node.js, Deno, Bun), however it is imported |
+| `fs` | `fs`, `fs/promises` |
+| `node:fs` | `node:fs`, `node:fs/promises` |
+| `fs/*` | `fs/promises` |
+| `node:*` | every import written with the `node:` prefix |
+| `bun:*` | Bun's `bun:` modules, e.g. `bun:sqlite`, `bun:test` |
+
+`builtin:*` is a keyword, not a glob: it matches by what the import is rather than by its name, and `builtin:` accepts nothing but `*`. A catch-all glob such as `*` matches built-in modules as well as npm packages. See [Built-in modules](other-concepts-and-features/built-in-modules.mdx) for the modules each runtime provides.
+
+Violations report the module as it is written in the import (`fs` or `node:fs`), so an entry point that reaches both spellings is reported once for each.
+
 ## Options
 
 - `enabled` (boolean, required): Whether to enable restricted importers detection.
 - `files` (array of strings): Glob patterns for the files whose transitive importers are constrained. At least one of `files` or `modules` is required when enabled.
-- `modules` (array of strings): Node-module name glob patterns whose transitive importers are constrained. At least one of `files` or `modules` is required when enabled.
+- `modules` (array of strings): Module name glob patterns whose transitive importers are constrained. Matches npm packages and [built-in modules](#built-in-modules) by the name as written; `builtin:*` matches every built-in module. At least one of `files` or `modules` is required when enabled.
 - `allowedEntryPoints` (array of strings, required when enabled): Whitelist of entry points permitted to reach the targets. Any other entry point that reaches a target file or module is a violation.
 - `graphExclude` (array of strings, optional): Glob patterns to prune from the dependency graph before the analysis.
 - `ignoreMatches` (array of strings, optional): Entry-point patterns to drop from the results.

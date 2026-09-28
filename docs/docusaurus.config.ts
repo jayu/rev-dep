@@ -268,10 +268,10 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
+        {to: '/blog', label: 'Blog', position: 'left'},
         {to: '/newsletter', label: 'Newsletter', position: 'left'},
         {type: 'docsVersionDropdown', position: 'right'},
         {type: 'search', position: 'right'},
-        // {to: '/blog', label: 'Blog', position: 'left'},
         // All three glyphs are 24px wide to match the colour-mode toggle: with
         // equal 32px buttons, a different glyph width is what makes the
         // whitespace between them look uneven.

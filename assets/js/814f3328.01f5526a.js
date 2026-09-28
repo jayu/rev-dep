@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([["1833"],{5513(e){e.exports=JSON.parse('{"title":"Recent posts","items":[{"title":"Rev-dep 3.0 is here!","permalink":"/blog/Rev-dep-3-0-release","unlisted":false,"date":"2026-08-03T00:00:00.000Z"}]}')}}]);

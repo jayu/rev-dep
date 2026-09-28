@@ -10,6 +10,7 @@ import (
 	"rev-dep-go/internal/dupcode"
 	"rev-dep-go/internal/pathutil"
 	"rev-dep-go/internal/plural"
+	"rev-dep-go/internal/telemetry"
 )
 
 var (
@@ -116,6 +117,9 @@ func duplicatedCodeCmdFn(cwd string, blinding dupcode.Blinding, minTokens, minLi
 	if err != nil {
 		return err
 	}
+
+	fileCount := stats.Files
+	telemetry.DispatchCommand(cwd, "duplicated-code", &fileCount)
 
 	// What happens to the baseline is decided BEFORE the output format, not inside one of them.
 	// Deciding it per format is how --format json came to silently skip writing a snapshot with

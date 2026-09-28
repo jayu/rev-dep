@@ -28,6 +28,7 @@ import (
 	"rev-dep-go/internal/pathutil"
 	"rev-dep-go/internal/resolve"
 	"rev-dep-go/internal/source"
+	"rev-dep-go/internal/telemetry"
 	"rev-dep-go/internal/version"
 )
 
@@ -319,7 +320,7 @@ func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude, p
 	}
 
 	absolutePathToEntryPoints, discoveredFiles := resolve.ResolveEntryPointsFromPatterns(cwd, entryPoints, graphExclude, processIgnoredFiles)
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, discoveredFiles, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, nodeModulesStrategy)
+	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, discoveredFiles, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, nodeModulesStrategy)
 
 	if len(absolutePathToEntryPoints) == 0 {
 		absolutePathToEntryPoints = graph.GetEntryPoints(minimalTree, []string{}, []string{}, cwd)
@@ -483,6 +484,8 @@ func resolveCmdFn(cwd, filePath, moduleName string, entryPoints, graphExclude, p
 
 	fmt.Printf("Total: %d\n", totalCount)
 
+	fileCount := len(files)
+	telemetry.DispatchCommand(cwd, "resolve", &fileCount)
 	return nil
 }
 
@@ -527,12 +530,15 @@ var (
 )
 
 func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDependenciesCount bool, graphExclude, processIgnoredFiles, resultExclude, resultInclude []string, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, []string{}, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, ignoreType, graphExclude, processIgnoredFiles, []string{}, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 
 	notReferencedFiles := graph.GetEntryPoints(minimalTree, resultExclude, resultInclude, cwd)
+	fileCount := len(files)
+	dispatchTelemetry := func() { telemetry.DispatchCommand(cwd, "entry-points", &fileCount) }
 
 	if entryPointsCount {
 		fmt.Println(len(notReferencedFiles))
+		dispatchTelemetry()
 		return nil
 	}
 
@@ -541,6 +547,7 @@ func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDepen
 			printPath := strings.TrimPrefix(filePath, cwd)
 			fmt.Println(printPath)
 		}
+		dispatchTelemetry()
 		return nil
 	}
 
@@ -584,6 +591,7 @@ func entryPointsCmdFn(cwd string, ignoreType, entryPointsCount, entryPointsDepen
 		fmt.Println(source.PadRight(printPath, ' ', maxFilePathLen), depsCountMeta[filePath])
 	}
 
+	dispatchTelemetry()
 	return nil
 }
 
@@ -634,6 +642,8 @@ func circularCmdFn(cwd string, ignoreType bool, tsconfigJsonPath string, conditi
 		fmt.Fprint(os.Stdout, formatted)
 	}
 
+	fileCount := len(files)
+	telemetry.DispatchCommand(cwd, "circular", &fileCount)
 	return len(cycles), nil
 }
 
@@ -717,8 +727,9 @@ Helps keep track of your project's runtime dependencies.`,
 		if err != nil {
 			return err
 		}
-		result, _ := node.NodeModulesCmd(
-			pathutil.ResolveAbsoluteCwd(nodeModulesCwd),
+		cwd := pathutil.ResolveAbsoluteCwd(nodeModulesCwd)
+		result, _, fileCount := node.NodeModulesCmd(
+			cwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
 			nodeModulesCountFlag,
@@ -744,6 +755,7 @@ Helps keep track of your project's runtime dependencies.`,
 		)
 
 		fmt.Print(result)
+		telemetry.DispatchCommand(cwd, "node-modules-used", fileCount)
 
 		return nil
 	},
@@ -764,8 +776,9 @@ to identify potentially unused packages.`,
 		if err != nil {
 			return err
 		}
-		result, count := node.NodeModulesCmd(
-			pathutil.ResolveAbsoluteCwd(nodeModulesCwd),
+		cwd := pathutil.ResolveAbsoluteCwd(nodeModulesCwd)
+		result, count, fileCount := node.NodeModulesCmd(
+			cwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
 			nodeModulesCountFlag,
@@ -791,6 +804,7 @@ to identify potentially unused packages.`,
 		)
 
 		fmt.Print(result)
+		telemetry.DispatchCommand(cwd, "node-modules-unused", fileCount)
 
 		if !nodeModulesZeroExitCode {
 			os.Exit(count)
@@ -815,8 +829,9 @@ in your package.json dependencies.`,
 		if err != nil {
 			return err
 		}
-		result, count := node.NodeModulesCmd(
-			pathutil.ResolveAbsoluteCwd(nodeModulesCwd),
+		cwd := pathutil.ResolveAbsoluteCwd(nodeModulesCwd)
+		result, count, fileCount := node.NodeModulesCmd(
+			cwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
 			nodeModulesCountFlag,
@@ -842,6 +857,7 @@ in your package.json dependencies.`,
 		)
 
 		fmt.Print(result)
+		telemetry.DispatchCommand(cwd, "node-modules-missing", fileCount)
 
 		if !nodeModulesZeroExitCode {
 			os.Exit(count)
@@ -985,6 +1001,8 @@ func listCwdFilesCmdFn(cwd string, include, exclude []string, listFilesCount boo
 		fmt.Println(count)
 	}
 
+	fileCount := len(files)
+	telemetry.DispatchCommand(cwd, "list-cwd-files", &fileCount)
 	return nil
 }
 
@@ -1162,13 +1180,15 @@ func linesOfCodeCmdFn(cwd string) error {
 		formatNumber(totalLinesWithoutTemplates),
 		float64(totalLinesWithoutTemplates)/float64(totalLines)*100)
 	w.Flush()
+	fileCount := len(files)
+	telemetry.DispatchCommand(cwd, "lines-of-code", &fileCount)
 	return nil
 }
 
 func importedByCmdFn(cwd, filePath string, count, listImports bool, processIgnoredFiles []string, tsconfigJsonPath string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue) error {
 	excludeFiles := []string{}
 
-	minimalTree, _, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, processIgnoredFiles, []string{}, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
+	minimalTree, files, _ := resolve.GetMinimalDepsTreeForCwd(cwd, false, excludeFiles, processIgnoredFiles, []string{}, tsconfigJsonPath, conditionNames, followMonorepoPackages, nil, resolve.NodeModulesMatchingStrategyCwdResolver)
 
 	absolutePathToFilePath := pathutil.NormalizePathForInternal(pathutil.JoinWithCwd(cwd, filePath))
 
@@ -1232,6 +1252,8 @@ func importedByCmdFn(cwd, filePath string, count, listImports bool, processIgnor
 
 	if count {
 		fmt.Println(len(importingFiles))
+		fileCount := len(files)
+		telemetry.DispatchCommand(cwd, "imported-by", &fileCount)
 		return nil
 	}
 
@@ -1255,6 +1277,8 @@ func importedByCmdFn(cwd, filePath string, count, listImports bool, processIgnor
 		}
 	}
 
+	fileCount := len(files)
+	telemetry.DispatchCommand(cwd, "imported-by", &fileCount)
 	return nil
 }
 
@@ -1333,30 +1357,38 @@ func stringMapToFileValueIgnoreMap(input map[string]string) globutil.FileValueIg
 
 // unresolvedCmdRun is the functional core for the `unresolved` command. It returns an error on failure.
 func unresolvedCmdRun(cwd, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) error {
-	out, err := getUnresolvedOutput(cwd, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions, processIgnoredFiles)
+	out, fileCount, err := getUnresolvedOutputWithFileCount(cwd, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions, processIgnoredFiles)
 	if err != nil {
 		return err
 	}
 	if out != "" {
 		fmt.Print(out)
 	}
+	telemetry.DispatchCommand(cwd, "unresolved", &fileCount)
 	return nil
 }
 
 // getUnresolvedOutput returns formatted unresolved imports grouped by file as a string.
 func getUnresolvedOutput(cwd, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) (string, error) {
+	out, _, err := getUnresolvedOutputWithFileCount(cwd, tsconfigJson, conditionNames, followMonorepoPackages, options, customAssetExtensions, processIgnoredFiles)
+	return out, err
+}
+
+// getUnresolvedOutputWithFileCount returns the formatted output and the full source-file count
+// discovered by the command's existing dependency-tree build.
+func getUnresolvedOutputWithFileCount(cwd, tsconfigJson string, conditionNames []string, followMonorepoPackages model.FollowMonorepoPackagesValue, options *config.UnresolvedImportsOptions, customAssetExtensions []string, processIgnoredFiles []string) (string, int, error) {
 	if options == nil {
 		options = &config.UnresolvedImportsOptions{}
 	}
 	nodeModulesStrategy, err := nodeModulesResolutionStrategy()
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	// The ignored set stays empty in both modes: the resolver strategy already classifies each
 	// import against the right package.json, so any NotResolvedModule is genuinely unresolved.
 	// Exception: --include-dev-deps-from-root treats the monorepo root devDependencies as available,
 	// so they are not reported as unresolved (mirrors the config option and the missing check).
-	minimalTree, _, resolverManager := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions, nodeModulesStrategy)
+	minimalTree, files, resolverManager := resolve.GetMinimalDepsTreeForCwd(cwd, false, []string{}, processIgnoredFiles, []string{}, tsconfigJson, conditionNames, followMonorepoPackages, customAssetExtensions, nodeModulesStrategy)
 
 	ignoredNodeModules := map[string]bool{}
 	if getIncludeDevDepsFromRoot() && resolverManager != nil {
@@ -1403,7 +1435,7 @@ func getUnresolvedOutput(cwd, tsconfigJson string, conditionNames []string, foll
 		}
 	}
 
-	return b.String(), nil
+	return b.String(), len(files), nil
 }
 
 func addNodeModulesIncludeExcludeFlags(command *cobra.Command) {

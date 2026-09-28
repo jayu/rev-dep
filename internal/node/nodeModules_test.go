@@ -81,7 +81,7 @@ func TestUsedNodeModules(t *testing.T) {
 	nodeModulesExcludeModules := []string{}
 	t.Run("should print flat list of node modules", func(t *testing.T) {
 
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -118,7 +118,7 @@ func TestUsedNodeModules(t *testing.T) {
 	t.Run("should print count of node modules", func(t *testing.T) {
 		nodeModulesCountFlag := true
 
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -154,7 +154,7 @@ func TestUsedNodeModules(t *testing.T) {
 
 	t.Run("should print node modules grouped by files", func(t *testing.T) {
 		nodeModulesGroupByFile := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -190,7 +190,7 @@ func TestUsedNodeModules(t *testing.T) {
 
 	t.Run("should print node modules grouped by modules", func(t *testing.T) {
 		nodeModulesGroupByModule := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -225,7 +225,7 @@ func TestUsedNodeModules(t *testing.T) {
 
 	t.Run("should print node modules with files count", func(t *testing.T) {
 		nodeModulesGroupByModuleFilesCount := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -275,7 +275,7 @@ func TestUnusedNodeModules(t *testing.T) {
 	nodeModulesIncludeModules := []string{}
 	nodeModulesExcludeModules := []string{}
 	t.Run("should print flat list of node modules", func(t *testing.T) {
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -310,7 +310,7 @@ func TestUnusedNodeModules(t *testing.T) {
 
 	t.Run("should print count of node modules", func(t *testing.T) {
 		nodeModulesCountFlag := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -361,7 +361,7 @@ func TestMissingNodeModules(t *testing.T) {
 	nodeModulesExcludeModules := []string{}
 
 	t.Run("should print flat list of node modules", func(t *testing.T) {
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -397,7 +397,7 @@ func TestMissingNodeModules(t *testing.T) {
 
 	t.Run("should print count of node modules", func(t *testing.T) {
 		nodeModulesCountFlag := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -433,7 +433,7 @@ func TestMissingNodeModules(t *testing.T) {
 
 	t.Run("should print node modules groupe by file", func(t *testing.T) {
 		nodeModulesGroupByFile := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -469,7 +469,7 @@ func TestMissingNodeModules(t *testing.T) {
 
 	t.Run("should print node modules groupe by module", func(t *testing.T) {
 		nodeModulesGroupByModule := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -520,7 +520,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 	nodeModulesExcludeModules := []string{}
 	t.Run("should detect binary in text file", func(t *testing.T) {
 		nodeModulesFilesWithBinaries := []string{"fileWithBinary.txt"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -555,7 +555,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 
 	t.Run("should detect node module in text file", func(t *testing.T) {
 		nodeModulesFilesWithModules := []string{"fileWithModule.txt"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -590,7 +590,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 
 	t.Run("should detect node module in package json scripts", func(t *testing.T) {
 		nodeModulesFilesWithModules := []string{"fileWithModule.txt"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -625,7 +625,7 @@ func TestUnusedAdditionalFlags(t *testing.T) {
 
 	t.Run("should detect node module in package json field", func(t *testing.T) {
 		nodeModulesPkgJsonFieldsWithBinaries := []string{"some-tool-settings"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -676,7 +676,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 	nodeModulesExcludeModules := []string{}
 	t.Run("should detect binary in text file", func(t *testing.T) {
 		nodeModulesFilesWithBinaries := []string{"fileWithBinary.txt"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -711,7 +711,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 
 	t.Run("should detect node module in text file", func(t *testing.T) {
 		nodeModulesFilesWithModules := []string{"fileWithModule.txt"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -746,7 +746,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 
 	t.Run("should detect node module in package json scripts", func(t *testing.T) {
 		nodeModulesFilesWithModules := []string{"fileWithModule.txt"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -781,7 +781,7 @@ func TestUsedAdditionalFlags(t *testing.T) {
 
 	t.Run("should detect node module in package json field", func(t *testing.T) {
 		nodeModulesPkgJsonFieldsWithBinaries := []string{"some-tool-settings"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -832,7 +832,7 @@ func TestIncludeExclude(t *testing.T) {
 	nodeModulesExcludeModules := []string{}
 	t.Run("should list only included modules in used modules cmd", func(t *testing.T) {
 		nodeModulesIncludeModules := []string{"@types/dep-types-2", "dep4"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -867,7 +867,7 @@ func TestIncludeExclude(t *testing.T) {
 
 	t.Run("should not list excluded modules in used modules cmd", func(t *testing.T) {
 		nodeModulesExcludeModules := []string{"@types/dep-types-2", "dep4"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -903,7 +903,7 @@ func TestIncludeExclude(t *testing.T) {
 	t.Run("should list only included modules in unused modules cmd", func(t *testing.T) {
 		nodeModulesIncludeModules := []string{"dep3"}
 		nodeModulesListUnused := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -939,7 +939,7 @@ func TestIncludeExclude(t *testing.T) {
 	t.Run("should not list excluded modules in unused modules cmd", func(t *testing.T) {
 		nodeModulesExcludeModules := []string{"dep3"}
 		nodeModulesListUnused := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -975,7 +975,7 @@ func TestIncludeExclude(t *testing.T) {
 	t.Run("should list only included modules in missing modules cmd", func(t *testing.T) {
 		nodeModulesIncludeModules := []string{"dep5"}
 		nodeModulesListMissing := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -1011,7 +1011,7 @@ func TestIncludeExclude(t *testing.T) {
 	t.Run("should not list excluded modules in missing modules cmd", func(t *testing.T) {
 		nodeModulesExcludeModules := []string{"dep5"}
 		nodeModulesListMissing := true
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -1060,7 +1060,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 
 	t.Run("should support wildcard prefix matching (suffix wildcard)", func(t *testing.T) {
 		nodeModulesIncludeModules := []string{"*types-2", "dep*"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -1095,7 +1095,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 
 	t.Run("should support wildcard suffix matching (prefix wildcard)", func(t *testing.T) {
 		nodeModulesIncludeModules := []string{"@types/*", "*4"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -1130,7 +1130,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 
 	t.Run("should support wildcard contains matching (both prefix and suffix)", func(t *testing.T) {
 		nodeModulesIncludeModules := []string{"*dep*"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -1165,7 +1165,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 
 	t.Run("should support wildcard exclusion", func(t *testing.T) {
 		nodeModulesExcludeModules := []string{"@types/*", "dep*"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -1200,7 +1200,7 @@ func TestWildcardIncludeExclude(t *testing.T) {
 
 	t.Run("should support mixed wildcard and exact patterns", func(t *testing.T) {
 		nodeModulesIncludeModules := []string{"@types/dep-types-1", "*dep*"}
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			nodeModulesCwd,
 			nodeModulesIgnoreType,
 			nodeModulesEntryPoints,
@@ -1272,7 +1272,7 @@ func TestTsConfigTypesComplexRealWorld(t *testing.T) {
 	tsconfigTypesComplexCwd := fixturePath(t, "tsconfigTypesComplex")
 
 	t.Run("should handle complex tsconfig with mixed types", func(t *testing.T) {
-		result, _ := NodeModulesCmd(
+		result, _, _ := NodeModulesCmd(
 			tsconfigTypesComplexCwd,
 			false,                         // ignoreType
 			[]string{},                    // entryPoints
@@ -1356,7 +1356,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		t.Fatalf("Failed to write shared.ts: %v", err)
 	}
 
-	result, _ := NodeModulesCmd(
+	result, _, _ := NodeModulesCmd(
 		tempDir,
 		false,
 		[]string{"entryA.ts", "entryB.ts"},
@@ -1387,7 +1387,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		t.Errorf("Incorrect grouped-by-entry-point modules output '%s'. Expected '%s'", result, expectedGrouped)
 	}
 
-	countsResult, _ := NodeModulesCmd(
+	countsResult, _, _ := NodeModulesCmd(
 		tempDir,
 		false,
 		[]string{"entryA.ts", "entryB.ts"},
@@ -1422,7 +1422,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		t.Errorf("Incorrect grouped-by-entry-point count output '%s'", countsResult)
 	}
 
-	moduleEntryPointsResult, _ := NodeModulesCmd(
+	moduleEntryPointsResult, _, _ := NodeModulesCmd(
 		tempDir,
 		false,
 		[]string{"entryA.ts", "entryB.ts"},
@@ -1453,7 +1453,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		t.Errorf("Incorrect grouped-by-module entry points output '%s'. Expected '%s'", moduleEntryPointsResult, expectedGroupByModuleEntryPoints)
 	}
 
-	moduleEntryPointsCountResult, _ := NodeModulesCmd(
+	moduleEntryPointsCountResult, _, _ := NodeModulesCmd(
 		tempDir,
 		false,
 		[]string{"entryA.ts", "entryB.ts"},
@@ -1484,7 +1484,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		t.Errorf("Incorrect grouped-by-module entry points count output '%s'. Expected '%s'", moduleEntryPointsCountResult, expectedGroupByModuleEntryPointsCount)
 	}
 
-	moduleEntryPointsAutoEntryPointsResult, _ := NodeModulesCmd(
+	moduleEntryPointsAutoEntryPointsResult, _, _ := NodeModulesCmd(
 		tempDir,
 		false,
 		[]string{},
@@ -1513,7 +1513,7 @@ func TestUsedNodeModulesGroupedByEntryPoint(t *testing.T) {
 		t.Errorf("Incorrect grouped-by-module entry points output with auto entry points '%s'. Expected '%s'", moduleEntryPointsAutoEntryPointsResult, expectedGroupByModuleEntryPoints)
 	}
 
-	resultFromGlob, _ := NodeModulesCmd(
+	resultFromGlob, _, _ := NodeModulesCmd(
 		tempDir,
 		false,
 		[]string{"entry*.ts"},

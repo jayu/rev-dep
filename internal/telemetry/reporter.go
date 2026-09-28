@@ -19,20 +19,22 @@ import (
 // reporter is detached and does not block anything.
 const reporterTimeout = 5 * time.Second
 
-// Payload is the exact anonymous record sent to the telemetry collector for a `config run`. Inspect
-// this struct to see everything that is shared. It contains only three non-reversible hashes plus
-// counts and environment facts; no file names, paths, code, dependency names, or URLs are ever
-// transmitted in the clear.
+// Payload is the exact anonymous record sent to the telemetry collector. Inspect this struct to see
+// everything that is shared. It contains only three non-reversible hashes plus counts and
+// environment facts; no file names, paths, code, dependency names, or URLs are ever transmitted in
+// the clear.
 type Payload struct {
-	MachineID     string  `json:"machineId"`     // sha256(hardware/OS facts); approximate unique machine
-	ProjectID     string  `json:"projectId"`     // sha256(repo URL + root package.json name); approximate unique project
-	RepoID        string  `json:"repoId"`        // sha256(nearest Git repository remote); empty when no remote is configured
-	ToolVersion   string  `json:"toolVersion"`   // rev-dep version
-	ConfigVersion string  `json:"configVersion"` // config schema version in use
-	OS            string  `json:"os"`            // GOOS: darwin / linux / windows
-	Arch          string  `json:"arch"`          // GOARCH
-	IsCI          bool    `json:"isCI"`          // best-effort CI detection
-	Metrics       Metrics `json:"metrics"`       // anonymous usage counts
+	EventName     string   `json:"eventName"`           // fixed command event name
+	MachineID     string   `json:"machineId"`           // sha256(hardware/OS facts); approximate unique machine
+	ProjectID     string   `json:"projectId"`           // sha256(repo URL + root package.json name); approximate unique project
+	RepoID        string   `json:"repoId"`              // sha256(nearest Git repository remote); empty when no remote is configured
+	ToolVersion   string   `json:"toolVersion"`         // rev-dep version
+	ConfigVersion string   `json:"configVersion"`       // config schema version; empty for exploratory commands
+	OS            string   `json:"os"`                  // GOOS: darwin / linux / windows
+	Arch          string   `json:"arch"`                // GOARCH
+	IsCI          bool     `json:"isCI"`                // best-effort CI detection
+	Metrics       *Metrics `json:"metrics,omitempty"`   // config-run usage counts
+	FileCount     *int     `json:"fileCount,omitempty"` // exploratory command source files; omitted for partial scans
 }
 
 // Configured reports whether this build has a usable telemetry connection string baked in - a
@@ -63,7 +65,13 @@ func RunReporter() {
 		return
 	}
 
+	eventName := input.EventName
+	if eventName == "" {
+		eventName = "config-run"
+	}
+
 	payload := Payload{
+		EventName:     eventName,
 		MachineID:     machineID(),
 		ProjectID:     projectID(input.Cwd),
 		RepoID:        repoID(input.Cwd),
@@ -73,6 +81,7 @@ func RunReporter() {
 		Arch:          runtime.GOARCH,
 		IsCI:          isCI(),
 		Metrics:       input.Metrics,
+		FileCount:     input.FileCount,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), reporterTimeout)
@@ -82,6 +91,14 @@ func RunReporter() {
 
 // send posts the payload to the Application Insights ingestion endpoint as a custom event.
 func send(ctx context.Context, iKey, endpoint string, p Payload) error {
+	measurements := map[string]float64{}
+	if p.Metrics != nil {
+		measurements = p.Metrics.asMeasurements()
+	}
+	if p.FileCount != nil {
+		measurements["fileCount"] = float64(*p.FileCount)
+	}
+
 	envelope := map[string]any{
 		"name": "Microsoft.ApplicationInsights.Event",
 		"time": time.Now().UTC().Format(time.RFC3339),
@@ -91,7 +108,7 @@ func send(ctx context.Context, iKey, endpoint string, p Payload) error {
 			"baseType": "EventData",
 			"baseData": map[string]any{
 				"ver":  2,
-				"name": "config-run",
+				"name": p.EventName,
 				"properties": map[string]string{
 					"machineId":     p.MachineID,
 					"projectId":     p.ProjectID,
@@ -102,7 +119,7 @@ func send(ctx context.Context, iKey, endpoint string, p Payload) error {
 					"arch":          p.Arch,
 					"isCI":          strconv.FormatBool(p.IsCI),
 				},
-				"measurements": p.Metrics.asMeasurements(),
+				"measurements": measurements,
 			},
 		},
 	}

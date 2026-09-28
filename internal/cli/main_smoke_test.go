@@ -590,7 +590,7 @@ func TestNodeModules(t *testing.T) {
 		nodeModulesPath := fixturePath(t, "nodeModulesCmdSmoke")
 
 		output, err := captureOutput(func() error {
-			result, _ := node.NodeModulesCmd(
+			result, _, _ := node.NodeModulesCmd(
 				nodeModulesPath,
 				false,
 				[]string{},
@@ -627,7 +627,7 @@ func TestNodeModules(t *testing.T) {
 		nodeModulesPath := fixturePath(t, "nodeModulesCmdSmoke")
 
 		output, err := captureOutput(func() error {
-			result, _ := node.NodeModulesCmd(
+			result, _, _ := node.NodeModulesCmd(
 				nodeModulesPath,
 				true,
 				[]string{"index.ts", "src/importFileA.ts"},
@@ -664,7 +664,7 @@ func TestNodeModules(t *testing.T) {
 		nodeModulesPath := fixturePath(t, "nodeModulesCmdSmoke")
 
 		output, err := captureOutput(func() error {
-			result, _ := node.NodeModulesCmd(
+			result, _, _ := node.NodeModulesCmd(
 				nodeModulesPath,
 				false,
 				[]string{},
@@ -701,7 +701,7 @@ func TestNodeModules(t *testing.T) {
 		nodeModulesPath := fixturePath(t, "nodeModulesCmdSmoke")
 
 		output, err := captureOutput(func() error {
-			result, _ := node.NodeModulesCmd(
+			result, _, _ := node.NodeModulesCmd(
 				nodeModulesPath,
 				false,
 				[]string{},
@@ -738,7 +738,7 @@ func TestNodeModules(t *testing.T) {
 		nodeModulesPath := fixturePath(t, "nodeModulesCmdSmoke")
 
 		output, err := captureOutput(func() error {
-			result, _ := node.NodeModulesCmd(
+			result, _, _ := node.NodeModulesCmd(
 				nodeModulesPath,
 				false,
 				[]string{},
@@ -775,7 +775,7 @@ func TestNodeModules(t *testing.T) {
 		nodeModulesPath := fixturePath(t, "nodeModulesCmdSmoke")
 
 		output, err := captureOutput(func() error {
-			result, _ := node.NodeModulesCmd(
+			result, _, _ := node.NodeModulesCmd(
 				nodeModulesPath,
 				false,
 				[]string{},
@@ -812,7 +812,7 @@ func TestNodeModules(t *testing.T) {
 		nodeModulesPath := fixturePath(t, "mockMonorepo")
 
 		output, err := captureOutput(func() error {
-			result, _ := node.NodeModulesCmd(
+			result, _, _ := node.NodeModulesCmd(
 				nodeModulesPath,
 				false,
 				[]string{"packages/consumer-package/index.ts"},

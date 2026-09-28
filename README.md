@@ -1720,7 +1720,7 @@ The top-level directory used as the starting point for dependency analysis.
 
 ## Telemetry
 
-Rev-Dep collects a single **anonymous** event, only during `rev-dep config run`. Read more in [Telemetry docs](https://rev-dep.com/docs/telemetry).
+Rev-Dep collects a single **anonymous** event for each `rev-dep config run` and supported exploratory analysis command. Read more in [Telemetry docs](https://rev-dep.com/docs/telemetry).
 
 Opt out completely by setting `REV_DEP_TELEMETRY_OFF=true`.
 

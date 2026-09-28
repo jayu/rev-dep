@@ -1,10 +1,11 @@
-// Package telemetry reports a single anonymous event per `config run` invocation so the
-// maintainers can understand how often and in what shape the tool is used.
+// Package telemetry reports anonymous events for supported analysis commands so the maintainers
+// can understand how often and in what shape the tool is used.
 //
 // What is collected is fully described by the Payload and Metrics structs in this package - inspect
 // them to see exactly what leaves your machine. It is intentionally limited to:
 //   - three non-reversible hashes (an approximate machine id, project id, and repository id), and
-//   - counts and environment facts (OS, arch, CI, tool/config versions, per-detector usage counts).
+//   - counts and environment facts (OS, arch, CI, tool version, config version when loaded, and
+//     per-detector usage counts).
 //
 // No file names, paths, source code, dependency names, or URLs are ever transmitted in the clear.
 //
@@ -41,9 +42,11 @@ var connectionString string
 // actually sent. Kept separate so the parent does zero fingerprinting or network work on the hot
 // path.
 type dispatchInput struct {
-	Cwd           string  `json:"cwd"`
-	ConfigVersion string  `json:"configVersion"`
-	Metrics       Metrics `json:"metrics"`
+	Cwd           string   `json:"cwd"`
+	EventName     string   `json:"eventName"`
+	ConfigVersion string   `json:"configVersion"`
+	Metrics       *Metrics `json:"metrics,omitempty"`
+	FileCount     *int     `json:"fileCount,omitempty"`
 }
 
 // Dispatch fires telemetry for a `config run` invocation without blocking the caller. It spawns a
@@ -54,15 +57,32 @@ type dispatchInput struct {
 // Telemetry is suppressed entirely when REV_DEP_TELEMETRY_OFF=true, under `go test`, or when no
 // Application Insights connection string was baked into the build.
 func Dispatch(cwd string, cfg *config.RevDepConfig, fileCount int) {
+	metrics := BuildMetrics(cfg, fileCount)
+	dispatch(dispatchInput{
+		Cwd:           cwd,
+		EventName:     "config-run",
+		ConfigVersion: cfg.ConfigVersion,
+		Metrics:       &metrics,
+	})
+}
+
+func DispatchCommand(cwd, eventName string, fileCount *int) {
+	if eventName == "" {
+		return
+	}
+	input := dispatchInput{
+		Cwd:       cwd,
+		EventName: eventName,
+		FileCount: fileCount,
+	}
+	dispatch(input)
+}
+
+func dispatch(input dispatchInput) {
 	if !enabled() {
 		return
 	}
 
-	input := dispatchInput{
-		Cwd:           cwd,
-		ConfigVersion: cfg.ConfigVersion,
-		Metrics:       BuildMetrics(cfg, fileCount),
-	}
 	data, err := json.Marshal(input)
 	if err != nil {
 		return

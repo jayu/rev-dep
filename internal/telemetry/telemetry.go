@@ -3,7 +3,7 @@
 //
 // What is collected is fully described by the Payload and Metrics structs in this package - inspect
 // them to see exactly what leaves your machine. It is intentionally limited to:
-//   - two non-reversible hashes (an approximate machine id and an approximate project id), and
+//   - three non-reversible hashes (an approximate machine id, project id, and repository id), and
 //   - counts and environment facts (OS, arch, CI, tool/config versions, per-detector usage counts).
 //
 // No file names, paths, source code, dependency names, or URLs are ever transmitted in the clear.

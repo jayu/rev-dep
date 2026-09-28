@@ -20,12 +20,13 @@ import (
 const reporterTimeout = 5 * time.Second
 
 // Payload is the exact anonymous record sent to the telemetry collector for a `config run`. Inspect
-// this struct to see everything that is shared. It contains only two non-reversible hashes plus
+// this struct to see everything that is shared. It contains only three non-reversible hashes plus
 // counts and environment facts; no file names, paths, code, dependency names, or URLs are ever
 // transmitted in the clear.
 type Payload struct {
 	MachineID     string  `json:"machineId"`     // sha256(hardware/OS facts); approximate unique machine
 	ProjectID     string  `json:"projectId"`     // sha256(repo URL + root package.json name); approximate unique project
+	RepoID        string  `json:"repoId"`        // sha256(nearest Git repository remote); empty when no remote is configured
 	ToolVersion   string  `json:"toolVersion"`   // rev-dep version
 	ConfigVersion string  `json:"configVersion"` // config schema version in use
 	OS            string  `json:"os"`            // GOOS: darwin / linux / windows
@@ -65,6 +66,7 @@ func RunReporter() {
 	payload := Payload{
 		MachineID:     machineID(),
 		ProjectID:     projectID(input.Cwd),
+		RepoID:        repoID(input.Cwd),
 		ToolVersion:   version.Version,
 		ConfigVersion: input.ConfigVersion,
 		OS:            runtime.GOOS,
@@ -93,6 +95,7 @@ func send(ctx context.Context, iKey, endpoint string, p Payload) error {
 				"properties": map[string]string{
 					"machineId":     p.MachineID,
 					"projectId":     p.ProjectID,
+					"repoId":        p.RepoID,
 					"toolVersion":   p.ToolVersion,
 					"configVersion": p.ConfigVersion,
 					"os":            p.OS,

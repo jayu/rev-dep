@@ -2,7 +2,7 @@
 
 > rev-dep collects a single anonymous event during config run to understand how its features are used. It is fully opt-out, never slows the tool, and you can inspect exactly what is sent in the source.
 
-rev-dep collects a single **anonymous** event, and only during `rev-dep config run`. It exists so the project can understand which features are actually used and prioritize accordingly. No other command reports anything.
+rev-dep collects one **anonymous** event for each completed `config run` and supported exploratory analysis command. It exists so the project can understand which features are actually used and prioritize accordingly.
 
 It's designed it to be transparent and privacy-preserving. This page explains exactly what is sent, how to turn it off, and where to read the source.
 
@@ -10,13 +10,32 @@ It's designed it to be transparent and privacy-preserving. This page explains ex
 
 The event is anonymous. It contains:
 
-- Two **non-reversible hashes** - an approximate machine id and an approximate project id - used only to roughly distinguish installs and projects from one another.
-- A small set of **counts and environment facts**: OS, architecture, whether it is running in CI, the tool version, the config version, and per-detector usage counts / root-option usage flags.
+- Three **non-reversible hashes** - an approximate machine id, an approximate project id, and a repository id. The repository id is the SHA-256 hash of the normalized remote URL from the nearest Git repository, and is empty when that repository has no remote. They are used only to roughly distinguish installs, projects, and repositories from one another.
+- A small set of **counts and environment facts**: OS, architecture, whether it is running in CI, the tool version, the config version for `config run`, and per-detector usage counts / root-option usage flags.
 - A **coarse geographic location** - `City`, `StateOrProvince`, and `CountryOrRegion`. This is **not** part of the payload our code builds: the telemetry collector (Azure Application Insights) automatically derives it from the IP address of the request. The raw IP is used only for this lookup and is **not stored**.
 
 ## What is never collected
 
 To be explicit: rev-dep never sends your file names, file paths, source code, dependency or package names, or any URLs. The request IP is used by the collector solely to derive the coarse location above and is then discarded - it is not retained.
+
+## Commands that report
+
+Commands that report telemetry are:
+
+- config run
+- circular
+- duplicated-code
+- resolve
+- entry-points
+- imported-by
+- unresolved
+- lines-of-code
+- list-cwd-files
+- node-modules used
+- node-modules unused
+- node-modules missing
+
+All commands send projects files count if available.
 
 ## Opting out
 

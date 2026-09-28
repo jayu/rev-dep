@@ -48,7 +48,7 @@ Start with the defaults. If the output is dominated by configuration objects rat
 
 ## Snapshots
 
-On a project that already has duplication, the first run reports all of it and none of it is news. A snapshot records what has been acknowledged, so later runs report only what **changed**:
+On a project that already has duplication, the first run reports all of it and none of it is news. A snapshot records what has been acknowledged, so later runs report only what **changed**. Use the second command in CI:
 
 ```bash
 # acknowledge everything currently found
@@ -84,6 +84,8 @@ With `--snapshot`, the output is filtered to what changed, each entry labelled `
 
 ## Exit code
 
-Exits non-zero when duplication is found - or, with `--snapshot`, when the result differs from the baseline in either direction. That makes it usable as a CI check on its own.
+Without `--snapshot`, `duplicated-code` is exploratory: it prints every current duplication and exits `0`, even when it finds duplicates. This mode is for inspecting a codebase, where existing duplication is common and a non-zero exit would not be actionable.
 
-For CI across a monorepo, prefer the [`duplicatedCodeDetection`](../config-based-checks/checks/duplicated-code.mdx) config check: it runs in the same single pass as every other check instead of a separate traversal.
+For CI, create and commit a snapshot, then run `rev-dep duplicated-code --snapshot duplicated-code.json`. It exits non-zero when the result differs from the baseline in either direction, including new, removed, or changed duplications. A clean match exits `0`.
+
+For CI across a monorepo, the [`duplicatedCodeDetection`](../config-based-checks/checks/duplicated-code.mdx) config check runs in the same single pass as every other check.

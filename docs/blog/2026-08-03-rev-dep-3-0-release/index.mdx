@@ -8,10 +8,10 @@ authors: [jayu]
 
 This version brings performance improvements, duplicate code detection, and glob matcher behavior parity with gitignore.
 
-Make sure to check [Short Story of Rev-dep](#short-story-of-Rev-dep) at the end of this post!
+Make sure to check [Short Story of Rev-dep](#short-story-of-rev-dep) at the end of this post!
 
 Useful links:
-- [Breaking changes and migration guide](docs/upgrade-guides/v3-breaking-changes)<br/>
+- [Breaking changes and migration guide](/docs/upgrade-guides/v3-breaking-changes)<br/>
 - [Github Release](https://github.com/jayu/Rev-dep/releases/tag/3.0.0)
 
 ## Performance Improvements
@@ -32,7 +32,7 @@ I took lessons from that approach and implemented it within Rev-dep, utilizing t
 
 What's different in Rev-dep's duplicate code identification approach is that it focuses on code chunks that can be refactored right away. It captures duplicated code blocks and JSX expressions, while other tools focus on detecting chunks of duplicated tokens. But those tokens can start in the middle of some function and end in the middle of another, which makes the findings harder to work with.
 
-Read more about duplicate code detection in [duplicated code detection docs](docs/other-concepts-and-features/duplicated-code-detection.mdx).
+Read more about duplicate code detection in [duplicated code detection docs](/docs/other-concepts-and-features/duplicated-code-detection).
 
 ## Glob Matchers Behavior Parity With Gitignore
 
@@ -54,7 +54,7 @@ The initial release happened in November 2020.
 
 The **0.x** version was working, but was not robust enough to work on very large codebases with complex dependency graphs.
 
-It was based on [dependency-cruiser](docs/comparison-with-other-tools/dependency-cruiser-vs-Rev-dep), which delivered the dependency graph. Later it also used [dpdm](docs/comparison-with-other-tools/dpdm-vs-Rev-dep), which added support for TS codebases (yes, at that time people still worked on JS-only codebases 😀).
+It was based on [dependency-cruiser](/docs/comparison-with-other-tools/dependency-cruiser-vs-rev-dep), which delivered the dependency graph. Later it also used [dpdm](/docs/comparison-with-other-tools/dpdm-vs-rev-dep), which added support for TS codebases (yes, at that time people still worked on JS-only codebases 😀).
 
 Now Rev-dep aims to replace these tools.
 

@@ -1,0 +1,59 @@
+---
+slug: rev-dep-3-1-release
+title: Rev-dep 3.1.0 release
+authors: [jayu]
+---
+
+# Rev-dep 3.1.0 release
+
+This minor version bump brings:
+
+- parsing template string literals inside require and import calls
+- ability to detect non-literal import targets
+- improved support for built-in modules detection
+- improvements to telemetry reporting
+- various documentation improvements
+
+[GitHub Release](https://github.com/jayu/rev-dep/releases/tag/3.1.0)
+
+## Template literal import targets
+
+Previously, imports with template string literals, for example `import(\`someModule.ts\`)`, were not parsed. Right now they are, as long as the target value can be statically analysed.
+
+Template literals that cannot be statically analysed, for example `import(\`${dir}/someModule.ts\`)`, will be internally represented as `NonLiteralModule`. Such imports cannot be followed, but they can be detected as a violation by the `unresolvedImports` detector.
+
+```json
+{
+  "unresolvedImportsDetection": {
+    "enabled": true,
+    "reportNonLiteralImports": true
+  }
+}
+```
+
+The detector will throw when there is any non-literal import in the analysed workspace.
+
+## Improved built-in modules support
+
+Previously, Rev-dep recognized built-in modules like `fs` or `bun:sqlite`, but it was not possible to make assertions against them.
+
+Now you can refer to them by name in the following detectors:
+- [Restricted Importers](/docs/config-based-checks/checks/restricted-importers)
+- [Restricted Direct Importers](/docs/config-based-checks/checks/restricted-direct-importers)
+- [Restricted Imports](/docs/config-based-checks/checks/restricted-imports)
+
+You can also refer to any built-in module with the `builtin:*` keyword - useful for restricting imports in front-end code.
+
+Read more about [built-in modules support in docs](/docs/other-concepts-and-features/built-in-modules)
+
+## Telemetry improvements
+
+Added event reporting to exploratory toolkit commands. Added reporting of an anonymized repository identifier to all events.
+
+## Docs improvements
+
+Added Newsletter and Blog pages. Added llms.txt to improve discoverability by AI agents. Improved the integration guides and the comparison with other tools page.
+
+<br/>
+
+That's it for this update. See you in the next one 👋

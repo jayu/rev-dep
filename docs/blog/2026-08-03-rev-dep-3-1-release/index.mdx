@@ -18,9 +18,9 @@ This minor version bump brings:
 
 ## Template literal import targets
 
-Previously, imports with template string literals, for example `import(\`someModule.ts\`)`, were not parsed. Right now they are, as long as the target value can be statically analysed.
+Previously, imports with template string literals, for example ``import(`someModule.ts`)``, were not parsed. Right now they are, as long as the target value can be statically analysed.
 
-Template literals that cannot be statically analysed, for example `import(\`${dir}/someModule.ts\`)`, will be internally represented as `NonLiteralModule`. Such imports cannot be followed, but they can be detected as a violation by the `unresolvedImports` detector.
+Template literals that cannot be statically analysed, for example ``import(`${dir}/someModule.ts`)``, will be internally represented as `NonLiteralModule`. Such imports cannot be followed, but they can be detected as a violation by the `unresolvedImports` detector.
 
 ```json
 {

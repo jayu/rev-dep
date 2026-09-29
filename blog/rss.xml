@@ -64,5 +64,42 @@ Even with Gen AI, it took a lot of time and effort to get there, but I'm really 
 <br>
 <p>That's it for this update, see you in the next one 👋</p>]]></content:encoded>
         </item>
+        <item>
+            <title><![CDATA[Rev-dep 3.1.0 release]]></title>
+            <link>https://rev-dep.com/blog/rev-dep-3-1-release</link>
+            <guid>https://rev-dep.com/blog/rev-dep-3-1-release</guid>
+            <pubDate>Mon, 03 Aug 2026 00:00:00 GMT</pubDate>
+            <description><![CDATA[This minor version bump brings:]]></description>
+            <content:encoded><![CDATA[<p>This minor version bump brings:</p>
+<ul>
+<li class="">parsing template string literals inside require and import calls</li>
+<li class="">ability to detect non-literal import targets</li>
+<li class="">improved support for built-in modules detection</li>
+<li class="">improvements to telemetry reporting</li>
+<li class="">various documentation improvements</li>
+</ul>
+<p><a href="https://github.com/jayu/rev-dep/releases/tag/3.1.0" target="_blank" rel="noopener noreferrer" class="">GitHub Release</a></p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="template-literal-import-targets">Template literal import targets<a href="https://rev-dep.com/blog/rev-dep-3-1-release#template-literal-import-targets" class="hash-link" aria-label="Direct link to Template literal import targets" title="Direct link to Template literal import targets" translate="no">​</a></h2>
+<p>Previously, imports with template string literals, for example <code>import(`someModule.ts`)</code>, were not parsed. Right now they are, as long as the target value can be statically analysed.</p>
+<p>Template literals that cannot be statically analysed, for example <code>import(`${dir}/someModule.ts`)</code>, will be internally represented as <code>NonLiteralModule</code>. Such imports cannot be followed, but they can be detected as a violation by the <code>unresolvedImports</code> detector.</p>
+<div class="language-json codeBlockContainer_ndLh theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_mNgA"><pre tabindex="0" class="prism-code language-json codeBlock_M_ZE thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_BFJL"><div class="token-line" style="color:#393A34"><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"unresolvedImportsDetection"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token property" style="color:#36acaa">"enabled"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">true</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token property" style="color:#36acaa">"reportNonLiteralImports"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token punctuation" style="color:#393A34">}</span><br></div></code></pre></div></div>
+<p>The detector will throw when there is any non-literal import in the analysed workspace.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="improved-built-in-modules-support">Improved built-in modules support<a href="https://rev-dep.com/blog/rev-dep-3-1-release#improved-built-in-modules-support" class="hash-link" aria-label="Direct link to Improved built-in modules support" title="Direct link to Improved built-in modules support" translate="no">​</a></h2>
+<p>Previously, Rev-dep recognized built-in modules like <code>fs</code> or <code>bun:sqlite</code>, but it was not possible to make assertions against them.</p>
+<p>Now you can refer to them by name in the following detectors:</p>
+<ul>
+<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-importers">Restricted Importers</a></li>
+<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-direct-importers">Restricted Direct Importers</a></li>
+<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-imports">Restricted Imports</a></li>
+</ul>
+<p>You can also refer to any built-in module with the <code>builtin:*</code> keyword - useful for restricting imports in front-end code.</p>
+<p>Read more about <a class="" href="https://rev-dep.com/docs/other-concepts-and-features/built-in-modules">built-in modules support in docs</a></p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="telemetry-improvements">Telemetry improvements<a href="https://rev-dep.com/blog/rev-dep-3-1-release#telemetry-improvements" class="hash-link" aria-label="Direct link to Telemetry improvements" title="Direct link to Telemetry improvements" translate="no">​</a></h2>
+<p>Added event reporting to exploratory toolkit commands. Added reporting of an anonymized repository identifier to all events.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="docs-improvements">Docs improvements<a href="https://rev-dep.com/blog/rev-dep-3-1-release#docs-improvements" class="hash-link" aria-label="Direct link to Docs improvements" title="Direct link to Docs improvements" translate="no">​</a></h2>
+<p>Added Newsletter and Blog pages. Added llms.txt to improve discoverability by AI agents. Improved the integration guides and the comparison with other tools page.</p>
+<br>
+<p>That's it for this update. See you in the next one 👋</p>]]></content:encoded>
+        </item>
     </channel>
 </rss>

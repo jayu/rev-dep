@@ -9,7 +9,7 @@
   <a href="#installation-">Installation</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="https://rev-dep.com/docs/intro"><b>Documentation</b></a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#exploratory-toolkit-">Exploratory Toolkit</a>&nbsp;&nbsp;•&nbsp;&nbsp;
-  <a href="#cli-reference-">CLI Reference</a>
+  <a href="https://rev-dep.com/newsletter">Newsletter</a>
 </p>
 
 <p align="center">
@@ -1646,7 +1646,7 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
-      --module string                                               Target node module name to check for dependencies
+      --module string                                               Target module name (npm package or built-in module) to check for dependencies
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
       --tsconfig-json string                                        Path to tsconfig.json (default: ./tsconfig.json)
@@ -1720,7 +1720,7 @@ The top-level directory used as the starting point for dependency analysis.
 
 ## Telemetry
 
-Rev-Dep collects a single **anonymous** event, only during `rev-dep config run`. Read more in [Telemetry docs](https://rev-dep.com/docs/telemetry).
+Rev-Dep collects a single **anonymous** event for each `rev-dep config run` and supported exploratory analysis command. Read more in [Telemetry docs](https://rev-dep.com/docs/telemetry).
 
 Opt out completely by setting `REV_DEP_TELEMETRY_OFF=true`.
 

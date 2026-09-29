@@ -5,7 +5,7 @@ import sidebars from './sidebars';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
-const siteTitle = 'Rev-dep - High-Speed Dependency Graph Analysis for JS/TS Monorepos';
+const siteTitle = 'Rev-dep - High-Speed Dependency Graph Analysis for JavaScript and TypeScript Monorepos';
 const siteDescription =
   'Enforce module boundaries, find circular imports, dead files, unused exports, and dependency issues in one fast CLI. Audit 500k+ LoC in around 150ms.';
 

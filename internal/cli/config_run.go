@@ -216,6 +216,11 @@ func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
 			}
 		}
 
+		// A workspace with no files cannot be fixed by --fix.
+		if ruleResult.EmptyWorkspaceFailed() {
+			totalIssues++
+		}
+
 		fixableIssues += len(ruleResult.OrphanFilesAutofixable)
 
 		for _, violation := range ruleResult.ImportConventionViolations {
@@ -232,6 +237,31 @@ func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
 	}
 
 	return totalIssues > fixableIssues
+}
+
+// printEmptyWorkspacesSummary repeats, next to the final verdict, which workspaces matched no
+// files. Their checks ran on nothing, so a pass for them proves nothing - easy to miss when the
+// per-workspace warning scrolls past in CI or agent logs. Workspaces with failOnEmptyWorkspace
+// are errors (they also failed the run); the rest are warnings.
+func printEmptyWorkspacesSummary(result *config.ConfigProcessingResult) {
+	var failed, warned []string
+	for _, ruleResult := range result.RuleResults {
+		if !ruleResult.IsEmpty() {
+			continue
+		}
+		if ruleResult.EmptyWorkspaceFailed() {
+			failed = append(failed, workspaceLabel(ruleResult.RulePath))
+		} else {
+			warned = append(warned, workspaceLabel(ruleResult.RulePath))
+		}
+	}
+
+	if len(failed) > 0 {
+		fmt.Printf("%s %s checked 0 files (failOnEmptyWorkspace): %s\n", emoji.Error, plural.Count(len(failed), "workspace", "workspaces"), strings.Join(failed, ", "))
+	}
+	if len(warned) > 0 {
+		fmt.Printf("%s %s checked 0 files: %s\n", emoji.Warning, plural.Count(len(warned), "workspace", "workspaces"), strings.Join(warned, ", "))
+	}
 }
 
 // processConfigRun runs every check in the config.
@@ -824,8 +854,12 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 			}
 		}
 
-		if ruleResult.FileCount == 0 {
-			fmt.Printf("  %s No files found for this workspace - check if the path is correct\n", emoji.Warning)
+		if ruleResult.IsEmpty() {
+			marker := emoji.Warning
+			if ruleResult.EmptyWorkspaceFailed() {
+				marker = emoji.Error
+			}
+			fmt.Printf("  %s No files found for this workspace - check if the path is correct\n", marker)
 		}
 
 		if ruleResult.MissingPackageJson {
@@ -840,6 +874,7 @@ func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd stri
 	} else {
 		fmt.Printf("\n%s Checks failed! See details above.\n", emoji.Error)
 	}
+	printEmptyWorkspacesSummary(result)
 
 	// Print autofix summary if any fixes were applied or unfixable issues found
 	if result.FixedFilesCount > 0 || result.FixedImportsCount > 0 || result.DeletedFilesCount > 0 {

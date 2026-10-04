@@ -146,6 +146,7 @@ func (o *RestrictedDevDependenciesUsageOptions) IsEnabled() bool { return o != n
 type Rule struct {
 	Path                                string                                       `json:"path"` // Required
 	TsConfigPath                        string                                       `json:"tsConfigPath,omitempty"`
+	FailOnEmptyWorkspace                bool                                         `json:"-"` // resolved in ParseConfig: the workspace's own value, else the root one
 	ProdEntryPoints                     []string                                     `json:"prodEntryPoints,omitempty"`
 	DevEntryPoints                      []string                                     `json:"devEntryPoints,omitempty"`
 	IgnoreEntryPoints                   []string                                     `json:"ignoreEntryPoints,omitempty"`
@@ -449,6 +450,9 @@ type RevDepConfig struct {
 	CustomAssetExtensions []string `json:"customAssetExtensions,omitempty"`
 	IgnoreFiles           []string `json:"ignoreFiles,omitempty"`
 	ProcessIgnoredFiles   []string `json:"processIgnoredFiles,omitempty"`
+	// FailOnEmptyWorkspace makes a workspace that matches zero files fail the run instead of only
+	// warning. Opt-in; each workspace can override it with its own failOnEmptyWorkspace.
+	FailOnEmptyWorkspace bool `json:"failOnEmptyWorkspace,omitempty"`
 	// NodeModulesResolution selects which package.json each third-party import is validated against
 	// for the missing/unused/unresolved node module checks, and whether the monorepo root
 	// devDependencies are treated as available to package code. It accepts either a bare string
@@ -548,7 +552,7 @@ func ConfigFileNameJSONC() string {
 
 // CurrentConfigVersion is the config schema version this CLI release treats as current - the one
 // `config init` writes into generated configs. Keep it as the last entry of supportedConfigVersions.
-const CurrentConfigVersion = "2.0"
+const CurrentConfigVersion = "2.1"
 
 func IsLegacyV1Config(cwd string) (legacy bool, version string, ok bool) {
 	path, err := findConfigFile(cwd)
@@ -572,7 +576,7 @@ func IsLegacyV1Config(cwd string) (legacy bool, version string, ok bool) {
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", CurrentConfigVersion}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "2.0", CurrentConfigVersion}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -739,6 +743,14 @@ func ParseConfig(content []byte) (RevDepConfig, error) {
 				config.Rules[i].FollowMonorepoPackages = parsedFollow
 			}
 
+			// A workspace's own failOnEmptyWorkspace wins; otherwise it inherits the root value.
+			// The type was checked by validateRawRule.
+			if rawFailOnEmpty, exists := ruleMap["failOnEmptyWorkspace"]; exists {
+				config.Rules[i].FailOnEmptyWorkspace = rawFailOnEmpty.(bool)
+			} else {
+				config.Rules[i].FailOnEmptyWorkspace = config.FailOnEmptyWorkspace
+			}
+
 			// Apply rule-level entry point inheritance for selected detectors.
 			// Explicit detector arrays (including empty) override rule-level defaults.
 			//
@@ -888,6 +900,7 @@ func validateRawConfig(raw map[string]interface{}) error {
 		"customAssetExtensions": true,
 		"ignoreFiles":           true,
 		"processIgnoredFiles":   true,
+		"failOnEmptyWorkspace":  true,
 		"nodeModulesResolution": true,
 		"workspaces":            true,
 		// "cloud" is accepted but intentionally not parsed, schema'd, or documented yet.
@@ -927,6 +940,12 @@ func validateRawConfig(raw map[string]interface{}) error {
 			if _, ok := pattern.(string); !ok {
 				return fmt.Errorf("processIgnoredFiles[%d] must be a string, got %T", i, pattern)
 			}
+		}
+	}
+
+	if failOnEmptyWorkspace, exists := raw["failOnEmptyWorkspace"]; exists {
+		if _, ok := failOnEmptyWorkspace.(bool); !ok {
+			return fmt.Errorf("failOnEmptyWorkspace must be a boolean, got %T", failOnEmptyWorkspace)
 		}
 	}
 
@@ -1002,6 +1021,7 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 	allowedRuleFields := map[string]bool{
 		"path":                               true,
 		"tsConfigPath":                       true,
+		"failOnEmptyWorkspace":               true,
 		"prodEntryPoints":                    true,
 		"devEntryPoints":                     true,
 		"ignoreEntryPoints":                  true,
@@ -1048,6 +1068,12 @@ func validateRawRule(rule map[string]interface{}, index int) error {
 	if tsConfigPath, exists := rule["tsConfigPath"]; exists {
 		if err := validateRuleTsConfigPath(tsConfigPath); err != nil {
 			return fmt.Errorf("workspaces[%d].tsConfigPath: %v", index, err)
+		}
+	}
+
+	if failOnEmptyWorkspace, exists := rule["failOnEmptyWorkspace"]; exists {
+		if _, ok := failOnEmptyWorkspace.(bool); !ok {
+			return fmt.Errorf("workspaces[%d].failOnEmptyWorkspace must be a boolean, got %T", index, failOnEmptyWorkspace)
 		}
 	}
 

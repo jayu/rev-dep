@@ -20,9 +20,12 @@ type jsonOutput struct {
 }
 
 type jsonRuleResult struct {
-	Path      string     `json:"path"`
-	FileCount int        `json:"fileCount"`
-	Checks    jsonChecks `json:"checks"`
+	Path      string `json:"path"`
+	FileCount int    `json:"fileCount"`
+	// EmptyWorkspace is set only when the workspace matched no files: "fail" when
+	// failOnEmptyWorkspace applies to it (the run failed), "warn" otherwise.
+	EmptyWorkspace string     `json:"emptyWorkspace,omitempty"`
+	Checks         jsonChecks `json:"checks"`
 }
 
 type jsonChecks struct {
@@ -222,7 +225,7 @@ type jsonRestrictedDirectImporterIssue struct {
 
 func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, runConfigFix bool, runConfigRecheck bool) error {
 	output := jsonOutput{
-		Version: "2.0",
+		Version: "2.1",
 		Rules:   []jsonRuleResult{},
 	}
 
@@ -276,6 +279,11 @@ func buildJSONRuleResult(ruleResult config.RuleResult, cwd string, locator *file
 	jr := jsonRuleResult{
 		Path:      ruleResult.RulePath,
 		FileCount: ruleResult.FileCount,
+	}
+	if ruleResult.EmptyWorkspaceFailed() {
+		jr.EmptyWorkspace = "fail"
+	} else if ruleResult.IsEmpty() {
+		jr.EmptyWorkspace = "warn"
 	}
 
 	for _, check := range ruleResult.EnabledChecks {

@@ -34,11 +34,11 @@ var migrateConfigCwd string
 
 var configMigrateCmd = &cobra.Command{
 	Use:   "migrate",
-	Short: "Upgrade a v2 config to the v3 (2.0) schema",
-	Long: `Upgrade a (.)rev-dep.config.json(c) from the v2 schema to v3 (config version 2.0).
+	Short: "Upgrade a v2 config to the v3 (" + config.CurrentConfigVersion + ") schema",
+	Long: `Upgrade a (.)rev-dep.config.json(c) from the v2 schema to v3 (config version ` + config.CurrentConfigVersion + `).
 
 It applies the safe, unambiguous changes in place (renaming the top-level 'rules' array to
-'workspaces', bumping 'configVersion' to 2.0, and removing the discontinued 'algorithm'
+'workspaces', bumping 'configVersion' to ` + config.CurrentConfigVersion + `, and removing the discontinued 'algorithm'
 option from circular-imports detectors), preserving all comments and formatting. Review the
 change with git before committing.
 
@@ -80,7 +80,7 @@ edit can address. Review those manually - see the v3 breaking-changes guide.`,
 				fmt.Printf("    - %s\n", c)
 			}
 		} else {
-			fmt.Printf("\n%s Nothing to change automatically - the config is already on the 2.0 schema.\n", emoji.Success)
+			fmt.Printf("\n%s Nothing to change automatically - the config is already on the %s schema.\n", emoji.Success, config.CurrentConfigVersion)
 		}
 
 		printMigrateReviews(res)

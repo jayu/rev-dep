@@ -46,8 +46,11 @@ func validateRulePathPackageJson(rulePath, cwd string) bool {
 
 // RuleResult contains the results for a single rule in the config
 type RuleResult struct {
-	RulePath                 string
-	FileCount                int
+	RulePath  string
+	FileCount int
+	// FailOnEmptyWorkspace is the effective failOnEmptyWorkspace setting for this workspace (its
+	// own value, else the root one). It decides whether FileCount == 0 is an error or a warning.
+	FailOnEmptyWorkspace     bool
 	EnabledChecks            []string
 	DependencyTree           model.MinimalDependencyTree
 	ModuleBoundaryViolations []checks.ModuleBoundaryViolation
@@ -74,6 +77,16 @@ type RuleResult struct {
 	MissingPackageJson                              bool
 	ShouldWarnAboutImportConventionWithPJsonImports bool
 	UnmatchedEntryPointPatterns                     UnmatchedEntryPointPatterns
+}
+
+// IsEmpty reports whether the workspace matched no files, so none of its checks looked at anything.
+func (r RuleResult) IsEmpty() bool {
+	return r.FileCount == 0
+}
+
+// EmptyWorkspaceFailed reports whether the workspace fails the run for matching no files.
+func (r RuleResult) EmptyWorkspaceFailed() bool {
+	return r.IsEmpty() && r.FailOnEmptyWorkspace
 }
 
 // DuplicatedCodeRuleResult is one duplicated-code detection's outcome, together with the
@@ -1195,6 +1208,7 @@ func ProcessConfigWithOptions(
 
 			// Set the missing package.json flag
 			ruleResult.MissingPackageJson = missingPackageJsonResults[ruleIndex]
+			ruleResult.FailOnEmptyWorkspace = currentRule.FailOnEmptyWorkspace
 
 			// Check for failures and update result
 			hasFailures := len(ruleResult.CircularDependencies) > 0 ||
@@ -1209,7 +1223,8 @@ func ProcessConfigWithOptions(
 				len(ruleResult.RestrictedImportsViolations) > 0 ||
 				len(ruleResult.RestrictedImportersViolations) > 0 ||
 				len(ruleResult.RestrictedDirectImportersViolations) > 0 ||
-				anyDuplicatedCodeFailed(ruleResult)
+				anyDuplicatedCodeFailed(ruleResult) ||
+				ruleResult.EmptyWorkspaceFailed()
 
 			mu.Lock()
 			result.RuleResults[ruleIndex] = ruleResult

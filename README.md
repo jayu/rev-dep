@@ -238,8 +238,8 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "2.0",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.0.schema.json?raw=true",
+  "configVersion": "2.1",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.1.schema.json?raw=true",
   "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "workspaces": [
     {
@@ -275,11 +275,12 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "1.10",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/1.10.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "2.1",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.1.schema.json?raw=true", // enables json autocompletion
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
+  "failOnEmptyWorkspace": true,
   "workspaces": [
     {
       "path": ".",
@@ -362,7 +363,8 @@ Here's a comprehensive example showing all available properties:
           "src/index.ts": "legacy-*"
         },
         "ignoreFiles": ["**/*.generated.ts"],
-        "ignoreImports": ["@internal/*"]
+        "ignoreImports": ["@internal/*"],
+        "reportNonLiteralImports": true
       },
       "devDepsUsageOnProdDetection": {
         "enabled": true,
@@ -911,14 +913,14 @@ rev-dep config lint [flags]
 
 ### rev-dep config migrate
 
-Upgrade a v2 config to the v3 (2.0) schema
+Upgrade a v2 config to the v3 (2.1) schema
 
 #### Synopsis
 
-Upgrade a (.)rev-dep.config.json(c) from the v2 schema to v3 (config version 2.0).
+Upgrade a (.)rev-dep.config.json(c) from the v2 schema to v3 (config version 2.1).
 
 It applies the safe, unambiguous changes in place (renaming the top-level 'rules' array to
-'workspaces', bumping 'configVersion' to 2.0, and removing the discontinued 'algorithm'
+'workspaces', bumping 'configVersion' to 2.1, and removing the discontinued 'algorithm'
 option from circular-imports detectors), preserving all comments and formatting. Review the
 change with git before committing.
 

@@ -31,7 +31,7 @@ func TestMigrateConfig_AutoEdits(t *testing.T) {
 
 	// `// my config` (an unrelated comment) survives; `// pick algo` was inline on the removed
 	// `algorithm` line, so it is removed with it.
-	for _, want := range []string{`"workspaces"`, `"configVersion": "2.0"`, `// my config`} {
+	for _, want := range []string{`"workspaces"`, `"configVersion": "` + CurrentConfigVersion + `"`, `// my config`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("migrated output missing %q\n---\n%s", want, got)
 		}
@@ -47,8 +47,8 @@ func TestMigrateConfig_AutoEdits(t *testing.T) {
 	}
 }
 
-func TestMigrateConfig_AlreadyV3IsNoOp(t *testing.T) {
-	in := `{"configVersion":"2.0","workspaces":[{"path":"."}]}`
+func TestMigrateConfig_AlreadyCurrentIsNoOp(t *testing.T) {
+	in := `{"configVersion":"` + CurrentConfigVersion + `","workspaces":[{"path":"."}]}`
 	res, err := MigrateConfig([]byte(in))
 	if err != nil {
 		t.Fatal(err)
@@ -133,4 +133,21 @@ func hasReason(r PatternReview, substr string) bool {
 		}
 	}
 	return false
+}
+
+// A config on an older v3 version is moved to the current one; later 2.x versions only add
+// optional fields, so nothing else changes.
+func TestMigrateConfig_OlderV3BumpsVersionOnly(t *testing.T) {
+	in := `{"configVersion":"2.0","workspaces":[{"path":"."}]}`
+	res, err := MigrateConfig([]byte(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"configVersion":"` + CurrentConfigVersion + `","workspaces":[{"path":"."}]}`
+	if got := string(res.Migrated); got != want {
+		t.Errorf("Migrated = %s, want %s", got, want)
+	}
+	if len(res.AppliedChanges) != 1 {
+		t.Errorf("expected only the version bump, applied: %v", res.AppliedChanges)
+	}
 }

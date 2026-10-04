@@ -42,6 +42,8 @@ So when a step below says *enable X*, that means flipping an existing `"X": fals
 
 > `config init` never overwrites an existing config - it stops with an error if one is present. Delete the file if you want to start over.
 
+> The generated config sets [`"failOnEmptyWorkspace": true`](./config-based-checks/config-file-structure.mdx#top-level-fields): if a workspace ever matches zero files - a moved package, a `.gitignore` that excludes it, a run from a different checkout - `config run` fails instead of passing on nothing. Set `"failOnEmptyWorkspace": false` on a workspace that is empty on purpose.
+
 > The examples below use the [compact detector syntax](./config-based-checks/config-file-structure.mdx#compact-detector-syntax): `"detector": true` switches a check on, and when a detector carries options the `enabled` flag is optional. Write `{ "enabled": true }` if you prefer the explicit form.
 
 ## 2. Run and (auto)fix

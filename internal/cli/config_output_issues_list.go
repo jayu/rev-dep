@@ -113,6 +113,9 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 	}
 
 	for _, rule := range rules {
+		if rule.EmptyWorkspace == "fail" {
+			add("Empty Workspaces", workspaceLabel(rule.Path)+" (0 files)", "")
+		}
 		if rule.Checks.CircularDependencies != nil {
 			for _, issue := range rule.Checks.CircularDependencies.Issues {
 				if v, ok := issue.(jsonCircularDependencyIssue); ok {
@@ -244,6 +247,7 @@ func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
 	}
 
 	order := []string{
+		"Empty Workspaces",
 		"Circular Dependencies Issues",
 		"Orphan Files Issues",
 		"Module Boundary Issues",

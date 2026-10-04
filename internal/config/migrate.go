@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// migrate.go upgrades a v2 config to the 2.0 (v3) schema. It edits the RAW bytes via jsonedit
+// migrate.go upgrades a config to the current v3 schema (CurrentConfigVersion). It edits the RAW bytes via jsonedit
 // (comments/formatting preserved) because ParseConfig rejects a v1 config outright.
 
 type MigrateResult struct {
@@ -70,7 +70,7 @@ func MigrateConfig(content []byte) (*MigrateResult, error) {
 			res.AppliedChanges = append(res.AppliedChanges, fmt.Sprintf("set configVersion to %q (was %q)", CurrentConfigVersion, cur))
 		}
 	} else {
-		res.ResultNotes = append(res.ResultNotes, `configVersion is missing - add "configVersion": "2.0" manually`)
+		res.ResultNotes = append(res.ResultNotes, fmt.Sprintf(`configVersion is missing - add "configVersion": %q manually`, CurrentConfigVersion))
 	}
 	removed := 0 // A3: drop the discontinued `algorithm` option
 	forEachWorkspace(workspaces, func(ws *JSONNode, _ int) {

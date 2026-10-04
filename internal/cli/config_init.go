@@ -379,9 +379,10 @@ func writeInitConfig(cwd string, result *initConfigResult) error {
 	result.configPath = configPath
 
 	cfg := config.RevDepConfig{
-		ConfigVersion: config.CurrentConfigVersion,
-		Rules:         result.rules,
-		Schema:        "https://github.com/jayu/rev-dep/blob/master/config-schema/" + config.CurrentConfigVersion + ".schema.json?raw=true",
+		ConfigVersion:        config.CurrentConfigVersion,
+		Rules:                result.rules,
+		Schema:               "https://github.com/jayu/rev-dep/blob/master/config-schema/" + config.CurrentConfigVersion + ".schema.json?raw=true",
+		FailOnEmptyWorkspace: true,
 		NodeModulesResolution: &config.NodeModulesResolutionConfig{
 			ResolutionType:         config.NodeModulesResolutionEntryPackage,
 			IncludeDevDepsFromRoot: false,

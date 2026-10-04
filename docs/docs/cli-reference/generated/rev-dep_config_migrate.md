@@ -1,16 +1,16 @@
 ---
 title: "rev-dep config migrate"
-description: "Upgrade a v2 config to the v3 (2.0) schema"
+description: "Upgrade a v2 config to the v3 (2.1) schema"
 ---
 
-Upgrade a v2 config to the v3 (2.0) schema
+Upgrade a v2 config to the v3 (2.1) schema
 
 ### Synopsis
 
-Upgrade a (.)rev-dep.config.json(c) from the v2 schema to v3 (config version 2.0).
+Upgrade a (.)rev-dep.config.json(c) from the v2 schema to v3 (config version 2.1).
 
 It applies the safe, unambiguous changes in place (renaming the top-level 'rules' array to
-'workspaces', bumping 'configVersion' to 2.0, and removing the discontinued 'algorithm'
+'workspaces', bumping 'configVersion' to 2.1, and removing the discontinued 'algorithm'
 option from circular-imports detectors), preserving all comments and formatting. Review the
 change with git before committing.
 

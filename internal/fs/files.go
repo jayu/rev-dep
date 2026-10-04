@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -89,10 +90,7 @@ func findAndProcessGitIgnoreFilesUpToRepoRoot(dirPath string, globMatchers []glo
 		globMatchers = append(globMatchers, ParseGitIgnore(string(gitignoreFile), dirPath)...)
 	}
 
-	gitDir, gitDirReadErr := os.Stat(filepath.Join(dirPath, ".git"))
-
-	if gitDirReadErr == nil && gitDir.IsDir() {
-		// found git root
+	if isGitRepoRoot(dirPath) {
 		return globMatchers
 	}
 
@@ -102,6 +100,36 @@ func findAndProcessGitIgnoreFilesUpToRepoRoot(dirPath string, globMatchers []glo
 	}
 
 	return findAndProcessGitIgnoreFilesUpToRepoRoot(parent, globMatchers)
+}
+
+// isGitRepoRoot reports whether dirPath is the root of a Git checkout. Linked worktrees and
+// submodules mark their root with a .git file ("gitdir: <path>") instead of a directory; Git
+// treats both as a repository boundary and never applies an enclosing checkout's .gitignore
+// across it. A .git file without the gitdir prefix is not a checkout marker, so it is ignored.
+func isGitRepoRoot(dirPath string) bool {
+	gitPath := filepath.Join(dirPath, ".git")
+	info, err := os.Stat(gitPath)
+	if err != nil {
+		return false
+	}
+	if info.IsDir() {
+		return true
+	}
+	if !info.Mode().IsRegular() {
+		return false
+	}
+
+	file, err := os.Open(gitPath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	prefix := make([]byte, len("gitdir:"))
+	if _, err := io.ReadFull(file, prefix); err != nil {
+		return false
+	}
+	return strings.EqualFold(string(prefix), "gitdir:")
 }
 
 // DiscoveryExclusions records the paths a discovery walk left out - individual files an

@@ -3,6 +3,7 @@ package fs
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -118,5 +119,58 @@ func TestGetFilesWithExclusions_PrunesRecursivelyExcludedDir(t *testing.T) {
 	// src/used.ts is excluded by a non-recursive pattern, so it is visited and recorded.
 	if !contains(exclusions.ExcludedFiles, "src/used.ts") {
 		t.Errorf("expected src/used.ts in ExcludedFiles, got %v", exclusions.ExcludedFiles)
+	}
+}
+
+// TestGitIgnoreLookupStopsAtGitFile covers issue #46: linked worktrees and submodules mark their
+// root with a .git file, and the enclosing checkout's .gitignore must not apply across it.
+func TestGitIgnoreLookupStopsAtGitFile(t *testing.T) {
+	tests := []struct {
+		name      string
+		gitEntry  map[string]string
+		wantFiles []string
+	}{
+		{
+			name:      "linked worktree .git file",
+			gitEntry:  map[string]string{"outer/wt/.git": "gitdir: /elsewhere/.git/worktrees/wt\n"},
+			wantFiles: []string{"src/a.ts"},
+		},
+		{
+			name:      ".git directory",
+			gitEntry:  map[string]string{"outer/wt/.git/HEAD": "ref: refs/heads/main\n"},
+			wantFiles: []string{"src/a.ts"},
+		},
+		{
+			name:      ".git file that is not a gitdir pointer",
+			gitEntry:  map[string]string{"outer/wt/.git": "not a checkout\n"},
+			wantFiles: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := map[string]string{
+				"outer/.git/HEAD":         "ref: refs/heads/main\n",
+				"outer/.gitignore":        "wt/\n",
+				"outer/wt/.gitignore":     "ignored.ts\n",
+				"outer/wt/src/a.ts":       "export const a = 1;\n",
+				"outer/wt/src/ignored.ts": "export const b = 1;\n",
+			}
+			for path, content := range tt.gitEntry {
+				files[path] = content
+			}
+			root := filepath.Join(writeTree(t, files), "outer", "wt")
+
+			var got []string
+			for _, file := range GetFiles(root, nil, FindAndProcessGitIgnoreFilesUpToRepoRoot(root), nil) {
+				rel, err := filepath.Rel(root, file)
+				if err != nil {
+					t.Fatalf("Rel(%q): %v", file, err)
+				}
+				got = append(got, filepath.ToSlash(rel))
+			}
+			if !slices.Equal(got, tt.wantFiles) {
+				t.Errorf("GetFiles() = %v, want %v", got, tt.wantFiles)
+			}
+		})
 	}
 }

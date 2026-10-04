@@ -1,6 +1,6 @@
 {
   "name": "rev-dep",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Trace imports, detect unused code, clean dependencies — all with a super-fast CLI",
   "bin": "bin.js",
   "files": [
@@ -17,11 +17,11 @@
     "node": ">=18"
   },
   "optionalDependencies": {
-    "@rev-dep/darwin-arm64": "3.1.0",
-    "@rev-dep/darwin-x64": "3.1.0",
-    "@rev-dep/linux-arm64": "3.1.0",
-    "@rev-dep/linux-x64": "3.1.0",
-    "@rev-dep/win32-x64": "3.1.0"
+    "@rev-dep/darwin-arm64": "3.2.0",
+    "@rev-dep/darwin-x64": "3.2.0",
+    "@rev-dep/linux-arm64": "3.2.0",
+    "@rev-dep/linux-x64": "3.2.0",
+    "@rev-dep/win32-x64": "3.2.0"
   },
   "keywords": [
     "dependency-analysis",

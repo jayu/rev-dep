@@ -89,7 +89,7 @@ These are the docs for rev-dep 3.x, a Go CLI distributed on npm that analyzes th
 - [rev-dep config run](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_run.md): Execute all checks defined in (.)rev-dep.config.json(c)
 - [rev-dep config init](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_init.md): Initialize a new rev-dep.config.json file
 - [rev-dep config lint](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_lint.md): Report (and optionally remove) config glob/path patterns that match nothing
-- [rev-dep config migrate](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_migrate.md): Upgrade a v2 config to the v3 (2.0) schema
+- [rev-dep config migrate](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_migrate.md): Upgrade a v2 config to the v3 (2.1) schema
 - [rev-dep debug](https://rev-dep.com/docs/cli-reference/generated/rev-dep_debug.md): Debugging tools to inspect parser and resolver internals
 - [rev-dep debug get-tree-for-cwd](https://rev-dep.com/docs/cli-reference/generated/rev-dep_debug_get-tree-for-cwd.md): Debug: Show complete dependency tree for analysis
 - [rev-dep debug list-cwd-files](https://rev-dep.com/docs/cli-reference/generated/rev-dep_debug_list-cwd-files.md): List all files in the current working directory

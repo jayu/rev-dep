@@ -30,7 +30,7 @@ rev-dep config run --format json
 - includes fix summary counts
 - includes issue locations where rev-dep can resolve them from the analyzed tree
 
-If you are consuming the JSON programmatically, validate against the published [JSON schema](https://github.com/jayu/rev-dep/blob/master/output-schema/2.0.schema.json). The `version` field in the output tells you which schema applies - older versions stay published in [`output-schema/`](https://github.com/jayu/rev-dep/tree/master/output-schema).
+If you are consuming the JSON programmatically, validate against the published [JSON schema](https://github.com/jayu/rev-dep/blob/master/output-schema/2.1.schema.json). The `version` field in the output tells you which schema applies - older versions stay published in [`output-schema/`](https://github.com/jayu/rev-dep/tree/master/output-schema).
 
 ## Issues-list output
 

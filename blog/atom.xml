@@ -2,11 +2,87 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://rev-dep.com/blog</id>
     <title>Rev-dep - High-Speed Dependency Graph Analysis for JavaScript and TypeScript Monorepos Blog</title>
-    <updated>2026-08-03T00:00:00.000Z</updated>
+    <updated>2026-10-04T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://rev-dep.com/blog"/>
     <subtitle>Rev-dep - High-Speed Dependency Graph Analysis for JavaScript and TypeScript Monorepos Blog</subtitle>
     <icon>https://rev-dep.com/img/favicon.ico</icon>
+    <entry>
+        <title type="html"><![CDATA[Rev-dep 3.2.0 release]]></title>
+        <id>https://rev-dep.com/blog/rev-dep-3-2-release</id>
+        <link href="https://rev-dep.com/blog/rev-dep-3-2-release"/>
+        <updated>2026-10-04T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[This minor version bump brings:]]></summary>
+        <content type="html"><![CDATA[<p>This minor version bump brings:</p>
+<ul>
+<li class="">a fix for <code>.gitignore</code> lookup in git worktrees and submodules</li>
+<li class="">a new <code>failOnEmptyWorkspace</code> config option</li>
+<li class="">improvements to telemetry reporting</li>
+</ul>
+<p><a href="https://github.com/jayu/rev-dep/releases/tag/3.2.0" target="_blank" rel="noopener noreferrer" class="">GitHub Release</a></p>
+<p>This release exists thanks to a community contribution. Big thanks for reporting <a href="https://github.com/jayu/rev-dep/issues/46" target="_blank" rel="noopener noreferrer" class="">issue #46</a> - it came with a minimal reproduction, the root cause, and a suggestion for how to prevent this kind of problem in the future. Both the fix and the suggestion are part of this release.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="gitignore-lookup-in-worktrees-and-submodules">Gitignore lookup in worktrees and submodules<a href="https://rev-dep.com/blog/rev-dep-3-2-release#gitignore-lookup-in-worktrees-and-submodules" class="hash-link" aria-label="Direct link to Gitignore lookup in worktrees and submodules" title="Direct link to Gitignore lookup in worktrees and submodules" translate="no">​</a></h2>
+<p>Rev-dep reads <code>.gitignore</code> files from parent folders, up to the repository root. Previously, it recognized the root only by a <code>.git</code> directory. Linked git worktrees and submodules use a <code>.git</code> file instead, so the lookup continued into the enclosing checkout and applied its ignore rules.</p>
+<p>When a worktree was nested in a folder ignored by the main checkout - for example <code>.agent/worktrees/</code>, where an AI agent creates its worktrees - every source file was excluded. <code>config run</code> reported zero files and still passed.</p>
+<p>Now the lookup stops at a <code>.git</code> file the same way it stops at a <code>.git</code> directory, which is how git itself treats repository boundaries.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="fail-on-empty-workspace">Fail on empty workspace<a href="https://rev-dep.com/blog/rev-dep-3-2-release#fail-on-empty-workspace" class="hash-link" aria-label="Direct link to Fail on empty workspace" title="Direct link to Fail on empty workspace" translate="no">​</a></h2>
+<p>The issue also pointed out a bigger problem: a check that runs on zero files proves nothing, but it still passes. That is easy to miss in CI or in AI agent runs, where nobody reads the warnings.</p>
+<p>The new <code>failOnEmptyWorkspace</code> option makes such a workspace fail the run:</p>
+<div class="language-json codeBlockContainer_ndLh theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_mNgA"><pre tabindex="0" class="prism-code language-json codeBlock_M_ZE thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_BFJL"><div class="token-line" style="color:#393A34"><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"configVersion"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">"2.1"</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"failOnEmptyWorkspace"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">true</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"workspaces"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">[</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token property" style="color:#36acaa">"path"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">"packages/app"</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">}</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token property" style="color:#36acaa">"path"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">"packages/placeholder"</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token property" style="color:#36acaa">"failOnEmptyWorkspace"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">false</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token punctuation" style="color:#393A34">]</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token punctuation" style="color:#393A34">}</span><br></div></code></pre></div></div>
+<p>The option is set at the config root and can be overridden per workspace. It is opt-in, so existing configs behave the same unless you enable it.</p>
+<p>New configs generated by <code>rev-dep config init</code> enable it by default.</p>
+<p>Without the option, an empty workspace is still reported as a warning - and it is now also listed in the summary at the end of <code>config run</code>, so it doesn't get lost in the output.</p>
+<p>The option requires config version <code>2.1</code>. Read more in the <a class="" href="https://rev-dep.com/docs/config-based-checks/config-file-structure#top-level-fields">config file structure docs</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="telemetry-improvements">Telemetry improvements<a href="https://rev-dep.com/blog/rev-dep-3-2-release#telemetry-improvements" class="hash-link" aria-label="Direct link to Telemetry improvements" title="Direct link to Telemetry improvements" translate="no">​</a></h2>
+<p>The anonymized repository identifier is now resolved correctly in worktrees and submodules, and it falls back to the <code>repository</code> field from <code>package.json</code> when no git remote is available. Events also report where the identifier came from. Read more about <a class="" href="https://rev-dep.com/docs/telemetry">telemetry</a>.</p>
+<br>
+<p>That's it for this update. See you in the next one 👋</p>]]></content>
+        <author>
+            <name>Jakub Mazurek</name>
+            <uri>https://jayu.dev</uri>
+        </author>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Rev-dep 3.1.0 release]]></title>
+        <id>https://rev-dep.com/blog/rev-dep-3-1-release</id>
+        <link href="https://rev-dep.com/blog/rev-dep-3-1-release"/>
+        <updated>2026-09-29T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[This minor version bump brings:]]></summary>
+        <content type="html"><![CDATA[<p>This minor version bump brings:</p>
+<ul>
+<li class="">parsing template string literals inside require and import calls</li>
+<li class="">ability to detect non-literal import targets</li>
+<li class="">improved support for built-in modules detection</li>
+<li class="">improvements to telemetry reporting</li>
+<li class="">various documentation improvements</li>
+</ul>
+<p><a href="https://github.com/jayu/rev-dep/releases/tag/3.1.0" target="_blank" rel="noopener noreferrer" class="">GitHub Release</a></p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="template-literal-import-targets">Template literal import targets<a href="https://rev-dep.com/blog/rev-dep-3-1-release#template-literal-import-targets" class="hash-link" aria-label="Direct link to Template literal import targets" title="Direct link to Template literal import targets" translate="no">​</a></h2>
+<p>Previously, imports with template string literals, for example <code>import(`someModule.ts`)</code>, were not parsed. Right now they are, as long as the target value can be statically analysed.</p>
+<p>Template literals that cannot be statically analysed, for example <code>import(`${dir}/someModule.ts`)</code>, will be internally represented as <code>NonLiteralModule</code>. Such imports cannot be followed, but they can be detected as a violation by the <code>unresolvedImports</code> detector.</p>
+<div class="language-json codeBlockContainer_ndLh theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_mNgA"><pre tabindex="0" class="prism-code language-json codeBlock_M_ZE thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_BFJL"><div class="token-line" style="color:#393A34"><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"unresolvedImportsDetection"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token property" style="color:#36acaa">"enabled"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">true</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token property" style="color:#36acaa">"reportNonLiteralImports"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token punctuation" style="color:#393A34">}</span><br></div></code></pre></div></div>
+<p>The detector will throw when there is any non-literal import in the analysed workspace.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="improved-built-in-modules-support">Improved built-in modules support<a href="https://rev-dep.com/blog/rev-dep-3-1-release#improved-built-in-modules-support" class="hash-link" aria-label="Direct link to Improved built-in modules support" title="Direct link to Improved built-in modules support" translate="no">​</a></h2>
+<p>Previously, Rev-dep recognized built-in modules like <code>fs</code> or <code>bun:sqlite</code>, but it was not possible to make assertions against them.</p>
+<p>Now you can refer to them by name in the following detectors:</p>
+<ul>
+<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-importers">Restricted Importers</a></li>
+<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-direct-importers">Restricted Direct Importers</a></li>
+<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-imports">Restricted Imports</a></li>
+</ul>
+<p>You can also refer to any built-in module with the <code>builtin:*</code> keyword - useful for restricting imports in front-end code.</p>
+<p>Read more about <a class="" href="https://rev-dep.com/docs/other-concepts-and-features/built-in-modules">built-in modules support in docs</a></p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="telemetry-improvements">Telemetry improvements<a href="https://rev-dep.com/blog/rev-dep-3-1-release#telemetry-improvements" class="hash-link" aria-label="Direct link to Telemetry improvements" title="Direct link to Telemetry improvements" translate="no">​</a></h2>
+<p>Added event reporting to exploratory toolkit commands. Added reporting of an anonymized repository identifier to all events.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="docs-improvements">Docs improvements<a href="https://rev-dep.com/blog/rev-dep-3-1-release#docs-improvements" class="hash-link" aria-label="Direct link to Docs improvements" title="Direct link to Docs improvements" translate="no">​</a></h2>
+<p>Added Newsletter and Blog pages. Added llms.txt to improve discoverability by AI agents. Improved the integration guides and the comparison with other tools page.</p>
+<br>
+<p>That's it for this update. See you in the next one 👋</p>]]></content>
+        <author>
+            <name>Jakub Mazurek</name>
+            <uri>https://jayu.dev</uri>
+        </author>
+    </entry>
     <entry>
         <title type="html"><![CDATA[Rev-dep 3.0 is here!]]></title>
         <id>https://rev-dep.com/blog/rev-dep-3-0-release</id>
@@ -62,47 +138,6 @@ With the help of Gen AI, I was able to implement a parser from scratch. It was t
 Even with Gen AI, it took a lot of time and effort to get there, but I'm really happy with the result.</p>
 <br>
 <p>That's it for this update, see you in the next one 👋</p>]]></content>
-        <author>
-            <name>Jakub Mazurek</name>
-            <uri>https://jayu.dev</uri>
-        </author>
-    </entry>
-    <entry>
-        <title type="html"><![CDATA[Rev-dep 3.1.0 release]]></title>
-        <id>https://rev-dep.com/blog/rev-dep-3-1-release</id>
-        <link href="https://rev-dep.com/blog/rev-dep-3-1-release"/>
-        <updated>2026-08-03T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[This minor version bump brings:]]></summary>
-        <content type="html"><![CDATA[<p>This minor version bump brings:</p>
-<ul>
-<li class="">parsing template string literals inside require and import calls</li>
-<li class="">ability to detect non-literal import targets</li>
-<li class="">improved support for built-in modules detection</li>
-<li class="">improvements to telemetry reporting</li>
-<li class="">various documentation improvements</li>
-</ul>
-<p><a href="https://github.com/jayu/rev-dep/releases/tag/3.1.0" target="_blank" rel="noopener noreferrer" class="">GitHub Release</a></p>
-<h2 class="anchor anchorTargetStickyNavbar_KPin" id="template-literal-import-targets">Template literal import targets<a href="https://rev-dep.com/blog/rev-dep-3-1-release#template-literal-import-targets" class="hash-link" aria-label="Direct link to Template literal import targets" title="Direct link to Template literal import targets" translate="no">​</a></h2>
-<p>Previously, imports with template string literals, for example <code>import(`someModule.ts`)</code>, were not parsed. Right now they are, as long as the target value can be statically analysed.</p>
-<p>Template literals that cannot be statically analysed, for example <code>import(`${dir}/someModule.ts`)</code>, will be internally represented as <code>NonLiteralModule</code>. Such imports cannot be followed, but they can be detected as a violation by the <code>unresolvedImports</code> detector.</p>
-<div class="language-json codeBlockContainer_ndLh theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_mNgA"><pre tabindex="0" class="prism-code language-json codeBlock_M_ZE thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_BFJL"><div class="token-line" style="color:#393A34"><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"unresolvedImportsDetection"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token property" style="color:#36acaa">"enabled"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">true</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">    </span><span class="token property" style="color:#36acaa">"reportNonLiteralImports"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">true</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token punctuation" style="color:#393A34">}</span><br></div></code></pre></div></div>
-<p>The detector will throw when there is any non-literal import in the analysed workspace.</p>
-<h2 class="anchor anchorTargetStickyNavbar_KPin" id="improved-built-in-modules-support">Improved built-in modules support<a href="https://rev-dep.com/blog/rev-dep-3-1-release#improved-built-in-modules-support" class="hash-link" aria-label="Direct link to Improved built-in modules support" title="Direct link to Improved built-in modules support" translate="no">​</a></h2>
-<p>Previously, Rev-dep recognized built-in modules like <code>fs</code> or <code>bun:sqlite</code>, but it was not possible to make assertions against them.</p>
-<p>Now you can refer to them by name in the following detectors:</p>
-<ul>
-<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-importers">Restricted Importers</a></li>
-<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-direct-importers">Restricted Direct Importers</a></li>
-<li class=""><a class="" href="https://rev-dep.com/docs/config-based-checks/checks/restricted-imports">Restricted Imports</a></li>
-</ul>
-<p>You can also refer to any built-in module with the <code>builtin:*</code> keyword - useful for restricting imports in front-end code.</p>
-<p>Read more about <a class="" href="https://rev-dep.com/docs/other-concepts-and-features/built-in-modules">built-in modules support in docs</a></p>
-<h2 class="anchor anchorTargetStickyNavbar_KPin" id="telemetry-improvements">Telemetry improvements<a href="https://rev-dep.com/blog/rev-dep-3-1-release#telemetry-improvements" class="hash-link" aria-label="Direct link to Telemetry improvements" title="Direct link to Telemetry improvements" translate="no">​</a></h2>
-<p>Added event reporting to exploratory toolkit commands. Added reporting of an anonymized repository identifier to all events.</p>
-<h2 class="anchor anchorTargetStickyNavbar_KPin" id="docs-improvements">Docs improvements<a href="https://rev-dep.com/blog/rev-dep-3-1-release#docs-improvements" class="hash-link" aria-label="Direct link to Docs improvements" title="Direct link to Docs improvements" translate="no">​</a></h2>
-<p>Added Newsletter and Blog pages. Added llms.txt to improve discoverability by AI agents. Improved the integration guides and the comparison with other tools page.</p>
-<br>
-<p>That's it for this update. See you in the next one 👋</p>]]></content>
         <author>
             <name>Jakub Mazurek</name>
             <uri>https://jayu.dev</uri>

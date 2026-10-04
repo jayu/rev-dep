@@ -13,7 +13,7 @@ It's designed it to be transparent and privacy-preserving. This page explains ex
 
 The event is anonymous. It contains:
 
-- Three **non-reversible hashes** - an approximate machine id, an approximate project id, and a repository id. The repository id is the SHA-256 hash of the normalized remote URL from the nearest Git repository, and is empty when that repository has no remote. They are used only to roughly distinguish installs, projects, and repositories from one another.
+- Three **non-reversible hashes** - an approximate machine id, an approximate project id, and a repository id. The repository id is the SHA-256 hash of the normalized remote URL from the nearest Git repository. When there is no usable remote, the `repository` URL from `package.json` is hashed instead, and when neither exists the id is empty. Alongside it, a short label records where the repository id came from or why it is empty (for example `git-remote`, `package-json` or `no-remote`). They are used only to roughly distinguish installs, projects, and repositories from one another.
 - A small set of **counts and environment facts**: OS, architecture, whether it is running in CI, the tool version, the config version for `config run`, and per-detector usage counts / root-option usage flags.
 - A **coarse geographic location** - `City`, `StateOrProvince`, and `CountryOrRegion`. This is **not** part of the payload our code builds: the telemetry collector (Azure Application Insights) automatically derives it from the IP address of the request. The raw IP is used only for this lookup and is **not stored**.
 

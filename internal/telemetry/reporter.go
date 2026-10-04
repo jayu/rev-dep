@@ -27,7 +27,8 @@ type Payload struct {
 	EventName     string   `json:"eventName"`           // fixed command event name
 	MachineID     string   `json:"machineId"`           // sha256(hardware/OS facts); approximate unique machine
 	ProjectID     string   `json:"projectId"`           // sha256(repo URL + root package.json name); approximate unique project
-	RepoID        string   `json:"repoId"`              // sha256(nearest Git repository remote); empty when no remote is configured
+	RepoID        string   `json:"repoId"`              // sha256(nearest Git repository remote, else package.json repository URL); empty when neither exists
+	RepoIDSource  string   `json:"repoIdSource"`        // where RepoID came from, or why it is empty (git-remote / package-json / no-git / no-remote / local-remote / unresolved-gitfile)
 	ToolVersion   string   `json:"toolVersion"`         // rev-dep version
 	ConfigVersion string   `json:"configVersion"`       // config schema version; empty for exploratory commands
 	OS            string   `json:"os"`                  // GOOS: darwin / linux / windows
@@ -70,11 +71,13 @@ func RunReporter() {
 		eventName = "config-run"
 	}
 
+	repoHash, repoSource := repoID(input.Cwd)
 	payload := Payload{
 		EventName:     eventName,
 		MachineID:     machineID(),
 		ProjectID:     projectID(input.Cwd),
-		RepoID:        repoID(input.Cwd),
+		RepoID:        repoHash,
+		RepoIDSource:  string(repoSource),
 		ToolVersion:   version.Version,
 		ConfigVersion: input.ConfigVersion,
 		OS:            runtime.GOOS,
@@ -113,6 +116,7 @@ func send(ctx context.Context, iKey, endpoint string, p Payload) error {
 					"machineId":     p.MachineID,
 					"projectId":     p.ProjectID,
 					"repoId":        p.RepoID,
+					"repoIdSource":  p.RepoIDSource,
 					"toolVersion":   p.ToolVersion,
 					"configVersion": p.ConfigVersion,
 					"os":            p.OS,

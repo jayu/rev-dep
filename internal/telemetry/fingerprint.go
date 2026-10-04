@@ -73,61 +73,101 @@ func projectID(cwd string) string {
 	return sha256Hex(repoURL + "\x00" + name)
 }
 
-// repoID returns a stable, non-reversible identifier for the closest Git repository that contains
-// cwd. Git does not have an immutable repository UUID, so a configured remote is the only stable
-// repository-level identity shared by its clones. Repositories without a usable remote return "":
-// hashing a local path or the current commit would be less stable and less useful.
-func repoID(cwd string) string {
-	gitDir := closestGitDir(cwd)
+// RepoIDSourceKind says where a repo ID came from or, when it is empty, why. It lets telemetry tell
+// environments without a usable remote apart from discovery bugs.
+type RepoIDSourceKind string
+
+const (
+	RepoIDSourceGitRemote        RepoIDSourceKind = "git-remote"         // remote URL of the nearest Git repository
+	RepoIDSourcePackageJSON      RepoIDSourceKind = "package-json"       // package.json repository field; Git had no usable remote
+	RepoIDSourceNoGit            RepoIDSourceKind = "no-git"             // no Git repository contains cwd
+	RepoIDSourceNoRemote         RepoIDSourceKind = "no-remote"          // the repository has no remote configured
+	RepoIDSourceLocalRemote      RepoIDSourceKind = "local-remote"       // remotes are local paths, not a shared identity
+	RepoIDSourceUnresolvedGitDir RepoIDSourceKind = "unresolved-gitfile" // the .git file points to a missing Git dir
+)
+
+// repoID returns a stable, non-reversible identifier for the repository that contains cwd, plus
+// a RepoIDSourceKind value. Git does not have an immutable repository UUID, so a configured remote
+// is the only stable repository-level identity shared by its clones. When Git has none, the
+// repository URL declared in cwd's package.json is used instead; both are normalized the same way,
+// so a project gets the same ID from either source. Without either the ID is empty: hashing a
+// local path or the current commit would be less stable and less useful.
+func repoID(cwd string) (string, RepoIDSourceKind) {
+	id, source := gitRepoID(cwd)
+	if id != "" {
+		return id, source
+	}
+	if _, repoURL := rootProjectIdentity(cwd); repoURL != "" {
+		return sha256Hex(repoURL), RepoIDSourcePackageJSON
+	}
+	return "", source
+}
+
+// gitRepoID returns the hashed remote of the closest Git repository that contains cwd, or an empty
+// ID and the reason none was found.
+func gitRepoID(cwd string) (string, RepoIDSourceKind) {
+	gitDir, unresolved := closestGitDir(cwd)
+	if unresolved {
+		return "", RepoIDSourceUnresolvedGitDir
+	}
 	if gitDir == "" {
-		return ""
+		return "", RepoIDSourceNoGit
 	}
 
-	remoteURL := gitRemoteURL(gitDir)
+	remoteURL, hasRemote := gitRemoteURL(gitDir)
 	if remoteURL == "" {
-		return ""
+		if hasRemote {
+			return "", RepoIDSourceLocalRemote
+		}
+		return "", RepoIDSourceNoRemote
 	}
-	return sha256Hex(remoteURL)
+	return sha256Hex(remoteURL), RepoIDSourceGitRemote
 }
 
 // closestGitDir finds the nearest containing Git worktree or bare repository without invoking Git.
 // A worktree's .git entry can be either a directory or a file that points to its actual Git dir.
-func closestGitDir(cwd string) string {
+// A .git file marks a repository boundary even when its target cannot be read (for example a
+// worktree mounted into a container without its main checkout): the search stops there and returns
+// an empty Git dir with true (unresolved), as Git does, rather than picking up an enclosing
+// repository.
+func closestGitDir(cwd string) (string, bool) {
 	dir, err := filepath.Abs(cwd)
 	if err != nil {
-		return ""
+		return "", false
 	}
 
 	for {
-		if gitDir := gitDirAt(dir); gitDir != "" {
-			return gitDir
+		if gitDir, found := gitDirAt(dir); found {
+			return gitDir, gitDir == ""
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return ""
+			return "", false
 		}
 		dir = parent
 	}
 }
 
-func gitDirAt(dir string) string {
+// gitDirAt returns dir's Git directory and true when dir is a repository root, or "" and false when
+// it is not. It returns "" and true when dir has a .git file whose target cannot be resolved.
+func gitDirAt(dir string) (string, bool) {
 	gitEntry := filepath.Join(dir, ".git")
 	info, err := os.Stat(gitEntry)
 	if err == nil {
 		switch {
 		case info.IsDir() && isGitDir(gitEntry):
-			return gitEntry
+			return gitEntry, true
 		case info.Mode().IsRegular():
-			return gitDirFromFile(gitEntry)
+			return gitDirFromFile(gitEntry), true
 		}
 	}
 
 	// A bare repository has the Git directory at its root rather than in a .git entry.
 	if isGitDir(dir) {
-		return dir
+		return dir, true
 	}
-	return ""
+	return "", false
 }
 
 func gitDirFromFile(path string) string {
@@ -174,8 +214,11 @@ func isGitDir(path string) bool {
 
 // gitRemoteURL returns a canonical URL for a repository remote. origin is preferred because it is
 // the conventional clone source; if it is absent, the lexicographically first usable remote keeps
-// the result deterministic. Git worktrees share config through the common Git directory.
-func gitRemoteURL(gitDir string) string {
+// the result deterministic. Git worktrees share config through the common Git directory. The second
+// result reports whether any remote URL was configured, even one that normalizes to nothing (a local
+// path).
+func gitRemoteURL(gitDir string) (string, bool) {
+	hasRemote := false
 	var originURLs, otherURLs []string
 	for _, configPath := range gitConfigPaths(gitDir) {
 		content, err := os.ReadFile(configPath)
@@ -183,6 +226,7 @@ func gitRemoteURL(gitDir string) string {
 			continue
 		}
 		for _, remote := range gitRemoteURLs(content) {
+			hasRemote = true
 			url := normalizeRepoURL(remote.url)
 			if url == "" {
 				continue
@@ -197,13 +241,13 @@ func gitRemoteURL(gitDir string) string {
 
 	if len(originURLs) > 0 {
 		slices.Sort(originURLs)
-		return originURLs[0]
+		return originURLs[0], true
 	}
 	if len(otherURLs) > 0 {
 		slices.Sort(otherURLs)
-		return otherURLs[0]
+		return otherURLs[0], true
 	}
-	return ""
+	return "", hasRemote
 }
 
 func gitConfigPaths(gitDir string) []string {

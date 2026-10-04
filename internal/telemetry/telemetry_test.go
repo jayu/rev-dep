@@ -152,12 +152,10 @@ func TestRepoIDFindsNearestGitRepository(t *testing.T) {
 			if err := os.MkdirAll(tt.cwd, 0o755); err != nil {
 				t.Fatalf("MkdirAll(%q): %v", tt.cwd, err)
 			}
-			if got := closestGitDir(tt.cwd); got != tt.wantGitDir {
+			if got, _ := closestGitDir(tt.cwd); got != tt.wantGitDir {
 				t.Errorf("closestGitDir(%q) = %q, want %q", tt.cwd, got, tt.wantGitDir)
 			}
-			if got, want := repoID(tt.cwd), sha256Hex(tt.wantRemote); got != want {
-				t.Errorf("repoID(%q) = %q, want %q", tt.cwd, got, want)
-			}
+			assertRepoID(t, tt.cwd, sha256Hex(tt.wantRemote), RepoIDSourceGitRemote)
 		})
 	}
 }
@@ -190,12 +188,10 @@ func TestRepoIDReadsLinkedWorktreeConfig(t *testing.T) {
 	}
 	writeTelemetryTestFile(t, filepath.Join(worktree, ".git"), "gitdir: "+relativeGitDir+"\n")
 
-	if got := closestGitDir(filepath.Join(worktree, "src")); got != linkedGitDir {
+	if got, _ := closestGitDir(filepath.Join(worktree, "src")); got != linkedGitDir {
 		t.Errorf("closestGitDir(linked worktree) = %q, want %q", got, linkedGitDir)
 	}
-	if got, want := repoID(filepath.Join(worktree, "src")), sha256Hex("github.com/acme/project"); got != want {
-		t.Errorf("repoID(linked worktree) = %q, want %q", got, want)
-	}
+	assertRepoID(t, filepath.Join(worktree, "src"), sha256Hex("github.com/acme/project"), RepoIDSourceGitRemote)
 }
 
 func TestRepoIDReturnsEmptyWithoutNetworkRemote(t *testing.T) {
@@ -204,8 +200,76 @@ func TestRepoIDReturnsEmptyWithoutNetworkRemote(t *testing.T) {
 	url = ../local-project
 `)
 
-	if got := repoID(root); got != "" {
-		t.Errorf("repoID() = %q, want empty for a local remote", got)
+	assertRepoID(t, root, "", RepoIDSourceLocalRemote)
+}
+
+func TestRepoIDReportsWhyItIsEmpty(t *testing.T) {
+	t.Run("no remote", func(t *testing.T) {
+		root := t.TempDir()
+		makeGitDir(t, filepath.Join(root, ".git"), "[core]\n\tbare = false\n")
+		assertRepoID(t, root, "", RepoIDSourceNoRemote)
+	})
+
+	t.Run("no git", func(t *testing.T) {
+		// t.TempDir lives outside any checkout on the machines that run the tests.
+		assertRepoID(t, t.TempDir(), "", RepoIDSourceNoGit)
+	})
+}
+
+// TestRepoIDStopsAtUnresolvedGitFile covers a worktree whose .git file points somewhere that does
+// not exist (e.g. a host path inside a container). Like Git, discovery must stop there instead of
+// reporting the enclosing checkout's remote.
+func TestRepoIDStopsAtUnresolvedGitFile(t *testing.T) {
+	root := t.TempDir()
+	makeGitDir(t, filepath.Join(root, ".git"), `[remote "origin"]
+	url = https://github.com/acme/outer.git
+`)
+	worktree := filepath.Join(root, ".claude", "worktrees", "feature")
+	if err := os.MkdirAll(worktree, 0o755); err != nil {
+		t.Fatalf("MkdirAll(worktree): %v", err)
+	}
+	writeTelemetryTestFile(t, filepath.Join(worktree, ".git"), "gitdir: /missing/.git/worktrees/feature\n")
+
+	assertRepoID(t, worktree, "", RepoIDSourceUnresolvedGitDir)
+}
+
+func TestRepoIDFallsBackToPackageJSON(t *testing.T) {
+	packageJSON := `{"name": "app", "repository": {"type": "git", "url": "git+https://github.com/acme/app.git"}}`
+
+	t.Run("no remote", func(t *testing.T) {
+		root := t.TempDir()
+		makeGitDir(t, filepath.Join(root, ".git"), "[core]\n\tbare = false\n")
+		writeTelemetryTestFile(t, filepath.Join(root, "package.json"), packageJSON)
+		assertRepoID(t, root, sha256Hex("github.com/acme/app"), RepoIDSourcePackageJSON)
+	})
+
+	t.Run("no git", func(t *testing.T) {
+		root := t.TempDir()
+		writeTelemetryTestFile(t, filepath.Join(root, "package.json"), packageJSON)
+		assertRepoID(t, root, sha256Hex("github.com/acme/app"), RepoIDSourcePackageJSON)
+	})
+
+	t.Run("git remote wins", func(t *testing.T) {
+		root := t.TempDir()
+		makeGitDir(t, filepath.Join(root, ".git"), `[remote "origin"]
+	url = git@github.com:acme/real.git
+`)
+		writeTelemetryTestFile(t, filepath.Join(root, "package.json"), packageJSON)
+		assertRepoID(t, root, sha256Hex("github.com/acme/real"), RepoIDSourceGitRemote)
+	})
+
+	t.Run("no repository field keeps the git reason", func(t *testing.T) {
+		root := t.TempDir()
+		writeTelemetryTestFile(t, filepath.Join(root, "package.json"), `{"name": "app"}`)
+		assertRepoID(t, root, "", RepoIDSourceNoGit)
+	})
+}
+
+func assertRepoID(t *testing.T, cwd, wantID string, wantSource RepoIDSourceKind) {
+	t.Helper()
+	gotID, gotSource := repoID(cwd)
+	if gotID != wantID || gotSource != wantSource {
+		t.Errorf("repoID(%q) = (%q, %q), want (%q, %q)", cwd, gotID, gotSource, wantID, wantSource)
 	}
 }
 

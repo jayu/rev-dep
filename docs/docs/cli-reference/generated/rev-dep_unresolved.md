@@ -19,7 +19,7 @@ rev-dep unresolved [flags]
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
       --custom-asset-extensions strings                             Additional asset extensions treated as resolvable (e.g. glb,mp3)
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for unresolved
       --ignore stringToString                                       Map of file path (relative to cwd) to exact import request to ignore (e.g. --ignore src/index.ts=some-module) (default [])
       --ignore-files strings                                        File path glob patterns to ignore in unresolved output

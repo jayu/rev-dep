@@ -43,11 +43,11 @@ When a package is followed, its import resolves through the package's own `packa
 ## Defaults differ between config and CLI
 
 - **Config:** a rule with no `followMonorepoPackages` key defaults to `true` (follow all).
-- **CLI:** commands follow nothing unless you pass `--follow-monorepo-packages`. Passed without a value it means "follow all"; with a comma-separated list it follows those packages.
+- **CLI:** commands follow nothing unless you pass `--follow-monorepo-packages`. Passed without a value it means "follow all"; with a comma-separated list after `=` it follows only those packages. The `=` is required otherwise the CLI won't interpret the list correctly.
 
 ```bash
 rev-dep resolve --file packages/app/src/main.tsx --follow-monorepo-packages
-rev-dep resolve --file packages/app/src/main.tsx --follow-monorepo-packages @acme/shared,@acme/ui
+rev-dep resolve --file packages/app/src/main.tsx --follow-monorepo-packages=@acme/shared,@acme/ui
 ```
 
 ## Tradeoff

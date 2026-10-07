@@ -40,7 +40,9 @@ func newResolveHint(ruleResult config.RuleResult, cwd string) resolveHint {
 			pkgs = append(pkgs, pkg)
 		}
 		slices.Sort(pkgs)
-		ruleFlags = append(ruleFlags, fmt.Sprintf("--follow-monorepo-packages %s", shell.Quote(strings.Join(pkgs, ","))))
+		// The = is required: the flag accepts a bare form ("follow all"), so pflag only reads a value
+		// attached with =. Written with a space, the list becomes a stray argument and everything is followed.
+		ruleFlags = append(ruleFlags, "--follow-monorepo-packages="+shell.Quote(strings.Join(pkgs, ",")))
 	}
 	if len(ruleResult.ProcessIgnoredFiles) > 0 {
 		patterns := append([]string(nil), ruleResult.ProcessIgnoredFiles...)

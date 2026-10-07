@@ -804,7 +804,7 @@ rev-dep circular --ignore-types-imports
 ```
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for circular
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
@@ -972,7 +972,7 @@ rev-dep debug get-tree-for-cwd [flags]
 ```
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
       --cwd string                                                  Working directory for the command (default "$PWD")
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for get-tree-for-cwd
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
@@ -1030,7 +1030,7 @@ rev-dep debug parse-file [flags]
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
       --cwd string                                                  Working directory for the command (default "$PWD")
       --file string                                                 file to parse
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for parse-file
       --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
       --node-modules-resolution string                              Which package.json each import is validated against: 'entry-package' (the cwd package.json, default) or 'nearest-package' (each file's own nearest package.json) (default "entry-package")
@@ -1143,7 +1143,7 @@ rev-dep entry-points --print-deps-count
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -n, --count                                                       Only display the number of entry points found
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
       --graph-exclude strings                                       Exclude files matching these glob patterns from analysis
   -h, --help                                                        help for entry-points
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
@@ -1182,7 +1182,7 @@ rev-dep files --entry-point src/index.ts
   -n, --count                                                       Only display the count of files in the dependency tree
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
   -p, --entry-point string                                          Entry point file to analyze (required)
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for files
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
@@ -1217,7 +1217,7 @@ rev-dep imported-by --file src/utils/helpers.ts
   -n, --count                                                       Only display the count of importing files
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
   -f, --file string                                                 Target file to find importers for (required)
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for imported-by
       --list-imports                                                List the import identifiers used by each file
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns
@@ -1296,7 +1296,7 @@ rev-dep unresolved [flags]
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
       --custom-asset-extensions strings                             Additional asset extensions treated as resolvable (e.g. glb,mp3)
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for unresolved
       --ignore stringToString                                       Map of file path (relative to cwd) to exact import request to ignore (e.g. --ignore src/index.ts=some-module) (default [])
       --ignore-files strings                                        File path glob patterns to ignore in unresolved output
@@ -1477,7 +1477,7 @@ rev-dep node-modules missing --entry-points=src/main.ts
   -e, --exclude-modules strings                                     list of modules to exclude from the output
   -b, --files-with-binaries strings                                 Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings                             Additional files to search for module imports. Use paths relative to cwd
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
       --group-by-file                                               Organize output by project file path
       --group-by-module                                             Organize output by npm package name
       --group-by-module-files-count                                 Organize output by npm package name and show count of files using it
@@ -1554,7 +1554,7 @@ rev-dep node-modules unused --exclude-modules=@types/*
   -e, --exclude-modules strings                                     list of modules to exclude from the output
   -b, --files-with-binaries strings                                 Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings                             Additional files to search for module imports. Use paths relative to cwd
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for unused
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --include-dev-deps-from-root                                  Treat the monorepo root package.json devDependencies as available to package code, so they are not reported as missing or unresolved. Mirrors config nodeModulesResolution.includeDevDepsFromRoot
@@ -1596,7 +1596,7 @@ rev-dep node-modules used -p src/index.ts --group-by-module
   -e, --exclude-modules strings                                     list of modules to exclude from the output
   -b, --files-with-binaries strings                                 Additional files to search for binary usages. Use paths relative to cwd
   -m, --files-with-node-modules strings                             Additional files to search for module imports. Use paths relative to cwd
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
       --group-by-entry-point                                        Organize output by entry point file path
       --group-by-entry-point-modules-count                          Organize output by entry point and show count of unique modules
       --group-by-file                                               Organize output by project file path
@@ -1643,7 +1643,7 @@ rev-dep resolve -p src/index.ts -f src/utils/helpers.ts
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
   -p, --entry-points strings                                        Entry point file(s) or glob pattern(s) to start analysis from (default: auto-detected)
   -f, --file string                                                 Target file to check for dependencies
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
       --graph-exclude strings                                       Glob patterns to exclude files from dependency analysis
   -h, --help                                                        help for resolve
   -t, --ignore-type-imports                                         Exclude type imports from the analysis

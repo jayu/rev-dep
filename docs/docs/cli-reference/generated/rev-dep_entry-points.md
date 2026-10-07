@@ -26,7 +26,7 @@ rev-dep entry-points --print-deps-count
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -n, --count                                                       Only display the number of entry points found
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
       --graph-exclude strings                                       Exclude files matching these glob patterns from analysis
   -h, --help                                                        help for entry-points
   -t, --ignore-type-imports                                         Exclude type imports from the analysis

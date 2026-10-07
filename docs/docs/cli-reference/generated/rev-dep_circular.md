@@ -25,7 +25,7 @@ rev-dep circular --ignore-types-imports
 ```
       --condition-names strings                                     List of conditions for package.json imports resolution (e.g. node, imports, default)
   -c, --cwd string                                                  Working directory for the command (default "$PWD")
-      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names
+      --follow-monorepo-packages strings                            Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)
   -h, --help                                                        help for circular
   -t, --ignore-type-imports                                         Exclude type imports from the analysis
       --process-ignored-files strings                               Glob patterns to process even if they are ignored by gitignore or exclude patterns

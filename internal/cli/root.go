@@ -212,7 +212,7 @@ func addSharedFlags(command *cobra.Command) {
 	command.Flags().StringSliceVar(&conditionNames, "condition-names", []string{},
 		"List of conditions for package.json imports resolution (e.g. node, imports, default)")
 	command.Flags().StringSliceVar(&followMonorepoPackages, "follow-monorepo-packages", []string{},
-		"Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names")
+		"Enable resolution of imports from monorepo workspace packages. Pass without value to follow all, or pass package names with = (e.g. --follow-monorepo-packages=@acme/ui,@acme/shared)")
 	command.Flags().Lookup("follow-monorepo-packages").NoOptDefVal = followMonorepoPackagesAllSentinel
 }
 

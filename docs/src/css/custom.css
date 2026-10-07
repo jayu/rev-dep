@@ -27,12 +27,9 @@
    Plain class names, not CSS modules, so the head script can reference them
    before hydration. */
 
-/* Hero copy: held, then simply fades in. No movement - the headline is the
-   thing being protected from shifting, so moving it would be self-defeating. */
-.rd-hold {
-  transition: opacity 0.35s ease-out;
-}
-
+/* Hero copy: held until the webfonts resolve, then shown at once - no fade or
+   movement. Only the terminal gets an entrance on first load; entrance
+   animations elsewhere are reserved for sections revealed on scroll. */
 [data-rd-boot] .rd-hold {
   opacity: 0;
 }
@@ -49,7 +46,6 @@
 
 @media (prefers-reduced-motion: reduce) {
 
-  .rd-hold,
   .rd-enter {
     transition: none;
   }

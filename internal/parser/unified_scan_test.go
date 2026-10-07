@@ -58,13 +58,21 @@ func importsEqual(a, b []Import) (string, bool) {
 	return "", true
 }
 
-// corpusFiles collects every JS/TS source in the repository's fixtures and test data.
+// corpusRoots hold the repository's JS/TS sources: fixtures, test data and the docs site.
 // Between them these cover the import forms the project supports plus the surrounding
 // code that makes scanning hard: JSX, decorators, generics, regex literals and templates.
-func corpusFiles(t *testing.T) map[string][]byte {
+var corpusRoots = []string{"../../__fixtures__", "../../testdata", "../../docs/src"}
+
+// goldenCorpusRoots leave out the docs site. Its code changes with every website edit, and
+// a golden that pins it fails for changes that have nothing to do with the scan. Tests that
+// compare two scans of the same file cannot go stale, so they keep the full corpusRoots.
+var goldenCorpusRoots = []string{"../../__fixtures__", "../../testdata"}
+
+// corpusFiles collects every JS/TS source under roots.
+func corpusFiles(t *testing.T, roots []string) map[string][]byte {
 	t.Helper()
 	out := map[string][]byte{}
-	for _, root := range []string{"../../__fixtures__", "../../testdata", "../../docs/src"} {
+	for _, root := range roots {
 		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
 				return nil
@@ -156,13 +164,13 @@ func checkImportScanGolden(t *testing.T, name, got string) {
 	}
 }
 
-// TestImportScanCorpusGolden pins what the scan finds in every source file the repository
-// has, across both parse modes and both type-import settings.
+// TestImportScanCorpusGolden pins what the scan finds in every fixture and test data source
+// (goldenCorpusRoots), across both parse modes and both type-import settings.
 //
 // This is the broad net: no case here was written by hand, so it covers the constructs
 // nobody thought to test as well as the ones they did.
 func TestImportScanCorpusGolden(t *testing.T) {
-	files := corpusFiles(t)
+	files := corpusFiles(t, goldenCorpusRoots)
 
 	paths := make([]string, 0, len(files))
 	for path := range files {
@@ -302,7 +310,7 @@ func TestImportScanTrickySourcesGolden(t *testing.T) {
 // traversal has to produce both results, and they must be the same results either entry
 // point would have produced alone.
 func TestUnifiedScanCollectsImportsAndBlocksTogether(t *testing.T) {
-	files := corpusFiles(t)
+	files := corpusFiles(t, corpusRoots)
 
 	for path, content := range files {
 		allowJSX := true
@@ -347,7 +355,7 @@ func TestUnifiedScanCollectsImportsAndBlocksTogether(t *testing.T) {
 
 // TestSkipBlocksDoesNotChangeImports checks the switch that import-only callers use.
 func TestSkipBlocksDoesNotChangeImports(t *testing.T) {
-	files := corpusFiles(t)
+	files := corpusFiles(t, corpusRoots)
 	for path, content := range files {
 		withBlocks := ScanCodeBlocks(content, BlockScanOptions{
 			Blinding: Blinding{}, AllowJSX: true, MinTokens: 10,

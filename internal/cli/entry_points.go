@@ -417,7 +417,16 @@ var devEntryDirNames = map[string]bool{
 }
 
 // devEntryFileMarkers are filename infixes that mark a file as a development entry point.
-var devEntryFileMarkers = []string{".test.", ".spec.", ".stories.", ".bench.", ".e2e.", ".cy.", ".config."}
+// Hyphenated test suffixes are listed explicitly (e.g. NestJS "app.e2e-spec.ts") rather than a bare
+// "-test." / "-spec.", which would also match production files like "ab-test.ts".
+var devEntryFileMarkers = []string{
+	".test.", ".spec.", ".stories.", ".bench.", ".e2e.", ".cy.", ".config.",
+	".e2e-spec.", ".e2e-test.", ".integration-spec.", ".integration-test.",
+}
+
+// devEntryFilePrefixes are filename prefixes that mark a file as a development entry point, e.g.
+// Jest configs and setup files such as "jest-e2e.ts" or "jest.setup.ts".
+var devEntryFilePrefixes = []string{"jest.", "jest-"}
 
 // isDeclarationFile reports whether relPath is a TypeScript declaration (.d.ts) file. These are
 // development entry points and, when a package has several, get collapsed to one **/*.d.ts glob.
@@ -453,6 +462,11 @@ func hasDevFileMarker(relPath string) bool {
 	lowerBase := strings.ToLower(path.Base(relPath))
 	for _, marker := range devEntryFileMarkers {
 		if strings.Contains(lowerBase, marker) {
+			return true
+		}
+	}
+	for _, prefix := range devEntryFilePrefixes {
+		if strings.HasPrefix(lowerBase, prefix) {
 			return true
 		}
 	}

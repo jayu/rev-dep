@@ -258,11 +258,19 @@ func TestClassifyEntryPoint(t *testing.T) {
 		"__mocks__/fs.ts",
 		".storybook/main.ts",
 		"examples/demo/app.ts",
-		"vite.config.ts",  // *.config.*
-		"jest.config.js",  // *.config.*
-		"next.config.mjs", // *.config.*
-		"types.d.ts",      // *.d.ts
-		"src/global.d.ts", // nested *.d.ts
+		"vite.config.ts",      // *.config.*
+		"jest.config.js",      // *.config.*
+		"next.config.mjs",     // *.config.*
+		"types.d.ts",          // *.d.ts
+		"src/global.d.ts",     // nested *.d.ts
+		"src/app.e2e-spec.ts", // NestJS e2e spec
+		"src/ee/bookings/bookings.controller.e2e-spec.ts",
+		"src/foo.e2e-test.ts",
+		"lib/getLuckyUser.integration-test.ts",
+		"lib/foo.integration-spec.ts",
+		"jest-e2e.ts", // jest config/setup by prefix
+		"jest-e2e.json",
+		"jest.setup.ts",
 	}
 	ignore := []string{
 		"fixtures/data.ts",
@@ -282,6 +290,9 @@ func TestClassifyEntryPoint(t *testing.T) {
 		"test-utils/render.ts", // "test-utils" is not the exact segment "test"
 		"src/latest.ts",        // contains "test" substring but not ".test." nor a dev segment
 		"contest/main.ts",      // "contest" is not "test"
+		"src/ab-test.ts",       // bare "-test." is not a dev marker
+		"src/api-spec.ts",      // bare "-spec." is not a dev marker
+		"src/majestic.ts",      // "jest" not at the start of the filename
 	}
 	for _, p := range dev {
 		if got := classifyEntryPoint(p); got != entryDev {

@@ -1,0 +1,713 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jayu/rev-dep/blob/master/output-schema/2.2.schema.json",
+  "title": "Rev-Dep JSON Output",
+  "description": "JSON output format for rev-dep config run --format json",
+  "type": "object",
+  "required": [
+    "version",
+    "hasFailures",
+    "workspaces",
+    "fixSummary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "2.2",
+      "description": "Output schema version"
+    },
+    "hasFailures": {
+      "type": "boolean",
+      "description": "Whether any check reported failures"
+    },
+    "workspaces": {
+      "type": "array",
+      "description": "Results for each rule in the configuration",
+      "items": {
+        "$ref": "#/definitions/ruleResult"
+      }
+    },
+    "fixSummary": {
+      "$ref": "#/definitions/fixSummary"
+    },
+    "lint": {
+      "$ref": "#/definitions/lintSummary",
+      "description": "Config lint result. Present only when the config was linted (--lint-config or --lint-config-rules). Lint errors fail the run's exit code but do not set hasFailures."
+    }
+  },
+  "definitions": {
+    "lintSummary": {
+      "type": "object",
+      "required": [
+        "errors",
+        "warnings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "errors": {
+          "type": "integer",
+          "description": "Number of lint errors. Run `rev-dep config lint` for details."
+        },
+        "warnings": {
+          "type": "integer",
+          "description": "Number of lint warnings."
+        }
+      }
+    },
+    "ruleResult": {
+      "type": "object",
+      "required": [
+        "path",
+        "fileCount",
+        "checks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Rule path from the configuration"
+        },
+        "fileCount": {
+          "type": "integer",
+          "description": "Number of files matched by this rule"
+        },
+        "emptyWorkspace": {
+          "type": "string",
+          "enum": ["fail", "warn"],
+          "description": "Present only when the workspace matched no files: 'fail' when failOnEmptyWorkspace applies to it (the run failed), 'warn' otherwise"
+        },
+        "checks": {
+          "$ref": "#/definitions/checks"
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Results for each enabled check. Only enabled checks are present.",
+      "properties": {
+        "circularDependencies": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "orphanFiles": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "moduleBoundaries": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "unusedNodeModules": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "missingNodeModules": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "importConventions": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "unresolvedImports": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "unusedExports": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "restrictedDevDependenciesUsage": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "restrictedImports": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "restrictedImporters": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "restrictedDirectImporters": {
+          "$ref": "#/definitions/checkResult"
+        },
+        "duplicatedCode": {
+          "type": "array",
+          "description": "Duplicated code detections for this workspace. An array because a workspace may configure several, each with its own blinding and budget. Unlike every other check it reports counts rather than an issues array: a real project has thousands of duplicated blocks, and the count is what the rule acts on. Use the `command` field to list the places.",
+          "items": {
+            "$ref": "#/definitions/duplicatedCodeResult"
+          }
+        }
+      }
+    },
+    "checkResult": {
+      "type": "object",
+      "required": [
+        "status",
+        "issues"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ],
+          "description": "Whether the check passed or failed"
+        },
+        "issues": {
+          "type": "array",
+          "description": "List of issues found by the check (empty when status is pass)",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/definitions/circularDependencyIssue"
+              },
+              {
+                "$ref": "#/definitions/orphanFileIssue"
+              },
+              {
+                "$ref": "#/definitions/moduleBoundaryIssue"
+              },
+              {
+                "$ref": "#/definitions/unusedNodeModuleIssue"
+              },
+              {
+                "$ref": "#/definitions/missingNodeModuleIssue"
+              },
+              {
+                "$ref": "#/definitions/importConventionIssue"
+              },
+              {
+                "$ref": "#/definitions/unresolvedImportIssue"
+              },
+              {
+                "$ref": "#/definitions/unusedExportIssue"
+              },
+              {
+                "$ref": "#/definitions/restrictedDevDepsIssue"
+              },
+              {
+                "$ref": "#/definitions/restrictedImportIssue"
+              },
+              {
+                "$ref": "#/definitions/restrictedImporterIssue"
+              },
+              {
+                "$ref": "#/definitions/restrictedDirectImporterIssue"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "circularDependencyIssue": {
+      "type": "object",
+      "required": [
+        "cycle"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cycle": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "File paths forming the circular dependency chain"
+        }
+      }
+    },
+    "orphanFileIssue": {
+      "type": "object",
+      "required": [
+        "filePath"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "filePath": {
+          "type": "string"
+        }
+      }
+    },
+    "moduleBoundaryIssue": {
+      "type": "object",
+      "required": [
+        "ruleName",
+        "filePath",
+        "importPath",
+        "violationType"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ruleName": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "importPath": {
+          "type": "string"
+        },
+        "violationType": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    },
+    "unusedNodeModuleIssue": {
+      "type": "object",
+      "required": [
+        "moduleName",
+        "filePath"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "moduleName": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    },
+    "missingNodeModuleIssue": {
+      "type": "object",
+      "required": [
+        "moduleName",
+        "importedFrom"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "moduleName": {
+          "type": "string"
+        },
+        "importedFrom": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "locations": {
+          "type": "array",
+          "description": "Per-import source locations of the missing module",
+          "items": {
+            "type": "object",
+            "required": [
+              "filePath",
+              "startLine",
+              "startCol",
+              "endLine",
+              "endCol"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "filePath": {
+                "type": "string"
+              },
+              "startLine": {
+                "type": "integer"
+              },
+              "startCol": {
+                "type": "integer"
+              },
+              "endLine": {
+                "type": "integer"
+              },
+              "endCol": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "importConventionIssue": {
+      "type": "object",
+      "required": [
+        "filePath",
+        "importRequest",
+        "violationType"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "filePath": {
+          "type": "string"
+        },
+        "importRequest": {
+          "type": "string"
+        },
+        "violationType": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    },
+    "unresolvedImportIssue": {
+      "type": "object",
+      "required": [
+        "filePath",
+        "request"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "filePath": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string",
+          "description": "The module path the code asked for. When nonLiteral is true this is the specifier expression as written, such as \"'@/api/' + name\", not a path."
+        },
+        "nonLiteral": {
+          "type": "boolean",
+          "description": "Present and true when the import specifier is an expression rather than a string literal, so request holds source code instead of a module path"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    },
+    "unusedExportIssue": {
+      "type": "object",
+      "required": [
+        "filePath",
+        "exportName",
+        "isType"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "filePath": {
+          "type": "string"
+        },
+        "exportName": {
+          "type": "string"
+        },
+        "isType": {
+          "type": "boolean"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    },
+    "restrictedDevDepsIssue": {
+      "type": "object",
+      "required": [
+        "devDependency",
+        "filePath",
+        "entryPoint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "devDependency": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "entryPoint": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    },
+    "restrictedImportIssue": {
+      "type": "object",
+      "required": [
+        "violationType",
+        "importerFile",
+        "entryPoint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "violationType": {
+          "type": "string"
+        },
+        "importerFile": {
+          "type": "string"
+        },
+        "entryPoint": {
+          "type": "string"
+        },
+        "deniedFile": {
+          "type": "string"
+        },
+        "deniedModule": {
+          "type": "string"
+        },
+        "importRequest": {
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer"
+        },
+        "startCol": {
+          "type": "integer"
+        },
+        "endLine": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        }
+      }
+    },
+    "restrictedImporterIssue": {
+      "type": "object",
+      "required": [
+        "entryPoint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "entryPoint": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      }
+    },
+    "restrictedDirectImporterIssue": {
+      "type": "object",
+      "required": [
+        "violationType",
+        "importerFile"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "violationType": {
+          "type": "string"
+        },
+        "importerFile": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "importRequest": {
+          "type": "string"
+        }
+      }
+    },
+    "duplicatedCodeResult": {
+      "type": "object",
+      "required": [
+        "status",
+        "blinding",
+        "snippets",
+        "occurrences",
+        "files",
+        "scanned",
+        "ignored",
+        "configIndex"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail"
+          ],
+          "description": "Whether this detection stayed within its budget. With a snapshot configured, whether the baseline is unchanged."
+        },
+        "blinding": {
+          "type": "string",
+          "description": "What the comparison ignored: \"exact\", \"identifiers\", \"identifiers+strings\", and so on. Makes the counts interpretable and tells two detections on the same workspace apart."
+        },
+        "snippets": {
+          "type": "integer",
+          "description": "Number of distinct duplicated patterns found."
+        },
+        "occurrences": {
+          "type": "integer",
+          "description": "Total number of places those patterns appear. Always at least twice snippets."
+        },
+        "files": {
+          "type": "integer",
+          "description": "How many files contain at least one duplicated pattern."
+        },
+        "scanned": {
+          "type": "integer",
+          "description": "How many files were searched. Included so a disagreement with a direct `rev-dep duplicated-code` run can be traced to the scope rather than guessed at."
+        },
+        "ignored": {
+          "type": "integer",
+          "description": "How many files were left out by ignore patterns."
+        },
+        "configIndex": {
+          "type": "integer",
+          "description": "Which entry of the workspace's duplicatedCodeDetection array produced this result. Disabled detections produce no result, so this cannot be recovered by counting results. Use it to look the detection's settings up in the config."
+        },
+        "error": {
+          "type": "string",
+          "description": "Why the detection could not run - most often its settings contradict the snapshot it was told to compare against. Absent when it ran. Without it a consumer sees status \"fail\" beside a count of zero and cannot tell a clean run that failed some other way from a check that never ran at all."
+        },
+        "snapshot": {
+          "$ref": "#/definitions/duplicatedCodeSnapshot",
+          "description": "Present only when the detection is baselined against a snapshot file."
+        }
+      }
+    },
+    "duplicatedCodeSnapshot": {
+      "type": "object",
+      "required": [
+        "path",
+        "written",
+        "missing",
+        "new",
+        "spread",
+        "moved",
+        "fewer",
+        "belowThreshold",
+        "resolved",
+        "unchanged",
+        "canonicalFormChanged"
+      ],
+      "additionalProperties": false,
+      "description": "Comparison against the baseline, counted the same way as the totals: how many patterns changed in each direction, not which ones.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the snapshot file."
+        },
+        "written": {
+          "type": "boolean",
+          "description": "This run rewrote the baseline instead of checking against it, which is why nothing failed."
+        },
+        "missing": {
+          "type": "boolean",
+          "description": "A snapshot is configured but does not exist. A broken setup rather than a clean one, and the reason a status can be \"fail\" with no changes counted."
+        },
+        "new": {
+          "type": "integer",
+          "description": "Patterns that did not appear in the snapshot at all."
+        },
+        "spread": {
+          "type": "integer",
+          "description": "Patterns that now appear in more places than were acknowledged."
+        },
+        "moved": {
+          "type": "integer",
+          "description": "Patterns that now appear in a file they were not acknowledged in."
+        },
+        "fewer": {
+          "type": "integer",
+          "description": "Patterns that now appear in fewer places than were acknowledged."
+        },
+        "belowThreshold": {
+          "type": "integer",
+          "description": "Patterns still duplicated, but by fewer copies than minDuplicates requires, so no longer reported as findings. Distinct from resolved: the code is still there."
+        },
+        "resolved": {
+          "type": "integer",
+          "description": "Patterns that were acknowledged but no longer exist."
+        },
+        "unchanged": {
+          "type": "integer",
+          "description": "Patterns that matched the baseline exactly."
+        },
+        "parameterChanges": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Settings that differ from the ones the baseline was taken under. They do not affect the comparison, but they explain a surprising delta."
+        },
+        "canonicalFormChanged": {
+          "type": "boolean",
+          "description": "The baseline's hashes came from a different normaliser revision, so part of the delta may be re-canonicalisation rather than real change."
+        }
+      }
+    },
+    "fixSummary": {
+      "type": "object",
+      "required": [
+        "fixedFilesCount",
+        "fixedImportsCount",
+        "deletedFilesCount",
+        "fixableIssuesCount",
+        "unfixableAliasingCount"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "fixedFilesCount": {
+          "type": "integer"
+        },
+        "fixedImportsCount": {
+          "type": "integer"
+        },
+        "deletedFilesCount": {
+          "type": "integer"
+        },
+        "fixableIssuesCount": {
+          "type": "integer"
+        },
+        "unfixableAliasingCount": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

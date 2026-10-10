@@ -109,7 +109,16 @@ func TestConfigRun_RulesFilter(t *testing.T) {
 	err = cmd.RunE(cmd, []string{})
 	if err == nil {
 		t.Errorf("Expected error for non-existent rule, but got nil")
-	} else if !strings.Contains(err.Error(), "none of the requested rules") {
-		t.Errorf("Expected error message to contain 'none of the requested rules', but got: %v", err)
+	} else if !strings.Contains(err.Error(), "no workspace in config matches src/features/non-existent") {
+		t.Errorf("Expected error naming the unknown workspace, but got: %v", err)
+	}
+
+	// 4. One unknown path among known ones is still an error, not silently dropped
+	SetRunConfigRules([]string{"src/features/auth", "src/features/typo"})
+	err = cmd.RunE(cmd, []string{})
+	if err == nil {
+		t.Errorf("Expected error for a partially unknown --workspaces list, but got nil")
+	} else if !strings.Contains(err.Error(), "src/features/typo") || strings.Contains(err.Error(), "matches src/features/auth") {
+		t.Errorf("Expected error naming only the unknown workspace, but got: %v", err)
 	}
 }

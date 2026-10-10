@@ -32,7 +32,18 @@ func runConfigWithIssuesListOutput(cfg config.RevDepConfig, cwd string, runConfi
 		fmt.Print(output)
 	}
 
-	if result.HasFailures {
+	lintHasErrors := false
+	if configRunLintWanted() {
+		counts, err := lintConfigAfterRun(cwd, result)
+		if err != nil {
+			return err
+		}
+		printConfigLintSummary(counts)
+		lintHasErrors = counts.Errors > 0
+	}
+
+	// Same exit rule as the default output: with --fix, issues that were all fixed don't fail the run.
+	if shouldConfigRunExitNonZero(result, runConfigFix) || lintHasErrors {
 		os.Exit(1)
 	}
 

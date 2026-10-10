@@ -58,4 +58,6 @@ Limit which rules run:
 rev-dep config run --lint-config --lint-config-rules orphan-file-globs
 ```
 
+It works with every output format. With `--format json` the counts are in a top-level `lint` field (`{"errors": 1, "warnings": 3}`), and with `--format issues-list` the same summary line is printed after the issues. In all formats a lint error fails the exit code.
+
 There is no `--fix` in this path - use `config lint --fix` to apply changes.

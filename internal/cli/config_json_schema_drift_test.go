@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// TestJSONOutputSchemaNoDrift guards output-schema/2.1.schema.json against silent drift from the Go
+// TestJSONOutputSchemaNoDrift guards output-schema/2.2.schema.json against silent drift from the Go
 // structs that produce `config run --format json`. Every object in the schema sets
 // additionalProperties:false, so a struct field whose JSON key is missing from the schema would make
 // real output fail validation, and a schema property with no backing struct field is dead weight.
@@ -22,7 +22,7 @@ import (
 // basic mode by default and the locator can return nil even under detailed parsing, so locations are
 // best-effort, not guaranteed. This test pins the key *vocabulary*, not presence.
 func TestJSONOutputSchemaNoDrift(t *testing.T) {
-	schemaPath := filepath.Join("..", "..", "output-schema", "2.1.schema.json")
+	schemaPath := filepath.Join("..", "..", "output-schema", "2.2.schema.json")
 	raw, err := os.ReadFile(schemaPath)
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
@@ -68,7 +68,8 @@ func TestJSONOutputSchemaNoDrift(t *testing.T) {
 		pointer []string // path of keys into the schema to the object node ({} = root)
 		value   interface{}
 	}{
-		{"output (root)", nil, jsonOutput{Version: "1.2", Rules: []jsonRuleResult{}}},
+		{"output (root)", nil, jsonOutput{Version: "1.2", Rules: []jsonRuleResult{}, Lint: &jsonLintSummary{}}},
+		{"lintSummary", []string{"definitions", "lintSummary"}, jsonLintSummary{}},
 		{"ruleResult", []string{"definitions", "ruleResult"}, jsonRuleResult{EmptyWorkspace: "fail"}},
 		{"checks", []string{"definitions", "checks"}, allChecks},
 		{"checkResult", []string{"definitions", "checkResult"}, jsonCheckResult{Issues: []interface{}{}}},

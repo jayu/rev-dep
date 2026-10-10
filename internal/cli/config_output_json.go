@@ -17,6 +17,15 @@ type jsonOutput struct {
 	HasFailures bool             `json:"hasFailures"`
 	Rules       []jsonRuleResult `json:"workspaces"`
 	FixSummary  jsonFixSummary   `json:"fixSummary"`
+	// Lint is present only when the config was linted (--lint-config / --lint-config-rules).
+	// Lint findings are not check failures, so they don't set HasFailures, but lint errors
+	// still fail the run's exit code.
+	Lint *jsonLintSummary `json:"lint,omitempty"`
+}
+
+type jsonLintSummary struct {
+	Errors   int `json:"errors"`
+	Warnings int `json:"warnings"`
 }
 
 type jsonRuleResult struct {
@@ -225,7 +234,7 @@ type jsonRestrictedDirectImporterIssue struct {
 
 func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, runConfigFix bool, runConfigRecheck bool) error {
 	output := jsonOutput{
-		Version: "2.1",
+		Version: "2.2",
 		Rules:   []jsonRuleResult{},
 	}
 
@@ -253,11 +262,21 @@ func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, runConfigFix b
 		output.Rules = append(output.Rules, buildJSONRuleResult(ruleResult, cwd, locator))
 	}
 
+	if configRunLintWanted() {
+		counts, err := lintConfigAfterRun(cwd, result)
+		if err != nil {
+			return err
+		}
+		output.Lint = &jsonLintSummary{Errors: counts.Errors, Warnings: counts.Warnings}
+	}
+
 	if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
 		return fmt.Errorf("failed to encode JSON output: %v", err)
 	}
 
-	if output.HasFailures {
+	// Same exit rule as the default output: with --fix, issues that were all fixed don't fail the
+	// run, even though hasFailures still reports that checks found them.
+	if shouldConfigRunExitNonZero(result, runConfigFix) || (output.Lint != nil && output.Lint.Errors > 0) {
 		os.Exit(1)
 	}
 

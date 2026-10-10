@@ -1,0 +1,90 @@
+---
+slug: rev-dep-3-2-1-release
+title: Rev-dep 3.2.1 release
+authors: [jayu]
+---
+
+# Rev-dep 3.2.1 release
+
+This patch version bump brings:
+
+- a fix for the npm wrapper truncating output and exiting with code `0` on failure
+- validation of `config run` flag values
+- `--lint-config` support in the `json` and `issues-list` output formats
+- the same `--fix` exit code in every output format
+- better detection of test files in `config init`
+- a fix for the `--follow-monorepo-packages` syntax in the docs and hints
+
+[GitHub Release](https://github.com/jayu/rev-dep/releases/tag/3.2.1)
+
+The first three fixes can make a CI run that passed before fail after the upgrade. In each case the run should have been failing all along - the problem was hidden. Please read these sections before upgrading.
+
+## npm wrapper output and exit code
+
+When you run rev-dep installed from npm, a small Node.js script starts the native binary for your platform. Previously, that script collected the whole output in memory before printing it, which caused three problems:
+
+- output larger than 1 MiB (Node.js implicit default) was cut off, and the process exited with code `0` even when checks failed
+- when the output was piped, for example to `tee`, `jq` or a CI log processor, a failing run was cut off after 64 KB
+- arguments containing `"`, `$` or backticks were interpreted by a shell instead of being passed to the binary
+
+On a large repository, this meant `config run` could fail and CI would still pass, and `--format json` could produce a truncated, invalid document.
+
+Now the binary writes directly to the terminal, pipe or file, so the output is never cut off and the exit code is always the binary's own. Arguments are passed to the binary exactly as given.
+
+If your CI started failing after the upgrade, check the output - those failures were there before, the wrapper just hid them.
+
+## Validation of `config run` flags
+
+Some `config run` flag values were silently ignored. Now they fail with an error before any check runs:
+
+- `--format` accepts only `json` and `issues-list`. Previously, any other value, including a different case like `JSON`, fell back to the default output.
+- `--workspaces` fails when any listed path doesn't match a workspace in the config. Previously, a typo was only reported when none of the paths matched, so `--workspaces packages/app,packages/tpyo` silently ran only `packages/app`. Paths must be written exactly as in the config file.
+- `--lint-config-rules` is validated before the run. Previously, an unknown rule name was reported only after all checks had finished.
+
+## Config lint in machine-readable output
+
+Previously, `--lint-config` and `--lint-config-rules` were silently skipped when used with `--format json` or `--format issues-list`. A CI step combining them passed even when the config lint found errors.
+
+Now the config is linted in every output format, and lint errors fail the run. With `--format issues-list`, the same summary line as in the default output is printed after the issues. With `--format json`, the counts are reported in a new top-level `lint` field:
+
+```json
+{
+  "version": "2.2",
+  "hasFailures": false,
+  "workspaces": [...],
+  "fixSummary": {...},
+  "lint": { "errors": 1, "warnings": 0 }
+}
+```
+
+The field is present only when the config was linted. Lint findings don't set `hasFailures`, which still reports check failures only. The JSON output version is now `2.2` - validate against the [2.2 schema](https://github.com/jayu/rev-dep/blob/master/output-schema/2.2.schema.json). Read more about [linting during a config run](/docs/config-based-checks/linting-the-config#linting-during-a-config-run).
+
+## The same `--fix` exit code in every format
+
+With `--fix`, the default output exits with code `0` when every issue found was fixable and has been fixed. The `json` and `issues-list` formats exited with code `1` in that case, unless `--recheck` was also used.
+
+Now all formats follow the same rule: `0` when everything found was fixed, `1` when an issue remains that `--fix` can't fix. In JSON output, `hasFailures` still reports that the checks found issues before they were fixed. Read more about [exit codes with `--fix` and `--recheck`](/docs/config-based-checks/running-checks-and-autofix#exit-code-nuance-with---fix-and---recheck).
+
+## Test files detection in `config init`
+
+`config init` sorts the detected entry points into `prodEntryPoints` and `devEntryPoints`. Some common test file names were not recognized as development files, so they ended up in `prodEntryPoints`:
+
+- `*.e2e-spec.ts`, used by NestJS
+- `*.e2e-test.ts`, `*.integration-test.ts` and `*.integration-spec.ts`
+- Jest config and setup files like `jest-e2e.ts` or `jest.setup.ts`
+
+A generated config then treated test code as production code - in one large project, 100 test files ended up as production entry points. Now these files are classified as development entry points. This affects only newly generated configs.
+
+## `--follow-monorepo-packages` syntax
+
+To follow only selected packages, the list has to be passed with `=`:
+
+```bash
+rev-dep resolve --file packages/app/src/main.tsx --follow-monorepo-packages=@acme/shared,@acme/ui
+```
+
+Written with a space, the list is not read as the flag's value, and every workspace package is followed. The docs and the hint printed after a restricted-imports failure showed the form with a space. Both are fixed, and the flag's help text now shows the `=` form. Read more about [following monorepo packages](/docs/other-concepts-and-features/following-monorepo-packages).
+
+<br/>
+
+That's it for this update. See you in the next one 👋

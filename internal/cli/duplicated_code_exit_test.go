@@ -15,8 +15,8 @@ import (
 // missing (root.go), config run (config_run.go). duplicated-code used to return an empty
 // error instead, and cobra turned that into a bare `Error:` line on stderr.
 //
-// That line is not invisible. The npm wrapper (npm/rev-dep/bin.js) forwards stderr whenever
-// the exit code is non-zero, so it lands under a report that had already said everything.
+// That line is not invisible. The npm wrapper (npm/rev-dep/bin.js) passes the binary's stderr
+// through, so it lands under a report that had already said everything.
 //
 // os.Exit cannot be observed from inside a test, so the check below re-runs this test binary
 // as a child process - which is also what the wrapper does, and therefore what is actually

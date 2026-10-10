@@ -54,35 +54,18 @@ if (!fs.existsSync(binary)) {
   process.exit(1)
 }
 
-// config init needs interactive terminal
-const positionalArgs = binaryArgs.filter((arg) => !arg.startsWith('-'))
-const isConfigInit = positionalArgs[0] === 'config' && positionalArgs[1] === 'init'
-const isInteractiveTerminal = Boolean(process.stdin.isTTY && process.stdout.isTTY)
+// The child inherits our stdio: output streams straight to the terminal, pipe or file, so there is
+// no size limit (execSync capped it at maxBuffer, 1 MiB, then killed the child) and nothing is held
+// in this process to flush. Interactive commands (config init) get the TTY for the same reason.
+// No shell either: arguments reach the binary exactly as given.
+const result = cp.spawnSync(binary, binaryArgs, { stdio: 'inherit' })
 
-if (isConfigInit && isInteractiveTerminal) {
-  const interactive = cp.spawnSync(binary, binaryArgs, { stdio: 'inherit' })
-  if (interactive.error) {
-    console.error(interactive.error.message)
-    process.exit(1)
-  }
+// result.errr is only set when binary was not started successfully (ENOENT, EACCES, etc). 
+if (result.error) {
+  console.error(result.error.message)
+  process.exitCode = 1
+} else {
   // status is null when the child was killed by a signal; treat that as a failure.
-  process.exit(interactive.status === null ? 1 : interactive.status)
+  // exitCode, not process.exit(): exit() drops stdout/stderr writes still queued for a pipe.
+  process.exitCode = result.status === null ? 1 : result.status
 }
-
-try {
-  const binaryArgsWrapped = binaryArgs.map((arg) => `"${arg}"`)
-
-  const result = cp.execSync(`${binary} ${binaryArgsWrapped.join(' ')}`, { stdio: 'pipe' })
-
-  if (Buffer.isBuffer(result)) {
-    process.stdout.write(result.toString())
-  }
-  else {
-    console.error("Unexpected binary result", result)
-  }
-} catch (e) {
-  process.stdout.write(e.stdout)
-  process.stderr.write(e.stderr)
-  process.exit(e.status)
-}
-

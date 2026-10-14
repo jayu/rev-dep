@@ -145,6 +145,7 @@ func (o *RestrictedDevDependenciesUsageOptions) IsEnabled() bool { return o != n
 
 type Rule struct {
 	Path                                string                                       `json:"path"` // Required
+	DetectorOrder                       []string                                     `json:"-"`    // property order for default output
 	TsConfigPath                        string                                       `json:"tsConfigPath,omitempty"`
 	FailOnEmptyWorkspace                bool                                         `json:"-"` // resolved in ParseConfig: the workspace's own value, else the root one
 	ProdEntryPoints                     []string                                     `json:"prodEntryPoints,omitempty"`
@@ -374,6 +375,10 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &wire); err != nil {
 		return err
 	}
+	order, err := readDetectorOrder(data)
+	if err != nil {
+		return err
+	}
 
 	circular, err := parseOneOrManyObjects[CircularImportsOptions](wire.CircularImportsDetection)
 	if err != nil {
@@ -423,6 +428,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	}
 
 	r.Path = wire.Path
+	r.DetectorOrder = order
 	r.TsConfigPath = wire.TsConfigPath
 	r.ProdEntryPoints = wire.ProdEntryPoints
 	r.DevEntryPoints = wire.DevEntryPoints
@@ -445,6 +451,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 
 type RevDepConfig struct {
 	ConfigVersion         string   `json:"configVersion"` // Required
+	BaselineSnapshotPath  string   `json:"baselineSnapshotPath,omitempty"`
 	Schema                string   `json:"$schema,omitempty"`
 	ConditionNames        []string `json:"conditionNames,omitempty"`
 	CustomAssetExtensions []string `json:"customAssetExtensions,omitempty"`
@@ -552,7 +559,7 @@ func ConfigFileNameJSONC() string {
 
 // CurrentConfigVersion is the config schema version this CLI release treats as current - the one
 // `config init` writes into generated configs. Keep it as the last entry of supportedConfigVersions.
-const CurrentConfigVersion = "2.1"
+const CurrentConfigVersion = "2.2"
 
 func IsLegacyV1Config(cwd string) (legacy bool, version string, ok bool) {
 	path, err := findConfigFile(cwd)
@@ -576,7 +583,7 @@ func IsLegacyV1Config(cwd string) (legacy bool, version string, ok bool) {
 
 // supportedConfigVersions lists config versions supported by this CLI release.
 // Update this slice when adding or removing support for config versions.
-var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "2.0", CurrentConfigVersion}
+var supportedConfigVersions = []string{"1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "2.0", "2.1", CurrentConfigVersion}
 
 // validateConfigVersion returns an error when the provided config version
 // is not in the supportedConfigVersions list.
@@ -896,6 +903,7 @@ func validateRawConfig(raw map[string]interface{}) error {
 	allowedRootFields := map[string]bool{
 		"$schema":               true,
 		"configVersion":         true,
+		"baselineSnapshotPath":  true,
 		"conditionNames":        true,
 		"customAssetExtensions": true,
 		"ignoreFiles":           true,
@@ -911,6 +919,13 @@ func validateRawConfig(raw map[string]interface{}) error {
 	for field := range raw {
 		if !allowedRootFields[field] {
 			return fmt.Errorf("unknown field '%s' in config root", field)
+		}
+	}
+
+	if value, exists := raw["baselineSnapshotPath"]; exists {
+		filename, ok := value.(string)
+		if !ok || strings.TrimSpace(filename) == "" {
+			return fmt.Errorf("baselineSnapshotPath must be a nonempty string")
 		}
 	}
 
@@ -1698,6 +1713,9 @@ func validateRawUnusedExportsDetectionInstance(unusedExportsMap map[string]inter
 
 // ValidateConfig validates the RevDepConfig structure and required fields.
 func ValidateConfig(config *RevDepConfig) error {
+	if config.BaselineSnapshotPath != "" && strings.TrimSpace(config.BaselineSnapshotPath) == "" {
+		return fmt.Errorf("baselineSnapshotPath must be a nonempty string")
+	}
 	if config.ConfigVersion == "" {
 		return fmt.Errorf("configVersion is required")
 	}

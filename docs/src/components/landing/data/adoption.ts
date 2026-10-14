@@ -54,14 +54,14 @@ export const adoptionSteps: AdoptionStep[] = [
   },
   {
     title: 'Add one detector at a time',
-    body: 'Each check is a separate key in the config. Turn on unused exports, fix that backlog, commit, then move to the next one.',
+    body: 'Each check is a separate key in the config. Turn on unused exports, fix or acknowledge the findings in a baseline, commit, then move to the next one.',
   },
   {
     title: 'Let --fix do the boring part',
     body: 'Orphan files, unused exports and import conventions repair themselves. Deleting one dead file often reveals another, so run it until it comes back clean.',
   },
   {
-    title: 'Scope rules per workspace',
-    body: 'A monorepo package that is not ready keeps its checks off. The rest of the repo starts failing on regressions straight away, instead of waiting for the worst package to be cleaned up first.',
+    title: 'Keep CI clean with a baseline',
+    body: 'Record existing findings across configured workspaces, then keep running checks on every PR. Acknowledged findings pass; new or obsolete findings fail. Duplicated code keeps its own specialized snapshots.',
   },
 ];

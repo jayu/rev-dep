@@ -1,11 +1,13 @@
 package dupcode
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"rev-dep-go/internal/emoji"
 )
@@ -56,7 +58,7 @@ func TestSnapshotRoundTrip(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "nested", "dup.json")
-	if err := SaveSnapshot(path, BuildSnapshot(dups, opts)); err != nil {
+	if _, err := SaveSnapshot(path, BuildSnapshot(dups, opts)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -77,6 +79,72 @@ func TestSnapshotRoundTrip(t *testing.T) {
 	// later look like a changed setting.
 	if loaded.Parameters.MinDuplicates != 2 {
 		t.Errorf("MinDuplicates recorded as %d, want the effective default 2", loaded.Parameters.MinDuplicates)
+	}
+}
+
+func TestSaveSnapshotWritesOnlyChangedContents(t *testing.T) {
+	dir := tripledProject(t)
+	opts := snapshotOpts(dir)
+	dups, _, err := Detect(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*Snapshot)
+	}{
+		{name: "unchanged"},
+		{name: "settings", mutate: func(s *Snapshot) { s.Parameters.MinTokens++ }},
+		{name: "resolved pattern", mutate: func(s *Snapshot) { s.Entries = s.Entries[1:] }},
+		{name: "occurrences", mutate: func(s *Snapshot) {
+			s.Entries[0].Occurrences++
+			s.Entries[0].Files["a.ts"]++
+		}},
+		{name: "files", mutate: func(s *Snapshot) {
+			for file, count := range s.Entries[0].Files {
+				delete(s.Entries[0].Files, file)
+				s.Entries[0].Files["moved.ts"] = count
+				break
+			}
+		}},
+		{name: "canonical form", mutate: func(s *Snapshot) { s.CanonicalFormVersion = "2.0" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "snapshot.json")
+			snapshot := BuildSnapshot(dups, opts)
+			if written, err := SaveSnapshot(path, snapshot); err != nil || !written {
+				t.Fatalf("initial snapshot not written: written=%v, err=%v", written, err)
+			}
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stamp := time.Unix(946684800, 0)
+			if err := os.Chtimes(path, stamp, stamp); err != nil {
+				t.Fatal(err)
+			}
+			if test.mutate != nil {
+				test.mutate(snapshot)
+			}
+			wantWrite := test.mutate != nil
+			if written, err := SaveSnapshot(path, snapshot); err != nil || written != wantWrite {
+				t.Fatalf("written=%v, want %v, err=%v", written, wantWrite, err)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Equal(before, after) == wantWrite {
+				t.Fatalf("snapshot contents changed=%v, want %v", !bytes.Equal(before, after), wantWrite)
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !wantWrite && !info.ModTime().Equal(stamp) {
+				t.Fatal("unchanged snapshot was rewritten")
+			}
+		})
 	}
 }
 
@@ -110,7 +178,7 @@ func TestSnapshotFileIsReadable(t *testing.T) {
 	dups, _, _ := Detect(opts)
 
 	path := filepath.Join(t.TempDir(), "dup.json")
-	if err := SaveSnapshot(path, BuildSnapshot(dups, opts)); err != nil {
+	if _, err := SaveSnapshot(path, BuildSnapshot(dups, opts)); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)

@@ -65,6 +65,7 @@ const sidebars: SidebarsConfig = {
               ],
             },
             'config-based-checks/running-checks-and-autofix',
+            'config-based-checks/findings-baseline',
             'config-based-checks/linting-the-config',
             'config-based-checks/output-formats',
             {

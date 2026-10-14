@@ -128,10 +128,11 @@ func duplicatedCodeCmdFn(cwd string, blinding dupcode.Blinding, minTokens, minLi
 	case snapshotPath != "" && updateSnapshot:
 		// Writing the baseline is explicit, so it needs no existing file and never fails on contents.
 		snap := dupcode.BuildSnapshot(dups, opts)
-		if err := dupcode.SaveSnapshot(snapshotPath, snap); err != nil {
+		written, err := dupcode.SaveSnapshot(snapshotPath, snap)
+		if err != nil {
 			return err
 		}
-		return reportSnapshotWritten(snap, dups, stats, opts, snapshotPath, format, jsonSnippets)
+		return reportSnapshotUpdate(snap, dups, stats, opts, snapshotPath, written, format, jsonSnippets)
 
 	case snapshotMissing:
 		// A configured baseline that is not there is a broken setup, not an empty one: passing here
@@ -166,25 +167,30 @@ func writeFullReport(
 	return nil
 }
 
-// reportSnapshotWritten reports a fresh baseline in JSON as a comparison against itself, which
-// is what it is - so a consumer stays on one shape instead of needing a second one for the
-// case where the snapshot was being written.
-func reportSnapshotWritten(
+// reportSnapshotUpdate reports the resulting baseline in JSON as a comparison against
+// itself, keeping the same shape whether the update wrote the file or left it unchanged.
+func reportSnapshotUpdate(
 	snap *dupcode.Snapshot,
 	dups []dupcode.Duplication,
 	stats dupcode.Stats,
 	opts dupcode.Options,
 	snapshotPath string,
+	written bool,
 	format string,
 	jsonSnippets bool,
 ) error {
 	if format == "json" {
-		written := &dupcode.Delta{Unchanged: len(snap.Entries), MinDuplicates: opts.MinDuplicates}
-		return dupcode.WriteJSONWithSnapshot(os.Stdout, dups, nil, written, stats, opts,
+		delta := &dupcode.Delta{Unchanged: len(snap.Entries), MinDuplicates: snap.Parameters.MinDuplicates}
+		return dupcode.WriteJSONWithSnapshot(os.Stdout, dups, nil, delta, stats, opts,
 			snapshotPath, jsonSnippets)
 	}
-	fmt.Printf("Wrote %s: %s acknowledged.\n",
-		snapshotPath, plural.Count(len(snap.Entries), "duplicated pattern", "duplicated patterns"))
+	if written {
+		fmt.Printf("Wrote %s: %s acknowledged.\n",
+			snapshotPath, plural.Count(len(snap.Entries), "duplicated pattern", "duplicated patterns"))
+	} else {
+		fmt.Printf("Snapshot unchanged (%s acknowledged)\n",
+			plural.Count(len(snap.Entries), "pattern", "patterns"))
+	}
 	return nil
 }
 

@@ -91,7 +91,8 @@ func (h resolveHint) moduleExample(module, entryPoint string, violationFlags []s
 		shell.Quote(h.ruleCwdArg), h.extraFlagsPart(violationFlags))
 }
 
-func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string) {
+func formatRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string) string {
+	var out strings.Builder
 	hint := newResolveHint(ruleResult, cwd)
 
 	violationFlags := func(v *checks.RestrictedImportViolation) []string {
@@ -112,6 +113,9 @@ func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string)
 	var sampleModuleViolation *checks.RestrictedImportViolation
 	for i := range ruleResult.RestrictedImportsViolations {
 		v := &ruleResult.RestrictedImportsViolations[i]
+		if v.EntryPoint == "" {
+			continue
+		}
 		if sampleFileViolation == nil && v.ViolationType == "file" && v.DeniedFile != "" {
 			sampleFileViolation = v
 		}
@@ -123,25 +127,30 @@ func printRestrictedImportsResolveHint(ruleResult config.RuleResult, cwd string)
 		}
 	}
 
-	fmt.Print(resolveHintHeader)
+	if sampleFileViolation == nil && sampleModuleViolation == nil {
+		return ""
+	}
+	out.WriteString(resolveHintHeader)
 	if sampleFileViolation != nil {
-		fmt.Print(hint.fileExample(sampleFileViolation.DeniedFile, sampleFileViolation.EntryPoint, violationFlags(sampleFileViolation)))
+		out.WriteString(hint.fileExample(sampleFileViolation.DeniedFile, sampleFileViolation.EntryPoint, violationFlags(sampleFileViolation)))
 	}
 	if sampleModuleViolation != nil {
 		moduleArg := sampleModuleViolation.ImportRequest
 		if moduleArg == "" {
 			moduleArg = sampleModuleViolation.DeniedModule
 		}
-		fmt.Print(hint.moduleExample(moduleArg, sampleModuleViolation.EntryPoint, violationFlags(sampleModuleViolation)))
+		out.WriteString(hint.moduleExample(moduleArg, sampleModuleViolation.EntryPoint, violationFlags(sampleModuleViolation)))
 	}
+	return out.String()
 }
 
-// printRestrictedImportersResolveHint mirrors the restricted-imports hint: a restricted-importers
+// formatRestrictedImportersResolveHint mirrors the restricted-imports hint: a restricted-importers
 // violation is an entry point that reaches a restricted file or module, so the trace has the same
 // shape (resolve --file <file> / --module <module> --entry-points <entryPoint>).
-func printRestrictedImportersResolveHint(ruleResult config.RuleResult, cwd string) {
+func formatRestrictedImportersResolveHint(ruleResult config.RuleResult, cwd string) string {
+	var out strings.Builder
 	if len(ruleResult.RestrictedImportersViolations) == 0 {
-		return
+		return ""
 	}
 	hint := newResolveHint(ruleResult, cwd)
 
@@ -159,11 +168,16 @@ func printRestrictedImportersResolveHint(ruleResult config.RuleResult, cwd strin
 		}
 	}
 
-	fmt.Print(resolveHintHeader)
+	out.WriteString(resolveHintHeader)
 	if sampleFile != nil {
-		fmt.Print(hint.fileExample(sampleFile.File, sampleFile.EntryPoint, nil))
+		out.WriteString(hint.fileExample(sampleFile.File, sampleFile.EntryPoint, nil))
 	}
 	if sampleModule != nil {
-		fmt.Print(hint.moduleExample(sampleModule.Module, sampleModule.EntryPoint, nil))
+		out.WriteString(hint.moduleExample(sampleModule.Module, sampleModule.EntryPoint, nil))
 	}
+	return out.String()
+}
+
+func printRestrictedImportsResolveHint(rule config.RuleResult, cwd string) {
+	fmt.Print(formatRestrictedImportsResolveHint(rule, cwd))
 }

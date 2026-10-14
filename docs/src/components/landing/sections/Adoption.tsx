@@ -13,7 +13,7 @@ export default function Adoption() {
       corner="bottom-left"
       eyebrow="Getting started"
       title="You will get a lot of findings on day one. That is the point."
-      intro="Every tool like this shows a backlog on the first run - it is the work that piled up while nothing was checking. What matters is that it is a one-time cleanup, and that you can take it in pieces instead of all at once. After that, a normal pull request surfaces a handful of issues at most."
+      intro="The first run can reveal a backlog of existing issues. Verify resolution and entry points, then record a findings baseline to keep CI passing while you fix the backlog gradually. Pull requests fail on new or obsolete findings, so each change gets reviewed."
     >
       <Split left="1fr" right="1.1fr" align="center">
         <div className={styles.visual}>

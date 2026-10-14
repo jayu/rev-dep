@@ -133,21 +133,24 @@ func FindRestrictedDirectImporters(
 		}
 	}
 
-	slices.SortFunc(violations, func(a, b RestrictedDirectImporterViolation) int {
-		if a.ViolationType != b.ViolationType {
-			return strings.Compare(a.ViolationType, b.ViolationType)
-		}
-		if a.ImporterFile != b.ImporterFile {
-			return strings.Compare(a.ImporterFile, b.ImporterFile)
-		}
-		if a.File != b.File {
-			return strings.Compare(a.File, b.File)
-		}
-		if a.Module != b.Module {
-			return strings.Compare(a.Module, b.Module)
-		}
-		return strings.Compare(a.ImportRequest, b.ImportRequest)
-	})
+	slices.SortFunc(violations, CompareRestrictedDirectImporters)
 
 	return violations
+}
+
+// CompareRestrictedDirectImporters is shared by detection and reconstruction of stored findings.
+func CompareRestrictedDirectImporters(a, b RestrictedDirectImporterViolation) int {
+	if a.ViolationType != b.ViolationType {
+		return strings.Compare(a.ViolationType, b.ViolationType)
+	}
+	if a.ImporterFile != b.ImporterFile {
+		return strings.Compare(a.ImporterFile, b.ImporterFile)
+	}
+	if a.File != b.File {
+		return strings.Compare(a.File, b.File)
+	}
+	if a.Module != b.Module {
+		return strings.Compare(a.Module, b.Module)
+	}
+	return strings.Compare(a.ImportRequest, b.ImportRequest)
 }

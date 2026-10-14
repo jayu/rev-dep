@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"rev-dep-go/internal/dupcode"
 )
@@ -101,6 +102,49 @@ func TestUpdateSnapshotWritesTheFileInEveryFormat(t *testing.T) {
 			}
 			if report.Snapshot.Path != snapshot {
 				t.Errorf("reported path %q, wrote %q", report.Snapshot.Path, snapshot)
+			}
+		})
+	}
+}
+
+func TestUpdateSnapshotLeavesUnchangedFileInEveryFormat(t *testing.T) {
+	for _, format := range []string{"human", "json"} {
+		t.Run(format, func(t *testing.T) {
+			project := t.TempDir()
+			writeDupProject(t, project, "sendA.ts", "sendB.ts")
+			snapshot := filepath.Join(project, "snapshot.json")
+			if _, err := runDuplicatedCode(t, project, snapshot, true, format); err != nil {
+				t.Fatal(err)
+			}
+			stamp := time.Unix(946684800, 0)
+			if err := os.Chtimes(snapshot, stamp, stamp); err != nil {
+				t.Fatal(err)
+			}
+			out, err := runDuplicatedCode(t, project, snapshot, true, format)
+			if err != nil {
+				t.Fatal(err)
+			}
+			info, err := os.Stat(snapshot)
+			if err != nil || !info.ModTime().Equal(stamp) {
+				t.Fatalf("unchanged snapshot was rewritten: %v", err)
+			}
+			if format == "human" {
+				if out != "Snapshot unchanged (1 pattern acknowledged)\n" {
+					t.Fatalf("incorrect unchanged snapshot message: %s", out)
+				}
+			} else {
+				var report struct {
+					Snapshot struct {
+						Clean  bool                `json:"clean"`
+						Counts dupcode.DeltaCounts `json:"counts"`
+					} `json:"snapshot"`
+				}
+				if err := json.Unmarshal([]byte(out), &report); err != nil {
+					t.Fatal(err)
+				}
+				if !report.Snapshot.Clean || report.Snapshot.Counts.Unchanged != 1 {
+					t.Fatalf("unchanged snapshot not acknowledged: %s", out)
+				}
 			}
 		})
 	}

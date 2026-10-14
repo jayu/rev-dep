@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"rev-dep-go/internal/baseline"
 	"rev-dep-go/internal/checks"
 	"rev-dep-go/internal/dupcode"
 	"rev-dep-go/internal/fs"
@@ -52,9 +53,11 @@ type RuleResult struct {
 	// own value, else the root one). It decides whether FileCount == 0 is an error or a warning.
 	FailOnEmptyWorkspace     bool
 	EnabledChecks            []string
+	DetectorOrder            []string `json:"-"` // includes configured disabled detectors for obsolete output
 	DependencyTree           model.MinimalDependencyTree
 	ModuleBoundaryViolations []checks.ModuleBoundaryViolation
 	CircularDependencies     [][]string
+	CircularComponents       [][]string
 	OrphanFiles              []string
 	OrphanFilesAutofixable   []string
 	// DuplicatedCode holds one entry per enabled duplicatedCodeDetection, in config
@@ -139,6 +142,7 @@ type UnmatchedEntryPointPatterns struct {
 type ConfigProcessingResult struct {
 	RuleResults            []RuleResult
 	HasFailures            bool
+	Baseline               *baseline.Result
 	FixedFilesCount        int
 	FixedImportsCount      int
 	DeletedFilesCount      int
@@ -480,7 +484,8 @@ func processRuleChecks(
 	ruleResult := RuleResult{
 		RulePath:                                rule.Path,
 		FileCount:                               len(ruleFiles),
-		EnabledChecks:                           enabledChecks,
+		EnabledChecks:                           OrderDetectors(enabledChecks, rule.DetectorOrder),
+		DetectorOrder:                           rule.DetectorOrder,
 		DependencyTree:                          fullTree, // Include the full dependency tree for circular dependency formatting
 		RestrictedImportsFollowMonorepoPackages: rule.FollowMonorepoPackages,
 	}
@@ -549,19 +554,23 @@ func processRuleChecks(
 			slices.Sort(sortedRuleFiles)
 
 			circularDeps := make([][]string, 0)
+			components := make([][]string, 0)
 			for _, detection := range rule.getCircularImportsDetections() {
 				if !detection.Enabled {
 					continue
 				}
-				circularDeps = append(circularDeps, checks.FindCircularDependencies(
+				found := checks.FindCircularDependenciesWithComponents(
 					ruleTree,
 					sortedRuleFiles,
 					detection.IgnoreTypeImports,
-				)...)
+				)
+				circularDeps = append(circularDeps, found.Cycles...)
+				components = append(components, found.Components...)
 			}
 
 			mu.Lock()
 			ruleResult.CircularDependencies = circularDeps
+			ruleResult.CircularComponents = components
 			mu.Unlock()
 		}()
 	}
@@ -1103,6 +1112,7 @@ func ProcessConfigWithOptions(
 	fix bool,
 	forceDetailed bool,
 	updateSnapshot bool,
+	selectedWorkspaces ...string,
 ) (*ConfigProcessingResult, error) {
 	// Step 1: Discover all files
 	doneDiscover := perf.Track("discover")
@@ -1152,6 +1162,23 @@ func ProcessConfigWithOptions(
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	// Select rules only after full-config discovery and package registration. This
+	// keeps resolution identical when validating selected baseline workspaces.
+	if len(selectedWorkspaces) > 0 {
+		scopes := map[string]bool{}
+		for _, workspace := range selectedWorkspaces {
+			scopes[filepath.Clean(pathutil.JoinWithCwd(cwd, workspace))] = true
+		}
+		selected := *config
+		selected.Rules = nil
+		for _, rule := range config.Rules {
+			if scopes[filepath.Clean(pathutil.JoinWithCwd(cwd, rule.Path))] {
+				selected.Rules = append(selected.Rules, rule)
+			}
+		}
+		config = &selected
 	}
 
 	// Step 3: Process each rule in parallel

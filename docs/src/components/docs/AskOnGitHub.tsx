@@ -47,7 +47,7 @@ export default function AskOnGitHub() {
         </Link>
 
         <p className={styles.footnote}>
-          Found a bug?{' '}
+          For bugs and feature requests{' '}
           <Link className={styles.footnoteLink} href={NEW_ISSUE_URL}>
             Report an issue
           </Link>

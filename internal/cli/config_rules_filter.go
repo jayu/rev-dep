@@ -32,6 +32,14 @@ func filterRunConfigRules(cfg *config.RevDepConfig, rules []string) error {
 			strings.Join(unknown, ", "), strings.Join(configured, ", "))
 	}
 
+	// Baseline validation must build its analysis context from the full config.
+	if cfg.BaselineSnapshotPath != "" {
+		if runConfigUpdateSnapshot {
+			return fmt.Errorf("--update-snapshot cannot be combined with --workspaces when baselineSnapshotPath is configured")
+		}
+		return nil
+	}
+
 	var filteredRules []config.Rule
 	for _, r := range cfg.Rules {
 		if slices.Contains(rules, r.Path) {

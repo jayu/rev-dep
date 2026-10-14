@@ -17,6 +17,7 @@ Check out the [installation guide](./installation.mdx) to set up rev-dep in your
 - 🔍 **Dependency Hygiene:** Detect unused exports, orphan files, and unused node modules.
 - ⚡ **High Performance:** Optimized for speed to serve as a high-speed gatekeeper in your CI.
 - 🏗️ **Monorepo Support:** Native support for `pnpm`, `yarn`, and `npm` workspaces.
+- **Findings Baseline:** [Acknowledge existing issues](./config-based-checks/findings-baseline.mdx) so CI passes while you fix them gradually, and fails on new or obsolete findings.
 
 ## Config-Based Checks 🛡️
 
@@ -39,6 +40,8 @@ Available checks are:
 - `unresolvedImportsDetection` - detect unresolved import requests.
 
 Checks are grouped in workspaces. You can have multiple workspaces, eg. one for each monorepo package.
+
+To adopt checks with existing issues, configure top-level `baselineSnapshotPath` and record a [findings baseline](./config-based-checks/findings-baseline.mdx) with `rev-dep config run --update-snapshot`. Commit the baseline and keep running `rev-dep config run` in CI. Duplicated code uses its own specialized snapshots, updated with the same flag.
 
 ## Exploratory Toolkit 🧰
 

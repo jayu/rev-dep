@@ -12,6 +12,7 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/tidwall/jsonc"
 	"gopkg.in/yaml.v3"
+	"rev-dep-go/internal/diag"
 
 	"rev-dep-go/internal/fs"
 	globutil "rev-dep-go/internal/glob"
@@ -107,7 +108,11 @@ func DetectMonorepo(cwd string) *MonorepoContext {
 					if hasValidWorkspaces(pkgJson) {
 						return NewMonorepoContext(currentDir)
 					}
+				} else {
+					diag.Warnf("could not parse package.json %q: %v", pkgJsonPath, err)
 				}
+			} else {
+				diag.Warnf("could not read package.json %q: %v", pkgJsonPath, err)
 			}
 		}
 
@@ -501,11 +506,19 @@ func (ctx *MonorepoContext) processPossiblePackage(path string) {
 	pkgJsonPath := filepath.Join(pathutil.DenormalizePathForOS(path), "package.json")
 	content, err := os.ReadFile(pkgJsonPath)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			diag.Warnf("could not read workspace package.json %q: %v", pkgJsonPath, err)
+		}
 		return
 	}
 
-	var config PackageJsonConfig
+	var config *PackageJsonConfig
 	if err := json.Unmarshal(jsonc.ToJSON(content), &config); err != nil {
+		diag.Warnf("could not parse workspace package.json %q: %v", pkgJsonPath, err)
+		return
+	}
+	if config == nil {
+		diag.Warnf("could not parse workspace package.json %q: expected an object", pkgJsonPath)
 		return
 	}
 
@@ -519,7 +532,7 @@ func (ctx *MonorepoContext) processPossiblePackage(path string) {
 	// keeps PackageConfigCache's "never touched without cacheMu" invariant local to the
 	// cache instead of resting on an assumption about every caller.
 	ctx.cacheMu.Lock()
-	ctx.PackageConfigCache[path] = &config
+	ctx.PackageConfigCache[path] = config
 	ctx.cacheMu.Unlock()
 }
 

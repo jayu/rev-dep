@@ -51,7 +51,7 @@ type DuplicatedCodeParams struct {
 	// ConfigLevel shaped which files the run saw at all, so a baseline produced without it recorded
 	// cannot be reproduced from the command line.
 	ConfigLevel dupcode.ConfigLevelFilters
-	// SnapshotPath turns the result into a delta; UpdateSnapshot rewrites the baseline instead.
+	// SnapshotPath turns the result into a delta; UpdateSnapshot refreshes the baseline if changed.
 	SnapshotPath   string
 	UpdateSnapshot bool
 }
@@ -131,10 +131,15 @@ func FindDuplicatedCode(params DuplicatedCodeParams) (DuplicatedCodeResult, erro
 	switch {
 	case params.SnapshotPath == "":
 	case params.UpdateSnapshot:
-		if err := dupcode.SaveSnapshot(params.SnapshotPath, dupcode.BuildSnapshot(dups, opts)); err != nil {
+		snapshot := dupcode.BuildSnapshot(dups, opts)
+		written, err := dupcode.SaveSnapshot(params.SnapshotPath, snapshot)
+		if err != nil {
 			return DuplicatedCodeResult{}, err
 		}
-		result.SnapshotWritten = true
+		result.SnapshotWritten = written
+		if !written {
+			result.Delta = &dupcode.Delta{Unchanged: len(snapshot.Entries), MinDuplicates: snapshot.Parameters.MinDuplicates}
+		}
 	case snapshotMissing:
 		result.SnapshotMissing = true
 	default:

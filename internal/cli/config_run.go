@@ -4,20 +4,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"rev-dep-go/internal/checks"
+	"rev-dep-go/internal/baseline"
 	"rev-dep-go/internal/config"
 	"rev-dep-go/internal/dupcode"
 	"rev-dep-go/internal/emoji"
-	"rev-dep-go/internal/node"
 	"rev-dep-go/internal/pathutil"
 	"rev-dep-go/internal/perf"
-	"rev-dep-go/internal/plural"
 	"rev-dep-go/internal/telemetry"
 )
 
@@ -209,7 +205,7 @@ func workspaceLabel(path string) string {
 }
 
 func shouldConfigRunExitNonZero(result *config.ConfigProcessingResult, fix bool) bool {
-	if !fix {
+	if result.Baseline != nil || !fix {
 		return result.HasFailures
 	}
 
@@ -275,31 +271,6 @@ func hasUnfixableConfigRunIssues(result *config.ConfigProcessingResult) bool {
 	return totalIssues > fixableIssues
 }
 
-// printEmptyWorkspacesSummary repeats, next to the final verdict, which workspaces matched no
-// files. Their checks ran on nothing, so a pass for them proves nothing - easy to miss when the
-// per-workspace warning scrolls past in CI or agent logs. Workspaces with failOnEmptyWorkspace
-// are errors (they also failed the run); the rest are warnings.
-func printEmptyWorkspacesSummary(result *config.ConfigProcessingResult) {
-	var failed, warned []string
-	for _, ruleResult := range result.RuleResults {
-		if !ruleResult.IsEmpty() {
-			continue
-		}
-		if ruleResult.EmptyWorkspaceFailed() {
-			failed = append(failed, workspaceLabel(ruleResult.RulePath))
-		} else {
-			warned = append(warned, workspaceLabel(ruleResult.RulePath))
-		}
-	}
-
-	if len(failed) > 0 {
-		fmt.Printf("%s %s checked 0 files (failOnEmptyWorkspace): %s\n", emoji.Error, plural.Count(len(failed), "workspace", "workspaces"), strings.Join(failed, ", "))
-	}
-	if len(warned) > 0 {
-		fmt.Printf("%s %s checked 0 files: %s\n", emoji.Warning, plural.Count(len(warned), "workspace", "workspaces"), strings.Join(warned, ", "))
-	}
-}
-
 // processConfigRun runs every check in the config.
 func processConfigRun(
 	cfg *config.RevDepConfig,
@@ -308,637 +279,60 @@ func processConfigRun(
 	recheck bool,
 	forceDetailed bool,
 ) (*config.ConfigProcessingResult, error) {
-	result, err := config.ProcessConfigWithOptions(cfg, cwd, fix, forceDetailed, runConfigUpdateSnapshot)
+	baselineEnabled := cfg.BaselineSnapshotPath != ""
+	var previous *baseline.Snapshot
+	var selected []string
+	if baselineEnabled {
+		if runConfigUpdateSnapshot && len(runConfigRules) > 0 {
+			return nil, fmt.Errorf("--update-snapshot cannot be combined with --workspaces when baselineSnapshotPath is configured")
+		}
+		selected = runConfigRules
+		filename, err := config.BaselineSnapshotFile(cfg, cwd)
+		if err != nil {
+			return nil, err
+		}
+		if runConfigUpdateSnapshot {
+			if err := baseline.CheckDestination(filename); err != nil {
+				return nil, err
+			}
+		} else {
+			previous, err = baseline.Load(filename)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	// Baselines always observe final disk state. Defer snapshot updates until the
+	// recheck when fixing, so no store captures pre-fix findings.
+	updateFirstPass := runConfigUpdateSnapshot && !(baselineEnabled && fix)
+	result, err := config.ProcessConfigWithOptions(cfg, cwd, fix, forceDetailed, updateFirstPass, selected...)
 	if err != nil {
 		return nil, err
 	}
-
-	// Fire anonymous telemetry for this config run. This spawns a detached reporter and returns
-	// immediately; it is a no-op under tests, when opted out, or in builds without a baked-in key.
 	telemetry.Dispatch(cwd, cfg, len(result.FullTree))
-
-	if !fix || !recheck {
-		return result, nil
+	if fix && (recheck || baselineEnabled) {
+		updateRecheck := baselineEnabled && runConfigUpdateSnapshot
+		final, err := config.ProcessConfigWithOptions(cfg, cwd, false, forceDetailed, updateRecheck, selected...)
+		if err != nil {
+			return nil, err
+		}
+		final.FixedFilesCount = result.FixedFilesCount
+		final.FixedImportsCount = result.FixedImportsCount
+		final.DeletedFilesCount = result.DeletedFilesCount
+		final.UnfixableAliasingCount = result.UnfixableAliasingCount
+		result = final
 	}
-
-	recheckedResult, err := config.ProcessConfig(cfg, cwd, false, forceDetailed)
-	if err != nil {
-		return nil, err
+	if baselineEnabled {
+		if err := config.ApplyFindingsBaseline(cfg, cwd, result, previous, runConfigUpdateSnapshot, selected); err != nil {
+			return nil, err
+		}
 	}
-
-	recheckedResult.FixedFilesCount = result.FixedFilesCount
-	recheckedResult.FixedImportsCount = result.FixedImportsCount
-	recheckedResult.DeletedFilesCount = result.DeletedFilesCount
-	recheckedResult.UnfixableAliasingCount = result.UnfixableAliasingCount
-
-	return recheckedResult, nil
+	return result, nil
 }
 
 // formatAndPrintConfigResults formats and prints the config processing results
 func formatAndPrintConfigResults(result *config.ConfigProcessingResult, cwd string, listAll bool) {
-	// Helper function to convert absolute paths to relative paths
-	getRelativePath := func(absolutePath string) string {
-		if absolutePath == "" {
-			return absolutePath
-		}
-		relPath, err := filepath.Rel(cwd, absolutePath)
-		if err != nil {
-			// Fallback to absolute path if relative conversion fails
-			return absolutePath
-		}
-		// Convert forward slashes for consistency
-		return filepath.ToSlash(relPath)
-	}
-
-	shouldWarnAboutImportConventionWithPJsonImports := false
-
-	for _, ruleResult := range result.RuleResults {
-		shouldWarnAboutImportConventionWithPJsonImports = shouldWarnAboutImportConventionWithPJsonImports || ruleResult.ShouldWarnAboutImportConventionWithPJsonImports
-
-		if ruleResult.RulePath != "" {
-			fmt.Printf("\n%s Workspace: %s (%d files)\n", emoji.Rule, workspaceLabel(ruleResult.RulePath), ruleResult.FileCount)
-		}
-
-		// Show enabled checks and their status with indentation
-		for _, check := range ruleResult.EnabledChecks {
-			switch check {
-			case "circular-imports":
-				if len(ruleResult.CircularDependencies) > 0 {
-					fmt.Printf("  %s Circular Dependencies Issues (%d):\n\n", emoji.Error, len(ruleResult.CircularDependencies))
-
-					circularDepsToDisplay := ruleResult.CircularDependencies
-					remaining := 0
-					if !listAll && len(circularDepsToDisplay) > maxIssuesToList {
-						remaining = len(circularDepsToDisplay) - maxIssuesToList
-						circularDepsToDisplay = circularDepsToDisplay[:maxIssuesToList]
-					}
-
-					formattedOutput := checks.FormatCircularDependenciesWithoutHeader(circularDepsToDisplay, cwd, ruleResult.DependencyTree, 2)
-					fmt.Printf("%s", formattedOutput)
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more circular dependency issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Circular Dependencies\n", emoji.Success)
-				}
-			case "duplicated-code":
-				for _, detection := range ruleResult.DuplicatedCode {
-					printDuplicatedCodeResult(detection)
-				}
-			case "orphan-files":
-				if len(ruleResult.OrphanFiles) > 0 {
-					fmt.Printf("  %s Orphan Files Issues (%d):\n", emoji.Error, len(ruleResult.OrphanFiles))
-
-					orphanFilesToDisplay := ruleResult.OrphanFiles
-					remaining := 0
-					if !listAll && len(orphanFilesToDisplay) > maxIssuesToList {
-						remaining = len(orphanFilesToDisplay) - maxIssuesToList
-						orphanFilesToDisplay = orphanFilesToDisplay[:maxIssuesToList]
-					}
-
-					for _, file := range orphanFilesToDisplay {
-						fmt.Printf("    - %s\n", getRelativePath(file))
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more orphan file issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Orphan Files\n", emoji.Success)
-				}
-			case "module-boundaries":
-				if len(ruleResult.ModuleBoundaryViolations) > 0 {
-					fmt.Printf("  %s Module Boundary Issues (%d):\n", emoji.Error, len(ruleResult.ModuleBoundaryViolations))
-
-					violationsToDisplay := ruleResult.ModuleBoundaryViolations
-					remaining := 0
-					if !listAll && len(violationsToDisplay) > maxIssuesToList {
-						remaining = len(violationsToDisplay) - maxIssuesToList
-						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
-					}
-
-					for _, violation := range violationsToDisplay {
-						violationType := "NOT ALLOWED"
-						if violation.ViolationType == "denied" {
-							violationType = "DENIED"
-						}
-						fmt.Printf("    - [%s] %s -> %s (%s)\n",
-							violation.RuleName,
-							getRelativePath(violation.FilePath),
-							getRelativePath(violation.ImportPath),
-							violationType)
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more module boundary issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Module Boundaries\n", emoji.Success)
-				}
-			case "unused-node-modules":
-				if len(ruleResult.UnusedNodeModules) > 0 {
-					fmt.Printf("  %s Unused Node Modules Issues (%d):\n", emoji.Error, len(ruleResult.UnusedNodeModules))
-
-					modulesToDisplay := ruleResult.UnusedNodeModules
-					remaining := 0
-					if !listAll && len(modulesToDisplay) > maxIssuesToList {
-						remaining = len(modulesToDisplay) - maxIssuesToList
-						modulesToDisplay = modulesToDisplay[:maxIssuesToList]
-					}
-
-					for _, module := range modulesToDisplay {
-						packageJsonPath := getRelativePath(module.PackageJsonPath)
-						if packageJsonPath != "" {
-							fmt.Printf("    - %s (%s)\n", module.ModuleName, packageJsonPath)
-						} else {
-							fmt.Printf("    - %s\n", module.ModuleName)
-						}
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more unused node module issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Unused Node Modules\n", emoji.Success)
-				}
-			case "missing-node-modules":
-				if len(ruleResult.MissingNodeModules) > 0 {
-					fmt.Printf("  %s Missing Node Modules Issues (%d):\n", emoji.Error, len(ruleResult.MissingNodeModules))
-
-					missingToDisplay := ruleResult.MissingNodeModules
-					remaining := 0
-					if !listAll && len(missingToDisplay) > maxIssuesToList {
-						remaining = len(missingToDisplay) - maxIssuesToList
-						missingToDisplay = missingToDisplay[:maxIssuesToList]
-					}
-
-					if ruleResult.MissingNodeModulesOutputType != "" {
-						groupByModule := ruleResult.MissingNodeModulesOutputType == "groupByModule"
-						groupByFile := ruleResult.MissingNodeModulesOutputType == "groupByFile"
-						groupByModuleFilesCount := ruleResult.MissingNodeModulesOutputType == "groupByModuleFilesCount"
-
-						formatted, _ := node.FormatMissingNodeModulesResults(missingToDisplay, cwd, false, groupByModule, groupByFile, groupByModuleFilesCount)
-						lines := strings.Split(strings.TrimSpace(formatted), "\n")
-						for _, line := range lines {
-							if line == "" {
-								continue
-							}
-							if groupByModuleFilesCount || ruleResult.MissingNodeModulesOutputType == "list" {
-								fmt.Printf("    - %s\n", line)
-							} else {
-								fmt.Printf("    %s\n", line)
-							}
-						}
-					} else {
-						for _, missing := range missingToDisplay {
-							// Convert imported from paths to relative paths
-							relativeImportedFrom := make([]string, len(missing.ImportedFrom))
-							for j, path := range missing.ImportedFrom {
-								relativeImportedFrom[j] = getRelativePath(path)
-							}
-
-							if len(relativeImportedFrom) == 1 {
-								fmt.Printf("    - %s (imported from: %s)\n", missing.ModuleName, relativeImportedFrom[0])
-							} else if len(relativeImportedFrom) > 1 {
-								fmt.Printf("    - %s (imported from: %s and %d more files)\n", missing.ModuleName, relativeImportedFrom[0], len(relativeImportedFrom)-1)
-							}
-						}
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more missing node module issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Missing Node Modules\n", emoji.Success)
-				}
-			case "import-conventions":
-				if len(ruleResult.ImportConventionViolations) > 0 {
-					fmt.Printf("  %s Import Convention Issues (%d):\n", emoji.Error, len(ruleResult.ImportConventionViolations))
-
-					violationsToDisplay := ruleResult.ImportConventionViolations
-
-					// Sort violations by file path and then by import index
-					slices.SortFunc(violationsToDisplay, func(a, b checks.ImportConventionViolation) int {
-						if a.FilePath != b.FilePath {
-							return strings.Compare(a.FilePath, b.FilePath)
-						}
-						return a.ImportIndex - b.ImportIndex
-					})
-
-					remaining := 0
-					if !listAll && len(violationsToDisplay) > maxIssuesToList {
-						remaining = len(violationsToDisplay) - maxIssuesToList
-						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
-					}
-
-					// Group violations by file path
-					violationsByFile := make(map[string][]checks.ImportConventionViolation)
-					for _, violation := range violationsToDisplay {
-						violationsByFile[violation.FilePath] = append(violationsByFile[violation.FilePath], violation)
-					}
-
-					// Sort file paths for consistent output
-					var sortedFilePaths []string
-					for filePath := range violationsByFile {
-						sortedFilePaths = append(sortedFilePaths, filePath)
-					}
-					slices.Sort(sortedFilePaths)
-
-					for _, filePath := range sortedFilePaths {
-						fmt.Printf("    %s\n", getRelativePath(filePath))
-						fileViolations := violationsByFile[filePath]
-						for _, violation := range fileViolations {
-							fmt.Printf("     - [%s] : \"%s\"\n", violation.ViolationType, violation.ImportRequest)
-						}
-						fmt.Printf("\n")
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more import convention issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Import Conventions\n", emoji.Success)
-				}
-			case "unresolved-imports":
-				if len(ruleResult.UnresolvedImports) > 0 {
-					fmt.Printf("  %s Unresolved Imports (%d):\n", emoji.Error, len(ruleResult.UnresolvedImports))
-
-					// Sort all results before limiting
-					unresolvedToDisplay := ruleResult.UnresolvedImports
-					// Within a file the issues follow the source, so the report reads in the order
-					// someone scrolls through the file rather than alphabetically by request.
-					slices.SortFunc(unresolvedToDisplay, func(a, b checks.UnresolvedImport) int {
-						if a.FilePath != b.FilePath {
-							return strings.Compare(a.FilePath, b.FilePath)
-						}
-						if a.RequestStart != b.RequestStart {
-							return int(a.RequestStart) - int(b.RequestStart)
-						}
-						return strings.Compare(a.Request, b.Request)
-					})
-
-					remaining := 0
-					if !listAll && len(unresolvedToDisplay) > maxIssuesToList {
-						remaining = len(unresolvedToDisplay) - maxIssuesToList
-						unresolvedToDisplay = unresolvedToDisplay[:maxIssuesToList]
-					}
-
-					// Group by file
-					labeller := newUnresolvedLabeller(ruleResult.RulePath)
-					unresolvedByFile := make(map[string][]string)
-					for _, u := range unresolvedToDisplay {
-						unresolvedByFile[u.FilePath] = append(unresolvedByFile[u.FilePath], labeller.Label(u))
-					}
-
-					var sortedFilePaths []string
-					for fp := range unresolvedByFile {
-						sortedFilePaths = append(sortedFilePaths, fp)
-					}
-					slices.Sort(sortedFilePaths)
-
-					for _, filePath := range sortedFilePaths {
-						fmt.Printf("    %s\n", getRelativePath(filePath))
-						for _, req := range unresolvedByFile[filePath] {
-							fmt.Printf("     - %s\n", req)
-						}
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more unresolved import issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Unresolved Imports\n", emoji.Success)
-				}
-			case "unused-exports":
-				if len(ruleResult.UnusedExports) > 0 {
-					fmt.Printf("  %s Unused Exports Issues (%d):\n", emoji.Error, len(ruleResult.UnusedExports))
-
-					exportsToDisplay := ruleResult.UnusedExports
-
-					// Sort exports by file path and then by export name
-					slices.SortFunc(exportsToDisplay, func(a, b checks.UnusedExport) int {
-						if a.FilePath != b.FilePath {
-							return strings.Compare(a.FilePath, b.FilePath)
-						}
-						return strings.Compare(a.ExportName, b.ExportName)
-					})
-
-					remaining := 0
-					if !listAll && len(exportsToDisplay) > maxIssuesToList {
-						remaining = len(exportsToDisplay) - maxIssuesToList
-						exportsToDisplay = exportsToDisplay[:maxIssuesToList]
-					}
-
-					// Group by file path
-					exportsByFile := make(map[string][]checks.UnusedExport)
-					for _, ue := range exportsToDisplay {
-						exportsByFile[ue.FilePath] = append(exportsByFile[ue.FilePath], ue)
-					}
-
-					var sortedFilePaths []string
-					for filePath := range exportsByFile {
-						sortedFilePaths = append(sortedFilePaths, filePath)
-					}
-					slices.Sort(sortedFilePaths)
-
-					for _, filePath := range sortedFilePaths {
-						fmt.Printf("    %s\n", getRelativePath(filePath))
-						for _, ue := range exportsByFile[filePath] {
-							if ue.IsType {
-								fmt.Printf("     - %s (type)\n", ue.ExportName)
-							} else {
-								fmt.Printf("     - %s\n", ue.ExportName)
-							}
-						}
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more unused export issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Unused Exports\n", emoji.Success)
-				}
-			case "dev-deps-usage-on-prod":
-				if len(ruleResult.RestrictedDevDependenciesUsageViolations) > 0 {
-					fmt.Printf("  %s Dev Deps Usage On Prod Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedDevDependenciesUsageViolations))
-
-					violationsToDisplay := ruleResult.RestrictedDevDependenciesUsageViolations
-					remaining := 0
-					if !listAll && len(violationsToDisplay) > maxIssuesToList {
-						remaining = len(violationsToDisplay) - maxIssuesToList
-						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
-					}
-
-					// Group by dev dependency
-					violationsByDep := make(map[string][]checks.RestrictedDevDependenciesUsageViolation)
-					for _, violation := range violationsToDisplay {
-						violationsByDep[violation.DevDependency] = append(violationsByDep[violation.DevDependency], violation)
-					}
-
-					// Sort dev dependencies for consistent output
-					var sortedDeps []string
-					for dep := range violationsByDep {
-						sortedDeps = append(sortedDeps, dep)
-					}
-					slices.Sort(sortedDeps)
-
-					for _, dep := range sortedDeps {
-						fmt.Printf("    %s\n", dep)
-						depViolations := violationsByDep[dep]
-						for _, violation := range depViolations {
-							fmt.Printf("     - %s (from entry point: %s)\n", getRelativePath(violation.FilePath), getRelativePath(violation.EntryPoint))
-						}
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more Dev Deps Usage On Prod Issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Dev Deps Usage On Prod\n", emoji.Success)
-				}
-			case "restricted-imports":
-				if len(ruleResult.RestrictedImportsViolations) > 0 {
-					fmt.Printf("  %s Restricted Imports Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedImportsViolations))
-
-					violationsToDisplay := ruleResult.RestrictedImportsViolations
-					slices.SortFunc(violationsToDisplay, func(a, b checks.RestrictedImportViolation) int {
-						if a.EntryPoint != b.EntryPoint {
-							return strings.Compare(a.EntryPoint, b.EntryPoint)
-						}
-						if a.ViolationType != b.ViolationType {
-							return strings.Compare(a.ViolationType, b.ViolationType)
-						}
-
-						aItem := a.DeniedFile
-						if a.ViolationType == "module" {
-							if a.ImportRequest != "" {
-								aItem = a.ImportRequest
-							} else {
-								aItem = a.DeniedModule
-							}
-						}
-						bItem := b.DeniedFile
-						if b.ViolationType == "module" {
-							if b.ImportRequest != "" {
-								bItem = b.ImportRequest
-							} else {
-								bItem = b.DeniedModule
-							}
-						}
-						if aItem != bItem {
-							return strings.Compare(aItem, bItem)
-						}
-
-						return strings.Compare(a.ImporterFile, b.ImporterFile)
-					})
-
-					remaining := 0
-					if !listAll && len(violationsToDisplay) > maxIssuesToList {
-						remaining = len(violationsToDisplay) - maxIssuesToList
-						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
-					}
-
-					violationsByEntryPoint := make(map[string][]string)
-					seenByEntryPoint := make(map[string]map[string]bool)
-
-					for _, violation := range violationsToDisplay {
-						entryPoint := getRelativePath(violation.EntryPoint)
-						if _, ok := seenByEntryPoint[entryPoint]; !ok {
-							seenByEntryPoint[entryPoint] = make(map[string]bool)
-						}
-
-						item := ""
-						if violation.ViolationType == "file" {
-							item = getRelativePath(violation.DeniedFile)
-						} else if violation.ImportRequest != "" {
-							item = violation.ImportRequest
-						} else {
-							item = violation.DeniedModule
-						}
-
-						if !seenByEntryPoint[entryPoint][item] {
-							violationsByEntryPoint[entryPoint] = append(violationsByEntryPoint[entryPoint], item)
-							seenByEntryPoint[entryPoint][item] = true
-						}
-					}
-
-					var sortedEntryPoints []string
-					for entryPoint := range violationsByEntryPoint {
-						sortedEntryPoints = append(sortedEntryPoints, entryPoint)
-					}
-					slices.Sort(sortedEntryPoints)
-
-					for _, entryPoint := range sortedEntryPoints {
-						fmt.Printf("    %s\n", entryPoint)
-						items := violationsByEntryPoint[entryPoint]
-						slices.Sort(items)
-						for _, item := range items {
-							fmt.Printf("     ➞ %s\n", item)
-						}
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more restricted import issues\n", remaining)
-					}
-
-					printRestrictedImportsResolveHint(ruleResult, cwd)
-				} else {
-					fmt.Printf("  %s Restricted Imports\n", emoji.Success)
-				}
-			case "restricted-importers":
-				if len(ruleResult.RestrictedImportersViolations) > 0 {
-					fmt.Printf("  %s Restricted Importers Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedImportersViolations))
-
-					violationsToDisplay := ruleResult.RestrictedImportersViolations
-					remaining := 0
-					if !listAll && len(violationsToDisplay) > maxIssuesToList {
-						remaining = len(violationsToDisplay) - maxIssuesToList
-						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
-					}
-
-					violationsByEntryPoint := make(map[string][]string)
-					seenByEntryPoint := make(map[string]map[string]bool)
-					var sortedEntryPoints []string
-
-					for _, violation := range violationsToDisplay {
-						entryPoint := getRelativePath(violation.EntryPoint)
-						if _, ok := seenByEntryPoint[entryPoint]; !ok {
-							seenByEntryPoint[entryPoint] = make(map[string]bool)
-							sortedEntryPoints = append(sortedEntryPoints, entryPoint)
-						}
-
-						item := violation.Module
-						if item == "" {
-							item = getRelativePath(violation.File)
-						}
-
-						if !seenByEntryPoint[entryPoint][item] {
-							violationsByEntryPoint[entryPoint] = append(violationsByEntryPoint[entryPoint], item)
-							seenByEntryPoint[entryPoint][item] = true
-						}
-					}
-
-					slices.Sort(sortedEntryPoints)
-					for _, entryPoint := range sortedEntryPoints {
-						fmt.Printf("    %s\n", entryPoint)
-						items := violationsByEntryPoint[entryPoint]
-						slices.Sort(items)
-						for _, item := range items {
-							fmt.Printf("     ➞ %s\n", item)
-						}
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more restricted importer issues\n", remaining)
-					}
-
-					printRestrictedImportersResolveHint(ruleResult, cwd)
-				} else {
-					fmt.Printf("  %s Restricted Importers\n", emoji.Success)
-				}
-			case "restricted-direct-importers":
-				if len(ruleResult.RestrictedDirectImportersViolations) > 0 {
-					fmt.Printf("  %s Restricted Direct Importers Issues (%d):\n", emoji.Error, len(ruleResult.RestrictedDirectImportersViolations))
-
-					violationsToDisplay := ruleResult.RestrictedDirectImportersViolations
-					remaining := 0
-					if !listAll && len(violationsToDisplay) > maxIssuesToList {
-						remaining = len(violationsToDisplay) - maxIssuesToList
-						violationsToDisplay = violationsToDisplay[:maxIssuesToList]
-					}
-
-					// Group by importer file (the actionable location), listing the targets it imports.
-					targetsByImporter := make(map[string][]string)
-					seenByImporter := make(map[string]map[string]bool)
-					var sortedImporters []string
-
-					for _, violation := range violationsToDisplay {
-						importer := getRelativePath(violation.ImporterFile)
-						if _, ok := seenByImporter[importer]; !ok {
-							seenByImporter[importer] = make(map[string]bool)
-							sortedImporters = append(sortedImporters, importer)
-						}
-
-						item := violation.Module
-						if item == "" {
-							item = getRelativePath(violation.File)
-						}
-
-						if !seenByImporter[importer][item] {
-							targetsByImporter[importer] = append(targetsByImporter[importer], item)
-							seenByImporter[importer][item] = true
-						}
-					}
-
-					slices.Sort(sortedImporters)
-					for _, importer := range sortedImporters {
-						fmt.Printf("    %s\n", importer)
-						items := targetsByImporter[importer]
-						slices.Sort(items)
-						for _, item := range items {
-							fmt.Printf("     ➞ %s\n", item)
-						}
-					}
-
-					if remaining > 0 {
-						fmt.Printf("    ... and %d more restricted direct importer issues\n", remaining)
-					}
-				} else {
-					fmt.Printf("  %s Restricted Direct Importers\n", emoji.Success)
-				}
-			}
-		}
-
-		if ruleResult.IsEmpty() {
-			marker := emoji.Warning
-			if ruleResult.EmptyWorkspaceFailed() {
-				marker = emoji.Error
-			}
-			fmt.Printf("  %s No files found for this workspace - check if the path is correct\n", marker)
-		}
-
-		if ruleResult.MissingPackageJson {
-			packageJsonPath := filepath.Join(cwd, ruleResult.RulePath, "package.json")
-			fmt.Printf("  %s Warning: Workspace path missing package.json - some features may not work (missing: %s)\n", emoji.Warning, packageJsonPath)
-		}
-	}
-
-	// Print final verdict
-	if !result.HasFailures {
-		fmt.Printf("\n%s All checks passed!\n", emoji.Success)
-	} else {
-		fmt.Printf("\n%s Checks failed! See details above.\n", emoji.Error)
-	}
-	printEmptyWorkspacesSummary(result)
-
-	// Print autofix summary if any fixes were applied or unfixable issues found
-	if result.FixedFilesCount > 0 || result.FixedImportsCount > 0 || result.DeletedFilesCount > 0 {
-		var summary []string
-		if result.FixedImportsCount > 0 || result.FixedFilesCount > 0 {
-			summary = append(summary, fmt.Sprintf("fixed %d imports in %d files", result.FixedImportsCount, result.FixedFilesCount))
-		}
-		if result.DeletedFilesCount > 0 {
-			summary = append(summary, fmt.Sprintf("removed %d orphan files", result.DeletedFilesCount))
-		}
-
-		if len(summary) > 0 {
-			// Capitalize first letter of first summary part
-			summary[0] = strings.ToUpper(summary[0][:1]) + summary[0][1:]
-			fmt.Printf("%s %s\n", emoji.Fix, strings.Join(summary, ", "))
-		}
-	}
-
-	if result.FixableIssuesCount > 0 {
-		fmt.Printf("%s Fixable issues: %d. Use '--fix' flag to autofix.\n", emoji.Tip, result.FixableIssuesCount)
-	}
-
-	if result.UnfixableAliasingCount > 0 {
-		fmt.Printf("%s Warning: %d inter-domain relative imports could not be automatically fixed because target domains lack aliases or are not defined in config.\n", emoji.Warning, result.UnfixableAliasingCount)
-	}
-	if shouldWarnAboutImportConventionWithPJsonImports {
-		fmt.Println(emoji.Warning + " Warning: Support for package.json imports map aliases is not yet implemented for import conventions checks")
-	}
+	fmt.Print(formatConfigResults(result, cwd, listAll))
 }
 
 func init() {
@@ -954,7 +348,7 @@ func init() {
 	configRunCmd.Flags().BoolVar(&runConfigListAll, "list-all-issues", false, "List all issues instead of limiting output")
 	configRunCmd.Flags().BoolVar(&runConfigFix, "fix", false, "Automatically fix fixable issues")
 	configRunCmd.Flags().BoolVar(&runConfigUpdateSnapshot, "update-snapshot", false,
-		"Rewrite every configured duplicated-code snapshot from this run, acknowledging what it found.")
+		"Rewrite the configured findings baseline and duplicated-code snapshots, acknowledging current findings.")
 	configRunCmd.Flags().BoolVar(&runConfigRecheck, "recheck", false, "Run all checks again after '--fix' to validate the final state")
 	configRunCmd.Flags().StringVar(&runConfigFormat, "format", "", "Output format (json, issues-list)")
 	configRunCmd.Flags().StringSliceVar(&runConfigRules, "workspaces", []string{}, "Subset of workspaces to run (comma-separated list of workspace paths)")
@@ -966,75 +360,4 @@ func init() {
 
 	// Add subcommands to config
 	configCmd.AddCommand(configRunCmd, configInitCmd)
-}
-
-// printDuplicatedCodeResult reports one duplicated-code detection. A workspace may have
-// several, so each states its own comparison mode and its own verdict.
-func printDuplicatedCodeResult(d config.DuplicatedCodeRuleResult) {
-	dup := d.Result
-
-	if d.Err != nil {
-		// The detection did not run. Saying so plainly beats reporting a count of zero,
-		// which is what skipping it would have looked like.
-		fmt.Printf("  %s Duplicated Code: could not run\n", emoji.Error)
-		for _, line := range strings.Split(d.Err.Error(), "\n") {
-			fmt.Printf("      %s\n", line)
-		}
-		return
-	}
-
-	if dup.SnapshotWritten {
-		fmt.Printf("  %s Duplicated Code: snapshot updated (%s acknowledged) -> %s\n",
-			emoji.Success, plural.Count(dup.Snippets, "pattern", "patterns"), dup.SnapshotPath)
-		return
-	}
-	if dup.Delta != nil {
-		// With a baseline the total is not the news; the change is.
-		if dup.Delta.IsClean() {
-			fmt.Printf("  %s Duplicated Code: %s\n",
-				emoji.Success, dupcode.DeltaSummary(dup.Delta))
-			return
-		}
-		fmt.Printf("  %s Duplicated Code: %s\n",
-			emoji.Error, dupcode.DeltaSummary(dup.Delta))
-		fmt.Printf("      %s\n", d.Command)
-		fmt.Printf("      Acknowledge with: rev-dep config run --update-snapshot\n")
-		return
-	}
-
-	if dup.Snippets == 0 && !dup.SnapshotMissing {
-		fmt.Printf("  %s Duplicated Code\n", emoji.Success)
-		return
-	}
-
-	detail := fmt.Sprintf("%s in %s (%s)",
-		plural.Count(dup.Snippets, "duplicated snippet", "duplicated snippets"),
-		plural.Count(dup.Files, "file", "files"),
-		plural.Count(dup.Occurrences, "occurrence", "occurrences"))
-	// State what was searched as well: when this number and the command's disagree, the
-	// scanned counts are what identify why.
-	detail += ", scanned " + plural.Count(dup.Scanned, "file", "files")
-	if dup.Ignored > 0 {
-		detail += fmt.Sprintf(", %d ignored", dup.Ignored)
-	}
-
-	fmt.Printf("  %s Duplicated Code: %s\n", emoji.Error, detail)
-
-	// Only reachable with a missing baseline: nothing to look at, only a baseline to record.
-	if dup.Snippets == 0 {
-		fmt.Printf("      No baseline recorded yet at %s\n", dup.SnapshotPath)
-		fmt.Printf("      To record it, run: rev-dep config run --update-snapshot\n")
-		return
-	}
-
-	// The baseline line belongs beside the option it enables, not between the count and the command.
-	fmt.Printf("      To see them, run:\n        %s\n", d.Command)
-
-	if dup.SnapshotMissing {
-		fmt.Printf("      No baseline recorded yet at %s\n", dup.SnapshotPath)
-		fmt.Printf("      To accept them as the baseline, run: rev-dep config run --update-snapshot\n")
-		return
-	}
-	fmt.Printf("      To accept the current duplication, set \"snapshotPath\" on this " +
-		"detection and run: rev-dep config run --update-snapshot\n")
 }

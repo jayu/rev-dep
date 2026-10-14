@@ -327,7 +327,12 @@ func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
 	rm.createdDirs[normDir] = true
 
 	pkgJsonPath := filepath.Join(dirPath, "package.json")
-	pkgContent, _ := os.ReadFile(pkgJsonPath)
+	pkgContent, err := os.ReadFile(pkgJsonPath)
+	if err != nil && !os.IsNotExist(err) {
+		diag.Warnf("could not read package.json %q: %v", pkgJsonPath, err)
+	} else if err == nil && len(pkgContent) == 0 {
+		diag.Warnf("could not parse package.json %q: file is empty", pkgJsonPath)
+	}
 
 	tsConfigPath := filepath.Join(dirPath, "tsconfig.json")
 	override, hasOverride := rm.tsConfigOverrides[normDir]
@@ -337,10 +342,10 @@ func createResolverForDir(dirPath string, rm *ResolverManager) *ModuleResolver {
 
 	tsConfigContent, err := ParseTsConfig(tsConfigPath)
 	if err != nil {
-		// A missing default tsconfig is normal; a bad explicit override is worth a warning.
-		// Either way continue with empty content so resolution still runs.
-		if hasOverride {
-			diag.Warnf("Error parsing tsconfig override %q: %v", pathutil.DenormalizePathForOS(tsConfigPath), err)
+		// A missing default tsconfig is normal. Report other failures in verbose
+		// mode and retain the existing fallback to empty settings.
+		if hasOverride || !os.IsNotExist(err) {
+			diag.Warnf("could not read or parse tsconfig %q: %v", pathutil.DenormalizePathForOS(tsConfigPath), err)
 		}
 		tsConfigContent = nil
 	}
@@ -603,7 +608,13 @@ func NewImportsResolver(dirPath string, tsconfigContent []byte, packageJsonConte
 	}
 
 	var rawPackageJson map[string]interface{}
-	json.Unmarshal(jsonc.ToJSON(packageJsonContent), &rawPackageJson)
+	if len(packageJsonContent) > 0 {
+		if err := json.Unmarshal(jsonc.ToJSON(packageJsonContent), &rawPackageJson); err != nil {
+			diag.Warnf("could not parse package.json %q: %v", packageJsonPath, err)
+		} else if rawPackageJson == nil {
+			diag.Warnf("could not parse package.json %q: expected an object", packageJsonPath)
+		}
+	}
 
 	if imports, ok := rawPackageJson["imports"]; ok {
 		if importsMap, ok := imports.(map[string]interface{}); ok {
@@ -1046,6 +1057,7 @@ func (f *ModuleResolver) validateWorkspaceDependency(consumerRoot, targetPkgName
 	}
 	consumerConfig, err := f.manager.monorepoContext.GetPackageConfig(normalizedConsumerRoot)
 	if err != nil {
+		diag.Warnf("could not read or parse consumer package.json in %q: %v", normalizedConsumerRoot, err)
 		return false
 	}
 
@@ -1121,6 +1133,7 @@ func (f *ModuleResolver) tryResolveWorkspacePackageImport(request string, root s
 func (f *ModuleResolver) resolvePackageExports(pkgPath, subpath string) (string, *ResolutionError) {
 	exports, err := f.manager.monorepoContext.GetPackageExports(pkgPath, f.manager.conditionNames)
 	if err != nil {
+		diag.Warnf("could not read workspace exports in %q: %v", pkgPath, err)
 		e := FileNotFound
 		return "", &e
 	}
@@ -1146,6 +1159,7 @@ func (f *ModuleResolver) resolvePackageExports(pkgPath, subpath string) (string,
 func (f *ModuleResolver) resolvePackageFallback(pkgPath, subpath string) (string, *ResolutionError) {
 	config, err := f.manager.monorepoContext.GetPackageConfig(pkgPath)
 	if err != nil {
+		diag.Warnf("could not read or parse workspace package.json in %q: %v", pkgPath, err)
 		e := FileNotFound
 		return "", &e
 	}
@@ -1586,6 +1600,8 @@ func resolveSingleFileImports(resolverManager *ResolverManager, missingResolutio
 							importsResolver.manager.AddFilePathToFilesAndExtensions(importPath)
 						}
 						mu.Unlock()
+					} else {
+						diag.Warnf("could not read resolved file %q imported from %q: %v", importPath, filePath, err)
 					}
 				} else {
 					mu.Unlock()

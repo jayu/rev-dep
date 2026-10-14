@@ -28,6 +28,10 @@ func runConfigWithIssuesListOutput(cfg config.RevDepConfig, cwd string, runConfi
 	}
 
 	output := formatIssuesListOutput(rules)
+	if result.Baseline != nil && output == "No issues found\n" {
+		output = ""
+	}
+	output = formatFindingsBaselineIssuesList(result.Baseline, cwd) + output
 	if output != "" {
 		fmt.Print(output)
 	}
@@ -83,12 +87,24 @@ type issuesListItem struct {
 	Location string
 }
 
+// A component identifies circular findings when a diagnostic cycle is absent.
+type circularComponentIssue struct {
+	Files []string
+}
+
+func circularComponentLabel(files []string) string {
+	return "Files: " + strings.Join(files, ", ")
+}
+
 func formatIssuesListOutput(rules []jsonRuleResult) string {
 	groups := buildIssuesListGroups(rules)
 	if len(groups) == 0 {
 		return "No issues found\n"
 	}
+	return formatIssuesListGroups(groups)
+}
 
+func formatIssuesListGroups(groups []issuesListGroup) string {
 	lines := make([]string, 0, 64)
 	for i, group := range groups {
 		if len(group.Items) == 0 {
@@ -110,192 +126,232 @@ func formatIssuesListOutput(rules []jsonRuleResult) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
-	byType := map[string][]issuesListItem{}
-
-	add := func(title string, label string, location string) {
-		if label == "" {
-			return
-		}
-		byType[title] = append(byType[title], issuesListItem{
-			Label:    label,
-			Location: location,
-		})
+func buildIssuesListRuleGroups(rule jsonRuleResult) []issuesListGroup {
+	var empty []issuesListItem
+	if rule.EmptyWorkspace == "fail" {
+		empty = []issuesListItem{{Label: workspaceLabel(rule.Path) + " (0 files)"}}
 	}
-
-	for _, rule := range rules {
-		if rule.EmptyWorkspace == "fail" {
-			add("Empty Workspaces", workspaceLabel(rule.Path)+" (0 files)", "")
-		}
-		if rule.Checks.CircularDependencies != nil {
-			for _, issue := range rule.Checks.CircularDependencies.Issues {
-				if v, ok := issue.(jsonCircularDependencyIssue); ok {
-					add("Circular Dependencies Issues", strings.Join(v.Cycle, " -> "), "")
-				}
-			}
-		}
-		if rule.Checks.OrphanFiles != nil {
-			for _, issue := range rule.Checks.OrphanFiles.Issues {
-				if v, ok := issue.(jsonOrphanFileIssue); ok {
-					add("Orphan Files Issues", v.FilePath, "")
-				}
-			}
-		}
-		if rule.Checks.ModuleBoundaries != nil {
-			for _, issue := range rule.Checks.ModuleBoundaries.Issues {
-				if v, ok := issue.(jsonModuleBoundaryIssue); ok {
-					label := v.ImportPath
-					if label == "" {
-						label = v.RuleName
-					}
-					add("Module Boundary Issues", label, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
-				}
-			}
-		}
-		if rule.Checks.UnusedNodeModules != nil {
-			for _, issue := range rule.Checks.UnusedNodeModules.Issues {
-				if v, ok := issue.(jsonUnusedNodeModuleIssue); ok {
-					add("Unused Node Modules Issues", v.ModuleName, formatIssueLocationWithFields(v.PackageJsonPath, v.jsonLocationFields))
-				}
-			}
-		}
-		if rule.Checks.MissingNodeModules != nil {
-			for _, issue := range rule.Checks.MissingNodeModules.Issues {
-				if v, ok := issue.(jsonMissingNodeModuleIssue); ok {
-					if len(v.Locations) > 0 {
-						for _, loc := range v.Locations {
-							add("Missing Node Modules Issues", v.ModuleName, formatIssueLocation(loc.FilePath, loc.StartLine, loc.StartCol))
-						}
-					} else if len(v.ImportedFrom) > 0 {
-						for _, filePath := range v.ImportedFrom {
-							add("Missing Node Modules Issues", v.ModuleName, formatIssueLocation(filePath, 0, 0))
-						}
-					} else {
-						add("Missing Node Modules Issues", v.ModuleName, formatIssueLocation("unknown", 0, 0))
-					}
-				}
-			}
-		}
-		if rule.Checks.ImportConventions != nil {
-			for _, issue := range rule.Checks.ImportConventions.Issues {
-				if v, ok := issue.(jsonImportConventionIssue); ok {
-					add("Import Convention Issues", v.ImportRequest, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
-				}
-			}
-		}
-		if rule.Checks.UnresolvedImports != nil {
-			for _, issue := range rule.Checks.UnresolvedImports.Issues {
-				if v, ok := issue.(jsonUnresolvedImportIssue); ok {
-					request := v.Request
-					if v.NonLiteral {
-						request = nonLiteralLabelFor(v.callText)
-					}
-					add("Unresolved Imports", request, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
-				}
-			}
-		}
-		if rule.Checks.UnusedExports != nil {
-			for _, issue := range rule.Checks.UnusedExports.Issues {
-				if v, ok := issue.(jsonUnusedExportIssue); ok {
-					add("Unused Exports Issues", v.ExportName, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
-				}
-			}
-		}
-		if rule.Checks.RestrictedDevDependenciesUsage != nil {
-			for _, issue := range rule.Checks.RestrictedDevDependenciesUsage.Issues {
-				if v, ok := issue.(jsonRestrictedDevDepsIssue); ok {
-					add("Dev Deps Usage On Prod Issues", v.DevDependency, formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields))
-				}
-			}
-		}
-		if rule.Checks.RestrictedImports != nil {
-			for _, issue := range rule.Checks.RestrictedImports.Issues {
-				if v, ok := issue.(jsonRestrictedImportIssue); ok {
-					label := v.ImportRequest
-					if label == "" {
-						if v.DeniedModule != "" {
-							label = v.DeniedModule
-						} else {
-							label = v.DeniedFile
-						}
-					}
-					add("Restricted Imports Issues", label, formatIssueLocationWithFields(v.ImporterFile, v.jsonLocationFields))
-				}
-			}
-		}
-		if rule.Checks.RestrictedImporters != nil {
-			for _, issue := range rule.Checks.RestrictedImporters.Issues {
-				if v, ok := issue.(jsonRestrictedImporterIssue); ok {
-					target := v.File
-					if target == "" {
-						target = "module " + v.Module
-					}
-					add("Restricted Importers Issues", target, v.EntryPoint)
-				}
-			}
-		}
-		if rule.Checks.RestrictedDirectImporters != nil {
-			for _, issue := range rule.Checks.RestrictedDirectImporters.Issues {
-				if v, ok := issue.(jsonRestrictedDirectImporterIssue); ok {
-					target := v.File
-					if target == "" {
-						target = "module " + v.Module
-					}
-					add("Restricted Direct Importers Issues", target, v.ImporterFile)
-				}
-			}
-		}
-		// One item per failing detection, not one per duplicated block. A real project
-		// has thousands of duplicated blocks and listing them here would bury every
-		// other issue - the count is what the rule acts on, and the command is how to
-		// see the places.
-		for _, d := range rule.Checks.DuplicatedCode {
-			if d.Status != "fail" {
-				continue
-			}
-			add("Duplicated Code Issues", duplicatedCodeIssueLabel(d), d.Command)
-		}
+	groups := []issuesListGroup{
+		{Title: "Empty Workspaces", Items: empty},
+		{Title: "Circular Dependencies Issues", Items: formatCircularDependenciesIssuesList(rule.Checks.CircularDependencies)},
+		{Title: "Orphan Files Issues", Items: formatOrphanFilesIssuesList(rule.Checks.OrphanFiles)},
+		{Title: "Module Boundary Issues", Items: formatModuleBoundariesIssuesList(rule.Checks.ModuleBoundaries)},
+		{Title: "Unused Node Modules Issues", Items: formatUnusedNodeModulesIssuesList(rule.Checks.UnusedNodeModules)},
+		{Title: "Missing Node Modules Issues", Items: formatMissingNodeModulesIssuesList(rule.Checks.MissingNodeModules)},
+		{Title: "Import Convention Issues", Items: formatImportConventionsIssuesList(rule.Checks.ImportConventions)},
+		{Title: "Unresolved Imports", Items: formatUnresolvedImportsIssuesList(rule.Checks.UnresolvedImports)},
+		{Title: "Unused Exports Issues", Items: formatUnusedExportsIssuesList(rule.Checks.UnusedExports)},
+		{Title: "Dev Deps Usage On Prod Issues", Items: formatDevDepsUsageOnProdIssuesList(rule.Checks.RestrictedDevDependenciesUsage)},
+		{Title: "Restricted Imports Issues", Items: formatRestrictedImportsIssuesList(rule.Checks.RestrictedImports)},
+		{Title: "Restricted Importers Issues", Items: formatRestrictedImportersIssuesList(rule.Checks.RestrictedImporters)},
+		{Title: "Restricted Direct Importers Issues", Items: formatRestrictedDirectImportersIssuesList(rule.Checks.RestrictedDirectImporters)},
+		{Title: "Duplicated Code Issues", Items: formatDuplicatedCodeIssuesList(rule.Checks.DuplicatedCode)},
 	}
-
-	order := []string{
-		"Empty Workspaces",
-		"Circular Dependencies Issues",
-		"Orphan Files Issues",
-		"Module Boundary Issues",
-		"Unused Node Modules Issues",
-		"Missing Node Modules Issues",
-		"Import Convention Issues",
-		"Unresolved Imports",
-		"Unused Exports Issues",
-		"Dev Deps Usage On Prod Issues",
-		"Restricted Imports Issues",
-		"Restricted Importers Issues",
-		"Restricted Direct Importers Issues",
-		"Duplicated Code Issues",
+	for _, group := range groups {
+		sortIssuesListItems(group.Items)
 	}
-
-	groups := make([]issuesListGroup, 0, len(order))
-	for _, title := range order {
-		if items, ok := byType[title]; ok && len(items) > 0 {
-			sort.SliceStable(items, func(i, j int) bool {
-				iLoc := items[i].Location
-				jLoc := items[j].Location
-				if iLoc != jLoc {
-					if iLoc == "" {
-						return false
-					}
-					if jLoc == "" {
-						return true
-					}
-					return iLoc < jLoc
-				}
-				return items[i].Label < items[j].Label
-			})
-			groups = append(groups, issuesListGroup{Title: title, Items: items})
-		}
-	}
-
 	return groups
+}
+
+// Both sections retain the existing global detector groups and row ordering.
+func buildIssuesListGroups(rules []jsonRuleResult) []issuesListGroup {
+	var groups []issuesListGroup
+	for _, rule := range rules {
+		ruleGroups := buildIssuesListRuleGroups(rule)
+		if groups == nil {
+			groups = make([]issuesListGroup, len(ruleGroups))
+		}
+		for i, group := range ruleGroups {
+			groups[i].Title = group.Title
+			groups[i].Items = append(groups[i].Items, group.Items...)
+		}
+	}
+	// The per-rule composition includes empty groups, keeping detector order
+	// consistent even when the first workspace has no findings for a detector.
+	var result []issuesListGroup
+	for _, group := range groups {
+		if len(group.Items) > 0 {
+			sortIssuesListItems(group.Items)
+			result = append(result, group)
+		}
+	}
+	return result
+}
+
+func sortIssuesListItems(items []issuesListItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Location != items[j].Location {
+			if items[i].Location == "" {
+				return false
+			}
+			if items[j].Location == "" {
+				return true
+			}
+			return items[i].Location < items[j].Location
+		}
+		return items[i].Label < items[j].Label
+	})
+}
+
+// mapIssuesListItems keeps collection separate from each detector's label and
+// location. Most detectors produce one row per issue.
+func mapIssuesListItems[T any](check *jsonCheckResult, item func(T) issuesListItem) []issuesListItem {
+	var items []issuesListItem
+	if check == nil {
+		return items
+	}
+	for _, issue := range check.Issues {
+		if value, ok := issue.(T); ok {
+			row := item(value)
+			if row.Label != "" {
+				items = append(items, row)
+			}
+		}
+	}
+	return items
+}
+
+func formatCircularDependenciesIssuesList(check *jsonCheckResult) []issuesListItem {
+	var items []issuesListItem
+	if check == nil {
+		return items
+	}
+	for _, issue := range check.Issues {
+		switch value := issue.(type) {
+		case jsonCircularDependencyIssue:
+			items = append(items, issuesListItem{Label: strings.Join(value.Cycle, " -> ")})
+		case circularComponentIssue:
+			items = append(items, issuesListItem{Label: circularComponentLabel(value.Files)})
+		}
+	}
+	return items
+}
+
+func formatOrphanFilesIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonOrphanFileIssue) issuesListItem {
+		return issuesListItem{Label: v.FilePath}
+	})
+}
+
+func formatModuleBoundariesIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonModuleBoundaryIssue) issuesListItem {
+		label := v.ImportPath
+		if label == "" {
+			label = v.RuleName
+		}
+		return issuesListItem{Label: label, Location: formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields)}
+	})
+}
+
+func formatUnusedNodeModulesIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonUnusedNodeModuleIssue) issuesListItem {
+		return issuesListItem{Label: v.ModuleName, Location: formatIssueLocationWithFields(v.PackageJsonPath, v.jsonLocationFields)}
+	})
+}
+
+func formatMissingNodeModulesIssuesList(check *jsonCheckResult) []issuesListItem {
+	var items []issuesListItem
+	if check == nil {
+		return items
+	}
+	for _, issue := range check.Issues {
+		v, ok := issue.(jsonMissingNodeModuleIssue)
+		if !ok || v.ModuleName == "" {
+			continue
+		}
+		if len(v.Locations) > 0 {
+			for _, loc := range v.Locations {
+				items = append(items, issuesListItem{Label: v.ModuleName, Location: formatIssueLocation(loc.FilePath, loc.StartLine, loc.StartCol)})
+			}
+		} else if len(v.ImportedFrom) > 0 {
+			for _, file := range v.ImportedFrom {
+				items = append(items, issuesListItem{Label: v.ModuleName, Location: file})
+			}
+		} else {
+			items = append(items, issuesListItem{Label: v.ModuleName})
+		}
+	}
+	return items
+}
+
+func formatImportConventionsIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonImportConventionIssue) issuesListItem {
+		return issuesListItem{Label: v.ImportRequest, Location: formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields)}
+	})
+}
+
+func formatUnresolvedImportsIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonUnresolvedImportIssue) issuesListItem {
+		request := v.Request
+		if v.NonLiteral {
+			call := v.callText
+			if call == "" {
+				call = v.Request
+			}
+			request = nonLiteralLabelFor(call)
+		}
+		return issuesListItem{Label: request, Location: formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields)}
+	})
+}
+
+func formatUnusedExportsIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonUnusedExportIssue) issuesListItem {
+		return issuesListItem{Label: v.ExportName, Location: formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields)}
+	})
+}
+
+func formatDevDepsUsageOnProdIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonRestrictedDevDepsIssue) issuesListItem {
+		return issuesListItem{Label: v.DevDependency, Location: formatIssueLocationWithFields(v.FilePath, v.jsonLocationFields)}
+	})
+}
+
+func formatRestrictedImportsIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonRestrictedImportIssue) issuesListItem {
+		label := v.ImportRequest
+		if label == "" {
+			label = v.DeniedModule
+			if label == "" {
+				label = v.DeniedFile
+			}
+		}
+		return issuesListItem{Label: label, Location: formatIssueLocationWithFields(v.ImporterFile, v.jsonLocationFields)}
+	})
+}
+
+func formatRestrictedImportersIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonRestrictedImporterIssue) issuesListItem {
+		target := v.File
+		if target == "" {
+			target = "module " + v.Module
+		}
+		return issuesListItem{Label: target, Location: v.EntryPoint}
+	})
+}
+
+func formatRestrictedDirectImportersIssuesList(check *jsonCheckResult) []issuesListItem {
+	return mapIssuesListItems(check, func(v jsonRestrictedDirectImporterIssue) issuesListItem {
+		target := v.File
+		if target == "" {
+			module := v.Module
+			if module == "" {
+				module = v.ImportRequest
+			}
+			target = "module " + module
+		}
+		return issuesListItem{Label: target, Location: v.ImporterFile}
+	})
+}
+
+// A failing duplication check produces one row, rather than one row per block.
+func formatDuplicatedCodeIssuesList(detections []jsonDuplicatedCodeResult) []issuesListItem {
+	var items []issuesListItem
+	for _, detection := range detections {
+		if detection.Status == "fail" {
+			items = append(items, issuesListItem{Label: duplicatedCodeIssueLabel(detection), Location: detection.Command})
+		}
+	}
+	return items
 }
 
 func formatIssueLocation(filePath string, line int, col int) string {
@@ -312,6 +368,9 @@ func formatIssueLocation(filePath string, line int, col int) string {
 }
 
 func formatIssueLocationWithFields(filePath string, fields jsonLocationFields) string {
+	if fields.StartLine == nil && fields.StartCol == nil {
+		return filePath
+	}
 	line := 0
 	col := 0
 	if fields.StartLine != nil {
@@ -332,13 +391,15 @@ func formatIssuesListItems(items []issuesListItem) []string {
 		if item.Location == "" {
 			continue
 		}
-		if len(item.Label) > maxLabel {
-			maxLabel = len(item.Label)
+		if width := len(singleLineIssueText(item.Label)); width > maxLabel {
+			maxLabel = width
 		}
 	}
 
 	lines := make([]string, 0, len(items))
 	for _, item := range items {
+		item.Label = singleLineIssueText(item.Label)
+		item.Location = singleLineIssueText(item.Location)
 		if item.Location == "" {
 			lines = append(lines, item.Label)
 			continue
@@ -346,4 +407,8 @@ func formatIssuesListItems(items []issuesListItem) []string {
 		lines = append(lines, fmt.Sprintf("%-*s  %s", maxLabel, item.Label, item.Location))
 	}
 	return lines
+}
+
+func singleLineIssueText(text string) string {
+	return strings.NewReplacer("\r", "\\r", "\n", "\\n", "\t", "\\t").Replace(text)
 }

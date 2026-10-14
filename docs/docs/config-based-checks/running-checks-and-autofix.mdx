@@ -90,3 +90,7 @@ This rewrites every `duplicatedCodeDetection` that has a `snapshotPath`, so what
 Use it twice: once when adopting the check on a codebase that already has duplication, and again after you resolve some of it, so the baseline follows the code. See [duplicated code](./checks/duplicated-code.mdx).
 
 
+
+## Updating acknowledged findings
+
+With top-level `baselineSnapshotPath`, `rev-dep config run --update-snapshot` records the current findings baseline and updates configured duplicated-code snapshots. See [Findings baseline](./findings-baseline.mdx) for setup, exact comparison, and the distinction between the two snapshot mechanisms. With a findings baseline, `--fix` always rechecks final code; use `--fix --update-snapshot` to fix and record the final state. Updating the general baseline requires all workspaces.

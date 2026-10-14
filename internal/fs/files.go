@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"rev-dep-go/internal/diag"
 	globutil "rev-dep-go/internal/glob"
 	"rev-dep-go/internal/pathutil"
 )
@@ -266,6 +267,9 @@ func getFiles(directory string, existingFiles []string, parentGlobMatchers []glo
 			var subDirs []walkItem
 
 			entries, err := os.ReadDir(current.dirPath)
+			if err != nil {
+				diag.Warnf("could not read source directory %q: %v", current.dirPath, err)
+			}
 			if err == nil {
 				globMatchers := current.excludeGlobs
 
@@ -274,6 +278,9 @@ func getFiles(directory string, existingFiles []string, parentGlobMatchers []glo
 				// folded it, and every ancestor's, into parentGlobMatchers.
 				if !current.isRoot && hasGitignoreEntry(entries) {
 					gitignoreFile, gitignoreError := os.ReadFile(filepath.Join(current.dirPath, ".gitignore"))
+					if gitignoreError != nil {
+						diag.Warnf("could not read .gitignore in %q: %v", current.dirPath, gitignoreError)
+					}
 					if gitignoreError == nil {
 						nested := ParseGitIgnore(string(gitignoreFile), current.dirPath)
 						if len(nested) > 0 {

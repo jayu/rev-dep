@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -169,6 +170,26 @@ func TestJSONOutputSnapshotWriteIsNotAFailure(t *testing.T) {
 	}
 	if got.Snapshot == nil || !got.Snapshot.Written {
 		t.Errorf("nothing in the output says the snapshot was rewritten: %+v", got.Snapshot)
+	}
+}
+
+func TestDuplicatedCodeConsoleSnapshotPaths(t *testing.T) {
+	cwd := t.TempDir()
+	for _, written := range []bool{true, false} {
+		detection := withDuplication()
+		detection.Result.SnapshotPath = filepath.Join(cwd, "packages", "app", "snapshots", "duplicates.json")
+		detection.Result.SnapshotWritten = written
+		want := "Duplicated Code: snapshot updated (12 patterns acknowledged) -> packages/app/snapshots/duplicates.json\n"
+		if !written {
+			detection.Result.Delta = &dupcode.Delta{Unchanged: 12}
+			want = "Duplicated Code: snapshot unchanged (12 patterns acknowledged)\n"
+		}
+		rule := dupRuleResult(detection)
+		rule.RulePath = "packages/app"
+		out := formatDuplicatedCodeConsole(rule, cwd, false)
+		if !strings.HasSuffix(out, want) || strings.Contains(out, cwd) {
+			t.Errorf("incorrect snapshot path (written=%v): %s", written, out)
+		}
 	}
 }
 

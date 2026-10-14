@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"rev-dep-go/internal/baseline"
 	"rev-dep-go/internal/config"
 	"rev-dep-go/internal/dupcode"
 )
@@ -15,6 +16,7 @@ import (
 type jsonOutput struct {
 	Version     string           `json:"version"`
 	HasFailures bool             `json:"hasFailures"`
+	Baseline    *baseline.Result `json:"baseline,omitempty"`
 	Rules       []jsonRuleResult `json:"workspaces"`
 	FixSummary  jsonFixSummary   `json:"fixSummary"`
 	// Lint is present only when the config was linted (--lint-config / --lint-config-rules).
@@ -234,7 +236,7 @@ type jsonRestrictedDirectImporterIssue struct {
 
 func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, runConfigFix bool, runConfigRecheck bool) error {
 	output := jsonOutput{
-		Version: "2.2",
+		Version: "2.3",
 		Rules:   []jsonRuleResult{},
 	}
 
@@ -247,6 +249,7 @@ func runConfigWithJSONOutput(cfg config.RevDepConfig, cwd string, runConfigFix b
 		return fmt.Errorf("Error processing config: %v", err)
 	}
 
+	output.Baseline = result.Baseline
 	if result.HasFailures {
 		output.HasFailures = true
 	}

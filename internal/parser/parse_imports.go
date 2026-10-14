@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"rev-dep-go/internal/diag"
 	"rev-dep-go/internal/pathutil"
 )
 
@@ -1648,6 +1649,7 @@ func ParseImportsFromFilesWithBlocks(filePaths []string, ignoreTypeImports bool,
 			fileContent, err := os.ReadFile(pathutil.DenormalizePathForOS(path))
 			if err != nil {
 				errCount.Add(1)
+				diag.Warnf("could not read source file %q: %v", path, err)
 				return
 			}
 

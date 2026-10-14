@@ -191,15 +191,7 @@ func FindRestrictedImporters(
 		}
 	}
 
-	slices.SortFunc(violations, func(a, b RestrictedImporterViolation) int {
-		if a.EntryPoint != b.EntryPoint {
-			return strings.Compare(a.EntryPoint, b.EntryPoint)
-		}
-		if a.File != b.File {
-			return strings.Compare(a.File, b.File)
-		}
-		return strings.Compare(a.Module, b.Module)
-	})
+	slices.SortFunc(violations, CompareRestrictedImporters)
 
 	return violations
 }
@@ -214,4 +206,15 @@ func matchFilesInTree(tree MinimalDependencyTree, patterns []string, rulePath st
 		}
 	}
 	return result
+}
+
+// CompareRestrictedImporters is shared by detection and reconstruction of stored findings.
+func CompareRestrictedImporters(a, b RestrictedImporterViolation) int {
+	if a.EntryPoint != b.EntryPoint {
+		return strings.Compare(a.EntryPoint, b.EntryPoint)
+	}
+	if a.File != b.File {
+		return strings.Compare(a.File, b.File)
+	}
+	return strings.Compare(a.Module, b.Module)
 }

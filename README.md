@@ -53,6 +53,8 @@ Designed for modern workspaces (`pnpm`, `yarn`, `npm`). Rev-dep natively resolve
 ### 🛡️ **Config-Based Codebase Governance**
 Move beyond passive scanning. Use the configuration engine to enforce **Module Boundaries** and **Import Conventions**. Execute a full suite of hygiene checks (circularity, orphans, unused modules and more) in a **single, parallelized pass** that serves as a high-speed gatekeeper for your CI.
 
+Adopt checks with existing issues using a [findings baseline](https://rev-dep.com/docs/config-based-checks/findings-baseline): acknowledge the current issue set, keep CI passing, and detect new or obsolete findings while fixing the backlog gradually.
+
 ### 🔍 **Exploratory Toolkit**
 CLI toolkit that helps debug issues with dependencies between files. Understand transitive relation between files and fix issues.
 
@@ -230,6 +232,18 @@ Fix all fixable checks:
 rev-dep config run --fix
 ```
 
+### Acknowledge Existing Findings
+
+After verifying resolution and entry points, add `"baselineSnapshotPath": ".rev-dep.baseline.json"` at the top level of your config, alongside `workspaces`. The path is relative to the config directory. Record all configured workspaces and checks:
+
+```bash
+rev-dep config run --update-snapshot
+```
+
+Review and commit the config and baseline. CI keeps running `rev-dep config run`: acknowledged findings pass, and new or obsolete findings fail. Line-number changes do not cause differences. After an intentional change, update the baseline locally and commit it.
+
+Duplicated code has its own specialized snapshots and is excluded from the general baseline. The same update flag rewrites both when configured. See the [findings baseline guide](https://rev-dep.com/docs/config-based-checks/findings-baseline) for setup and comparison rules.
+
 ### Configuration Structure
 
 The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) allows you to define multiple workspaces, each targeting different parts of your codebase with specific checks enabled.
@@ -238,8 +252,8 @@ The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`) a
 
 ```jsonc
 {
-  "configVersion": "2.1",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.1.schema.json?raw=true",
+  "configVersion": "2.2",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.2.schema.json?raw=true",
   "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "workspaces": [
     {
@@ -275,8 +289,9 @@ Here's a comprehensive example showing all available properties:
 
 ```jsonc
 {
-  "configVersion": "2.1",
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.1.schema.json?raw=true", // enables json autocompletion
+  "configVersion": "2.2",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.2.schema.json?raw=true", // enables json autocompletion
+  "baselineSnapshotPath": ".rev-dep.baseline.json", // optional; create it with config run --update-snapshot before running checks
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
@@ -387,7 +402,9 @@ Here's a comprehensive example showing all available properties:
 ### Available Properties
 
 #### Root Level Properties
+
 - **`configVersion`** (required): Configuration version string
+- **`baselineSnapshotPath`** (optional): Path to a committed findings baseline, relative to the config directory. Record it with `rev-dep config run --update-snapshot`; ordinary runs fail on new or obsolete findings. Excludes duplicated code, which uses its own `snapshotPath`. See the [guide](https://rev-dep.com/docs/config-based-checks/findings-baseline).
 - **`$schema`** (optional): JSON schema reference for validation
 - **`conditionNames`** (optional): Array of condition names for exports resolution
 - **`customAssetExtensions`** (optional): Additional asset extensions treated as resolvable imports (e.g. `["glb", "mp3"]`). Default list covers common extensions for fonts, images, config files.
@@ -852,7 +869,7 @@ rev-dep config run [flags]
       --lint-config-rules strings   Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config
       --list-all-issues             List all issues instead of limiting output
       --recheck                     Run all checks again after '--fix' to validate the final state
-      --update-snapshot             Rewrite every configured duplicated-code snapshot from this run, acknowledging what it found.
+      --update-snapshot             Rewrite the configured findings baseline and duplicated-code snapshots, acknowledging current findings.
   -v, --verbose                     Show warnings and verbose output
       --workspaces strings          Subset of workspaces to run (comma-separated list of workspace paths)
 ```

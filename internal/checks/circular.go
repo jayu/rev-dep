@@ -11,6 +11,17 @@ import (
 // FindCircularDependencies detects circular dependencies using strongly connected components (SCCs).
 // It returns one deterministic cycle representation per SCC.
 func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []string, ignoreTypeImports bool) [][]string {
+	return FindCircularDependenciesWithComponents(deps, sortedFilesList, ignoreTypeImports).Cycles
+}
+
+// CircularDependencyResult retains full SCC membership independently of the
+// representative cycles used for display. The two slices have matching indexes.
+type CircularDependencyResult struct {
+	Cycles     [][]string
+	Components [][]string
+}
+
+func FindCircularDependenciesWithComponents(deps MinimalDependencyTree, sortedFilesList []string, ignoreTypeImports bool) CircularDependencyResult {
 	nodeSet := make(map[string]struct{}, len(sortedFilesList))
 	for _, node := range sortedFilesList {
 		nodeSet[node] = struct{}{}
@@ -85,7 +96,7 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 		}
 	}
 
-	cycles := make([][]string, 0, len(sccs))
+	result := CircularDependencyResult{Cycles: make([][]string, 0, len(sccs)), Components: make([][]string, 0, len(sccs))}
 	for _, scc := range sccs {
 		if len(scc) == 1 {
 			if !hasSelfLoop(adj, scc[0]) {
@@ -104,14 +115,24 @@ func FindCircularDependencies(deps MinimalDependencyTree, sortedFilesList []stri
 		if len(cycle) == 0 {
 			cycle = []string{start, start}
 		}
-		cycles = append(cycles, cycle)
+		result.Cycles = append(result.Cycles, cycle)
+		result.Components = append(result.Components, scc)
 	}
 
-	sort.Slice(cycles, func(i, j int) bool {
-		return strings.Join(cycles[i], "\x00") < strings.Join(cycles[j], "\x00")
+	// Sort pairs together so display cycles retain their component identity.
+	order := make([]int, len(result.Cycles))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(i, j int) bool {
+		return strings.Join(result.Cycles[order[i]], "\x00") < strings.Join(result.Cycles[order[j]], "\x00")
 	})
-
-	return cycles
+	sorted := CircularDependencyResult{Cycles: make([][]string, 0, len(order)), Components: make([][]string, 0, len(order))}
+	for _, i := range order {
+		sorted.Cycles = append(sorted.Cycles, result.Cycles[i])
+		sorted.Components = append(sorted.Components, result.Components[i])
+	}
+	return sorted
 }
 
 func hasSelfLoop(adj map[string][]string, node string) bool {

@@ -1,0 +1,408 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jayu/rev-dep/blob/master/output-schema/findings-baseline-1.0.schema.json",
+  "title": "Rev-Dep Findings Baseline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "workspaces"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "workspaces": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "circular-imports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/circular-imports"
+            }
+          },
+          "orphan-files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/orphan-files"
+            }
+          },
+          "missing-node-modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/missing-node-modules"
+            }
+          },
+          "unused-node-modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/unused-node-modules"
+            }
+          },
+          "unused-exports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/unused-exports"
+            }
+          },
+          "unresolved-imports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/unresolved-imports"
+            }
+          },
+          "module-boundaries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/module-boundaries"
+            }
+          },
+          "import-conventions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/import-conventions"
+            }
+          },
+          "dev-deps-usage-on-prod": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/dev-deps-usage-on-prod"
+            }
+          },
+          "restricted-imports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/restricted-imports"
+            }
+          },
+          "restricted-importers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/restricted-importers"
+            }
+          },
+          "restricted-direct-importers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/restricted-direct-importers"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "circular-imports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files"
+      ],
+      "properties": {
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "orphan-files": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "missing-node-modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "module"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "module": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "unused-node-modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageJson",
+        "module"
+      ],
+      "properties": {
+        "packageJson": {
+          "type": "string",
+          "minLength": 1
+        },
+        "module": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "unused-exports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "export",
+        "isType"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "export": {
+          "type": "string",
+          "minLength": 1
+        },
+        "isType": {
+          "type": "boolean"
+        }
+      }
+    },
+    "unresolved-imports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "request",
+        "kind"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "literal",
+            "nonliteral"
+          ]
+        }
+      }
+    },
+    "module-boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "target"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "import-conventions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "request",
+        "violationType"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request": {
+          "type": "string",
+          "minLength": 1
+        },
+        "violationType": {
+          "enum": [
+            "should-be-relative",
+            "should-be-aliased",
+            "wrong-alias"
+          ]
+        }
+      }
+    },
+    "dev-deps-usage-on-prod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "module"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "module": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "restricted-imports": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "target"
+          ],
+          "properties": {
+            "kind": {
+              "const": "file"
+            },
+            "target": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "request"
+          ],
+          "properties": {
+            "kind": {
+              "const": "module"
+            },
+            "request": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "restricted-importers": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entryPoint",
+            "kind",
+            "target"
+          ],
+          "properties": {
+            "entryPoint": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "const": "file"
+            },
+            "target": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entryPoint",
+            "kind",
+            "module"
+          ],
+          "properties": {
+            "entryPoint": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "const": "module"
+            },
+            "module": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "restricted-direct-importers": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "file",
+            "kind",
+            "target"
+          ],
+          "properties": {
+            "file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "const": "file"
+            },
+            "target": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "file",
+            "kind",
+            "request"
+          ],
+          "properties": {
+            "file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "const": "module"
+            },
+            "request": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+}

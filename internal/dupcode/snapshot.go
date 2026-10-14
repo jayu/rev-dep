@@ -434,12 +434,9 @@ func (e *SnapshotMissingError) Error() string {
 	return fmt.Sprintf("duplicated code snapshot %s does not exist", e.Path)
 }
 
-func SaveSnapshot(path string, snap *Snapshot) error {
-	if dir := filepath.Dir(path); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("create directory for %s: %w", path, err)
-		}
-	}
+// SaveSnapshot reports whether it wrote the file. Identical contents leave the
+// existing file untouched, including its modification time.
+func SaveSnapshot(path string, snap *Snapshot) (bool, error) {
 	// The default marshaller escapes <, > and & for HTML safety, which turns a JSX label into
 	// \u003c soup. This file is read in pull requests, so legibility wins.
 	var buf bytes.Buffer
@@ -447,9 +444,24 @@ func SaveSnapshot(path string, snap *Snapshot) error {
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(snap); err != nil {
-		return err
+		return false, err
 	}
-	return os.WriteFile(path, buf.Bytes(), 0o644)
+	previous, err := os.ReadFile(path)
+	if err == nil && bytes.Equal(previous, buf.Bytes()) {
+		return false, nil
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return false, fmt.Errorf("read duplicated code snapshot %s: %w", path, err)
+	}
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return false, fmt.Errorf("create directory for %s: %w", path, err)
+		}
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ---------------------------------------------------------------------------

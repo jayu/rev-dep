@@ -22,6 +22,16 @@ export type FaqEntry = {
 
 export const faqEntries: FaqEntry[] = [
   {
+    id: 'existing_findings',
+    question: 'Can I enable checks before fixing every existing issue?',
+    answer: [
+      'Yes. Verify resolution and entry points, then set baselineSnapshotPath in your config and run rev-dep config run --update-snapshot. Commit the generated findings baseline and keep using rev-dep config run in CI.',
+      'Acknowledged findings pass, while new or obsolete findings fail. Line-number changes do not affect the comparison. After fixing an issue or intentionally changing the checks, review the differences and update the baseline locally.',
+      'Duplicated code uses a separate snapshot mechanism. The general baseline excludes it, and the same --update-snapshot flag updates both kinds of snapshot when configured.',
+    ],
+    link: { label: 'Set up a findings baseline →', to: '/docs/config-based-checks/findings-baseline' },
+  },
+  {
     id: 'why_faster',
     question: 'Why is it so much faster? What is the catch?',
     answer: [

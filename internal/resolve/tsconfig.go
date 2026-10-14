@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/tidwall/jsonc"
+
+	"rev-dep-go/internal/diag"
 )
 
 // ParseTsConfig reads tsconfig from disk (JSON or JSONC) at tsconfigPath and
@@ -63,6 +65,7 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 
 	extStr, ok := ext.(string)
 	if !ok || strings.TrimSpace(extStr) == "" {
+		diag.Warnf("invalid tsconfig extends in %q: expected a nonempty string", baseDir)
 		ensureCompilerOptions(result)
 		return result, nil
 	}
@@ -94,15 +97,24 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 	for _, cand := range candidates {
 		// try exact file
 		fi, err := os.Stat(cand)
+		if err != nil && !os.IsNotExist(err) {
+			diag.Warnf("could not inspect extended tsconfig %q: %v", cand, err)
+		}
 		if err == nil && !fi.IsDir() {
 			// read file
 			bb, err := os.ReadFile(cand)
 			if err != nil {
+				diag.Warnf("could not read extended tsconfig %q: %v", cand, err)
 				continue
 			}
 			bb = jsonc.ToJSON(bb)
 			var parsed map[string]interface{}
 			if err := json.Unmarshal(bb, &parsed); err != nil {
+				diag.Warnf("could not parse extended tsconfig %q: %v", cand, err)
+				continue
+			}
+			if parsed == nil {
+				diag.Warnf("could not parse extended tsconfig %q: expected an object", cand)
 				continue
 			}
 			foundPath = cand
@@ -112,6 +124,7 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 	}
 
 	if baseCfg == nil {
+		diag.Warnf("could not resolve tsconfig extends %q from %q; continuing without its settings", extStr, baseDir)
 		// Not found - nothing to merge
 		ensureCompilerOptions(result)
 		return result, nil
@@ -120,6 +133,7 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 	// avoid cycles
 	absFound, _ := filepath.Abs(foundPath)
 	if seen[absFound] {
+		diag.Warnf("circular tsconfig extends at %q; continuing without its settings", foundPath)
 		ensureCompilerOptions(result)
 		return result, nil
 	}
@@ -187,10 +201,12 @@ func tsConfigPackageExtendsCandidates(baseDir, extStr string) []string {
 		// Direct file (e.g. "pkg/base.json" or "@scope/pkg/tsconfig.json").
 		candidates = append(candidates, target, target+".json")
 		// Package directory: honor package.json "main", then default tsconfig.json.
-		if main := readPackageJSONMain(target); main != "" {
-			candidates = append(candidates, filepath.Join(target, main))
+		if info, err := os.Stat(target); err == nil && info.IsDir() {
+			if main := readPackageJSONMain(target); main != "" {
+				candidates = append(candidates, filepath.Join(target, main))
+			}
+			candidates = append(candidates, filepath.Join(target, "tsconfig.json"))
 		}
-		candidates = append(candidates, filepath.Join(target, "tsconfig.json"))
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -204,14 +220,19 @@ func tsConfigPackageExtendsCandidates(baseDir, extStr string) []string {
 // readPackageJSONMain returns the "main" field of pkgDir/package.json, or "" if
 // the file is missing or unparsable.
 func readPackageJSONMain(pkgDir string) string {
-	content, err := os.ReadFile(filepath.Join(pkgDir, "package.json"))
+	filename := filepath.Join(pkgDir, "package.json")
+	content, err := os.ReadFile(filename)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			diag.Warnf("could not read tsconfig package.json %q: %v", filename, err)
+		}
 		return ""
 	}
 	var pkg struct {
 		Main string `json:"main"`
 	}
 	if err := json.Unmarshal(jsonc.ToJSON(content), &pkg); err != nil {
+		diag.Warnf("could not parse tsconfig package.json %q: %v", filename, err)
 		return ""
 	}
 	return pkg.Main

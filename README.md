@@ -930,14 +930,14 @@ rev-dep config lint [flags]
 
 ### rev-dep config migrate
 
-Upgrade a v2 config to the v3 (2.1) schema
+Upgrade a v2 config to the v3 (2.2) schema
 
 #### Synopsis
 
-Upgrade a (.)rev-dep.config.json(c) from the v2 schema to v3 (config version 2.1).
+Upgrade a (.)rev-dep.config.json(c) from the v2 schema to v3 (config version 2.2).
 
 It applies the safe, unambiguous changes in place (renaming the top-level 'rules' array to
-'workspaces', bumping 'configVersion' to 2.1, and removing the discontinued 'algorithm'
+'workspaces', bumping 'configVersion' to 2.2, and removing the discontinued 'algorithm'
 option from circular-imports detectors), preserving all comments and formatting. Review the
 change with git before committing.
 

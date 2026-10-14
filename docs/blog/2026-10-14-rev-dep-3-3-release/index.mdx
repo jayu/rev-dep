@@ -1,0 +1,29 @@
+---
+slug: rev-dep-3-3-release
+title: Rev-dep 3.3.0 is here!
+authors: [jayu]
+---
+
+# Rev-dep 3.3.0 is here!
+
+This version brings baseline snapshots for config checks.
+
+Adding checks to a large codebase can uncover more issues than you can fix right away. You can now acknowledge existing findings and keep CI passing while you work through them gradually.
+
+Add `baselineSnapshotPath` to your config, and record the current findings:
+
+```bash
+rev-dep config run --update-snapshot
+```
+
+Commit the snapshot alongside your config. CI keeps running `rev-dep config run` as usual. New findings fail the run, and fixed issues become obsolete findings that also require a snapshot update. 
+
+Findings are saved in formatting-agnostic way so moving an import (eg. of missing dependency) to another line doesn't trigger new violations to the baseline.
+
+Duplicated code keeps its existing snapshot mechanism; the same update flag handles both.
+
+Read more in the [findings baseline docs](/docs/config-based-checks/findings-baseline).
+
+<br/>
+
+That's it for this update, see you in the next one 👋

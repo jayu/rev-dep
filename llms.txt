@@ -27,6 +27,7 @@ These are the docs for rev-dep 3.x, a Go CLI distributed on npm that analyzes th
 - [Dev Dependencies in Production](https://rev-dep.com/docs/config-based-checks/checks/dev-deps-on-prod.md): Detect when packages listed in `devDependencies` are imported by production code, preventing runtime failures and deployment errors.
 - [Find Unresolved or Broken Imports](https://rev-dep.com/docs/config-based-checks/checks/unresolved-imports.md): Detect import statements that cannot be resolved to a physical file or module, helping to prevent runtime errors and build failures.
 - [Running checks and autofix](https://rev-dep.com/docs/config-based-checks/running-checks-and-autofix.md): Learn how to run rev-dep checks, use different output formats, and utilize the powerful autofix feature to automatically resolve dependency and imp...
+- [Findings baseline](https://rev-dep.com/docs/config-based-checks/findings-baseline.md): Acknowledge existing findings, keep CI clean, and detect new or obsolete issues without depending on source positions or detector-array order.
 - [Linting the config](https://rev-dep.com/docs/config-based-checks/linting-the-config.md): Lint your rev-dep config for dead glob patterns, overlaps, and redundant syntax - and auto-fix them while preserving comments and formatting.
 - [Output formats](https://rev-dep.com/docs/config-based-checks/output-formats.md): Explore the different output formats available in rev-dep cli, including human-readable, JSON, and issues-list formats for local use and CI integra...
 - [Troubleshooting](https://rev-dep.com/docs/troubleshooting.md): Index of rev-dep troubleshooting guides, plus the related concepts and features they build on.
@@ -89,7 +90,7 @@ These are the docs for rev-dep 3.x, a Go CLI distributed on npm that analyzes th
 - [rev-dep config run](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_run.md): Execute all checks defined in (.)rev-dep.config.json(c)
 - [rev-dep config init](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_init.md): Initialize a new rev-dep.config.json file
 - [rev-dep config lint](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_lint.md): Report (and optionally remove) config glob/path patterns that match nothing
-- [rev-dep config migrate](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_migrate.md): Upgrade a v2 config to the v3 (2.1) schema
+- [rev-dep config migrate](https://rev-dep.com/docs/cli-reference/generated/rev-dep_config_migrate.md): Upgrade a v2 config to the v3 (2.2) schema
 - [rev-dep debug](https://rev-dep.com/docs/cli-reference/generated/rev-dep_debug.md): Debugging tools to inspect parser and resolver internals
 - [rev-dep debug get-tree-for-cwd](https://rev-dep.com/docs/cli-reference/generated/rev-dep_debug_get-tree-for-cwd.md): Debug: Show complete dependency tree for analysis
 - [rev-dep debug list-cwd-files](https://rev-dep.com/docs/cli-reference/generated/rev-dep_debug_list-cwd-files.md): List all files in the current working directory

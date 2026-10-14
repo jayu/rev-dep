@@ -21,7 +21,7 @@ rev-dep config run [flags]
       --lint-config-rules strings   Which lint rules to run with --lint-config (comma-separated). Default: all. Implies --lint-config
       --list-all-issues             List all issues instead of limiting output
       --recheck                     Run all checks again after '--fix' to validate the final state
-      --update-snapshot             Rewrite every configured duplicated-code snapshot from this run, acknowledging what it found.
+      --update-snapshot             Rewrite the configured findings baseline and duplicated-code snapshots, acknowledging current findings.
   -v, --verbose                     Show warnings and verbose output
       --workspaces strings          Subset of workspaces to run (comma-separated list of workspace paths)
 ```

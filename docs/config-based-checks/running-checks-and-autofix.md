@@ -56,17 +56,15 @@ Note that `autofix: true` must be set in the config for the detector be fixable.
 
 ### Exit code nuance with `--fix` and `--recheck`
 
-Using `--fix` flag adjust the source code, but do not perform validation after the fixes are applied. 
+With `--fix`, the exit code is `0` when every issue found was fixable and has been fixed, and `1` when any issue remains that `--fix` cannot fix. This is the same in every output format. In JSON output, `hasFailures` still reports that the checks found issues before they were fixed.
 
-This means it will still exit with code `1`.
-
-To perform a re-check after applying fixes, you can use the `--recheck` flag in combination with `--fix`:
+`--fix` adjusts the source code but does not run the checks again afterwards. To validate the final state, use the `--recheck` flag in combination with `--fix`:
 
 ```bash
 rev-dep config run --fix --recheck
 ```
 
-Additional pass will be performed to check if all issues are resolved.
+An additional pass is performed after the fixes, and the output and exit code reflect the code as it is after fixing.
 
 ### Autofixing orphan files issues
 
@@ -87,3 +85,7 @@ rev-dep config run --update-snapshot
 This rewrites every `duplicatedCodeDetection` that has a `snapshotPath`, so whatever this run found becomes the new baseline. Detections without one are unaffected.
 
 Use it twice: once when adopting the check on a codebase that already has duplication, and again after you resolve some of it, so the baseline follows the code. See [duplicated code](./checks/duplicated-code.mdx).
+
+## Updating acknowledged findings
+
+With top-level `baselineSnapshotPath`, `rev-dep config run --update-snapshot` records the current findings baseline and updates configured duplicated-code snapshots. See [Findings baseline](./findings-baseline.mdx) for setup, exact comparison, and the distinction between the two snapshot mechanisms. With a findings baseline, `--fix` always rechecks final code; use `--fix --update-snapshot` to fix and record the final state. Updating the general baseline requires all workspaces.

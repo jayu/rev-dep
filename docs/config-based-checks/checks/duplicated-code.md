@@ -115,3 +115,7 @@ Duplicated Code Detection is also known as:
 - duplicate code typescript
 - find duplicate code in monorepo
 - DRY violations
+
+## General findings baseline
+
+The [config-level findings baseline](../findings-baseline.mdx) acknowledges ordinary detector findings and excludes duplicated code. This check keeps its hash-and-occurrence snapshot at `snapshotPath`, relative to its workspace. When both mechanisms are configured, `rev-dep config run --update-snapshot` updates both. Matching the general baseline cannot suppress a duplication failure.

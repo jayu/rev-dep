@@ -4,10 +4,84 @@
         <title>Rev-dep - High-Speed Dependency Graph Analysis for JavaScript and TypeScript Monorepos Blog</title>
         <link>https://rev-dep.com/blog</link>
         <description>Rev-dep - High-Speed Dependency Graph Analysis for JavaScript and TypeScript Monorepos Blog</description>
-        <lastBuildDate>Sun, 04 Oct 2026 00:00:00 GMT</lastBuildDate>
+        <lastBuildDate>Wed, 14 Oct 2026 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <language>en</language>
+        <item>
+            <title><![CDATA[Rev-dep 3.3.0 is here!]]></title>
+            <link>https://rev-dep.com/blog/rev-dep-3-3-release</link>
+            <guid>https://rev-dep.com/blog/rev-dep-3-3-release</guid>
+            <pubDate>Wed, 14 Oct 2026 00:00:00 GMT</pubDate>
+            <description><![CDATA[This version brings baseline snapshots for config checks.]]></description>
+            <content:encoded><![CDATA[<p>This version brings baseline snapshots for config checks.</p>
+<p>Adding checks to a large codebase can uncover more issues than you can fix right away. You can now acknowledge existing findings and keep CI passing while you work through them gradually.</p>
+<p>Add <code>baselineSnapshotPath</code> to your config, and record the current findings:</p>
+<div class="language-bash codeBlockContainer_ndLh theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_mNgA"><pre tabindex="0" class="prism-code language-bash codeBlock_M_ZE thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_BFJL"><div class="token-line" style="color:#393A34"><span class="token plain">rev-dep config run --update-snapshot</span><br></div></code></pre></div></div>
+<p>Commit the snapshot alongside your config. CI keeps running <code>rev-dep config run</code> as usual. New findings fail the run, and fixed issues become obsolete findings that also require a snapshot update.</p>
+<p>Findings are saved in formatting-agnostic way so moving an import (eg. of missing dependency) to another line doesn't trigger new violations to the baseline.</p>
+<p>Duplicated code keeps its existing snapshot mechanism; the same update flag handles both.</p>
+<p>Read more in the <a class="" href="https://rev-dep.com/docs/config-based-checks/findings-baseline">findings baseline docs</a>.</p>
+<br>
+<p>That's it for this update, see you in the next one 👋</p>]]></content:encoded>
+        </item>
+        <item>
+            <title><![CDATA[Rev-dep 3.2.1 release]]></title>
+            <link>https://rev-dep.com/blog/rev-dep-3-2-1-release</link>
+            <guid>https://rev-dep.com/blog/rev-dep-3-2-1-release</guid>
+            <pubDate>Sat, 10 Oct 2026 00:00:00 GMT</pubDate>
+            <description><![CDATA[This patch version bump brings:]]></description>
+            <content:encoded><![CDATA[<p>This patch version bump brings:</p>
+<ul>
+<li class="">a fix for the npm wrapper truncating output and exiting with code <code>0</code> on failure</li>
+<li class="">validation of <code>config run</code> flag values</li>
+<li class=""><code>--lint-config</code> support in the <code>json</code> and <code>issues-list</code> output formats</li>
+<li class="">the same <code>--fix</code> exit code in every output format</li>
+<li class="">better detection of test files in <code>config init</code></li>
+<li class="">a fix for the <code>--follow-monorepo-packages</code> syntax in the docs and hints</li>
+</ul>
+<p><a href="https://github.com/jayu/rev-dep/releases/tag/3.2.1" target="_blank" rel="noopener noreferrer" class="">GitHub Release</a></p>
+<p>The first three fixes can make a CI run that passed before fail after the upgrade. In each case the run should have been failing all along - the problem was hidden. Please read these sections before upgrading.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="npm-wrapper-output-and-exit-code">npm wrapper output and exit code<a href="https://rev-dep.com/blog/rev-dep-3-2-1-release#npm-wrapper-output-and-exit-code" class="hash-link" aria-label="Direct link to npm wrapper output and exit code" title="Direct link to npm wrapper output and exit code" translate="no">​</a></h2>
+<p>When you run rev-dep installed from npm, a small Node.js script starts the native binary for your platform. Previously, that script collected the whole output in memory before printing it, which caused three problems:</p>
+<ul>
+<li class="">output larger than 1 MiB (Node.js implicit default) was cut off, and the process exited with code <code>0</code> even when checks failed</li>
+<li class="">when the output was piped, for example to <code>tee</code>, <code>jq</code> or a CI log processor, a failing run was cut off after 64 KB</li>
+<li class="">arguments containing <code>"</code>, <code>$</code> or backticks were interpreted by a shell instead of being passed to the binary</li>
+</ul>
+<p>On a large repository, this meant <code>config run</code> could fail and CI would still pass, and <code>--format json</code> could produce a truncated, invalid document.</p>
+<p>Now the binary writes directly to the terminal, pipe or file, so the output is never cut off and the exit code is always the binary's own. Arguments are passed to the binary exactly as given.</p>
+<p>If your CI started failing after the upgrade, check the output - those failures were there before, the wrapper just hid them.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="validation-of-config-run-flags">Validation of <code>config run</code> flags<a href="https://rev-dep.com/blog/rev-dep-3-2-1-release#validation-of-config-run-flags" class="hash-link" aria-label="Direct link to validation-of-config-run-flags" title="Direct link to validation-of-config-run-flags" translate="no">​</a></h2>
+<p>Some <code>config run</code> flag values were silently ignored. Now they fail with an error before any check runs:</p>
+<ul>
+<li class=""><code>--format</code> accepts only <code>json</code> and <code>issues-list</code>. Previously, any other value, including a different case like <code>JSON</code>, fell back to the default output.</li>
+<li class=""><code>--workspaces</code> fails when any listed path doesn't match a workspace in the config. Previously, a typo was only reported when none of the paths matched, so <code>--workspaces packages/app,packages/tpyo</code> silently ran only <code>packages/app</code>. Paths must be written exactly as in the config file.</li>
+<li class=""><code>--lint-config-rules</code> is validated before the run. Previously, an unknown rule name was reported only after all checks had finished.</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="config-lint-in-machine-readable-output">Config lint in machine-readable output<a href="https://rev-dep.com/blog/rev-dep-3-2-1-release#config-lint-in-machine-readable-output" class="hash-link" aria-label="Direct link to Config lint in machine-readable output" title="Direct link to Config lint in machine-readable output" translate="no">​</a></h2>
+<p>Previously, <code>--lint-config</code> and <code>--lint-config-rules</code> were silently skipped when used with <code>--format json</code> or <code>--format issues-list</code>. A CI step combining them passed even when the config lint found errors.</p>
+<p>Now the config is linted in every output format, and lint errors fail the run. With <code>--format issues-list</code>, the same summary line as in the default output is printed after the issues. With <code>--format json</code>, the counts are reported in a new top-level <code>lint</code> field:</p>
+<div class="language-json codeBlockContainer_ndLh theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_mNgA"><pre tabindex="0" class="prism-code language-json codeBlock_M_ZE thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_BFJL"><div class="token-line" style="color:#393A34"><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"version"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token string" style="color:#e3116c">"2.2"</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"hasFailures"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token boolean" style="color:#36acaa">false</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"workspaces"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">[</span><span class="token plain">...</span><span class="token punctuation" style="color:#393A34">]</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"fixSummary"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain">...</span><span class="token punctuation" style="color:#393A34">}</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain">  </span><span class="token property" style="color:#36acaa">"lint"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">{</span><span class="token plain"> </span><span class="token property" style="color:#36acaa">"errors"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">1</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token property" style="color:#36acaa">"warnings"</span><span class="token operator" style="color:#393A34">:</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">0</span><span class="token plain"> </span><span class="token punctuation" style="color:#393A34">}</span><span class="token plain"></span><br></div><div class="token-line" style="color:#393A34"><span class="token plain"></span><span class="token punctuation" style="color:#393A34">}</span><br></div></code></pre></div></div>
+<p>The field is present only when the config was linted. Lint findings don't set <code>hasFailures</code>, which still reports check failures only. The JSON output version is now <code>2.2</code> - validate against the <a href="https://github.com/jayu/rev-dep/blob/master/output-schema/2.2.schema.json" target="_blank" rel="noopener noreferrer" class="">2.2 schema</a>. Read more about <a class="" href="https://rev-dep.com/docs/config-based-checks/linting-the-config#linting-during-a-config-run">linting during a config run</a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="the-same---fix-exit-code-in-every-format">The same <code>--fix</code> exit code in every format<a href="https://rev-dep.com/blog/rev-dep-3-2-1-release#the-same---fix-exit-code-in-every-format" class="hash-link" aria-label="Direct link to the-same---fix-exit-code-in-every-format" title="Direct link to the-same---fix-exit-code-in-every-format" translate="no">​</a></h2>
+<p>With <code>--fix</code>, the default output exits with code <code>0</code> when every issue found was fixable and has been fixed. The <code>json</code> and <code>issues-list</code> formats exited with code <code>1</code> in that case, unless <code>--recheck</code> was also used.</p>
+<p>Now all formats follow the same rule: <code>0</code> when everything found was fixed, <code>1</code> when an issue remains that <code>--fix</code> can't fix. In JSON output, <code>hasFailures</code> still reports that the checks found issues before they were fixed. Read more about <a class="" href="https://rev-dep.com/docs/config-based-checks/running-checks-and-autofix#exit-code-nuance-with---fix-and---recheck">exit codes with <code>--fix</code> and <code>--recheck</code></a>.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="test-files-detection-in-config-init">Test files detection in <code>config init</code><a href="https://rev-dep.com/blog/rev-dep-3-2-1-release#test-files-detection-in-config-init" class="hash-link" aria-label="Direct link to test-files-detection-in-config-init" title="Direct link to test-files-detection-in-config-init" translate="no">​</a></h2>
+<p><code>config init</code> sorts the detected entry points into <code>prodEntryPoints</code> and <code>devEntryPoints</code>. Some common test file names were not recognized as development files, so they ended up in <code>prodEntryPoints</code>:</p>
+<ul>
+<li class=""><code>*.e2e-spec.ts</code>, used by NestJS</li>
+<li class=""><code>*.e2e-test.ts</code>, <code>*.integration-test.ts</code> and <code>*.integration-spec.ts</code></li>
+<li class="">Jest config and setup files like <code>jest-e2e.ts</code> or <code>jest.setup.ts</code></li>
+</ul>
+<p>A generated config then treated test code as production code - in one large project, 100 test files ended up as production entry points. Now these files are classified as development entry points. This affects only newly generated configs.</p>
+<h2 class="anchor anchorTargetStickyNavbar_KPin" id="--follow-monorepo-packages-syntax"><code>--follow-monorepo-packages</code> syntax<a href="https://rev-dep.com/blog/rev-dep-3-2-1-release#--follow-monorepo-packages-syntax" class="hash-link" aria-label="Direct link to --follow-monorepo-packages-syntax" title="Direct link to --follow-monorepo-packages-syntax" translate="no">​</a></h2>
+<p>To follow only selected packages, the list has to be passed with <code>=</code>:</p>
+<div class="language-bash codeBlockContainer_ndLh theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_mNgA"><pre tabindex="0" class="prism-code language-bash codeBlock_M_ZE thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_BFJL"><div class="token-line" style="color:#393A34"><span class="token plain">rev-dep resolve --file packages/app/src/main.tsx --follow-monorepo-packages=@acme/shared,@acme/ui</span><br></div></code></pre></div></div>
+<p>Written with a space, the list is not read as the flag's value, and every workspace package is followed. The docs and the hint printed after a restricted-imports failure showed the form with a space. Both are fixed, and the flag's help text now shows the <code>=</code> form. Read more about <a class="" href="https://rev-dep.com/docs/other-concepts-and-features/following-monorepo-packages">following monorepo packages</a>.</p>
+<br>
+<p>That's it for this update. See you in the next one 👋</p>]]></content:encoded>
+        </item>
         <item>
             <title><![CDATA[Rev-dep 3.2.0 release]]></title>
             <link>https://rev-dep.com/blog/rev-dep-3-2-release</link>

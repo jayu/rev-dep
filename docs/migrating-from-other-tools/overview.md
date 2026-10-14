@@ -18,6 +18,10 @@ rev-dep overlaps with a range of existing JavaScript/TypeScript analysis tools. 
 
 Each guide is honest about what rev-dep does **not** replace (for example graph visualization, or member-level unused detection), so you can decide whether to migrate fully or run rev-dep alongside a tool for a feature it does not cover.
 
+## Adopt checks with existing issues
+
+After confirming resolution and entry points, use a [findings baseline](../config-based-checks/findings-baseline.mdx) to acknowledge the issues found during migration. Add top-level `baselineSnapshotPath`, record it with `rev-dep config run --update-snapshot`, and commit the file. CI can then run `rev-dep config run` while you fix those issues gradually; new or obsolete findings fail and require review. Duplicated code uses its own specialized snapshots, updated with the same flag.
+
 ## Guides
 
 | From | rev-dep replaces it for |

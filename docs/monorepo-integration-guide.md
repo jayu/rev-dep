@@ -92,7 +92,7 @@ rev-dep config run --list-all-issues   # full report
 rev-dep config run --workspaces apps/web    # only selected workspaces
 ```
 
-Adopt checks incrementally - enable one, run it, resolve the findings, commit, repeat. That keeps CI noise manageable.
+Adopt checks incrementally - enable one, run it, resolve the findings, commit, repeat. If existing issues need to wait, you can [record a findings baseline](#acknowledge-existing-findings) and start detecting changes in CI while those issues remain acknowledged. Verify resolution and entry points first so the baseline reflects real problems.
 
 **Autofix** needs two things together: the check must have `"autofix": true` in the config, **and** you must pass `--fix`:
 
@@ -174,6 +174,8 @@ tuned - size and nesting floors, whether object literals count, how many copies 
 whether renamed copies should match. Learn more about the
 [`duplicatedCodeDetection`](./config-based-checks/checks/duplicated-code.mdx) check configuration and
 [how duplicated code detection works](./other-concepts-and-features/duplicated-code-detection.mdx).
+
+This snapshot covers duplicated code only. The [findings baseline](./config-based-checks/findings-baseline.mdx) acknowledges issues from the other checks. Both use `--update-snapshot`; if both are configured, the command updates both kinds of snapshot.
 
 ## 6. Entry points
 
@@ -400,3 +402,17 @@ rev-dep config run
 ```
 
 Run it on every PR to keep the dependency graph clean against both human and AI-introduced regressions. Add `--lint-config` to that step so the config itself is held to the same standard - a pattern that stopped matching anything (see [step 6](#keep-the-patterns-alive-as-the-project-moves)) then fails the build instead of quietly weakening a check. For machine-readable results, see [output formats](./config-based-checks/output-formats.mdx).
+
+### Acknowledge existing findings
+
+Once resolution and entry points are verified, a [findings baseline](./config-based-checks/findings-baseline.mdx) lets CI pass with acknowledged issues while you fix them gradually.
+
+Add `"baselineSnapshotPath": ".rev-dep.baseline.json"` at the **top level** of `.rev-dep.config.jsonc`, alongside `workspaces`. The path is relative to the config directory. From the monorepo root, record the findings across all configured workspaces and checks:
+
+```bash
+rev-dep config run --update-snapshot
+```
+
+Review and commit the config and baseline. Keep the ordinary `rev-dep config run` command in CI: acknowledged findings pass, and **new or obsolete findings fail**. Moving an import to a different line does not change its identity. After fixing an acknowledged issue or intentionally changing the checks, review the differences, run `--update-snapshot` locally, and commit the updated baseline. CI should compare the committed baseline rather than update it automatically.
+
+The general baseline excludes duplicated code, which uses the specialized snapshots from [step 5](#5-duplicated-code). The update command also rewrites every configured duplicated-code snapshot, so review those changes too. You can validate a selected workspace with `--workspaces`, but updating the general baseline requires a full run across all workspaces.

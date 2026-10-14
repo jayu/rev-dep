@@ -30,8 +30,13 @@ Available checks are:
 - `devDepsUsageOnProdDetection` - detect dev dependencies used in production code.
 - `unresolvedImportsDetection` - detect unresolved import requests.
 
+## Acknowledge existing findings
+
+Use a [findings baseline](./findings-baseline.mdx) to keep CI clean while existing issues are acknowledged. Configure `baselineSnapshotPath`, record it with `rev-dep config run --update-snapshot`, and commit the file. Subsequent runs fail on new or obsolete findings. Duplicated code retains its own specialized snapshots.
+
 ## Next steps
 
-New to config-based checks? Follow a step-by-step setup with the 
-- [Monorepo integration guide](../monorepo-integration-guide.mdx) 
+New to config-based checks? Follow a step-by-step setup with the:
+
+- [Monorepo integration guide](../monorepo-integration-guide.mdx).
 - [Single workspace integration guide](../single-workspace-integration-guide.mdx).

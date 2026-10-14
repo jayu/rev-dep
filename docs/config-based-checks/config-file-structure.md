@@ -15,6 +15,7 @@ Rev-dep automatically detects project context and creates scaffolding for each w
 ## Top-level fields
 
 - `configVersion`: Configuration version string
+- [`baselineSnapshotPath`](./findings-baseline.mdx): optional findings snapshot path, relative to the config directory; record it with `rev-dep config run --update-snapshot`.
 - `$schema`: JSON schema reference for validation
 - [`conditionNames`](other-concepts-and-features/module-resolution-and-path-aliases.mdx#condition-names): custom condition order for `package.json` imports/exports resolution.
 - [`customAssetExtensions`](other-concepts-and-features/supported-file-types.mdx#extending-asset-extensions): additional extensions that should be treated as resolvable imports.
@@ -71,9 +72,9 @@ Detectors support a shorthand so simple configs stay short:
 
 ```json
 {
-  "configVersion": "2.1",
+  "configVersion": "2.2",
   // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.1.schema.json?raw=true",
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.2.schema.json?raw=true",
   "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },
   "workspaces": [
     {
@@ -104,9 +105,9 @@ Here's a comprehensive example showing all available properties:
 
 ```json
 {
-  "configVersion": "2.1",
+  "configVersion": "2.2",
   // enables json autocompletion
-  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.1.schema.json?raw=true", 
+  "$schema": "https://github.com/jayu/rev-dep/blob/master/config-schema/2.2.schema.json?raw=true",
   "conditionNames": ["import", "default"],
   "ignoreFiles": ["**/*.test.*"],
   "nodeModulesResolution": { "resolutionType": "entry-package", "includeDevDepsFromRoot": false },

@@ -594,36 +594,59 @@ func validateConfigVersion(version string) error {
 	return fmt.Errorf("unsupported configVersion '%s'. Supported versions: %v", version, supportedConfigVersions)
 }
 
-var rootConfigFileNames = []string{hiddenConfigFileNameJsonc, hiddenConfigFileName, configFileNameJsonc, configFileName}
-
 // configDirFileNames follow the .config/ directory convention: https://github.com/pi0/config-dir
 var configDirFileNames = []string{"rev-dep.jsonc", "rev-dep.json", configFileNameJsonc, configFileName}
 
-// findConfigFile looks for a config file in dir, then in dir/.config.
-// A config file in dir wins over one in dir/.config.
+// findConfigFile looks for config files in the given directory
+// It checks for .rev-dep.config.jsonc, .rev-dep.config.json, rev-dep.config.jsonc, and rev-dep.config.json
+// If none exists, it checks dir/.config for configDirFileNames
 // Returns error if multiple files exist in the same directory (ambiguous configuration)
 func findConfigFile(dir string) (string, error) {
+	hiddenConfigPathJsonc := filepath.Join(dir, hiddenConfigFileNameJsonc)
+	hiddenConfigPath := filepath.Join(dir, hiddenConfigFileName)
+	regularConfigPathJsonc := filepath.Join(dir, configFileNameJsonc)
+	regularConfigPath := filepath.Join(dir, configFileName)
+
+	var foundFiles []string
+
+	// Check for all config file variants
+	if _, err := os.Stat(hiddenConfigPathJsonc); err == nil {
+		foundFiles = append(foundFiles, hiddenConfigPathJsonc)
+	}
+	if _, err := os.Stat(hiddenConfigPath); err == nil {
+		foundFiles = append(foundFiles, hiddenConfigPath)
+	}
+	if _, err := os.Stat(regularConfigPathJsonc); err == nil {
+		foundFiles = append(foundFiles, regularConfigPathJsonc)
+	}
+	if _, err := os.Stat(regularConfigPath); err == nil {
+		foundFiles = append(foundFiles, regularConfigPath)
+	}
+
+	// Multiple files exist - ambiguous configuration
+	if len(foundFiles) > 1 {
+		return "", fmt.Errorf("multiple config files found in %s: %v - please use only one config file", dir, foundFiles)
+	}
+
+	// Return the one that exists
+	if len(foundFiles) == 1 {
+		return foundFiles[0], nil
+	}
+
 	configDir := filepath.Join(dir, ".config")
-	for _, candidates := range []struct {
-		dir   string
-		names []string
-	}{{dir, rootConfigFileNames}, {configDir, configDirFileNames}} {
-		var foundFiles []string
-		for _, name := range candidates.names {
-			path := filepath.Join(candidates.dir, name)
-			if _, err := os.Stat(path); err == nil {
-				foundFiles = append(foundFiles, path)
-			}
+	for _, name := range configDirFileNames {
+		configDirPath := filepath.Join(configDir, name)
+		if _, err := os.Stat(configDirPath); err == nil {
+			foundFiles = append(foundFiles, configDirPath)
 		}
+	}
 
-		// Multiple files exist - ambiguous configuration
-		if len(foundFiles) > 1 {
-			return "", fmt.Errorf("multiple config files found in %s: %v - please use only one config file", candidates.dir, foundFiles)
-		}
+	if len(foundFiles) > 1 {
+		return "", fmt.Errorf("multiple config files found in %s: %v - please use only one config file", configDir, foundFiles)
+	}
 
-		if len(foundFiles) == 1 {
-			return foundFiles[0], nil
-		}
+	if len(foundFiles) == 1 {
+		return foundFiles[0], nil
 	}
 
 	return "", fmt.Errorf("no config file found in %s or %s", dir, configDir)

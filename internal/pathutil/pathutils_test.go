@@ -1,6 +1,9 @@
 package pathutil
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestIsAbsoluteInternalPath(t *testing.T) {
 	cases := []struct {
@@ -25,6 +28,23 @@ func TestIsAbsoluteInternalPath(t *testing.T) {
 	for _, c := range cases {
 		if got := IsAbsoluteInternalPath(c.path); got != c.want {
 			t.Errorf("IsAbsoluteInternalPath(%q) = %v, want %v", c.path, got, c.want)
+		}
+	}
+}
+
+func TestConfigRoot(t *testing.T) {
+	cases := []struct {
+		configPath string
+		want       string
+	}{
+		{"/repo/.rev-dep.config.jsonc", "/repo"},
+		{"/repo/.config/rev-dep.jsonc", "/repo"},
+		{"/repo/.config/rev-dep.config.json", "/repo"},
+	}
+
+	for _, c := range cases {
+		if got := ConfigRoot(filepath.FromSlash(c.configPath)); got != filepath.FromSlash(c.want) {
+			t.Errorf("ConfigRoot(%q) = %q, want %q", c.configPath, got, c.want)
 		}
 	}
 }

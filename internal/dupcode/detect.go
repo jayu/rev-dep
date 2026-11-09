@@ -86,7 +86,7 @@ func (f ConfigLevelFilters) Root() string {
 	if f.ConfigPath == "" {
 		return ""
 	}
-	return filepath.Dir(f.ConfigPath)
+	return pathutil.ConfigRoot(f.ConfigPath)
 }
 
 func (f ConfigLevelFilters) IsSet() bool {

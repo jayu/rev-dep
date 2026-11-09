@@ -15,6 +15,8 @@ Rev-dep automatically detects project context and creates scaffolding for each w
 
 > The config file can be named `rev-dep.config.json`, `rev-dep.config.jsonc`, `.rev-dep.config.json`, or `.rev-dep.config.jsonc` depending on your preference.
 
+> To keep the project root clean, put the config in a [`.config/` directory](https://github.com/pi0/config-dir) instead, as `.config/rev-dep.json`, `.config/rev-dep.jsonc`, `.config/rev-dep.config.json`, or `.config/rev-dep.config.jsonc`. Paths in the config, including `baselineSnapshotPath`, stay relative to the project root. A config file in the project root wins over one in `.config/`. Two config files in the same directory are an error.
+
 ## Top-level fields
 
 - `configVersion`: Configuration version string

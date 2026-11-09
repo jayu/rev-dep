@@ -594,42 +594,39 @@ func validateConfigVersion(version string) error {
 	return fmt.Errorf("unsupported configVersion '%s'. Supported versions: %v", version, supportedConfigVersions)
 }
 
-// findConfigFile looks for config files in the given directory
-// It checks for .rev-dep.config.jsonc, .rev-dep.config.json, rev-dep.config.jsonc, and rev-dep.config.json
-// Returns error if multiple files exist (ambiguous configuration)
+var rootConfigFileNames = []string{hiddenConfigFileNameJsonc, hiddenConfigFileName, configFileNameJsonc, configFileName}
+
+// configDirFileNames follow the .config/ directory convention: https://github.com/pi0/config-dir
+var configDirFileNames = []string{"rev-dep.jsonc", "rev-dep.json", configFileNameJsonc, configFileName}
+
+// findConfigFile looks for a config file in dir, then in dir/.config.
+// A config file in dir wins over one in dir/.config.
+// Returns error if multiple files exist in the same directory (ambiguous configuration)
 func findConfigFile(dir string) (string, error) {
-	hiddenConfigPathJsonc := filepath.Join(dir, hiddenConfigFileNameJsonc)
-	hiddenConfigPath := filepath.Join(dir, hiddenConfigFileName)
-	regularConfigPathJsonc := filepath.Join(dir, configFileNameJsonc)
-	regularConfigPath := filepath.Join(dir, configFileName)
+	configDir := filepath.Join(dir, ".config")
+	for _, candidates := range []struct {
+		dir   string
+		names []string
+	}{{dir, rootConfigFileNames}, {configDir, configDirFileNames}} {
+		var foundFiles []string
+		for _, name := range candidates.names {
+			path := filepath.Join(candidates.dir, name)
+			if _, err := os.Stat(path); err == nil {
+				foundFiles = append(foundFiles, path)
+			}
+		}
 
-	var foundFiles []string
+		// Multiple files exist - ambiguous configuration
+		if len(foundFiles) > 1 {
+			return "", fmt.Errorf("multiple config files found in %s: %v - please use only one config file", candidates.dir, foundFiles)
+		}
 
-	// Check for all config file variants
-	if _, err := os.Stat(hiddenConfigPathJsonc); err == nil {
-		foundFiles = append(foundFiles, hiddenConfigPathJsonc)
-	}
-	if _, err := os.Stat(hiddenConfigPath); err == nil {
-		foundFiles = append(foundFiles, hiddenConfigPath)
-	}
-	if _, err := os.Stat(regularConfigPathJsonc); err == nil {
-		foundFiles = append(foundFiles, regularConfigPathJsonc)
-	}
-	if _, err := os.Stat(regularConfigPath); err == nil {
-		foundFiles = append(foundFiles, regularConfigPath)
-	}
-
-	// Multiple files exist - ambiguous configuration
-	if len(foundFiles) > 1 {
-		return "", fmt.Errorf("multiple config files found in %s: %v - please use only one config file", dir, foundFiles)
+		if len(foundFiles) == 1 {
+			return foundFiles[0], nil
+		}
 	}
 
-	// Return the one that exists
-	if len(foundFiles) == 1 {
-		return foundFiles[0], nil
-	}
-
-	return "", fmt.Errorf("no config file found in %s", dir)
+	return "", fmt.Errorf("no config file found in %s or %s", dir, configDir)
 }
 
 func FindConfigFile(dir string) (string, error) {
@@ -637,7 +634,7 @@ func FindConfigFile(dir string) (string, error) {
 }
 
 // LoadConfig loads the rev-dep configuration from the specified path.
-// configPath can be a specific file path or a directory containing rev-dep.config.json or rev-dep.config.jsonc.
+// configPath can be a specific file path or a directory containing a config file (see findConfigFile).
 // Returns a single RevDepConfig object.
 func LoadConfig(configPath string) (RevDepConfig, error) {
 	content, path, err := readConfigFile(configPath)

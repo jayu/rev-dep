@@ -308,3 +308,15 @@ func TestBaselineFilteringPreservesLiveDiagnosticOrder(t *testing.T) {
 		t.Fatal("snapshot canonical order changed")
 	}
 }
+
+func TestBaselineSnapshotFileFromConfigDir(t *testing.T) {
+	root := t.TempDir()
+	cfg := RevDepConfig{SourcePath: filepath.Join(root, ".config", "rev-dep.jsonc"), BaselineSnapshotPath: ".rev-dep.baseline.json"}
+	got, err := BaselineSnapshotFile(&cfg, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(root, ".rev-dep.baseline.json"); got != want {
+		t.Errorf("BaselineSnapshotFile() = %q, want %q", got, want)
+	}
+}

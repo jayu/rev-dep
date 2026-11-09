@@ -246,7 +246,7 @@ Duplicated code has its own specialized snapshots and is excluded from the gener
 
 ### Configuration Structure
 
-The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`, or `rev-dep.json(c)` in a `.config/` directory) allows you to define multiple workspaces, each targeting different parts of your codebase with specific checks enabled.
+The configuration file (`rev-dep.config.json(c)` or `.rev-dep.config.json(c)`, or `rev-dep.json(c)` or `rev-dep.config.json(c)` in a `.config/` directory, see [config file structure](https://rev-dep.com/docs/config-based-checks/config-file-structure)) allows you to define multiple workspaces, each targeting different parts of your codebase with specific checks enabled.
 
 #### Quick Start Configuration
 

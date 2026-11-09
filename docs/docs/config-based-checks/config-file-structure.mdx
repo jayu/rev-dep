@@ -20,7 +20,7 @@ Rev-dep automatically detects project context and creates scaffolding for each w
 ## Top-level fields
 
 - `configVersion`: Configuration version string
-- [`baselineSnapshotPath`](./findings-baseline.mdx): optional findings snapshot path, relative to the config directory; record it with `rev-dep config run --update-snapshot`.
+- [`baselineSnapshotPath`](./findings-baseline.mdx): optional findings snapshot path, relative to the project root; record it with `rev-dep config run --update-snapshot`.
 - `$schema`: JSON schema reference for validation
 - [`conditionNames`](other-concepts-and-features/module-resolution-and-path-aliases.mdx#condition-names): custom condition order for `package.json` imports/exports resolution.
 - [`customAssetExtensions`](other-concepts-and-features/supported-file-types.mdx#extending-asset-extensions): additional extensions that should be treated as resolvable imports.

@@ -6,13 +6,21 @@ authors: [jayu]
 
 # Rev-dep 3.4.0 is here!
 
-This version adds support for keeping the config file in a `.config/` directory.
+This version adds support for keeping the config file in a `.config/` directory and improves TypeScript config inheritance.
+
+## Config file location
 
 You can now use `.config/rev-dep.json`, `.config/rev-dep.jsonc`, `.config/rev-dep.config.json` or `.config/rev-dep.config.jsonc`. Paths inside the config stay relative to the project root, so there is no need to adjust them after moving the file.
 
 Rev-dep checks both locations and returns an error if more than one config file is found. Make sure to remove the old file when moving it to `.config/`.
 
 Read more in the [config file structure docs](/docs/config-based-checks/config-file-structure#config-file-location).
+
+## TypeScript config inheritance
+
+Rev-dep now supports arrays in the `extends` field of `tsconfig.json`. Later configs take precedence over earlier ones, and the project's own settings override all parents.
+
+Defining `paths` or `types` now replaces the entire inherited value instead of merging it, matching TypeScript's behavior. Empty values clear inherited settings. This may reveal unresolved imports for aliases that were overridden. If you need parent aliases alongside your own, include all required aliases in your overriding `paths` map.
 
 <br/>
 

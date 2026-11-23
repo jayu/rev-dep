@@ -1,0 +1,19 @@
+---
+slug: rev-dep-3-4-release
+title: Rev-dep 3.4.0 is here!
+authors: [jayu]
+---
+
+# Rev-dep 3.4.0 is here!
+
+This version adds support for keeping the config file in a `.config/` directory.
+
+You can now use `.config/rev-dep.json`, `.config/rev-dep.jsonc`, `.config/rev-dep.config.json` or `.config/rev-dep.config.jsonc`. Paths inside the config stay relative to the project root, so there is no need to adjust them after moving the file.
+
+Rev-dep checks both locations and returns an error if more than one config file is found. Make sure to remove the old file when moving it to `.config/`.
+
+Read more in the [config file structure docs](/docs/config-based-checks/config-file-structure#config-file-location).
+
+<br/>
+
+That's it for this update, see you in the next one 👋

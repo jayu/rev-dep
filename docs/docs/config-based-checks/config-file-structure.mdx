@@ -15,14 +15,14 @@ Rev-dep automatically detects project context and creates scaffolding for each w
 
 ## Config file location
 
-rev-dep looks for the config file in the directory it runs in, then in its `.config/` directory ([config-dir convention](https://github.com/pi0/config-dir)). rev-dep uses the first directory that holds a config file:
+rev-dep looks for the config file in both the directory it runs in and its `.config/` directory ([config-dir convention](https://github.com/pi0/config-dir)):
 
-| Order | Directory     | File names                                                                                   |
-| ----- | ------------- | -------------------------------------------------------------------------------------------- |
-| 1     | project root  | `rev-dep.config.json`, `rev-dep.config.jsonc`, `.rev-dep.config.json`, `.rev-dep.config.jsonc` |
-| 2     | `.config/`    | `rev-dep.json`, `rev-dep.jsonc`, `rev-dep.config.json`, `rev-dep.config.jsonc`                 |
+| Directory    | File names                                                                              |
+| ------------ | --------------------------------------------------------------------------------------- |
+| project root | `rev-dep.config.json`, `rev-dep.config.jsonc`, `.rev-dep.config.json`, `.rev-dep.config.jsonc` |
+| `.config/`   | `rev-dep.json`, `rev-dep.jsonc`, `rev-dep.config.json`, `rev-dep.config.jsonc`                |
 
-Two config files in the same directory are an error. Paths in the config, including `baselineSnapshotPath`, stay relative to the project root, also when the file is in `.config/`.
+Multiple config files are an error, including when one is in the project root and another is in `.config/`. Paths in the config, including `baselineSnapshotPath`, stay relative to the project root, also when the file is in `.config/`.
 
 ## Top-level fields
 

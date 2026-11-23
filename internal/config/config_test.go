@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"rev-dep-go/internal/model"
@@ -1461,6 +1462,13 @@ func TestFindConfigFile(t *testing.T) {
 			expectedFile: ".config/rev-dep.jsonc",
 		},
 		{
+			name: ".config/rev-dep.json only",
+			createFiles: map[string]string{
+				".config/rev-dep.json": `{"configVersion": "1.0", "workspaces": []}`,
+			},
+			expectedFile: ".config/rev-dep.json",
+		},
+		{
 			name: ".config/rev-dep.config.json only",
 			createFiles: map[string]string{
 				".config/rev-dep.config.json": `{"configVersion": "1.0", "workspaces": []}`,
@@ -1468,12 +1476,36 @@ func TestFindConfigFile(t *testing.T) {
 			expectedFile: ".config/rev-dep.config.json",
 		},
 		{
-			name: "root config wins over .config",
+			name: ".config/rev-dep.config.jsonc only",
+			createFiles: map[string]string{
+				".config/rev-dep.config.jsonc": `{"configVersion": "1.0", "workspaces": []}`,
+			},
+			expectedFile: ".config/rev-dep.config.jsonc",
+		},
+		{
+			name: "root and .config configs present (should error)",
 			createFiles: map[string]string{
 				".rev-dep.config.jsonc": `{"configVersion": "1.0", "workspaces": []}`,
 				".config/rev-dep.json":  `{"configVersion": "2.0.0", "workspaces": []}`,
 			},
-			expectedFile: ".rev-dep.config.jsonc",
+			shouldError: true,
+		},
+		{
+			name: "same config filename in root and .config (should error)",
+			createFiles: map[string]string{
+				"rev-dep.config.json":         `{"configVersion": "1.0", "workspaces": []}`,
+				".config/rev-dep.config.json": `{"configVersion": "1.0", "workspaces": []}`,
+			},
+			shouldError: true,
+		},
+		{
+			name: "root config and multiple configs in .config (should error)",
+			createFiles: map[string]string{
+				"rev-dep.config.jsonc":         `{"configVersion": "1.0", "workspaces": []}`,
+				".config/rev-dep.jsonc":        `{"configVersion": "1.0", "workspaces": []}`,
+				".config/rev-dep.config.jsonc": `{"configVersion": "1.0", "workspaces": []}`,
+			},
+			shouldError: true,
 		},
 		{
 			name: "two configs in .config (should error)",
@@ -1510,7 +1542,22 @@ func TestFindConfigFile(t *testing.T) {
 			foundPath, err := findConfigFile(tempDir)
 			if tt.shouldError {
 				if err == nil {
-					t.Errorf("Expected error for %s, got nil", tt.name)
+					t.Fatalf("Expected error for %s, got nil", tt.name)
+				}
+				if foundPath != "" {
+					t.Errorf("Expected no config path on error, got %s", foundPath)
+				}
+				if len(tt.createFiles) > 1 {
+					if !strings.Contains(err.Error(), "multiple config files found") {
+						t.Errorf("Expected multiple config files error, got %v", err)
+					}
+					for fileName := range tt.createFiles {
+						if filePath := filepath.Join(tempDir, fileName); !strings.Contains(err.Error(), filePath) {
+							t.Errorf("Expected error to include conflicting config path %s, got %v", filePath, err)
+						}
+					}
+				} else if !strings.Contains(err.Error(), "no config file found") {
+					t.Errorf("Expected no config file error, got %v", err)
 				}
 			} else {
 				if err != nil {

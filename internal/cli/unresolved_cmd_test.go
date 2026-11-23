@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"rev-dep-go/internal/config"
+	"rev-dep-go/internal/diag"
 	globutil "rev-dep-go/internal/glob"
 	"rev-dep-go/internal/model"
 	"rev-dep-go/internal/resolve"
@@ -31,6 +32,109 @@ func TestUnresolvedCmdRun(t *testing.T) {
 
 	if out == "" {
 		t.Errorf("Expected non-empty output from getUnresolvedOutput, got empty string")
+	}
+}
+
+func TestUnresolvedCmdRun_TsconfigOptionReplacement(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"package.json": `{"name":"multiple-tsconfig-parents","private":true}`,
+		"configs/first.json": `{
+			"extends":"./shared.json",
+			"compilerOptions":{"paths":{"@first/*":["../src/first/*"]}}
+		}`,
+		"configs/second.json": `{
+			"extends":["./shared.json"],
+			"compilerOptions":{"paths":{"@second/*":["../src/second/*"]}}
+		}`,
+		"configs/shared.json":  `{"compilerOptions":{"paths":{"@shared/*":["../src/shared/*"]}}}`,
+		"configs/inherit.json": `{"extends":"./shared.json"}`,
+		"src/index.ts": `import '@first/value';
+import '@second/value';
+import '@shared/value';
+import '@child/value';
+import '@missing';
+`,
+		"src/first/value.ts":  `export const value = 1;`,
+		"src/second/value.ts": `export const value = 2;`,
+		"src/shared/value.ts": `export const value = 3;`,
+		"src/child/value.ts":  `export const value = 4;`,
+	}
+	for name, content := range files {
+		filename := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tests := []struct {
+		name       string
+		config     string
+		unresolved []string
+	}{
+		{
+			name:       "later parent replaces earlier aliases",
+			config:     `{"extends":["./configs/first.json","./configs/second.json"]}`,
+			unresolved: []string{"@first/value", "@shared/value", "@child/value", "@missing"},
+		},
+		{
+			name:       "child replaces all parent aliases",
+			config:     `{"extends":["./configs/first.json","./configs/second.json"],"compilerOptions":{"paths":{"@child/*":["src/child/*"]}}}`,
+			unresolved: []string{"@first/value", "@second/value", "@shared/value", "@missing"},
+		},
+		{
+			name:       "empty child paths clear inherited aliases",
+			config:     `{"extends":["./configs/first.json","./configs/second.json"],"compilerOptions":{"paths":{}}}`,
+			unresolved: []string{"@first/value", "@second/value", "@shared/value", "@child/value", "@missing"},
+		},
+		{
+			name:       "omitted child paths inherit the effective parent aliases",
+			config:     `{"extends":["./configs/first.json","./configs/second.json"],"compilerOptions":{"strict":true}}`,
+			unresolved: []string{"@first/value", "@shared/value", "@child/value", "@missing"},
+		},
+		{
+			name:       "string inheritance replaces base aliases",
+			config:     `{"extends":"./configs/first.json"}`,
+			unresolved: []string{"@second/value", "@shared/value", "@child/value", "@missing"},
+		},
+		{
+			name:       "child replaces aliases from a string parent",
+			config:     `{"extends":"./configs/first.json","compilerOptions":{"paths":{"@child/*":["src/child/*"]}}}`,
+			unresolved: []string{"@first/value", "@second/value", "@shared/value", "@missing"},
+		},
+		{
+			name:       "shared ancestor aliases are inherited independently",
+			config:     `{"extends":["./configs/first.json","./configs/inherit.json"]}`,
+			unresolved: []string{"@first/value", "@second/value", "@child/value", "@missing"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := os.WriteFile(filepath.Join(root, "tsconfig.json"), []byte(tt.config), 0644); err != nil {
+				t.Fatal(err)
+			}
+			diag.SetVerbose(true)
+			t.Cleanup(func() { diag.SetVerbose(false) })
+			var out string
+			warnings, err := captureOutput(func() error {
+				var err error
+				out, err = getUnresolvedOutput(root, "tsconfig.json", nil, model.FollowMonorepoPackagesValue{}, nil, nil, nil)
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warnings != "" {
+				t.Fatalf("unexpected warnings for valid parent configs: %s", warnings)
+			}
+			want := "src/index.ts\n  - " + strings.Join(tt.unresolved, "\n  - ") + "\n"
+			if out != want {
+				t.Fatalf("unresolved imports = %q, want %q", out, want)
+			}
+		})
 	}
 }
 

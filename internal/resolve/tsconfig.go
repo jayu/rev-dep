@@ -13,12 +13,11 @@ import (
 )
 
 // ParseTsConfig reads tsconfig from disk (JSON or JSONC) at tsconfigPath and
-// resolves any extended configs via the "extends" field. It returns a
-// merged JSON bytes containing at least compilerOptions.paths,
-// compilerOptions.baseUrl and compilerOptions.types. Merging rules:
-// - child overrides base for baseUrl
-// - paths are merged with child keys overriding base keys
-// - types arrays are combined with child entries first and de-duplicated
+// resolves any extended configs via a string or array in the "extends" field.
+// Later parents override earlier parents, and the child overrides all parents.
+// Compiler options are merged by name, with explicitly supplied values replacing
+// inherited values wholesale. This includes empty paths objects and types arrays.
+// It returns the merged configuration as JSON bytes.
 func ParseTsConfig(tsconfigPath string) ([]byte, error) {
 	// read file
 	content, err := os.ReadFile(tsconfigPath)
@@ -35,9 +34,13 @@ func ParseTsConfig(tsconfigPath string) ([]byte, error) {
 	}
 
 	baseDir := filepath.Dir(tsconfigPath)
+	absPath, err := filepath.Abs(tsconfigPath)
+	if err != nil {
+		return nil, err
+	}
 
 	// resolve extends recursively
-	merged, err := resolveExtends(raw, baseDir, map[string]bool{})
+	merged, err := resolveExtends(raw, baseDir, map[string]bool{absPath: true})
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +52,7 @@ func ParseTsConfig(tsconfigPath string) ([]byte, error) {
 	return out, nil
 }
 
-func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]bool) (map[string]interface{}, error) {
+func resolveExtends(cfg map[string]interface{}, baseDir string, active map[string]bool) (map[string]interface{}, error) {
 	// start with a copy of cfg
 	result := map[string]interface{}{}
 	for k, v := range cfg {
@@ -63,13 +66,43 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 		return result, nil
 	}
 
-	extStr, ok := ext.(string)
-	if !ok || strings.TrimSpace(extStr) == "" {
-		diag.Warnf("invalid tsconfig extends in %q: expected a nonempty string", baseDir)
+	var parents []interface{}
+	switch value := ext.(type) {
+	case string:
+		parents = []interface{}{value}
+	case []interface{}:
+		parents = value
+	default:
+		diag.Warnf("invalid tsconfig extends in %q: expected a nonempty string or an array of nonempty strings", baseDir)
 		ensureCompilerOptions(result)
 		return result, nil
 	}
 
+	merged := map[string]interface{}{}
+	for i, parent := range parents {
+		extStr, ok := parent.(string)
+		if !ok || strings.TrimSpace(extStr) == "" {
+			diag.Warnf("invalid tsconfig extends entry %d in %q: expected a nonempty string", i, baseDir)
+			continue
+		}
+
+		resolvedBase, err := resolveExtendedTsConfig(extStr, baseDir, active)
+		if err != nil {
+			return nil, err
+		}
+		merged = mergeTsConfigs(merged, resolvedBase)
+	}
+
+	merged = mergeTsConfigs(merged, result)
+	delete(merged, "extends")
+	ensureCompilerOptions(merged)
+	return merged, nil
+}
+
+// resolveExtendedTsConfig loads one parent and rebases its inherited paths to
+// baseDir. active contains only configs on the current recursion chain, so
+// sibling parents may extend the same base without being treated as a cycle.
+func resolveExtendedTsConfig(extStr, baseDir string, active map[string]bool) (map[string]interface{}, error) {
 	// resolve path of extends
 	candidates := []string{}
 
@@ -125,23 +158,24 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 
 	if baseCfg == nil {
 		diag.Warnf("could not resolve tsconfig extends %q from %q; continuing without its settings", extStr, baseDir)
-		// Not found - nothing to merge
-		ensureCompilerOptions(result)
-		return result, nil
+		return nil, nil
 	}
 
 	// avoid cycles
-	absFound, _ := filepath.Abs(foundPath)
-	if seen[absFound] {
-		diag.Warnf("circular tsconfig extends at %q; continuing without its settings", foundPath)
-		ensureCompilerOptions(result)
-		return result, nil
+	absFound, err := filepath.Abs(foundPath)
+	if err != nil {
+		return nil, err
 	}
-	seen[absFound] = true
+	if active[absFound] {
+		diag.Warnf("circular tsconfig extends at %q; continuing without its settings", foundPath)
+		return nil, nil
+	}
+	active[absFound] = true
+	defer delete(active, absFound)
 
 	// resolve base's extends first
 	baseDirNext := filepath.Dir(foundPath)
-	resolvedBase, err := resolveExtends(baseCfg, baseDirNext, seen)
+	resolvedBase, err := resolveExtends(baseCfg, baseDirNext, active)
 	if err != nil {
 		return nil, err
 	}
@@ -152,40 +186,27 @@ func resolveExtends(cfg map[string]interface{}, baseDir string, seen map[string]
 	// child config we must adjust them to point correctly from the child's
 	// directory.
 	rebasePaths(resolvedBase, baseDirNext, baseDir)
+	return resolvedBase, nil
+}
 
-	// merge resolvedBase into result: child (result) overrides base
+func mergeTsConfigs(base, child map[string]interface{}) map[string]interface{} {
 	merged := map[string]interface{}{}
 	// copy base first
-	for k, v := range resolvedBase {
+	for k, v := range base {
 		merged[k] = v
 	}
 	// then overlay child
-	for k, v := range result {
+	for k, v := range child {
 		if k == "compilerOptions" {
-			// special merge for compilerOptions
-			baseCO := map[string]interface{}{}
-			if bo, ok := merged["compilerOptions"].(map[string]interface{}); ok {
-				for kk, vv := range bo {
-					baseCO[kk] = vv
-				}
-			}
-			childCO := map[string]interface{}{}
-			if co, ok := v.(map[string]interface{}); ok {
-				for kk, vv := range co {
-					childCO[kk] = vv
-				}
-			}
-			mergedCO := mergeCompilerOptions(baseCO, childCO)
-			merged["compilerOptions"] = mergedCO
+			baseCO, _ := merged["compilerOptions"].(map[string]interface{})
+			childCO, _ := v.(map[string]interface{})
+			merged["compilerOptions"] = mergeCompilerOptions(baseCO, childCO)
 		} else {
 			merged[k] = v
 		}
 	}
 
-	// remove extends from final result
-	delete(merged, "extends")
-	ensureCompilerOptions(merged)
-	return merged, nil
+	return merged
 }
 
 // tsConfigPackageExtendsCandidates returns candidate file paths for a bare
@@ -250,65 +271,9 @@ func mergeCompilerOptions(base, child map[string]interface{}) map[string]interfa
 		out[k] = v
 	}
 
-	// handle paths specially (merge keys, child overrides)
-	if basePaths, ok := base["paths"].(map[string]interface{}); ok {
-		// copy base paths
-		newPaths := map[string]interface{}{}
-		for k, v := range basePaths {
-			newPaths[k] = v
-		}
-		out["paths"] = newPaths
-	}
-
-	// copy child keys, overriding
+	// TypeScript replaces each supplied option as a whole, including paths and
+	// types. Missing keys inherit; explicit empty objects or arrays clear them.
 	for k, v := range child {
-		if k == "paths" {
-			childPaths, ok := v.(map[string]interface{})
-			if !ok {
-				out["paths"] = v
-				continue
-			}
-			basePaths := map[string]interface{}{}
-			if bp, ok := out["paths"].(map[string]interface{}); ok {
-				for kk, vv := range bp {
-					basePaths[kk] = vv
-				}
-			}
-			for kk, vv := range childPaths {
-				basePaths[kk] = vv
-			}
-			out["paths"] = basePaths
-			continue
-		}
-
-		if k == "types" {
-			// combine arrays, child first, dedup
-			combined := []interface{}{}
-			seen := map[string]bool{}
-			if chArr, ok := v.([]interface{}); ok {
-				for _, e := range chArr {
-					if s, ok := e.(string); ok {
-						if !seen[s] {
-							combined = append(combined, s)
-							seen[s] = true
-						}
-					}
-				}
-			}
-			if bArr, ok := base["types"].([]interface{}); ok {
-				for _, e := range bArr {
-					if s, ok := e.(string); ok {
-						if !seen[s] {
-							combined = append(combined, s)
-							seen[s] = true
-						}
-					}
-				}
-			}
-			out["types"] = combined
-			continue
-		}
-
 		out[k] = v
 	}
 

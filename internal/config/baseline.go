@@ -15,7 +15,7 @@ import (
 func BaselineSnapshotFile(cfg *RevDepConfig, cwd string) (string, error) {
 	root := cwd
 	if cfg.SourcePath != "" {
-		root = filepath.Dir(cfg.SourcePath)
+		root = pathutil.ConfigRoot(cfg.SourcePath)
 	}
 	filename := resolveSnapshotPath(cfg.BaselineSnapshotPath, root)
 	if cfg.SourcePath != "" && filepath.Clean(filename) == filepath.Clean(cfg.SourcePath) {
@@ -41,7 +41,7 @@ func ApplyFindingsBaseline(cfg *RevDepConfig, cwd string, result *ConfigProcessi
 	}
 	root := cwd
 	if cfg.SourcePath != "" {
-		root = filepath.Dir(cfg.SourcePath)
+		root = pathutil.ConfigRoot(cfg.SourcePath)
 	}
 	relative := func(value string) string {
 		if value == "" {

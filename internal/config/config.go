@@ -594,9 +594,13 @@ func validateConfigVersion(version string) error {
 	return fmt.Errorf("unsupported configVersion '%s'. Supported versions: %v", version, supportedConfigVersions)
 }
 
+// configDirFileNames follow the .config/ directory convention: https://github.com/pi0/config-dir
+var configDirFileNames = []string{"rev-dep.jsonc", "rev-dep.json", configFileNameJsonc, configFileName}
+
 // findConfigFile looks for config files in the given directory
 // It checks for .rev-dep.config.jsonc, .rev-dep.config.json, rev-dep.config.jsonc, and rev-dep.config.json
-// Returns error if multiple files exist (ambiguous configuration)
+// If none exists, it checks dir/.config for configDirFileNames
+// Returns error if multiple files exist in the same directory (ambiguous configuration)
 func findConfigFile(dir string) (string, error) {
 	hiddenConfigPathJsonc := filepath.Join(dir, hiddenConfigFileNameJsonc)
 	hiddenConfigPath := filepath.Join(dir, hiddenConfigFileName)
@@ -629,7 +633,23 @@ func findConfigFile(dir string) (string, error) {
 		return foundFiles[0], nil
 	}
 
-	return "", fmt.Errorf("no config file found in %s", dir)
+	configDir := filepath.Join(dir, ".config")
+	for _, name := range configDirFileNames {
+		configDirPath := filepath.Join(configDir, name)
+		if _, err := os.Stat(configDirPath); err == nil {
+			foundFiles = append(foundFiles, configDirPath)
+		}
+	}
+
+	if len(foundFiles) > 1 {
+		return "", fmt.Errorf("multiple config files found in %s: %v - please use only one config file", configDir, foundFiles)
+	}
+
+	if len(foundFiles) == 1 {
+		return foundFiles[0], nil
+	}
+
+	return "", fmt.Errorf("no config file found in %s or %s", dir, configDir)
 }
 
 func FindConfigFile(dir string) (string, error) {
@@ -637,7 +657,7 @@ func FindConfigFile(dir string) (string, error) {
 }
 
 // LoadConfig loads the rev-dep configuration from the specified path.
-// configPath can be a specific file path or a directory containing rev-dep.config.json or rev-dep.config.jsonc.
+// configPath can be a specific file path or a directory containing a config file (see findConfigFile).
 // Returns a single RevDepConfig object.
 func LoadConfig(configPath string) (RevDepConfig, error) {
 	content, path, err := readConfigFile(configPath)

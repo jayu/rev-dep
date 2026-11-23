@@ -38,3 +38,13 @@ func JoinWithCwd(cwd string, filePath string) string {
 	}
 	return filepath.Join(cwd, filePath)
 }
+
+// ConfigRoot returns the directory that paths in a config file are relative to: the project
+// root, also when the config file is in the project's .config/ directory.
+func ConfigRoot(configPath string) string {
+	dir := filepath.Dir(configPath)
+	if filepath.Base(dir) == ".config" {
+		return filepath.Dir(dir)
+	}
+	return dir
+}

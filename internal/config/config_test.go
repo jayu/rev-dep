@@ -1377,13 +1377,6 @@ func equalStringSlices(a, b []string) bool {
 }
 
 func TestFindConfigFile(t *testing.T) {
-	// Create a temporary directory for testing
-	tempDir, err := os.MkdirTemp("", "rev-dep-config-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
 	tests := []struct {
 		name         string
 		createFiles  map[string]string
@@ -1461,6 +1454,36 @@ func TestFindConfigFile(t *testing.T) {
 			shouldError:  true,
 		},
 		{
+			name: ".config/rev-dep.jsonc only",
+			createFiles: map[string]string{
+				".config/rev-dep.jsonc": `{"configVersion": "1.0", "workspaces": []}`,
+			},
+			expectedFile: ".config/rev-dep.jsonc",
+		},
+		{
+			name: ".config/rev-dep.config.json only",
+			createFiles: map[string]string{
+				".config/rev-dep.config.json": `{"configVersion": "1.0", "workspaces": []}`,
+			},
+			expectedFile: ".config/rev-dep.config.json",
+		},
+		{
+			name: "root config wins over .config",
+			createFiles: map[string]string{
+				".rev-dep.config.jsonc": `{"configVersion": "1.0", "workspaces": []}`,
+				".config/rev-dep.json":  `{"configVersion": "2.0.0", "workspaces": []}`,
+			},
+			expectedFile: ".rev-dep.config.jsonc",
+		},
+		{
+			name: "two configs in .config (should error)",
+			createFiles: map[string]string{
+				".config/rev-dep.jsonc":       `{"configVersion": "1.0", "workspaces": []}`,
+				".config/rev-dep.config.json": `{"configVersion": "2.0.0", "workspaces": []}`,
+			},
+			shouldError: true,
+		},
+		{
 			name:         "no config files",
 			createFiles:  map[string]string{},
 			expectedFile: "",
@@ -1470,21 +1493,14 @@ func TestFindConfigFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up any existing files first
-			for fileName := range tt.createFiles {
-				os.Remove(filepath.Join(tempDir, fileName))
-			}
-			// Also remove the other config files if they're not in this test
-			configFiles := []string{".rev-dep.config.json", "rev-dep.config.json", ".rev-dep.config.jsonc", "rev-dep.config.jsonc"}
-			for _, configFile := range configFiles {
-				if tt.createFiles[configFile] == "" {
-					os.Remove(filepath.Join(tempDir, configFile))
-				}
-			}
+			tempDir := t.TempDir()
 
 			// Create test files
 			for fileName, content := range tt.createFiles {
 				filePath := filepath.Join(tempDir, fileName)
+				if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+					t.Fatalf("Failed to create dir for %s: %v", fileName, err)
+				}
 				if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 					t.Fatalf("Failed to create file %s: %v", fileName, err)
 				}
@@ -1504,11 +1520,6 @@ func TestFindConfigFile(t *testing.T) {
 				if foundPath != expectedPath {
 					t.Errorf("Expected path %s, got %s", expectedPath, foundPath)
 				}
-			}
-
-			// Clean up files after test
-			for fileName := range tt.createFiles {
-				os.Remove(filepath.Join(tempDir, fileName))
 			}
 		})
 	}
